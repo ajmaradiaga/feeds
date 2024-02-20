@@ -2,89 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://github.com/ajmaradiaga/feeds/scmt/topics/ABAP-RESTful-Application-Programming-Model-qa.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2024-02-20T15:49:52.822242+00:00</updated>
+  <updated>2024-02-20T19:19:30.390913+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/objectpage-not-found-when-using-factory-copy-action/qaq-p/13599790</id>
-    <title>ObjectPage not found when using factory Copy Action</title>
-    <updated>2024-02-08T18:37:59.111000+01:00</updated>
-    <author>
-      <name>HugoJ</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/138951</uri>
-    </author>
-    <content>&lt;P&gt;Hi, I'm implementing a RAP-based Fiori App, similar to the Travel app as seen in many RAP tutorials.&lt;/P&gt;&lt;P&gt;Currently I'm facing an issue implementing the action to Copy an instance to a new one with draft enabled. When I click the action to copy, the backend method creates the new instance in draft mode correctly, however when the Object Page of the new instance opens it shows a "The requested data was not found." message and an empty screen (see attached image - "Not Found").&lt;/P&gt;&lt;P&gt;I noticed in the Object Page URL that the key parameters are emtpy. If I manually fill them in the URL the object page then opens correctly (see attached image - "URL"). In my case, the missing values are in field Source and Docnr.&lt;/P&gt;&lt;P&gt;The implementation is similar to the one seen in this tutorial:&amp;nbsp;&lt;A href="https://developers.sap.com/tutorials/abap-environment-rap100-factory-action.html" target="_blank" rel="noopener noreferrer"&gt;https://developers.sap.com/tutorials/abap-environment-rap100-factory-action.html&lt;/A&gt;&amp;nbsp;I'm using ODataV2 in SAP S/4HANA 2022 on-premise.&lt;/P&gt;&lt;P&gt;Summary of implementation:&lt;/P&gt;&lt;P&gt;- BDEF action:&amp;nbsp;&lt;SPAN&gt;factory action copyDocument [1];&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;- BDEF projection:&amp;nbsp;&lt;SPAN&gt;use action copyDocument;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;- Behavior Impl: exactly like the tutorial - obviously adapted to my tables and fields. and with an added child table - see snippet at the end of the question&lt;/P&gt;&lt;P&gt;One final note: before using factory action, I was using a regular instance action with a result $self return and I was facing the same exact issue, so I was able to create the instance in draft but the ObjectPage URL always missed the key values in the parameters.&lt;/P&gt;&lt;P&gt;Thank you for your help!&lt;/P&gt;&lt;P&gt;Copy Method Implementation:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD copyDocument.
-
- DATA:
-documents TYPE TABLE FOR CREATE ZI_HEADER\\Header,
-positions TYPE TABLE FOR CREATE ZI_HEADER\\Header\_Positions.
-
- READ ENTITIES OF ZI_HEADER IN LOCAL MODE
- ENTITY Header
- ALL FIELDS WITH CORRESPONDING #( keys )
- RESULT DATA(document_read_result)
- FAILED failed
- REPORTED reported.
-
- READ ENTITIES OF ZI_HEADER IN LOCAL MODE
- ENTITY Header BY \_Positions
- ALL FIELDS WITH CORRESPONDING #( document_read_result )
- RESULT DATA(item_read_result).
-
- LOOP AT document_read_result ASSIGNING FIELD-SYMBOL(&amp;lt;previous_doc&amp;gt;).
- DATA(new_docnr) = getNextDocnr( ).
- DATA(source) = getSource( ).
-
- APPEND VALUE #( %cid = source &amp;amp;&amp;amp; new_docnr
-%is_draft = '01'
-%data = CORRESPONDING #( &amp;lt;previous_doc&amp;gt; EXCEPT Source Docnr ) ) TO documents ASSIGNING FIELD-SYMBOL(&amp;lt;new_doc&amp;gt;).
- APPEND VALUE #( %cid_ref = source &amp;amp;&amp;amp; new_docnr
-%is_draft = '01'
-Source = source Docnr = new_docnr ) TO positions ASSIGNING FIELD-SYMBOL(&amp;lt;new_positions&amp;gt;).
-
-&amp;lt;new_doc&amp;gt;-Source = source.
-&amp;lt;new_doc&amp;gt;-Docnr = new_docnr.
-&amp;lt;new_doc&amp;gt;-Status = order_status-new.
- GET TIME STAMP FIELD &amp;lt;new_doc&amp;gt;-Erdat.
-&amp;lt;new_doc&amp;gt;-Ernam = sy-uname.
-
- DATA(item_position) = 10.
-
- LOOP AT item_read_result ASSIGNING FIELD-SYMBOL(&amp;lt;previous_position&amp;gt;) USING KEY entity
- WHERE Source EQ &amp;lt;previous_doc&amp;gt;-Source AND Docnr EQ &amp;lt;previous_doc&amp;gt;-Docnr.
- APPEND VALUE #( %cid = source &amp;amp;&amp;amp; new_docnr &amp;amp;&amp;amp; item_position
-%is_draft = '01'
-%data = CORRESPONDING #( &amp;lt;previous_position&amp;gt; EXCEPT Source Docnr ) ) TO &amp;lt;new_positions&amp;gt;-%target ASSIGNING FIELD-SYMBOL(&amp;lt;new_position&amp;gt;).
-&amp;lt;new_position&amp;gt;-Source = &amp;lt;new_doc&amp;gt;-Source.
-&amp;lt;new_position&amp;gt;-Docnr = &amp;lt;new_doc&amp;gt;-Docnr.
-&amp;lt;new_position&amp;gt;-ItemPosition = item_position.
-
-item_position += 10.
- ENDLOOP.
- ENDLOOP.
-
- MODIFY ENTITIES OF ZI_HEADER IN LOCAL MODE
- ENTITY Header
- CREATE FIELDS ( Source Docnr Status *etc* )
- WITH documents
- CREATE BY \_Positions FIELDS ( Source Docnr ItemPosition *etc* )
- WITH positions
- MAPPED DATA(mapped_create)
- FAILED DATA(failed_create)
- REPORTED DATA(reported_create).
-
-* READ ENTITIES OF ZI_HEADER IN LOCAL MODE
-* ENTITY Header
-* ALL FIELDS WITH CORRESPONDING #( mapped_create-header )
-* RESULT DATA(read_created_result).
-
-mapped-header = mapped_create-header.
-
-ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/objectpage-not-found-when-using-factory-copy-action/qaq-p/13599790"/>
-    <published>2024-02-08T18:37:59.111000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/url-of-rap-custom-entity-from-workflow-doesn-t-render-on-click-action/qaq-p/13601763</id>
     <title>URL of RAP Custom entity from workflow doesn't render on click action.</title>
@@ -493,5 +414,24 @@ extend view A_PurchaseOrderItem with Z_PO_API_EXT
     <content>&lt;DIV&gt;entity description{&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;language : String;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;shortDescription : String;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;longDescription&amp;nbsp; : String;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;deleted : Boolean default false;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;Books&amp;nbsp; &amp;nbsp;: Association to one Books;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;}&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;entity Books : cuid ,managed {&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;title : String;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;author : String;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;deleted : Boolean default false;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;to_description : Composition of many description&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;on to_description.books = $self;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;}&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;BooksService.cds&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;service BookService{&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp; entity Book as projection on Books;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp; entity BookList as&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;select&amp;nbsp;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;title,&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;author,&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;to_description.shortDescription as shortDescription&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;from Book&amp;nbsp;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;where deleted = false;&amp;nbsp;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;}&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;The current implementation of the BooksService.cds returns all descriptions associated with a book when the list service is invoked. However, the requirement is to modify the service to accept a parameter, Accept-Language, which specifies the preferred language for the description. Based on this language parameter, the service should filter and return only the description that matches the specified language.&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;To achieve this, the service needs to be updated to accept the Accept-Language parameter as a request parameter. Upon receiving the request, the service should extract the language preference from the Accept-Language header and use it to filter the descriptions associated with the books. Only the description that matches the specified language should be included in the response.&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;Please provide a solution that demonstrates how to modify the BooksService to accept the Accept-Language parameter and filter descriptions based on the specified language preference.&lt;/DIV&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/how-to-accept-request-param-inside-a-custom-cds-service-entity/qaq-p/13612407"/>
     <published>2024-02-20T14:34:49.037000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/add-icon-to-action-label-in-rap/qaq-p/13613419</id>
+    <title>Add icon to Action label in RAP</title>
+    <updated>2024-02-20T16:54:54.951000+01:00</updated>
+    <author>
+      <name>HugoJ</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/138951</uri>
+    </author>
+    <content>&lt;P&gt;Hi, I would like to add an icon to a RAP action label however I'm unable to find any documentation about this so I'm not sure if it's possible at all.&lt;/P&gt;&lt;P&gt;I'm implementing a Fiori App with RAP and CDS, in S4/HANA on premise 2022 (not using UI5). My goal is to add an icon to an action's label, for example a custom action defined in the Behavior Definition "copyTravel".&lt;/P&gt;&lt;P&gt;Would there be any annotation or text that would make this possible in the metadata extension?&lt;/P&gt;&lt;P&gt;Example:&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@UI: { lineItem: [ { position: 10 },
+                   { type: #FOR_ACTION, 
+                     dataAction: 'copyTravel', 
+                     label: 'Copy Travel &amp;lt;ICON&amp;gt;' } ] }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;OR&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@UI: { lineItem: [ { position: 10 },
+                   { type: #FOR_ACTION, 
+                     dataAction: 'copyTravel', 
+                     label: 'Copy Travel',
+                     imageURL: &amp;lt;ICON&amp;gt; } ] }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;One additional question, is it possible in the on-premise release 2022 to change the standard create/update/delete action labels? (without creating new actions)&lt;/P&gt;&lt;P&gt;Thanks for your help&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/add-icon-to-action-label-in-rap/qaq-p/13613419"/>
+    <published>2024-02-20T16:54:54.951000+01:00</published>
   </entry>
 </feed>
