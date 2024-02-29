@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Graph-blog-posts.xml</id>
   <title>SAP Community - SAP Graph</title>
-  <updated>2024-02-29T12:01:15.730778+00:00</updated>
+  <updated>2024-02-29T15:01:05.582709+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Graph/pd-p/da20f5de-7c9f-47c9-b766-b98820e5be12" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Graph blog posts in SAP Community</subtitle>
@@ -236,6 +236,193 @@ For the author page of SAP PRESS, visit&lt;BR /&gt;
 &lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2016/02/sapnwabline_885687.png" width="610" /&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-sap/sap-graph-hands-on-video-tutorials/ba-p/13522465"/>
     <published>2022-02-08T15:30:31+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-sap/part-7-key-mapping-with-sap-graph/ba-p/13511080</id>
+    <title>Part 7: Key Mapping with SAP Graph</title>
+    <updated>2022-03-31T10:25:30+02:00</updated>
+    <author>
+      <name>avidD</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/164059</uri>
+    </author>
+    <content>&lt;HR /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;B&gt;&lt;SPAN lang="EN-US"&gt;INFO: &lt;/SPAN&gt;&lt;/B&gt;&lt;SPAN lang="EN-US"&gt;This blog is part of a tutorial series for the standalone SAP Graph service on SAP BTP. Recently, SAP released a version of Graph in SAP Integration Suite with better user experience and functional enhancements (see this blog for details: &lt;A title="https://blogs.sap.com/2023/02/22/announcing-graph-in-sap-integration-suite" href="https://blogs.sap.com/2023/02/22/announcing-graph-in-sap-integration-suite" rel="noopener noreferrer"&gt;https://blogs.sap.com/2023/02/22/announcing-graph-in-sap-integration-suite&lt;/A&gt;).&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;HR /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+This is the seventh part in the SAP Graph multi-part tutorial series. In part 5 - &lt;A href="https://blogs.sap.com/2022/01/18/part-5-use-sap-graph-with-your-own-data/" rel="noopener noreferrer"&gt;Use SAP Graph with your own data&lt;/A&gt; - and in part 6 - &lt;A href="https://blogs.sap.com/2022/02/03/part-6-construct-an-sap-graph-business-data-graph/" rel="noopener noreferrer"&gt;Construct an SAP Graph Business Data Graph&lt;/A&gt; - you learned how you, as a &lt;EM&gt;key user&lt;/EM&gt;, can set up a Business Data Graph (BDG) that enables developers to access all data in your landscape without having to deal with different connection protocols, query languages, and API styles. In parts 5 and 6, you had the choice to connect to sandbox systems provided by SAP or connect to your own landscape. For testing this part of the tutorial, you must have access to your own landscape that includes an SAP Sales Cloud and an SAP S/4HANA instance, which are integrated with SAP Cloud Integration.&lt;BR /&gt;
+&lt;BR /&gt;
+This part of the tutorial addresses an interesting challenge: navigating between copies of the &lt;EM&gt;same&lt;/EM&gt; business object, present in different business systems with different keys. This is commonly the result of master data replication. For instance, some of the main attributes of a new business partner in an SAP S/4HANA system are copied by an integration process to another system, where the new copy is assigned a key from a different key range.&lt;BR /&gt;
+&lt;BR /&gt;
+While each system serves different purposes and maintains different data details, client applications occasionally must access both copies in both systems. As an example, consider a list of products in which you want to show the status of each product, stored in SAP Sales Cloud, alongside its country of origin, stored in SAP S/4HANA.&lt;BR /&gt;
+&lt;BR /&gt;
+In such cases, without SAP Graph you must educate your client developers about all the different keys of all entities that exist in multiple systems and where to learn which keys identify the same objects. Your developers will then have to code the key lookups and further processing explicitly into their applications. This challenging task obviously has no relationship to the business problem they actually need to solve.&lt;BR /&gt;
+&lt;BR /&gt;
+SAP Graph hides the complexity of such cross-system navigations from developers via the configuration of &lt;EM&gt;key mapping&lt;/EM&gt;. But before exploring how SAP Graph solves the problem, we shall investigate the challenge and how developers must solve it when SAP Graph is not used.&lt;BR /&gt;
+&lt;H2 id="toc-hId-958321781"&gt;The problem: educating your developers to be data integration experts&lt;/H2&gt;&lt;BR /&gt;
+Almost every enterprise landscape contains duplicate data objects. These are often objects like business partners (customers, partners, suppliers), products, and cost centers. For instance, the same bicycle may be described in SAP S/4HANA with details about its manufacturer, and in SAP Sales Cloud, with information about how it is sold. At the same time, it is normal for different data sources to use different key ranges, and thus the same bicycle is identified with a different key in each system. Consequently, the developer task of getting a 360° view on the product details is highly complex because the developer must juggle with the different keys of the same object in different systems and manually dereference links between objects by joining data based on these cross-system references.&lt;BR /&gt;
+&lt;BR /&gt;
+For our example, we shall assume a landscape with two destinations&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;s4h-product&lt;/SPAN&gt;: an SAP S/4HANA Cloud tenant serving &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;A_Product&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;c4c-odata&lt;/SPAN&gt;: an SAP Sales Cloud tenant serving &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;ProductCollection&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+In the landscape, we have set up SAP Cloud Integration to replicate products from SAP S/4HANA to SAP Sales Cloud. Consequently, both destinations provide information about products. The products in SAP Sales Cloud don’t contain all the information that can be found in the SAP S/4HANA tenant. For instance, the attribute &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;CountryOfOrigin&lt;/SPAN&gt;&lt;/STRONG&gt; may exist only in SAP S/4HANA. On the other hand, the copies in SAP Sales Cloud contain additional built-in attributes such as a &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;StatusText&lt;/SPAN&gt;&lt;/STRONG&gt; field and may be further augmented with custom fields. Consider a particular product, the racing bike &lt;SPAN style="color: #000000"&gt;RB100&lt;/SPAN&gt;. This product is identified in SAP Sales Cloud by two unique attribute values: &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;ObjectID '999'&lt;/SPAN&gt;&lt;/STRONG&gt;&amp;nbsp;and &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;ProductI&lt;SPAN style="color: #0f828f"&gt;D&lt;/SPAN&gt; '&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;78&lt;/SPAN&gt;&lt;SPAN style="color: #0f828f"&gt;9'&lt;/SPAN&gt;&lt;/STRONG&gt;. That same product is exposed by the SAP S/4HANA Product API with key &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;Produc&lt;/SPAN&gt;&lt;SPAN style="color: #0f828f"&gt;t 'xyz'&lt;/SPAN&gt;&lt;/STRONG&gt;.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/03/Screenshot-2022-03-22-at-15.27.06.png" height="158" width="370" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic;font-family: 'SAPRegular', 'Helvetica Neue', Arial, sans-serif"&gt;Figure 1: Representations of the same product in one landscape&lt;/P&gt;&lt;BR /&gt;
+The developer is now tasked to build an application that displays all the information about selected products available in the landscape. To implement such a seemingly simple task, the developer must join the information about the product with key &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;'999'&lt;/SPAN&gt;&lt;/STRONG&gt; in SAP Sales Cloud with the information with key &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;'xyz'&lt;/SPAN&gt;&lt;/STRONG&gt; in SAP S/4HANA.&lt;BR /&gt;
+&lt;BR /&gt;
+However, how can they know that &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;'xyz'&lt;/SPAN&gt;&lt;/STRONG&gt; in SAP S/4HANA describes the same product as &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;'999'&lt;/SPAN&gt;&lt;/STRONG&gt; in SAP Sales Cloud? There are many ways in which such relationships are established in practice. One common pattern, in particular when using SAP Sales Cloud, is the use of a dedicated attribute to store a reference from objects in SAP Sales Cloud to objects outside of SAP Sales Cloud. In our case, the &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;ProductCollection&lt;/SPAN&gt;&lt;/STRONG&gt; instance with &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;ObjectID&lt;/SPAN&gt;&lt;SPAN style="color: #0f828f"&gt; ‘999’&lt;/SPAN&gt; &lt;/STRONG&gt;has another attribute, &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;ExternalID&lt;/STRONG&gt;&lt;/SPAN&gt;, with the value &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;‘xyz’&lt;/STRONG&gt;&lt;/SPAN&gt;, establishing the (equality) relationship to the corresponding &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;A_Product&lt;/STRONG&gt;&lt;/SPAN&gt; instance &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;‘xyz’&lt;/STRONG&gt;&lt;/SPAN&gt; in SAP S/4HANA. Maintaining the values of this attribute for all products is the responsibility of the integration which was set up with SAP Cloud Integration.&lt;BR /&gt;
+&lt;BR /&gt;
+Consequently, to get a 360° view of our bicycle RB100 given its ID in SAP S/4HANA, the developer must execute two queries:&lt;BR /&gt;
+&lt;PRE&gt;&lt;CODE&gt;…/API_PRODUCT_SRV/A_Product('xyz')&lt;BR /&gt;
+…/c4codata/ProductCollection?$filter=ExternalID eq 'xyz'&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+When the application user navigates another reference to the same object, but starting with an ID from SAP Sales Cloud, then first, the following request must be constructed and executed against SAP Sales Cloud:&lt;BR /&gt;
+&lt;PRE&gt;&lt;CODE&gt;…/c4codata/ProductCollection('999')&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+Then, the developer must extract the value of the &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;ExternalID&lt;/SPAN&gt;&lt;/STRONG&gt; attribute, namely &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;‘xyz’&lt;/STRONG&gt;&lt;/SPAN&gt;, from the result of this query. Finally, the developer must construct another request for the &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;A_Product&lt;/STRONG&gt;&lt;/SPAN&gt; instance with that key:&lt;BR /&gt;
+&lt;PRE&gt;&lt;CODE&gt;…/API_PRODUCT_SRV/A_Product('xyz')&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+When the developer wants to do a filter query to select the data for a whole page of products in the app, they must concatenate strings to produce a long &lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;$filter&lt;/SPAN&gt;-condition about &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;ExternalID&lt;/SPAN&gt;&lt;/STRONG&gt; values. Then, when receiving the result, they must do a join inside the extension application to marry the different records from SAP S/4HANA to their counterparts from SAP Sales Cloud. This is a tedious, repetitive, and error-prone task. Further, implementing a relational join in an extension application obviously has nothing to do with the business problem to be solved, which is to show all data about products.&lt;BR /&gt;
+&lt;BR /&gt;
+However, the biggest problem with this approach is that to be able to construct all these queries, the developer must in the first place know of this reference being modeled via the &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;ExternalID&lt;/SPAN&gt;&lt;/STRONG&gt; attribute. To make things even worse, such external key attributes are just a pattern for integrating enterprise systems, but the external key attributes have different names in different entities and systems. This presents a major obstacle for the task of implementing a supposedly simple 360° view on distributed objects.&lt;BR /&gt;
+&lt;H2 id="toc-hId-761808276"&gt;SAP Graph to the rescue&lt;/H2&gt;&lt;BR /&gt;
+Wouldn’t it be nice if you, as a key user of SAP Graph, could declare such cross-service references once and for all and then developers could just remain ignorant about these complications and navigate transparently along associations between the different representations of the products, for all applications?&lt;BR /&gt;
+&lt;BR /&gt;
+We shall now explore how exactly this is achieved with SAP Graph. The first step will be to configure a BDG that pulls its data from the two given data sources.&lt;BR /&gt;
+&lt;BR /&gt;
+As a key user you configure these two data sources:&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;mySC&lt;/SPAN&gt;: an SAP Sales Cloud tenant serving &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;ProductCollection&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;myS4&lt;/SPAN&gt;: an SAP S/4HANA tenant serving &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;A_Product&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+We can use the &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;graphctl&lt;/SPAN&gt;&lt;/STRONG&gt; tool to generate a configuration for our landscape. We shall rename the BDG and the data sources in the generated configuration. The following listing shows our generated BDG configuration with a few manual adaptations marked in blue.&lt;BR /&gt;
+&lt;PRE&gt;&lt;CODE&gt;{ "businessDataGraphIdentifier": "&lt;SPAN style="color: #0f828f"&gt;my-bdg&lt;/SPAN&gt;",&lt;BR /&gt;
+  "graphModelVersion": "1.0.0",&lt;BR /&gt;
+  "dataSources": [&lt;BR /&gt;
+    { "name": "&lt;SPAN style="color: #0f828f"&gt;mySC&lt;/SPAN&gt;", "services": [{ "destinationName": "c4c-odata" }] },&lt;BR /&gt;
+    { "name": "&lt;SPAN style="color: #0f828f"&gt;myS4&lt;/SPAN&gt;", "services": [{ "destinationName": "s4h-product" }] }&lt;BR /&gt;
+  ],&lt;BR /&gt;
+  "locatingPolicy": {&lt;BR /&gt;
+  "rules": [&lt;BR /&gt;
+    { "name": "sap.s4.*", "leading": "&lt;SPAN style="color: #0f828f"&gt;myS4&lt;/SPAN&gt;" },&lt;BR /&gt;
+    { "name": "sap.c4c.*", "leading": "&lt;SPAN style="color: #0f828f"&gt;mySC&lt;/SPAN&gt;" },&lt;BR /&gt;
+    { "name": "sap.graph.*", "leading": "&lt;SPAN style="color: #0f828f"&gt;myS4&lt;/SPAN&gt;",&lt;BR /&gt;
+      "local": ["&lt;SPAN style="color: #0f828f"&gt;mySC&lt;/SPAN&gt;"]&lt;BR /&gt;
+    }&lt;BR /&gt;
+]}}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic;font-family: 'SAPRegular', 'Helvetica Neue', Arial, sans-serif"&gt;Listing 1: Initial BDG configuration&lt;/P&gt;&lt;BR /&gt;
+Please refer to &lt;A href="https://blogs.sap.com/2022/02/03/part-6-construct-an-sap-graph-business-data-graph/" rel="noopener noreferrer"&gt;part 6 of the tutorial&lt;/A&gt; to see how to generate and activate the above BDG configuration.&lt;BR /&gt;
+&lt;BR /&gt;
+SAP Graph exposes data from the underlying data sources in different system-specific namespaces of our Business Data Graph. Entities from SAP S/4HANA instances are exposed in the &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;sap.s4&lt;/SPAN&gt;&lt;/STRONG&gt; namespace, whereas entities from SAP Sales Cloud instances are exposed in the &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;sap.c4c&lt;/SPAN&gt;&lt;/STRONG&gt; namespace. Furthermore, there is another namespace, called &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;sap.graph&lt;/STRONG&gt;&lt;/SPAN&gt;, which exposes select entity types and their attributes in a unified and simplified form. We shall use this namespace as the entry point to the graph. In our example, there is an &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;A_Product&lt;/SPAN&gt;&lt;/STRONG&gt; object &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;‘xyz’&lt;/STRONG&gt;&lt;/SPAN&gt; in &lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;myS4&lt;/SPAN&gt; (SAP S/4HANA) and a &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;ProductCollection&lt;/STRONG&gt; &lt;SPAN style="color: #000000"&gt;object&lt;/SPAN&gt; &lt;STRONG&gt;‘999’&lt;/STRONG&gt;&lt;/SPAN&gt;&amp;nbsp;in &lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;mySC&lt;/SPAN&gt; (SAP Sales Cloud) Lastly, there is an &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;sap.graph/Product&lt;/STRONG&gt;&lt;/SPAN&gt; with &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;displayId ‘xyz’&lt;/STRONG&gt;&lt;/SPAN&gt;, which is a virtual view on the &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;A_Product&lt;/STRONG&gt;&lt;/SPAN&gt; in SAP S/4HANA. The following figure depicts these objects as nodes in a graph with associations as edges.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/03/2022-10-28-not-integrated.png" height="453" width="407" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic;font-family: 'SAPRegular', 'Helvetica Neue', Arial, sans-serif"&gt;Figure 2: Objects and associations in my-bdg&lt;/P&gt;&lt;BR /&gt;
+As you can see, the &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;sap.graph/Product&lt;/SPAN&gt;&lt;/STRONG&gt; view has associations to the two system-specific representations of the same product. The &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;sap.graph/Product&lt;/SPAN&gt;&lt;/STRONG&gt;'s association &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;_s4&lt;/SPAN&gt;&lt;/STRONG&gt; points to the corresponding &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;A_Product&lt;/SPAN&gt;&lt;/STRONG&gt;, because &lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;myS4&lt;/SPAN&gt; is configured as the leading system for all &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;sap.graph&lt;/SPAN&gt;&lt;/STRONG&gt; entities in &lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;my-bdg&lt;/SPAN&gt;. Thus, the system-specific representation in SAP S/4HANA can be reached by navigating from the &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;sap.graph/Product&lt;/SPAN&gt;&lt;/STRONG&gt; along this dedicated association or by expanding the association.&lt;BR /&gt;
+Likewise, the &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;sap.graph/Product&lt;/SPAN&gt;&lt;/STRONG&gt; has the association &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;_c4c&lt;/SPAN&gt;&lt;/STRONG&gt; because &lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;mySC&lt;/SPAN&gt; is defined as having local copies of &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;sap.graph&lt;/SPAN&gt;&lt;/STRONG&gt; entities. However, it looks like the &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;_c4c&lt;/STRONG&gt;&lt;/SPAN&gt; association is a “dangling pointer” into the void. We shall try out our BDG with some example queries to see what’s going on. First, we execute the following query to retrieve a (short) list of &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;sap.graph&lt;/SPAN&gt;&lt;/STRONG&gt; products along with their S/4-representations:&lt;BR /&gt;
+&lt;PRE&gt;&lt;CODE&gt;…/my-bdg/sap.graph/Product?$top=1&amp;amp;$expand=_s4($select=Product,CountryOfOrigin)&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+For the sake of simplicity, we assume that our example product is the first result in the response. Consequently, this request will result in the racing bike &lt;SPAN style="color: #000000"&gt;RB100&amp;nbsp;&lt;/SPAN&gt;as a &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;sap.graph/Product&lt;/STRONG&gt;&lt;/SPAN&gt; with &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;displayID 'xyz'&lt;/SPAN&gt;&lt;/STRONG&gt;, and populated with data from &lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;myS4&lt;/SPAN&gt;, which is the leading system as configured by our locating policy. Nested into it, we find the &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;sap.s4/A_Product&lt;/SPAN&gt;&lt;/STRONG&gt; instance that represents the very same object with the additional property &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;CountryOfOrigin&lt;/SPAN&gt;&lt;/STRONG&gt;.&lt;BR /&gt;
+&lt;PRE&gt;&lt;CODE&gt;{ "@odata.context": "$metadata#Product(_s4(Product,CountryOfOrigin))",&lt;BR /&gt;
+  "value": [&lt;BR /&gt;
+    { "id": "myS4~xyz",&lt;BR /&gt;
+      "displayId": "xyz",&lt;BR /&gt;
+      "name": "RB100",&lt;BR /&gt;
+      "_s4": {&lt;BR /&gt;
+        "Product": "xyz",&lt;BR /&gt;
+        “CountryOfOrigin”: “DE”&lt;BR /&gt;
+      }&lt;BR /&gt;
+}]}&lt;BR /&gt;
+&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic;font-family: 'SAPRegular', 'Helvetica Neue', Arial, sans-serif"&gt;Listing 2: Result of a list query against the &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;sap.graph/Product&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;BR /&gt;
+Of course, the developer would like to get the information about the same product that is stored only in &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;mySC&lt;/SPAN&gt;&lt;/STRONG&gt; in the same way. That is the &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;ProductCollection&lt;/SPAN&gt;&lt;/STRONG&gt; instance with &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;ObjectID ‘999’&lt;/SPAN&gt;&lt;/STRONG&gt;. The developer can expect to get this data by expanding the &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;_c4c&lt;/SPAN&gt;&lt;/STRONG&gt; association as in the following query&lt;BR /&gt;
+&lt;PRE&gt;&lt;CODE&gt;…/my-bdg/sap.graph/Product?$top=1&amp;amp;&lt;BR /&gt;
+    $expand=_s4($select=Product,CountryOfOrigin),_c4c($select=StatusText)&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+However, as we saw in figure 2, there is no connection from the &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;sap.graph/Product&lt;/SPAN&gt;&lt;/STRONG&gt; to the &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;sap.c4c/ProductCollection&lt;/STRONG&gt;&lt;/SPAN&gt;. Therefore, this query will result in a HTTP 404 error. The reason is that without any further configuration, the dereferencing of the &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;_c4c&lt;/STRONG&gt;&lt;/SPAN&gt; association will result in the lookup of the &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;sap.c4c/ProductCollection&lt;/STRONG&gt;&lt;/SPAN&gt; with &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;ObjectID ‘xyz’&lt;/STRONG&gt;&lt;/SPAN&gt;, which does not exist.&lt;BR /&gt;
+&lt;BR /&gt;
+The solution is to define a key mapping for the system-specific entity types. To do so, we modify our BDG configuration as follows (changes in blue):&lt;BR /&gt;
+&lt;PRE&gt;&lt;CODE&gt;{ "businessDataGraphIdentifier": "my-bdg",&lt;BR /&gt;
+  "graphModelVersion": "1.0.0",&lt;BR /&gt;
+  "dataSources": [&lt;BR /&gt;
+    { "name": "mySC", "services": [{ "destinationName": "c4c-odata" }] },&lt;BR /&gt;
+    { "name": "myS4", "services": [{ "destinationName": "s4h-product" }] }&lt;BR /&gt;
+  ],&lt;BR /&gt;
+  "locatingPolicy": {&lt;BR /&gt;
+    &lt;SPAN style="color: #008080"&gt;"keyMapping":[&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;SPAN style="color: #008080"&gt;      { "foreignKey":{&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;SPAN style="color: #008080"&gt;          "dataSource":"mySC",&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;SPAN style="color: #008080"&gt;          "entityName":"sap.c4c.ProductCollection",&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;SPAN style="color: #008080"&gt;          "attributes":[ "ExternalID" ] },&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;SPAN style="color: #008080"&gt;        "references":{&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;SPAN style="color: #008080"&gt;          "dataSource":"myS4",&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;SPAN style="color: #008080"&gt;          "entityName":"sap.s4.A_Product",&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;SPAN style="color: #008080"&gt;          "attributes":[ "Product" ]}}&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;SPAN style="color: #008080"&gt;    ],&lt;/SPAN&gt;&lt;BR /&gt;
+    "rules": [&lt;BR /&gt;
+      { "name": "sap.s4.*", "leading": "myS4" },&lt;BR /&gt;
+      { "name": "sap.c4c.*", "leading": "mySC" },&lt;BR /&gt;
+      { "name": "sap.graph.*", "leading": "myS4",&lt;BR /&gt;
+        "local": [ "mySC" ]&lt;BR /&gt;
+      }&lt;BR /&gt;
+]}}&lt;BR /&gt;
+&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic;font-family: 'SAPRegular', 'Helvetica Neue', Arial, sans-serif"&gt;Listing 3: BDG configuration with key mappings&lt;/P&gt;&lt;BR /&gt;
+This new BDG configuration is almost the same as the previous one. It only adds a foreign key constraint between &lt;SPAN style="color: #008080"&gt;&lt;STRONG&gt;sap.c4c/ProductCollection&lt;/STRONG&gt;&lt;/SPAN&gt; in data source &lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;mySC&lt;/SPAN&gt;&amp;nbsp;and &lt;SPAN style="color: #008080"&gt;&lt;STRONG&gt;sap.s4/A_Product&lt;/STRONG&gt;&lt;/SPAN&gt; in data source &lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;myS4&lt;/SPAN&gt;. You may notice that this format of the referential constraint is inspired by foreign keys in SQL databases.&lt;BR /&gt;
+&lt;BR /&gt;
+Graph will interpret this constraint when queries access the entities via appropriate associations. In our example, when accessing an &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;sap.c4c/ProductCollection&lt;/SPAN&gt;&lt;/STRONG&gt; instance with a reference from &lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;myS4&lt;/SPAN&gt; (the qualifier in the ID&amp;nbsp;is &lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;myS4&lt;/SPAN&gt;) or vice versa, when accessing an &lt;SPAN style="color: #008080"&gt;&lt;STRONG&gt;sap.s4/A_Product&lt;/STRONG&gt;&lt;/SPAN&gt; with a reference originating from &lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;mySC&lt;/SPAN&gt; (the qualifier in the ID is &lt;SPAN style="font-family: Consolas, monaco, monospace;color: #000000"&gt;mySC&lt;/SPAN&gt;), then SAP Graph will use the &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;ExternalID&lt;/STRONG&gt;&lt;/SPAN&gt; attribute of the &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;ProductCollection&lt;/STRONG&gt;&lt;/SPAN&gt; to find the associated object.&lt;BR /&gt;
+&lt;BR /&gt;
+Now, this configuration enables SAP Graph to transparently respond to the SAP Graph developer’s query, repeated here:&lt;BR /&gt;
+&lt;PRE&gt;&lt;CODE&gt;/my-bdg/sap.graph/Product?$top=1&amp;amp;&lt;BR /&gt;
+    $expand=_s4($select=Product,CountryOfOrigin),_c4c($select=StatusText)&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+The result of this query is the &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;sap.graph&lt;/STRONG&gt;&lt;/SPAN&gt; representation of the product &lt;SPAN style="color: #000000"&gt;RB100&lt;/SPAN&gt;&amp;nbsp;with both its system-specific representations nested into it.&lt;BR /&gt;
+&lt;PRE&gt;&lt;CODE&gt;{ "@odata.context":&lt;BR /&gt;
+  "$metadata#Product(_s4(Product,CountryOfOrigin),_c4c(StatusText,ObjectID))",&lt;BR /&gt;
+  "value": [&lt;BR /&gt;
+ &amp;nbsp;&amp;nbsp; { "id": "myS4~xyz",&lt;BR /&gt;
+      "displayId": "xyz",&lt;BR /&gt;
+      "name": "RB100",&lt;BR /&gt;
+      "_c4c": {&lt;BR /&gt;
+        "ObjectID": "999",&lt;BR /&gt;
+        "StatusText": "Active",&lt;BR /&gt;
+      },&lt;BR /&gt;
+      "_s4": {&lt;BR /&gt;
+        "Product": "xyz",&lt;BR /&gt;
+        "CountryOfOrigin": "DE"&lt;BR /&gt;
+      }&lt;BR /&gt;
+}]}&lt;BR /&gt;
+&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic;font-family: 'SAPRegular', 'Helvetica Neue', Arial, sans-serif"&gt;Listing 4: 360° view on Product &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;'xyz'&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;BR /&gt;
+The SAP Graph developer can now execute a single query to get a true 360° view on the product including all the available information. It is not necessary to think about joins between multiple result sets in the extension application. What’s best, the developer does not even have to know or care how the equality of the different objects is determined; they just navigate along the edges of the graph. The complexity has been moved from the extension applications into SAP Graph. This reduces the complexity of applications that cross system borders. Consequently, the developer can now fully focus on the business requirements.&lt;BR /&gt;
+&lt;BR /&gt;
+Effectively, the entities and associations now look like this.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/03/2022-10-28-integrated.png" height="424" width="384" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic;font-family: 'SAPRegular', 'Helvetica Neue', Arial, sans-serif"&gt;Figure 3: objects and associations in &lt;STRONG&gt;&lt;SPAN style="color: #0f828f"&gt;my-bdg&lt;/SPAN&gt;&lt;/STRONG&gt; with cross-service edges enabled by key mapping&lt;/P&gt;&lt;BR /&gt;
+The &lt;SPAN style="color: #0f828f"&gt;&lt;STRONG&gt;sap.graph/Product&lt;/STRONG&gt;&lt;/SPAN&gt; now has an edge to each of its representations regardless of the source system.&lt;BR /&gt;
+&lt;H3 id="toc-hId-694377490"&gt;Navigation between unified entities&lt;/H3&gt;&lt;BR /&gt;
+Assume now, we want to always populate instances of &lt;SPAN style="color: #008080"&gt;&lt;STRONG&gt;sap.graph.SalesQuote&lt;/STRONG&gt;&lt;/SPAN&gt; with data from our SAP SalesCloud tenant &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;mySC&lt;/SPAN&gt;&lt;/STRONG&gt;. This can be achieved by adding the locating rule&lt;BR /&gt;
+&lt;PRE&gt;&lt;CODE&gt;{ "name": "sap.graph.SalesQuote", "leading": "mySC" }&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+With this rule, when navigating to a &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;sap.graph.Product&lt;/SPAN&gt;&lt;/STRONG&gt; from a &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;SalesQuote&lt;/SPAN&gt;&lt;/STRONG&gt; in &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;mySC&lt;/SPAN&gt;&lt;/STRONG&gt; with a request like&lt;BR /&gt;
+&lt;PRE&gt;&lt;CODE&gt;…/my-bdg/sap.graph/SalesQuote/1/items/10/?$expand=_product&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+Graph will populate both, the &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;sap.graph.SalesQuote&lt;/SPAN&gt;&lt;/STRONG&gt; and the &lt;SPAN style="color: #008080"&gt;&lt;STRONG&gt;sap.graph.Product&lt;/STRONG&gt;&lt;/SPAN&gt;, with data from &lt;SPAN style="color: #008080"&gt;&lt;STRONG&gt;mySC&lt;/STRONG&gt;&lt;/SPAN&gt; because &lt;SPAN style="color: #008080"&gt;&lt;STRONG&gt;_product&lt;/STRONG&gt;&lt;/SPAN&gt; is retrieved with a reference from the &lt;SPAN style="color: #008080"&gt;&lt;STRONG&gt;SalesQuote&lt;/STRONG&gt;&lt;/SPAN&gt; in &lt;SPAN style="color: #008080"&gt;&lt;STRONG&gt;mySC&lt;/STRONG&gt;&lt;/SPAN&gt; which is listed in the &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;local&lt;/SPAN&gt;&lt;/STRONG&gt; list of for &lt;SPAN style="color: #008080"&gt;&lt;STRONG&gt;sap.graph.*&lt;/STRONG&gt;&lt;/SPAN&gt;.&lt;BR /&gt;
+&lt;BR /&gt;
+As a final variant, assume we want to force &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;sap.graph.Products&lt;/SPAN&gt;&lt;/STRONG&gt; to be populated with data from &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;myS4&lt;/SPAN&gt;&lt;/STRONG&gt;, even when navigating from a &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;sap.graph.SalesQuote&lt;/SPAN&gt;&lt;/STRONG&gt; in &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;mySC&lt;/SPAN&gt;&lt;/STRONG&gt;. To achieve this, we add the following rule for the &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;sap.graph.Product&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN style="color: #008080"&gt;&lt;STRONG&gt;{ "name": "sap.graph.Product", "leading": "myS4" }&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+In this rule, &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;mySC&lt;/SPAN&gt;&lt;/STRONG&gt; is missing from the local list. This forces the &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;sap.graph.Product&lt;/SPAN&gt;&lt;/STRONG&gt; to be populated from &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;myS4&lt;/SPAN&gt;&lt;/STRONG&gt;. Because we defined a corresponding foreign key between the &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;sap.c4c.ProductCollection&lt;/SPAN&gt;&lt;/STRONG&gt; and the &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;sap.s4.A_Product&lt;/SPAN&gt;&lt;/STRONG&gt;, the same query will now return a &lt;STRONG&gt;&lt;SPAN style="color: #008080"&gt;sap.graph.SalesQuote&lt;/SPAN&gt;&lt;/STRONG&gt; with id &lt;SPAN style="color: #008080"&gt;&lt;STRONG&gt;1&lt;/STRONG&gt;&lt;/SPAN&gt; in &lt;SPAN style="color: #008080"&gt;&lt;STRONG&gt;mySC&lt;/STRONG&gt;&lt;/SPAN&gt; but with a nested &lt;SPAN style="color: #008080"&gt;&lt;STRONG&gt;sap.graph.Product&lt;/STRONG&gt;&lt;/SPAN&gt; retrieved from &lt;SPAN style="color: #008080"&gt;&lt;STRONG&gt;myS4&lt;/STRONG&gt;&lt;/SPAN&gt;. Thus, foreign keys are also interpreted when navigating between unified entities.&lt;BR /&gt;
+&lt;H2 id="toc-hId-368781266"&gt;Summary&lt;/H2&gt;&lt;BR /&gt;
+Key mapping removes the burden of merging different representations of the same data from the API clients, that is the extension applications. The knowledge about key mapping is moved into the &lt;A href="https://help.sap.com/viewer/84bbf6acb5384861add4cb6939bef647/PROD/en-US/56a40529c2ef42969dfc94c44e603bde.html" rel="noopener noreferrer"&gt;configuration of the Business Data Graph&lt;/A&gt; where it is declared once for all clients. SAP Graph takes care of the developers by executing the complex key translation logic of their requests against the BDG. Consequently, extension application developers can focus on the business requirements and don't have to be data integration experts at the same time.&lt;BR /&gt;
+&lt;BR /&gt;
+Key mapping in SAP Graph thus creates new edges on the data level of the BDG and, in doing so, it enables a 360° view on the very same real-world objects despite different identifiers being used for the same objects in disparate data sources.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;HR /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;David Kensche, Engineering Lead (Runtime) – SAP Graph&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="TextRun Highlight SCXW115761751 BCX0" lang="EN-US" lang="EN-US" data-contrast="none"&gt;&lt;SPAN class="NormalTextRun SCXW115761751 BCX0"&gt;Learn more about &lt;/SPAN&gt;&lt;/SPAN&gt;&lt;A class="Hyperlink SCXW115761751 BCX0" href="https://community.sap.com/topics/graph" target="_blank"&gt;&lt;SPAN class="TextRun Highlight Underlined SCXW115761751 BCX0" lang="EN-US" lang="EN-US" data-contrast="none"&gt;&lt;SPAN class="NormalTextRun SCXW115761751 BCX0" data-ccp-charstyle="Hyperlink"&gt;SAP Graph&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN class="TextRun Highlight SCXW115761751 BCX0" lang="EN-US" lang="EN-US" data-contrast="none"&gt;&lt;SPAN class="NormalTextRun SCXW115761751 BCX0"&gt;, or contact us at &lt;/SPAN&gt;&lt;/SPAN&gt;&lt;A class="Hyperlink SCXW115761751 BCX0" href="mailto:sap.graph@sap.com" target="_blank" rel="noreferrer noopener nofollow"&gt;&lt;SPAN class="TextRun Highlight Underlined SCXW115761751 BCX0" lang="EN-US" lang="EN-US" data-contrast="none"&gt;&lt;SPAN class="NormalTextRun SCXW115761751 BCX0" data-ccp-charstyle="Hyperlink"&gt;sap.graph@sap.com&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN class="TextRun SCXW115761751 BCX0" lang="EN-US" lang="EN-US" data-contrast="auto"&gt;&lt;SPAN class="NormalTextRun SCXW115761751 BCX0"&gt; &lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class="EOP SCXW115761751 BCX0" data-ccp-props="{&amp;quot;134233117&amp;quot;:true,&amp;quot;134233118&amp;quot;:true,&amp;quot;201341983&amp;quot;:0,&amp;quot;335559739&amp;quot;:160,&amp;quot;335559740&amp;quot;:240}"&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;HR /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-sap/part-7-key-mapping-with-sap-graph/ba-p/13511080"/>
+    <published>2022-03-31T10:25:30+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-sap/sap-graph-administrator-hands-on-video-tutorials/ba-p/13544534</id>
