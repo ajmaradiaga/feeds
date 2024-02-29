@@ -2,171 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-S4HANA-Cloud-Extensibility-blog-posts.xml</id>
   <title>SAP Community - SAP S/4HANA Cloud Extensibility</title>
-  <updated>2024-02-29T18:01:38.384950+00:00</updated>
+  <updated>2024-02-29T21:01:25.932299+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP S/4HANA Cloud Extensibility/pd-p/270c4f37-c335-46e1-bfad-a256637d5e26" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP S/4HANA Cloud Extensibility blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/enhancing-the-standard-part-3-facilitating-an-integration-scenario-between/ba-p/13579719</id>
-    <title>Enhancing the Standard Part 3: Facilitating an integration scenario between a sales quotation and a service contract using a Custom Business Object</title>
-    <updated>2023-12-15T13:59:05+01:00</updated>
-    <author>
-      <name>varunvenkat</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/83606</uri>
-    </author>
-    <content>In Part 3 of the Enhancing the Standard Series, I’ll be showing you how to facilitate a “process integration” between a sales quotation and a service contract in S/4HANA Cloud. As these are two unrelated documents from different Lines-of-Business, there is no document flow between these documents in the standard process. By using a user-defined “dummy rejection reason” in the sales quotation, and a Custom Business Object (CBO) to convert these items into service contracts, a “process integration” can be established between a sales document and a service document.&lt;BR /&gt;
-&lt;H1 id="toc-hId-835025035"&gt;Business background&lt;/H1&gt;&lt;BR /&gt;
-The business requirement for having this integration is as follows. The company offers sales products and service contract products in a single quotation to the customer. As the CPQ system is not used, there is no possibility to issue a solution quote and convert this into a subsequent solution order. Due to this, the company’s process is to use a sales quotation as the starting document, where the service contract products (with a different item category group) are also included.&lt;BR /&gt;
-&lt;BR /&gt;
-The next step is to define a dummy rejection reason to signify if the customer has accepted the quote for the service contract products. All other sales items can be automatically converted to a sales order, however the service contract items need to be “rejected”, so that they can be separately created as a service contract. If the customer declines the service contract items, the real rejection reason will be set, and if the customer accepts the items, the dummy rejection reason will be set.&lt;BR /&gt;
-&lt;BR /&gt;
-In the final step, a CBO will be created that fetches all sales quotation items, where the dummy rejection reason defined in the previous step was set. The CBO will also act as a checklist, where the customer service manager can update the status of the CBO item, once the service contract for the rejected sales quotation item has been created. Optionally, the CBO could also be enhanced so that the customer service manager could automatically create the service contract header from within the CBO, by using the sold-to-party from the sales quotation. However, only the contract header can be created due to the different item category groups between the service contract product IDs in the sales quotation and the “real” service contract product IDs (this won’t be covered in the scope of this blog post).&lt;BR /&gt;
-&lt;BR /&gt;
-The overall concept therefore offers a streamlined process integration, as there is a central handover between the process steps carried out by the sales representative and the customer service manager. Once the sales rep uses the dummy rejection reason for a particular customer, the customer service manager can consume this new item in the CBO and accordingly create a new service contract for the customer.&lt;BR /&gt;
-&lt;H1 id="toc-hId-638511530"&gt;Process in the system&lt;/H1&gt;&lt;BR /&gt;
-Having set the scene, let’s look at the processes steps for this process integration in the system.&lt;BR /&gt;
-&lt;BR /&gt;
-As mentioned, the first step is to create a dummy rejection reason that will be used to convey that they customer has actually accepted the service contract product in the sales quotation&lt;BR /&gt;
-&lt;UL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;In customizing (SSCUI 102494), create a new rejection reason (in my example, ‘89’)&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Picture1-4.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Create the CBO in the app “Custom Business Object”. Use the following parameters:&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Picture2-4.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Picture3-6.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Picture4-4.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Picture5-6.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Add the following code to the ‘Fetch Quotations’ logic of the CBO:&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;* Action FetchQuotations for Node ID SALES_QUOTE_CONVERSION&lt;BR /&gt;
-*&lt;BR /&gt;
-* Importing Parameter : association (Navigation to Parent/Child/Associated Node Instances)&lt;BR /&gt;
-*                       write (API for creating and updating Custom Business Object Node Instances)&lt;BR /&gt;
-* Changing Parameter  : SALES_QUOTE_CONVERSION (Current Node Data)&lt;BR /&gt;
-* Exporting Parameter : message (Message with Severity S(uccess), W(arning), E(rror))&lt;BR /&gt;
-&lt;BR /&gt;
-"define local variables&lt;BR /&gt;
-&lt;BR /&gt;
-data: lv_sc_key_counter type int8.&lt;BR /&gt;
-data: lv_table_counter type int8.&lt;BR /&gt;
-&lt;BR /&gt;
-data: lv_rejection_reason_sc type int8.&lt;BR /&gt;
-lv_rejection_reason_sc = 89.&lt;BR /&gt;
-&lt;BR /&gt;
-DATA lv_root_entity_key TYPE yy1_kr_sales_quote_conversion.&lt;BR /&gt;
-lv_root_entity_key = SALES_QUOTE_CONVERSION-conversiontype.&lt;BR /&gt;
-&lt;BR /&gt;
-* Get an instance of the root entity of the CBO&lt;BR /&gt;
-DATA(lo_root) = write-&amp;gt;get_root(&lt;BR /&gt;
-    business_object_id = 'YY1_SALES_QUOTE_CONVERSION'&lt;BR /&gt;
-    key                = lv_root_entity_key&lt;BR /&gt;
-).&lt;BR /&gt;
-&lt;BR /&gt;
-"data: lv_conversion_type  type string.&lt;BR /&gt;
-"lv_conversion_type = |{ quote_dashboard-conversiontype ALPHA = IN }|.&lt;BR /&gt;
-&lt;BR /&gt;
-*-------------------------------------------------------------------------------------------------------------------------------------------*&lt;BR /&gt;
-&lt;BR /&gt;
-"Logic to create new Follow-up Service Contract Sales Quotations&lt;BR /&gt;
-&lt;BR /&gt;
-*Select required columns from the released I_SalesQuotationItem CDS View&lt;BR /&gt;
-SELECT SalesQuotation, SalesQuotationItem, SalesDocumentRjcnReason&lt;BR /&gt;
-  FROM I_SalesQuotationItem&lt;BR /&gt;
-  INTO TABLE @data(sq_table_sc)&lt;BR /&gt;
-  where SalesDocumentRjcnReason = @lv_rejection_reason_sc.&lt;BR /&gt;
-&lt;BR /&gt;
-"Get existing CBO entries to check for duplicates before creating child nodes of SQ Sales Order&lt;BR /&gt;
-SELECT SalesQuotation, SQItem&lt;BR /&gt;
-  FROM yy1_cbo_sq_89&lt;BR /&gt;
-  INTO TABLE @data(sq_cbo_table_sc)&lt;BR /&gt;
-  where RejectionReason = @lv_rejection_reason_sc.&lt;BR /&gt;
-&lt;BR /&gt;
-LOOP AT sq_table_sc INTO DATA(ls_sq_sc_row).&lt;BR /&gt;
-&lt;BR /&gt;
-    DATA lv_existing_sq_sc_key TYPE string.&lt;BR /&gt;
-    DATA lv_new_sq_sc_key TYPE string.&lt;BR /&gt;
-    "Reset counter to 0&lt;BR /&gt;
-    lv_sc_key_counter = 0.&lt;BR /&gt;
-    "Check if CBO internal table is empty. If yes, loop won't have an index, due to which no child nodes can be created&lt;BR /&gt;
-    IF sq_cbo_table_sc IS INITIAL.&lt;BR /&gt;
-        Data(ls_first_sq_sc_entry)  = VALUE yy1_service_contract_sales_quo(&lt;BR /&gt;
-        salesquotation = ls_sq_sc_row-salesquotation&lt;BR /&gt;
-        rejectionreason = ls_sq_sc_row-salesdocumentrjcnreason&lt;BR /&gt;
-        sqitem = ls_sq_sc_row-salesquotationitem&lt;BR /&gt;
-        ).&lt;BR /&gt;
-        lo_root-&amp;gt;create_child(&lt;BR /&gt;
-        EXPORTING&lt;BR /&gt;
-	    Node_id = 'Service_Contract'&lt;BR /&gt;
-	    Data = ls_first_sq_sc_entry&lt;BR /&gt;
-        ).&lt;BR /&gt;
-        CONTINUE.&lt;BR /&gt;
-    ENDIF.&lt;BR /&gt;
-&lt;BR /&gt;
-    LOOP AT sq_cbo_table_sc INTO DATA(sq_cbo_sc_row).&lt;BR /&gt;
-        CONCATENATE sq_cbo_sc_row-salesquotation sq_cbo_sc_row-sqitem INTO lv_existing_sq_sc_key.&lt;BR /&gt;
-        CONCATENATE ls_sq_sc_row-salesquotation ls_sq_sc_row-salesquotationitem INTO lv_new_sq_sc_key.&lt;BR /&gt;
-        "If primary key already exists, skip the loop and don'r create new CBO entry&lt;BR /&gt;
-        IF lv_new_sq_sc_key = lv_existing_sq_sc_key.&lt;BR /&gt;
-        "As soon as even the first index loop through the current CBO entries&lt;BR /&gt;
-        "matches a potential new entry, break out of the loop, because the primary key already exists&lt;BR /&gt;
-            lv_sc_key_counter = lv_sc_key_counter + 1.&lt;BR /&gt;
-            EXIT.&lt;BR /&gt;
-        ELSE.&lt;BR /&gt;
-            CONTINUE.&lt;BR /&gt;
-        ENDIF.&lt;BR /&gt;
-    ENDLOOP.&lt;BR /&gt;
-    "After looping through entire CBO table, and if no matches are found, only then create a new SQ (Sales Order) child node&lt;BR /&gt;
-    IF lv_sc_key_counter eq 0.&lt;BR /&gt;
-        Data(ls_new_sq_sc_entry)  = VALUE yy1_service_contract_sales_quo(&lt;BR /&gt;
-        salesquotation = ls_sq_sc_row-salesquotation&lt;BR /&gt;
-        rejectionreason = ls_sq_sc_row-salesdocumentrjcnreason&lt;BR /&gt;
-        sqitem = ls_sq_sc_row-salesquotationitem&lt;BR /&gt;
-        ).&lt;BR /&gt;
-        &lt;BR /&gt;
-        SELECT Single Customer&lt;BR /&gt;
-        FROM I_SalesQuotationPartner&lt;BR /&gt;
-        INTO @data(sq_sc_item_customer)&lt;BR /&gt;
-        where salesquotation = @ls_sq_sc_row-salesquotation.&lt;BR /&gt;
-        ls_new_sq_sc_entry-customer = sq_sc_item_customer.&lt;BR /&gt;
-        lo_root-&amp;gt;create_child(&lt;BR /&gt;
-        EXPORTING&lt;BR /&gt;
-	    Node_id = 'Service_Contract'&lt;BR /&gt;
-	    Data = ls_new_sq_sc_entry&lt;BR /&gt;
-        ).&lt;BR /&gt;
-    ENDIF.&lt;BR /&gt;
-&lt;BR /&gt;
-ENDLOOP.&lt;BR /&gt;
-&lt;BR /&gt;
-*-------------------------------------------------------------------------------------------------------------------------------------------*&lt;BR /&gt;
-&lt;BR /&gt;
-message = VALUE #(&lt;BR /&gt;
-  severity = co_severity-success&lt;BR /&gt;
-  text     = 'Action FetchQuotations executed'&lt;BR /&gt;
-).&lt;BR /&gt;
-&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-The CBO created essentially reads all sales quotation items with the rejection reason ‘89’ from the respective CDS View and loads these entries into the CBO, so that the customer service manager can review them and create service contracts.&lt;BR /&gt;
-&lt;BR /&gt;
-One important additional step to be done is to create a Custom CDS View for the CBO that has just been created. This is used to perform a duplicate check while fetching sales quotations into the CBO, so that the same sales quotation item doesn’t appear multiple times.&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Picture6-4.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Picture7-3.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;UL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Now that all setup steps have been completed, it’s time to see the overall process integration play out. The sales representative would create a test sales quotation, where the service contract product (with item category group SERV) is offered to the customer. For this sales quotation item, the dummy rejection reason defined above will be set to signify that the customer has accepted this quotation item.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Picture8-4.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;The customer service manager can now go to the UI of the CBO. In this UI, a root node needs to be created initially, as all sales quotation items will be created as child nodes of this root node. Inside the root node, execute the action “Fetch Quotations”.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Picture9-1.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Picture10-1.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;With this step, the sales quotation item that is pending action to be taken by the customer service manager is fetched. The customer service manager can now go through these items and use the CBO as a sort of “handover checklist” from the sales rep, to track which sales quotation items have been converted into service contracts, and which items are still pending.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Once a new service contract has been created, the customer service manager can edit the CBO entry, set the checkbox to completed, and maintain the created service contract ID as a reference.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Picture11-1.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-That concludes part 3 of the enhancing the standard series. Hope this provided an interesting approach on how such process integrations can be achieved between documents from different LoBs by using extensibility tools such as CBOs that are available in S/4HANA Cloud. In case you haven’t checked out Part 1 and 2 of the series yet, you can find the overview of the topics covered so far &lt;A href="https://blogs.sap.com/2023/11/19/closing-the-gap-series/" target="_blank" rel="noopener noreferrer"&gt;here&lt;/A&gt;.</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/enhancing-the-standard-part-3-facilitating-an-integration-scenario-between/ba-p/13579719"/>
-    <published>2023-12-15T13:59:05+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-sap/lac-partners-adhere-to-the-erp-clean-core-strategy-in-hack2build/ba-p/13579172</id>
     <title>LAC Partners adhere to the ERP Clean Core Strategy in Hack2Build</title>
@@ -1112,5 +951,17 @@ endclass.&lt;/PRE&gt;&lt;P&gt;Release this Class for use in Key User Extensibili
     <content>&lt;P&gt;&lt;SPAN&gt;紧随这篇&lt;/SPAN&gt;&lt;A href="https://blogs.sap.com/2023/12/01/s-4hana-cloud%e4%b8%89%e7%b3%bb%e7%bb%9fcloud-abap%e5%bc%80%e5%8f%91%e6%a1%88%e4%be%8b%e4%bb%8b%e7%bb%8d/" target="_blank" rel="noopener noreferrer"&gt;博客&lt;/A&gt;&lt;SPAN&gt;，我们将再次逐步详细地介绍一个利用SAP S/4HANA Cloud三系统来做开发扩展的案例。&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-987166236"&gt;&lt;STRONG&gt;1. 案例背景:&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;在这个案例中，我们会创建一个自定义的Fiori应用程序，通过该程序，我们可以从Excel文件批量创建多个采购申请记录。同时，该Excel导入模板可以根据我们的需求不同而完全自定义。&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="prapp.JPG" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/70897i3EAB3F82E769BC6A/image-size/large?v=v2&amp;amp;px=999" role="button" title="prapp.JPG" alt="prapp.JPG" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-790652731"&gt;2. 后台服务开发&lt;/H2&gt;&lt;H3 id="toc-hId-723221945"&gt;2.1 创建数据库表&lt;/H3&gt;&lt;P&gt;为了保存从Excel文件上传的数据，我们首先创建一个数据库表：&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="定义一个表来保存Excel上传的数据" style="width: 949px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/70901i049CFA0F495B042C/image-size/large?v=v2&amp;amp;px=999" role="button" title="pr1.png" alt="定义一个表来保存Excel上传的数据" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;定义一个表来保存Excel上传的数据&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-526708440"&gt;2.2 创建CDS数据模型&lt;/H3&gt;&lt;P&gt;然后我们在数据库表之上创建CDS视图，作为与数据库交互的第一层。通过Annotations为所需字段配置不同的功能。&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="pr2.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/70908i895DD31F65C50D35/image-size/large?v=v2&amp;amp;px=999" role="button" title="pr2.png" alt="pr2.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;然后，我们在上一步创建的CDS视图之上再创建一个投影视图（projection view），作为一个独立的功能层，我们可以过滤特定的字段。&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="pr3.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/70911i7D4096ED28E20FA2/image-size/large?v=v2&amp;amp;px=999" role="button" title="pr3.png" alt="pr3.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-330194935"&gt;2.3 创建行为定义&lt;/H3&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="pr4.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/70923iCC3137D4F683B88E/image-size/large?v=v2&amp;amp;px=999" role="button" title="pr4.png" alt="pr4.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;然后创建行为实现类，当用户点击“Create Purchase Requisition”按钮时，将触发事件CREATE_PR，并通过EML创建采购申请。&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="pr5.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/70924i15ACE9D21FDAABE4/image-size/large?v=v2&amp;amp;px=999" role="button" title="pr5.png" alt="pr5.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-133681430"&gt;2.4 创建服务定义和服务绑定&lt;/H3&gt;&lt;P&gt;右键单击投影视图，接下来我们将创建一个新的服务定义。我们可以选择哪个实体将暴露于服务。由于我们只有一个实体，所以我们使用系统生成的代码。&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="pr6.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/70928iC6A915FE6F1FBAF0/image-size/large?v=v2&amp;amp;px=999" role="button" title="pr6.png" alt="pr6.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;然后右键单击服务定义来创建服务绑定：&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="pr7.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/70929i55652CCD8322AA5C/image-size/large?v=v2&amp;amp;px=999" role="button" title="pr7.png" alt="pr7.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;在发布之后，我们可以预览该服务如下：&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="pr8.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/70931iE884307EBA407C63/image-size/large?v=v2&amp;amp;px=999" role="button" title="pr8.png" alt="pr8.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId--191914794"&gt;3. 前台应用开发&lt;/H2&gt;&lt;P&gt;打开SAP Business Application Studio服务：&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="pr9.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/70936iFEB1C2B12E4D64D4/image-size/large?v=v2&amp;amp;px=999" role="button" title="pr9.png" alt="pr9.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;选择SAP Fiori Worklist Application：&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="pr10.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/70942iF367F2E2DE1DA581/image-size/large?v=v2&amp;amp;px=999" role="button" title="pr10.png" alt="pr10.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;选择我们之前创建的服务：&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="pr11.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/70944i70126FAC1F6D0822/image-size/large?v=v2&amp;amp;px=999" role="button" title="pr11.png" alt="pr11.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;如下是该应用的文件结构：&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="pr12.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/70945i170199FE5F98D9CF/image-size/large?v=v2&amp;amp;px=999" role="button" title="pr12.png" alt="pr12.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;对于Excel上传功能组件，可以参考以下博客：&lt;/P&gt;&lt;P&gt;&lt;A href="https://blogs.sap.com/2022/01/19/excel-upload-using-rap-part-1/" target="_blank" rel="noopener noreferrer"&gt;Excel Upload using RAP: Part -1 | SAP Blogs&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="pr13.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/70946i916D70716C91C8A5/image-size/large?v=v2&amp;amp;px=999" role="button" title="pr13.png" alt="pr13.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;值得一提的是，我们在SAP Intelligent Robotic Process Automation Store上有一个预交付的包，它也可以从本地Excel文件创建采购申请。详细链接如下：&lt;/P&gt;&lt;P&gt;&lt;A href="https://store.irpa.cfapps.eu10.hana.ondemand.com/#/package/4cf34f5d-2ab0-43b8-b64d-741851349b91" target="_blank" rel="nofollow noopener noreferrer"&gt;Create Purchase Requisitions from Excel (48M)&lt;/A&gt;&lt;/P&gt;&lt;P&gt;然而，这两种方法的技术实现是不同的，在我们的例子中，我们使用的业务对象接口仅用于开发人员扩展性；对于iRPA，它使用公开发布的API。我们不能说一种方法比另一种更好，我们必须根据我们的情况选择合适的方法。&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="pr14.JPG" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/70948i6AB914E903F24939/image-size/large?v=v2&amp;amp;px=999" role="button" title="pr14.JPG" alt="pr14.JPG" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt; &lt;/P&gt;&lt;P&gt;以上是该案例——采购申请批量创建自开发应用的步骤介绍。希望通过此案例的介绍能让您了解到三系统开发能实现的常见功能。&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/sap-s-4hana-cloud-abap%E5%BC%80%E5%8F%91%E6%A1%88%E4%BE%8B%E4%B9%8B%E4%BA%94-%E9%87%87%E8%B4%AD%E7%94%B3%E8%AF%B7%E6%89%B9%E9%87%8F%E4%B8%8A%E4%BC%A0/ba-p/13618799"/>
     <published>2024-02-26T09:07:33.119000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-sap/how-to-find-sap-apis-for-sap-s-4hana-3-tier-extensibility-model/ba-p/13623819</id>
+    <title>How to find SAP APIs for SAP S/4HANA 3-tier extensibility model</title>
+    <updated>2024-02-29T20:45:17.161000+01:00</updated>
+    <author>
+      <name>bjoern_panter</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/186631</uri>
+    </author>
+    <content>&lt;P&gt;If you want to develop a custom application in your SAP S/4HANA Cloud Private Edition or SAP S/4HANA system using ABAP Cloud and the 3-tier extensibility model you will need to work with the SAP APIs to access the SAP standard in a clean core compatible way. This blog provides the overview of the relevant sources for looking for the SAP APIs, whereby all sources have the same content.&lt;/P&gt;&lt;H3 id="toc-hId-1117024234"&gt;1. In the ABAP Development Tools for Eclipse&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;In the ABAP development tools for Eclipse create your own ABAP Repository Tree (context menu&amp;nbsp;&lt;/SPAN&gt;&lt;EM&gt;New-&amp;gt;ABAP Repository Tree&lt;/EM&gt;&lt;SPAN&gt;&amp;nbsp;on the project node in the Project Explorer), choose "Released Objects" from the list in the &lt;EM&gt;Create Tree&lt;/EM&gt; wizard, click the&amp;nbsp;&lt;EM&gt;Next&lt;/EM&gt;&amp;nbsp;button, enter the name ("Released Objects") and click the &lt;EM&gt;Finish&lt;/EM&gt; button. The Released Objects tree will be added to the Project Explorer:&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="bjoern_panter_0-1709212303564.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/73406iFC1EB1272DA3C684/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="bjoern_panter_0-1709212303564.png" alt="bjoern_panter_0-1709212303564.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-920510729"&gt;2. On the SAP Business Acceleration Hub&lt;/H3&gt;&lt;P&gt;&lt;SPAN class=""&gt;SAP Business Acceleration Hub is a SAP operated plat&lt;/SPAN&gt;&lt;SPAN class=""&gt;form to explore, discover and consume APIs, pre&lt;/SPAN&gt;&lt;SPAN class=""&gt;-&lt;/SPAN&gt;&lt;SPAN class=""&gt;packaged integrations, business services and sample apps from SAP. You can look there for SAP APIs for the relevant SAP S/4HANA product:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://api.sap.com/products/SAPS4HANACloud/overview" target="_self" rel="noopener noreferrer"&gt;SAP S/4HANA Cloud Public Cloud Edition&lt;/A&gt;&lt;BR /&gt;&lt;A href="https://api.sap.com/products/SAPS4HANACloudPrivateEdition/overview" target="_self" rel="noopener noreferrer"&gt;SAP S/4HANA Cloud Private Cloud Edition&lt;/A&gt;&lt;BR /&gt;&lt;A href="https://api.sap.com/products/SAPS4HANA/overview" target="_self" rel="noopener noreferrer"&gt;SAP S/4HANA&lt;/A&gt;&lt;/P&gt;&lt;H3 id="toc-hId-723997224"&gt;3. On the GitHub&lt;/H3&gt;&lt;P&gt;The Cloudification Repository on the Github provided by SAP offers you for the SAP S/4HANA products the relevant SAP APIs lists as .json and .csv files:&lt;/P&gt;&lt;P&gt;&lt;A href="https://github.com/SAP/abap-atc-cr-cv-s4hc/tree/main/src" target="_blank" rel="noopener nofollow noreferrer"&gt;Cloudification Repository at SAP/abap-atc-cr-cv-s4hc (github.com)&lt;/A&gt;&lt;/P&gt;&lt;H3 id="toc-hId-527483719"&gt;4. In the Cloudification Viewer&lt;/H3&gt;&lt;P&gt;You can use the Cloudification Viewer to access the SAP APIs lists from the Cloudification Repository in the comfortable way:&lt;/P&gt;&lt;P&gt;&lt;A href="https://sap.github.io/abap-atc-cr-cv-s4hc/" target="_self" rel="nofollow noopener noreferrer"&gt;SAP S/4HANA Cloud Public Edition&lt;/A&gt;&lt;BR /&gt;&lt;A href="https://sap.github.io/abap-atc-cr-cv-s4hc/?version=objectReleaseInfo_PCE2023_1.json" target="_self" rel="nofollow noopener noreferrer"&gt;SAP S/4HANA Cloud Private Edition 2023 FPS1&lt;/A&gt;&lt;BR /&gt;&lt;A href="https://sap.github.io/abap-atc-cr-cv-s4hc/?version=objectClassification.json" target="_blank" rel="noopener nofollow noreferrer"&gt;SAP S/4HANA Cloud Private Edition - Classic APIs&lt;/A&gt;&lt;/P&gt;&lt;P&gt;For details click on a single row to display additional content.&lt;BR /&gt;Using the &lt;EM&gt;Show Filter Bar&lt;/EM&gt; button you can choose the relevant SAP APIs list for your SAP S/4HANA product.&lt;/P&gt;&lt;H3 id="toc-hId-330970214"&gt;4. External tooling&lt;/H3&gt;&lt;P&gt;&lt;A href="https://software-heroes.com/en/cloudification-repository-viewer" target="_blank" rel="noopener nofollow noreferrer"&gt;Software-Heroes&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-sap/how-to-find-sap-apis-for-sap-s-4hana-3-tier-extensibility-model/ba-p/13623819"/>
+    <published>2024-02-29T20:45:17.161000+01:00</published>
   </entry>
 </feed>
