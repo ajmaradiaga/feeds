@@ -2,10 +2,134 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/Cloud-Connector-blog-posts.xml</id>
   <title>SAP Community - Cloud Connector</title>
-  <updated>2024-03-13T00:10:27.018747+00:00</updated>
+  <updated>2024-03-13T12:10:27.216112+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/Cloud Connector/pd-p/0f95abc4-29f3-477d-874c-7c758b81f779" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Cloud Connector blog posts in SAP Community</subtitle>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-sap/sftp-via-cloud-connector-python-operator-in-sap-data-intelligence/ba-p/13551278</id>
+    <title>SFTP via Cloud Connector Python Operator in SAP Data Intelligence</title>
+    <updated>2023-04-14T13:00:08+02:00</updated>
+    <author>
+      <name>felixbartler</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/4997</uri>
+    </author>
+    <content>The (Secure) File Transfer Protocol is still a very common way to integrate files from different sources. SAP Data Intelligence supports many source systems for file operations out of the box. To allow for even more flexibility in the connection to SFTP servers, this blog post shows how to use the Python library Paramiko to read, write, list or delete files on remote sources. Even through the infamous Cloud Connector.&lt;BR /&gt;
+&lt;H2 id="toc-hId-962017764"&gt;Connect Python Operator to SFTP via Cloud Connector:&lt;/H2&gt;&lt;BR /&gt;
+Szenario: This blog post aims at establishing a connection to an on-premises SFTP server. We will show how to establish a TCP socket and use Paramiko to read, list, write or delete files. The TCP connection socket is the basis for this blog and I recommend my previous blog about the basics of establishing a TCP Socket from a python custom operator and a detailed explaination on the role of the Connectivity Service. &lt;A href="https://blogs.sap.com/2023/04/14/sap-data-intelligence-python-operators-and-cloud-connector-tcp/" rel="noopener noreferrer"&gt;https://blogs.sap.com/2023/04/14/sap-data-intelligence-python-operators-and-cloud-connector-tcp/&lt;/A&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/04/architecture-data-intelligence-sftp.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Szenario Architecture&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;H3 id="toc-hId-894586978"&gt;Prerequisite:&lt;/H3&gt;&lt;BR /&gt;
+All prerequisites from the previous blog post apply.&lt;BR /&gt;
+&lt;BR /&gt;
+For this case, we additionally need a SFTP server running on the same host as the Cloud Connector. To establish a local test setup on my Windows machine, I use a very simple dockerized SFTP server. It exposes a SFTP server on the localhost on port 22. With the user foo and the password pass we are allowed to interact with the contents of the folder /upload.&lt;BR /&gt;
+&lt;PRE class="language-python"&gt;&lt;CODE&gt;docker run -p 22:22 -d atmoz/sftp foo:pass:::upload&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&lt;H3 id="toc-hId-698073473"&gt;1. Configuration:&lt;/H3&gt;&lt;BR /&gt;
+The very first step in the integration is to configure the Cloud Connector to expose the SFTP server to the respective BTP subaccount. The configuration looks as follows:&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/04/cloud-to-onpremise-configuration-sftp-1.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Cloud To On-premises Configuration&lt;/P&gt;&lt;BR /&gt;
+The localhost:22 is exposed to a virtual host that we can see in the BTP Cockpit.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/04/btp-registered-cloud-connectors-sftp.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;BTP Cockpit Cloud Connector Resources&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;H3 id="toc-hId-501559968"&gt;2. Creating a Data Intelligence Connection:&lt;/H3&gt;&lt;BR /&gt;
+For our purposes, we do not want to hard-code the connection details, because we need a little help from the connection management to access the Connectivity Service of BTP. In the Connection Management Application from SAP Data Intelligence we can create connections of all kinds of types. We create a connection of type HTTP with out host, port and we specify SAP Cloud Connector as gateway.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/04/sftp-connection.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Data Intelligence Connection Management&lt;/P&gt;&lt;BR /&gt;
+Note: Not all connection types allow you to access through the Cloud Connector. See the official product documentation for details.&lt;BR /&gt;
+&lt;H3 id="toc-hId-305046463"&gt;3. Developing a Custom Operator:&lt;/H3&gt;&lt;BR /&gt;
+We use Paramiko and the sapcloudconnectorpythonsocket library. They need to be installed in a Dockerfile and added to the custom operator. Paramiko is a python library that helps to communicate with the SFTP server. The sapcloudconnectorpythonsocket library helps us to open a socket via the Cloud connector.&lt;BR /&gt;
+&lt;PRE class="language-python"&gt;&lt;CODE&gt;FROM $com.sap.sles.base&lt;BR /&gt;
+&lt;BR /&gt;
+RUN python3 -m pip --no-cache-dir install 'sapcloudconnectorpythonsocket' --user&lt;BR /&gt;
+RUN python3 -m pip --no-cache-dir install 'paramiko' --user&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Finally, let's have a look at the actual custom script. The first important part is opening the TCP socket as described in the previous blog. This TCP socket can be passed to Paramiko SSHClient to establish the connection. Since we do keep this really simple we put some Paramiko policies in to ignore the missing host keys. With the open ftp client, we can interact with the file server.&lt;BR /&gt;
+&lt;BR /&gt;
+For the purpose of demonstration, we create a file in the /upload directory, called test_create_file.txt. We then create a new directory, list the contents of the /upload directory, read the content of the created file and remove it again.&lt;BR /&gt;
+&lt;BR /&gt;
+Paramiko can do a lot more than the shown file operations, it implements the SSHv2 Protocol and can be used to execute shell commands remotely. Thus opening a big door for hacky integration scenarios - even fully on-prem &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt; &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Check out the &lt;A href="https://docs.paramiko.org/en/stable/" rel="nofollow noopener noreferrer"&gt;Paramiko documentation&lt;/A&gt; for more details.&lt;BR /&gt;
+&lt;PRE class="language-python"&gt;&lt;CODE&gt;import paramiko&lt;BR /&gt;
+import io&lt;BR /&gt;
+from sapcloudconnectorpythonsocket import CloudConnectorSocket&lt;BR /&gt;
+&lt;BR /&gt;
+sftp_connection = api.config.http_connection&lt;BR /&gt;
+&lt;BR /&gt;
+api.logger.info(str(sftp_connection))&lt;BR /&gt;
+&lt;BR /&gt;
+def gen():&lt;BR /&gt;
+    api.logger.info("Generator Start")&lt;BR /&gt;
+    &lt;BR /&gt;
+    cc_socket = CloudConnectorSocket()&lt;BR /&gt;
+    cc_socket.connect(&lt;BR /&gt;
+        dest_host=sftp_connection["connectionProperties"]["host"], &lt;BR /&gt;
+        dest_port=sftp_connection["connectionProperties"]["port"], &lt;BR /&gt;
+        proxy_host=sftp_connection["gateway"]["host"], &lt;BR /&gt;
+        proxy_port=20004, &lt;BR /&gt;
+        token=sftp_connection["gateway"]["authentication"],&lt;BR /&gt;
+        location_id="FELIXLAPTOP"&lt;BR /&gt;
+    )&lt;BR /&gt;
+    &lt;BR /&gt;
+    ssh_client = paramiko.SSHClient()&lt;BR /&gt;
+    ssh_client.load_system_host_keys()&lt;BR /&gt;
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())&lt;BR /&gt;
+&lt;BR /&gt;
+    ssh_client.connect(&lt;BR /&gt;
+        sftp_connection["connectionProperties"]["port"], &lt;BR /&gt;
+        username=sftp_connection["connectionProperties"]["user"],&lt;BR /&gt;
+        password=sftp_connection["connectionProperties"]["password"],&lt;BR /&gt;
+        sock=cc_socket&lt;BR /&gt;
+    )&lt;BR /&gt;
+&lt;BR /&gt;
+    sftp = ssh_client.open_sftp()&lt;BR /&gt;
+    &lt;BR /&gt;
+    api.logger.info("SFTP Client open")&lt;BR /&gt;
+    &lt;BR /&gt;
+    file = sftp.file("/upload/test_create_file.txt", "a", -1)&lt;BR /&gt;
+    file.write("Hello SFTP.!\n")&lt;BR /&gt;
+    file.flush()&lt;BR /&gt;
+&lt;BR /&gt;
+    sftp.mkdir("/upload/testdir")&lt;BR /&gt;
+&lt;BR /&gt;
+    dir_objects = sftp.listdir_attr("/upload")&lt;BR /&gt;
+    file_names = [e.filename for e in dir_objects]&lt;BR /&gt;
+    api.logger.info(file_names)&lt;BR /&gt;
+    &lt;BR /&gt;
+    file_obj = io.BytesIO()&lt;BR /&gt;
+    sftp.getfo("/upload/test_create_file.txt", file_obj)&lt;BR /&gt;
+    api.logger.info(str(file_obj.getvalue()))&lt;BR /&gt;
+    &lt;BR /&gt;
+    sftp.remove("/upload/test_create_file.txt")&lt;BR /&gt;
+&lt;BR /&gt;
+    api.logger.info("Generator End")&lt;BR /&gt;
+    &lt;BR /&gt;
+    api.send("file", api.Message(file_obj.getvalue(), {"file":{"path": f"/shared/pythoncloudconnector/test_create_file.txt"}, "file_name": "test_create_file.txt"}))&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;BR /&gt;
+api.add_generator(gen)&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;H3 id="toc-hId-108532958"&gt;4. Testing the Custom Operator:&lt;/H3&gt;&lt;BR /&gt;
+To test the new custom SFTP operator, we create a Data Intelligence graph. In the example, I added an output port of type message.file to the custom operator. It connects to the write file operator, which is configured to write to the DI_DATA_LAKE. For the SFTP operator we add the Connection ID we created before as a parameter.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/04/sftp-graph.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Data Intelligence Graph&lt;/P&gt;&lt;BR /&gt;
+In the logs of the Graph execution, we can see how the file and directory are created on the SFTP server. Additionally, we can also retrieve the file content "Hello SFTP.!".&lt;BR /&gt;
+&lt;PRE class="language-python"&gt;&lt;CODE&gt;Generator Start &lt;BR /&gt;
+SFTP Client open &lt;BR /&gt;
+['testdir', 'test_create_file.txt'] &lt;BR /&gt;
+b'Hello SFTP.!\n' &lt;BR /&gt;
+Generator End &lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+At last we can check the Metadata Explorer and see the newly imported file.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/04/sftp-datalake-result.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+Looking at the file content, we can see it worked well! We are able to connect to the SFTP server and integrate files with the standard operators.&lt;BR /&gt;
+&lt;PRE class="language-python"&gt;&lt;CODE&gt;Hello SFTP.!&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+Hope you find the content of this blog helpful. Feel free to comment for further clarifications.</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-sap/sftp-via-cloud-connector-python-operator-in-sap-data-intelligence/ba-p/13551278"/>
+    <published>2023-04-14T13:00:08+02:00</published>
+  </entry>
   <entry>
     <id>https://community.sap.com/t5/sap-learning-blog-posts/how-can-i-connect-sap-btp-applications-and-on-premise-systems-using-the/ba-p/298931</id>
     <title>How can I connect SAP BTP applications and on-premise systems using the Cloud Connector?</title>
@@ -35,6 +159,182 @@
 "proxy_password": "" // if location ID is set in SAP Cloud Connector then base64 of the location ID else empty string&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;You may now set up a Development Space in SAP Business Application Studio &lt;A href="https://help.sap.com/docs/SAP_HANA_PLATFORM/cf8b4c5847374960a68b55cb86eae013/6697174ae98d434d9f622b7765336fd7.html" target="_blank" rel="noopener noreferrer"&gt;[Documentation]&lt;/A&gt;.&lt;BR /&gt;&lt;BR /&gt;Detailed documentation about the setup is available &lt;A href="https://help.sap.com/docs/SAP_HANA_PLATFORM/cf8b4c5847374960a68b55cb86eae013/d1e4372023054dc8a92dac8118ee0088.html" target="_blank" rel="noopener noreferrer"&gt;here&lt;/A&gt;.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-sap/connectivity-between-sap-business-application-studio-and-xs-advanced/ba-p/13574015"/>
     <published>2023-11-02T16:18:00+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-members/sap-cloud-connector-upgrade-and-high-availability-configuration-atr/ba-p/13571987</id>
+    <title>SAP Cloud Connector Upgrade and High Availability Configuration #ATR</title>
+    <updated>2024-01-09T11:36:57+01:00</updated>
+    <author>
+      <name>AJAYTR_ATR66</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/178188</uri>
+    </author>
+    <content>#ATR blog (4)&lt;BR /&gt;
+&lt;BR /&gt;
+Informative Note: Created this blog to provide information on how to upgrade SAP Cloud Connector (SCC) and do High Availability Configuration (Windows)&lt;BR /&gt;
+&lt;BR /&gt;
+Prerequisites - Knowledge on SCC Installation.&lt;BR /&gt;
+&lt;BR /&gt;
+Cloud connector serves as a link between SAP BTP applications and on-premise systems. Eg: Business users will use SAP BTP BAS Application and fetch ABAP ODATA services to create new Fiori UI5 Apps.&lt;BR /&gt;
+&lt;BR /&gt;
+General Knowledge Link: &lt;A href="https://help.sap.com/docs/connectivity/sap-btp-connectivity-cf/cloud-connector" target="test_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/connectivity/sap-btp-connectivity-cf/cloud-connector&lt;/A&gt;.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;Pre-requisites for HA Configuration:&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;OL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Upgrade Cloud connector to latest version. Although HA supports with different cloud connector version, there can be inconsistencies between primary and secondary SCC due to version mismatch. We won't have much impact technically.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/lkdmglwmgfwefgwegf.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+To avoid this scenario, we can update primary cloud connector to latest version before proceeding HA configuration.&lt;BR /&gt;
+&lt;BR /&gt;
+Download Link for SAP JVM and Cloud Connector: &lt;A href="https://tools.hana.ondemand.com/#cloud" target="test_blank" rel="nofollow noopener noreferrer"&gt;https://tools.hana.ondemand.com/#cloud&lt;/A&gt; -&amp;gt; Cloud Connector&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/dvwdfwfe.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/fergergerg.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+Current Scenario: Cloud Connector version: 2.13.2. Planned upgrade version: 2.15.2. Post which HA Configuration needs to be done.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/dvwfwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+2. Take backup of your cloud connector.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/wefwlkefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+3) Check in browser whether shadow cloud connector VM(shadow) fetches right certificate for your Region (Europe Rot Neo, Frankfurt CF, etc.,.) If you are using proxy, make sure whether Cloud connector ports allowed in proxy. Cloud connector will redirect and fetch right certificate while adding/configuring subaccounts if ports are allowed in proxy.&lt;BR /&gt;
+&lt;BR /&gt;
+You can find ports information in below link&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;A href="https://help.sap.com/docs/connectivity/sap-btp-connectivity-cf/prerequisites" target="test_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/connectivity/sap-btp-connectivity-cf/prerequisites&lt;/A&gt;.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&amp;nbsp; &amp;nbsp; &lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/ewgwefwefwf.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp; &amp;nbsp;If cloud connector fetches wrong certificate, ask security team to unblock SCC Region Ip and disable https inspection for all Ips - port 443.&lt;BR /&gt;
+&lt;BR /&gt;
+4) Telnet and check whether cloud connector ports are reachable or not - In Shadow SCC VM(Windows) - command - telnet IP(port) 443. If it fails, we can't able to add subaccount/HA works but connectivity to subaccount will fail.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;Eg: telnet 155.56.210.83 443&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/sdvwefwefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp; Also check whether master SCC port accessible from Shadow. If it fails, HA configuration won't work.&lt;BR /&gt;
+&lt;BR /&gt;
+Command: telnet masterscchostname 8443&lt;BR /&gt;
+&lt;BR /&gt;
+5) If you want to maintain secure SSL, renew shadow server VM(Windows) certificate with right domain name prior. We can apply certificate(in UI/System) post installation. Make sure to upload same certificate in On-Premises ABAP System - STRUST. This will avoid SSL communication issues post installation.&lt;BR /&gt;
+&lt;BR /&gt;
+Below image captured post installation (UI &amp;amp; System Certificate)&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/dvwefgewgeg.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+6) We might face below error after configuring HA. If Master and Shadow state collapsed and lost, we can simply use reset (button) -&amp;gt; stop SCC then set Master/Shadow state via java.jar command accordingly. Once Master/Shadow role set, start SCC and recover using backup file.&lt;BR /&gt;
+&lt;BR /&gt;
+" SWITCH ROLE FAILED IN FIRST ATTEMPT. ROLE EXCHANGE OK BUT CONNECTION CHECK NOT SUCCESSFUL”&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;&lt;EM&gt;&amp;nbsp; java -jar configurator.jar -be master&lt;/EM&gt;&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+FYI - &lt;A href="https://me.sap.com/notes/0002899832" target="test_blank" rel="noopener noreferrer"&gt;https://me.sap.com/notes/0002899832&lt;/A&gt; - Detailed Explanation&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/dfgwefgwefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;UPGRADE SCC FROM 2.13.2 to 2.15.2:&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;OL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Make sure whether you have downloaded updated JVM and set JVM path in JAVA_HOME &amp;amp; PATH Environment variable. It will help SCC to detect SAP JVM files and use for connectivity purposes.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/wefwefwfwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp; &amp;nbsp; &amp;nbsp;2. Stop Cloud Connector before upgrading - Windows Service - SAP Cloud Connector&lt;BR /&gt;
+&lt;BR /&gt;
+3. Uninstall Cloud Connector. PFA - &lt;A href="https://help.sap.com/docs/connectivity/sap-btp-connectivity-cf/upgrade" target="test_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/connectivity/sap-btp-connectivity-cf/upgrade&lt;/A&gt;.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/fwefwfe.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/dvswvewvve.png" height="223" width="608" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp; Retain files so that it will fetch all connected subaccounts automatically. If you want to install upgraded version in any other preferred path, you can install fresh in your preferred path and use backup to recover your account. Make sure to take backup of scc config folder and files for safer side.&lt;BR /&gt;
+&lt;BR /&gt;
+4. Once uninstalled, reinstall cloud connector with latest version (Current scenario - 2.15.2)&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/dsfwfwefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+Choose SCC installation path. If you choose old path with retained files, SCC will fetch and connect all subaccounts as well as set whether SCC should act as Master/Shadow Role.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/efwefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/fwefwfewef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+Prefer to use default port 8443&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/dvergergferg.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+Choose SAP JVM path and start Cloud connector.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/efwefwefwfe.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;5. Before accessing SCC link, clear browser cache to avoid any unpredictable behavior due to the upgraded UI.&lt;BR /&gt;
+&lt;BR /&gt;
+Check upgraded version details in ABOUT.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;A href="https://hostname:8443" target="test_blank" rel="nofollow noopener noreferrer"&gt;https://hostname:8443&lt;/A&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/sdfwefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;HA CONFIGURATION:&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;OL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Install Shadow Server -&amp;nbsp; Use same upgrade steps to install Shadow server. Start Shadow Cloud Connector.&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Initial Configuration: Administrator user and Password 'manage' and set "Shadow" role.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/wevwefwefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/dwfwefwfe.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Initial Configuration completed.&lt;BR /&gt;
+&lt;BR /&gt;
+3. Replace default UI certificate with your renewed shadow hostname certificate.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/gergerferf.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/efgwefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+Restart SCC to reflect newer certificate.&lt;BR /&gt;
+&lt;BR /&gt;
+..................&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;Note:&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+1) UI certificate: Certificate matching corresponding CN name needed since UI certificate is server specific. If not updated, SCC link will be unsecure SSL state.&lt;BR /&gt;
+&lt;BR /&gt;
+2) System certificate can be common certificate which used for connecting On-Premises systems. It can be Master/Shadow, but Master server certificate is recommended. You can use same UI certificate as System Certificate.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/dwefwefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+.................&lt;BR /&gt;
+&lt;BR /&gt;
+4. Once shadow server installed and configuration completed, Enable high availability in Primary Master SCC.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/qwdqwdwd.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/dsgsefwefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp; &amp;nbsp;5. Login into shadow SCC and use "Connect" option. Enter Master SCC password.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/vwefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/fwefwefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&amp;nbsp; &lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/efwefwefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+Check connectivity as well as mirrored subaccounts.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/berergerg.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/dfwefwefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Connection to Master from Shadow successful.&lt;BR /&gt;
+&lt;BR /&gt;
+6. Login into Master and check connectivity.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/egwefwefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;EM&gt;HA Configuration completed.&lt;/EM&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;&amp;nbsp;Switch Roles - Takeover:&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;Switch roles and test HA takeover. Also, set automatic takeover delay accordingly.&lt;/P&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/sdvvef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;STRONG&gt;&amp;nbsp;On-Premise Connection Check:&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Check ABAP System connection as well once takeover done. Make sure to upload both Master/Shadow System Certificate in ABAP STRUST.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/dvwefwefwef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/dvefwefef.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;Mail Config:&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+You can also set E-Mail Configuration for Alerts - Connectivity loss/timeout, Automatic Takeover,etc.,.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/dvwefwefewf.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/dvwewefwefwef.png" height="463" width="430" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;&amp;nbsp;INFO:&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+If you are having old SAP SCC version and business SCC downtime not possible, you can download latest SCC for shadow and configure HA directly irrespective of their version mismatch. It might be incompatible but it won't impact much technically. You can switch roles once HA Configured and update old SCC version. This will avoid SCC downtime.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Thanks for visiting!&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-members/sap-cloud-connector-upgrade-and-high-availability-configuration-atr/ba-p/13571987"/>
+    <published>2024-01-09T11:36:57+01:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-members/sap-btp-for-your-home-lab/ba-p/13593650</id>
