@@ -2,252 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/Software-Logistics-blog-posts.xml</id>
   <title>SAP Community - Software Logistics</title>
-  <updated>2024-03-13T12:14:14.129506+00:00</updated>
+  <updated>2024-03-14T00:14:18.429296+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/Software Logistics/pd-p/344331658552599549231300137890756" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Software Logistics blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/dmo-background-on-table-split-mechanism/ba-p/13142675</id>
-    <title>DMO: background on table split mechanism</title>
-    <updated>2015-06-11T13:11:04+02:00</updated>
-    <author>
-      <name>Boris_Rubarth</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/137622</uri>
-    </author>
-    <content>&lt;DIV&gt;&lt;BR /&gt;
-&lt;DIV&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-This blog explains the technical background of table split as part of the database migration option (DMO).&lt;BR /&gt;
-&lt;BR /&gt;
-As a prerequisite, you should have read the introductionary document about DMO: &lt;A class="jive-link-wiki-small" href="http://scn.sap.com/docs/DOC-49580" target="_blank" rel="noopener noreferrer"&gt;Database Migration Option (DMO) of SUM - Introduction&lt;/A&gt; and the technical background in &lt;A class="jive-link-external-small" href="https://blogs.sap.com/?p=103432" target="_blank" rel="noopener noreferrer"&gt;DMO: technical background&lt;/A&gt;.&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;/DIV&gt;&lt;BR /&gt;
-During the migration of application tables, the migration of big tables might dominate the overall runtime. That is why SAPup considers table splitting to reduce the downtime of the DMO procedure. Table splitting shall prevent the case that all tables but a few have been migrated, and that only a small portion of all R3load processes these remaining (big) tables processes. The other R3load processes would be idle (to be more precise: would not run), and the long tail processing of the big tables would increase the downtime unnecessarily. See figure 1 below for a schematic view.&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2015/06/fig_01_723137.jpg" width="580" /&gt;&lt;/P&gt;&lt;BR /&gt;
-SAPup uses the following approach to define the tail: if the overall usage of R3load pairs (for export and import) drops below 90 %, SAPup handles all tables that are processed afterwards as being part of the tail (see figure 2 below).&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2015/06/fig_02_723138.jpg" width="580" /&gt;&lt;/P&gt;&lt;BR /&gt;
-During the configuration of the DMO procedure, you will configure a number of R3load processes, which determines the number of R3loads that may run in parallel. This explanation will talk about R3load pairs that are either active of idle, which is rather a virtual view. If an R3load pair did execute one job, it will not wait in status idle, but end. SAPup may then start another R3load pair. Still for the discussion of table split, we consider a fixed number of (potential) R3load pairs, which are either active or idle. The following figure 3 illustrates this view.&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2015/06/fig_03_723139.jpg" width="580" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;H2 id="toc-hId-846611271"&gt;Automatic table splitting&lt;/H2&gt;&lt;BR /&gt;
-SAPup will automatically determine the table split conditions, and there is no need and no recommendation to influence the table splitting. Your task is to find the optimal number of R3load processes during a test run, and provide the table duration files for the next run. (SAPup will use the table duration files to calculate the table splitting based on the real migration duration instead of the table size; see &lt;A class="jive-link-external-small" href="https://help.sap.com/viewer/c4ebc2b5d928446180d9ad2667f11faa/1.0/en-US/a151c8571e0c46b0a4098eda8d34303a.html" target="_blank" rel="noopener noreferrer"&gt;DMO guide&lt;/A&gt;, section 2.2 “Performance Optimization: Table Migration Durations”).&lt;BR /&gt;
-&lt;BR /&gt;
-You may still want to learn more on the split logic, so this blog introduces some background on table splitting. Note that SAPup will not use R3ta for the table split.&lt;BR /&gt;
-&lt;H2 id="toc-hId-650097766"&gt;Table split considerations&lt;/H2&gt;&lt;BR /&gt;
-Typically, you will expect table splitting to happen for big tables only, but as we will see, the attempt to optimize the usage of all available (configured) R3load processes may result in splitting other tables as well. Still, splitting a table into too many pieces may result in a bad export performance: lots of parallel fragmented table segments will decrease read performance, and increase the load on the database server. A table may be big, but as long as has been completely processed before the tail processing starts, there is no reason to split that table. That is why the tool will calculate a minimum of table splits to balance all requirements.&lt;BR /&gt;
-&lt;BR /&gt;
-The logic comprises four steps: table size determination, table sequence shuffling, table split determination, and assignment to buckets. A detailed explanation of the steps will follow below. During the migration execution, SAPup will organize tables and table segments in &lt;EM&gt;buckets&lt;/EM&gt;, which are a kind of work packages for the R3load pair to export and import. During the migration phase, each R3load pair will typically work on several buckets, one after the other.&lt;BR /&gt;
-&lt;H2 id="toc-hId-453584261"&gt;Step 1: Sorting by table size&lt;/H2&gt;&lt;BR /&gt;
-SAPup will determine the individual table sizes, and then sort all tables descending by size.&lt;BR /&gt;
-&lt;BR /&gt;
-In case you provide the table duration file from a previous run in the download folder, SAPup will use the table migration duration instead of the table size.&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2015/06/fig_04_723140.jpg" width="580" /&gt;&lt;/P&gt;&lt;BR /&gt;
-Assuming we only had sixteen tables, figure 4 above shows the sorted table list. The table number shall indicate the respective initial positioning in the table list.&lt;BR /&gt;
-&lt;H2 id="toc-hId-257070756"&gt;Step 2: Shuffle table sequence&lt;/H2&gt;&lt;BR /&gt;
-Migrating the tables in sequence of their size is not optimal, so the table sequence is reordered (“shuffled”) to achieve a good mixture of bigger and smaller application tables. Figure 5 below tries to illustrate an example.&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2015/06/fig_05_723141.jpg" width="580" /&gt;&lt;/P&gt;&lt;BR /&gt;
-SAPup uses an internal algorithm to shuffle the table sequence, so that table sizes alternate between bigger and smaller.&lt;BR /&gt;
-&lt;H2 id="toc-hId-60557251"&gt;Step 3: Table split determination&lt;/H2&gt;&lt;BR /&gt;
-SAPup will now simulate table splitting, based on the number of configured R3load processes. Note that changing the number of configured R3load processes later during the migration phase will affect the runtime of the procedure.&lt;BR /&gt;
-&lt;BR /&gt;
-For the simulation, SAPup will work on “slots” that represent the R3load pairs, and will distribute the tables from the shuffled table list into these slots. Note that these R3load “slots” are not identical to the buckets. SAPup will use buckets only at a later step. A slot is a kind of sum of all buckets, which are processed by an R3load pair.&lt;BR /&gt;
-&lt;BR /&gt;
-Initially, the simulation will assign one table from the shuffled table list into each slot until all slots are filled with one table. In an example with only eight R3load pairs, this means that after the first eight tables, all slots have a table assigned, as shown in figure 6 below.&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2015/06/fig_06_723142.jpg" width="580" /&gt;&lt;/P&gt;&lt;BR /&gt;
-In our example, SAPup has filled all slots with one table, and the second slot from above has the smallest table, so it has the fewest degree of filling.&lt;BR /&gt;
-&lt;BR /&gt;
-Now for all following assignments, SAPup will always assign the next table from the list to the slot that has the fewest degree of filling. In our example, SAPup would assign the next table (T7) to the second slot from top. After that, SAPup will most probably assign the next table (T9) to the first slot, see figure 7 below (sounds like Tetris, doesn’t it?).&lt;BR /&gt;
-&lt;P style="padding-left: 40px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2015/06/Fig_07.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-Finally, SAPup has assigned all tables from the shuffled table list to the slots, as shown in figure 8 below. Note that the figures are not precise in reflecting the table sizes introduced in figure 4 and 5.&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2015/06/fig_08_723144.jpg" width="580" /&gt;&lt;/P&gt;&lt;BR /&gt;
-As last part of this simulation run, SAPup will now determine which tables to split. The goal is to avoid a long tail, so SAPup will determine the tail, and split all tables that are part of the tail.&lt;BR /&gt;
-&lt;BR /&gt;
-SAPup determines the tail by the following calculation: SAPup sorts the slots by filling degree, and the tail begins at the point in time at which the usage of all R3load pairs is below 90%. All tables that are part of the tail – either completely or partially – are candidates for a split, as shown in figure 9 below. As an example, table T2 is shown as being part of the tail.&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2015/06/fig_09_723145.jpg" width="580" /&gt;&lt;/P&gt;&lt;BR /&gt;
-SAPup determines the number of segments into which the table will be split by the degree by which the table belongs to the tail. The portion of the table that does not belong to the tail is the scale for the table segments to be created. For the example of table T2, this may result in three segments T2/1, T2/2, and T2/3.&lt;BR /&gt;
-&lt;BR /&gt;
-SAPup will now extend the shuffled table list by replacing the detected tables by its table segments. Figure 10 shows the example with three segments for table T2.&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2015/06/fig_10_723146.jpg" width="580" /&gt;&lt;/P&gt;&lt;BR /&gt;
-SAPup starts the next iteration of the simulation, based on the shuffled table list with table segments.&lt;BR /&gt;
-&lt;BR /&gt;
-If the calculated tail is negligible (lower than a specific threshold) or if the third simulation has finished, SAPup will continue with step 4.&lt;BR /&gt;
-&lt;H2 id="toc-hId--135956254"&gt;Step 4: Table and table segments assignment to buckets&lt;/H2&gt;&lt;BR /&gt;
-The result of step 3 is a list of tables and table segments whose sequence does not correlated to the table size, and which was optimized to fill all R3load slots with a small tail. Now SAPup will work with buckets (work packages for R3load pairs) instead of slots. This is a slightly different approach, but as the filling of the buckets will use the same sequence of tables before, the assumption is that it has the same result.&lt;BR /&gt;
-&lt;BR /&gt;
-SAPup will assign the tables of this list to the buckets in the sequence of the list. The rules for this assignment are&lt;BR /&gt;
-&lt;OL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;A bucket will get another table or table segment assigned from the list as long as the bucket size is lower than 10 GB.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;If the next table or table segment is bigger than 10 GB, the current bucket is closed, and SAPup will assign the table or table segment to next bucket.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;SAPup will put segments of a split table into different buckets– otherwise two table segments would reside in one bucket, which neutralizes the desired table split.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/OL&gt;&lt;BR /&gt;
-The first rule results in the effect that a bucket may have more table content than 10 GB. If a table of e.g. 30 GB was not determined for a split, the respective bucket will have this size.The second rule may result in the effect that a bucket is only filled to a low degree, if the following table / table segment was bigger than 10 GB so that it was put into the following bucket.The third rule results in the effect that e.g. for a table with four segments of size 5 GB each, several buckets will have a size of 5 GB. Figure 11 below tries to illustrate this with some examples.&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2015/06/fig_11_723147.jpg" width="580" /&gt;&lt;/P&gt;&lt;BR /&gt;
-Now SAPup has defined the distribution of tables and table segments into buckets, which in turn are part of a bucket list. All this happens during the phase EU_CLONE_MIG_DT_PRP for the application tables (and during phase EU_CLONE_MIG_UT_PRP for the repository). Note that the DT or UT part of the phase name is no indication whether or not the phase runs in uptime (UT) or downtime (DT): EU_CLONE_MIG_DT_PRP runs in uptime. The migration of application tables happens in downtime during phase EU_CLONE_MIG_DT_RUN. During the migration phase, SAPup will start the R3load pairs and assign the next bucket from the bucket list. As soon as an R3load pair is finished (and closes), SAPup will start another R3load pair and assign the next bucket to this pair, as shown in the following figure 12.&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2015/06/fig_12_723165.jpg" width="580" /&gt;&lt;/P&gt;&lt;BR /&gt;
-Relevant log files are&lt;BR /&gt;
-&lt;UL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;EUMIGRATEDTPRP.LOG: tables to split, number of buckets, total size&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;EUMIGRATEDTRUN.LOG: summary of migration rate&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;MIGRATE_DT_RUN.LOG: details like R3load logs&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId--332469759"&gt;Additional considerations&lt;/H2&gt;&lt;BR /&gt;
-Typically, each R3load pair will execute more than one bucket. Exceptions may happen for small database sizes. As an example, for a total database size of 9992.3 MB and 20 R3load pairs (so 40 configured R3load processes), the tool would reduce the bucket size to put equal load to all R3load pairs. The log will contain a line such as “Decreasing bucket size from 10240 to 256 MB to make use of 160 processes”. Below you see the respective log entry in EUMIGRATEUTPRP.LOG:&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;SPAN style="font-family: courier new,courier"&gt;1 ETQ399 Total size of tables/views is 9992.3 MB.&lt;/SPAN&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;SPAN style="font-family: courier new,courier"&gt;2 ETQ399 Decreasing bucket size from 10240 to 256 MB to make use of 20 processes.&lt;/SPAN&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;SPAN style="font-family: courier new,courier"&gt;…&lt;/SPAN&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;SPAN style="font-family: courier new,courier"&gt;1 ETQ000 ==================================================&lt;/SPAN&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;SPAN style="font-family: courier new,courier"&gt;1 ETQ399 Sorting 10801 tasks for descending sizes.&lt;/SPAN&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;SPAN style="font-family: courier new,courier"&gt;1 ETQ000 ==================================================&lt;/SPAN&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;SPAN style="font-family: courier new,courier"&gt;1 ETQ399 Distributing into 20 groups of size 500 MB and reshuffling tasks.&lt;/SPAN&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;SPAN style="font-family: courier new,courier"&gt;1 ETQ000 ==================================================&lt;/SPAN&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;/DIV&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/dmo-background-on-table-split-mechanism/ba-p/13142675"/>
-    <published>2015-06-11T13:11:04+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/dmo-table-comparison-and-migration-tools/ba-p/13145239</id>
-    <title>DMO: table comparison and migration tools</title>
-    <updated>2015-07-07T17:06:26+02:00</updated>
-    <author>
-      <name>Boris_Rubarth</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/137622</uri>
-    </author>
-    <content>&lt;DIV&gt;&lt;BR /&gt;
-&lt;DIV&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-This blog discusses the table comparison and the migration tools of Software Update Manager (SUM) and database migration option (DMO). As a prerequisite, you should read the introduction document about DMO: &lt;A class="jive-link-wiki-small" href="http://scn.sap.com/docs/DOC-49580" target="_blank" rel="noopener noreferrer"&gt;Database Migration Option (DMO) of SUM - Introduction&lt;/A&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;/DIV&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId-846696680"&gt;Explanation of terms&lt;/H2&gt;&lt;BR /&gt;
-&lt;H3 id="toc-hId-779265894"&gt;SUM and DMO&lt;/H3&gt;&lt;BR /&gt;
-Software Update Manager (SUM) has several use cases, one of these is &lt;EM&gt;database migration option&lt;/EM&gt; (DMO). DMO combines the update/upgrade of the SAP software with the database migration to SAP HANA database.&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;STRONG&gt; :!: Note&lt;/STRONG&gt;: DMO is not a tool, it is one of several use cases for SUM.&lt;/P&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;H3 id="toc-hId-582752389"&gt;DMO compares &lt;EM&gt;number&lt;/EM&gt; of table rows&lt;/H3&gt;&lt;BR /&gt;
-DMO will in any case compare the &lt;STRONG&gt;number of rows&lt;/STRONG&gt; for each table before and after the migration - we call this &lt;SPAN style="font-family: courier new,courier"&gt;count*&lt;/SPAN&gt;.&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H3 id="toc-hId-386238884"&gt;DMO may compare &lt;EM&gt;content&lt;/EM&gt; of table rows&lt;/H3&gt;&lt;BR /&gt;
-As part of the DMO migration, you can optionally switch on the &lt;STRONG&gt;table comparison of DMO&lt;/STRONG&gt;. This will - in addition to &lt;SPAN style="font-family: courier new,courier"&gt;count*&lt;/SPAN&gt; - compare the &lt;EM&gt;content&lt;/EM&gt; of table rows before and after the migration. Comparing the table content will extend the downtime, so it is not recommended to enable table comparison for a DMO run on a productive system.&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;STRONG&gt;Note&lt;/STRONG&gt;: You may consider to enable the table comparison in a productive run as well i.e. for certain tables only, if it is required to prove that the content is identical.&lt;/P&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;H3 id="toc-hId-189725379"&gt;SUM may compare &lt;EM&gt;content&lt;/EM&gt; of table rows for classical migration&lt;/H3&gt;&lt;BR /&gt;
-The SUM offers the new use case "table comparison standalone" that can be used as an optional step for a classical migration.&lt;BR /&gt;
-&lt;BR /&gt;
-The classical migration is the heterogeneous system copy offered by the Software Provisioning Manager (SWPM). So for the classical migration as such, the SUM is not used, as for a migration to SAP HANA, you can decide to either go for the classical migration using the SWPM, or go for the DMO using the SUM.&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;For more information on this topic, see &lt;A class="jive-link-wiki-small" href="http://scn.sap.com/docs/DOC-49743" target="_blank" rel="noopener noreferrer"&gt;Migration of SAP Systems to SAP HANA&lt;/A&gt;.&lt;/P&gt;&lt;BR /&gt;
-In former times, you could only use the table checker tool to ensure that all tables were completely copied as part of a classical migration (for more information, see SAP Note 2009651). Now, you also have the option to use the table comparision for the classical migration as well, for which you may use the SUM in a specific mode (called migtool, explained below). This is called &lt;STRONG&gt;table comparison standalone&lt;/STRONG&gt;&amp;nbsp; - &lt;EM&gt;standalone&lt;/EM&gt; as it is not part of the DMO run.&lt;BR /&gt;
-&lt;H2 id="toc-hId--135870845"&gt;Introducing the migtools of SUM&lt;/H2&gt;&lt;BR /&gt;
-The Migration Tools (migtools) in this context are simply two SUM use cases that are bundled separately, and which are neither part of a standard SUM maintenance nor of a standard DMO migration.&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;STRONG&gt;Migtools&lt;/STRONG&gt; of SUM are:&lt;BR /&gt;
-&lt;UL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;STRONG&gt;benchmarking tool&lt;/STRONG&gt;, see separate blog &lt;A class="jive-link-external-small" href="https://blogs.sap.com/?p=127969" target="_blank" rel="noopener noreferrer"&gt;DMO: introducing the benchmarking tool&lt;/A&gt;&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;STRONG&gt;table comparison standalone&lt;/STRONG&gt;, see this blog :smile:&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Both options will not be used as part of a DMO run itself; but the benchmarking should be used before starting the DMO run.&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;STRONG&gt;&lt;BR /&gt;
-&lt;/STRONG&gt;&lt;STRONG&gt; :!: Note&lt;/STRONG&gt;: the migtools are not really tools, but use cases for SUM.&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;STRONG&gt; :!: Note&lt;/STRONG&gt;: For classical migrations using the Software Provisioning Manager, there are also migration tools (such as Migration Monitor, splitter tools – and Table Checker, as mentioned above),&amp;nbsp; which you must not confuse with the migtools of SUM with. For more information about the migration tools of the classical migration, see SAP Note 784118.&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H2 id="toc-hId--332384350"&gt;"Compare" &amp;lt;table comparison with DMO&amp;gt; versus &amp;lt;table comparison standalone&amp;gt;&lt;/H2&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Now let us compare the two compare options - still with me? :wink:&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;DIV class="scn-scrollable-area"&gt;&lt;TABLE class="jiveBorder" style="border: 1px solid #000000;width: 100%" border="1"&gt;&lt;BR /&gt;
-&lt;THEAD&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TH style="border: 1px solid #000000;padding: 2px;color: #ffffff;background-color: #6690bc;text-align: center" valign="middle"&gt;Aspect&lt;/TH&gt;&lt;BR /&gt;
-&lt;TH style="border: 1px solid #000000;padding: 2px;color: #ffffff;background-color: #6690bc;text-align: center" valign="middle"&gt;table comparison of DMO&lt;/TH&gt;&lt;BR /&gt;
-&lt;TH style="border: 1px solid #000000;padding: 2px;color: #ffffff;background-color: #6690bc;text-align: center" valign="middle"&gt;table comparison standalone&lt;/TH&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;/THEAD&gt;&lt;BR /&gt;
-&lt;TBODY&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD style="border: 1px solid #000000;padding: 2px"&gt;&lt;STRONG&gt;Use case&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD style="border: 1px solid #000000;padding: 2px"&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Table comparison during migration run using DMO of SUM; the dialog "Database Migration Option" offers to enable and configure the table comparison&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD style="border: 1px solid #000000;padding: 2px"&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Table comparison during classical migration run using SWPM: SUM has to be started separately as migtool&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD style="border: 1px solid #000000;padding: 2px"&gt;&lt;STRONG&gt;Focus&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD style="border: 1px solid #000000;padding: 2px" colspan="2"&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Same for both:&lt;BR /&gt;
-&lt;BR /&gt;
-Tables for which the content shall be compared: either you list specific tables, or a percentage of all tables&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD style="border: 1px solid #000000;padding: 2px"&gt;&lt;STRONG&gt;Integration&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD style="border: 1px solid #000000;padding: 2px"&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;STRONG&gt;Yes&lt;/STRONG&gt;: option is part of DMO&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD style="border: 1px solid #000000;padding: 2px"&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;STRONG&gt;No&lt;/STRONG&gt;: not part of DMO; manually execution required for use in classical migration&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD style="border: 1px solid #000000;padding: 2px"&gt;&lt;STRONG&gt;Drill down&lt;BR /&gt;
-possible&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD style="border: 1px solid #000000;padding: 2px"&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;STRONG&gt;Yes&lt;/STRONG&gt;: if difference appears, drill down is done to identify the row with different content&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD style="border: 1px solid #000000;padding: 2px"&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;STRONG&gt;No&lt;/STRONG&gt;: only tables are listed that show a difference&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD style="border: 1px solid #000000;padding: 2px"&gt;&lt;STRONG&gt;Documentation&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD style="border: 1px solid #000000;padding: 2px"&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Part of DMO guide (section 7.2)&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD style="border: 1px solid #000000;padding: 2px"&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Part of System copy guide (section Table Comparison with Software Update Manager)&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;/TBODY&gt;&lt;BR /&gt;
-&lt;/TABLE&gt;&lt;/DIV&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-:!: &lt;STRONG&gt;Note&lt;/STRONG&gt;: both use cases to &lt;STRONG&gt;not&lt;/STRONG&gt; export the table content to disk. A checksum is created for each table, these checksums are persisted.&lt;BR /&gt;
-&lt;P style="padding-left: 30px"&gt;&lt;STRONG&gt;Note&lt;/STRONG&gt;: there may be scenarios for which only the "old" table checker tool (described in SAP note 2009651)&amp;nbsp; can be used, e.g. access to source database is no longer possible to generate CRC files with SUM table, but the export files with TOC are still available.&lt;/P&gt;&lt;BR /&gt;
-Check out the following blog on &lt;STRONG&gt;Handling table comparison checksum errors&lt;/STRONG&gt; as well:&lt;BR /&gt;
-&lt;A href="https://blogs.sap.com/2016/12/30/dmo-handling-table-comparison-checksum-errors/" target="_blank" rel="noopener noreferrer"&gt;https://blogs.sap.com/2016/12/30/dmo-handling-table-comparison-checksum-errors/&lt;/A&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;/DIV&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/dmo-table-comparison-and-migration-tools/ba-p/13145239"/>
-    <published>2015-07-07T17:06:26+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-members/export-from-multiple-source-databases-to-speed-up-migration-or-unicode/ba-p/13178052</id>
     <title>Export from multiple source databases to speed up migration or Unicode Conversion</title>
@@ -1758,6 +1516,54 @@ Download links and related information about SUM 1.0 and SWPM 1.0 can be found h
     <published>2016-06-16T16:35:27+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-sap/why-ehp-8-is-different/ba-p/13208658</id>
+    <title>Why EHP 8 is different</title>
+    <updated>2016-06-30T15:27:01+02:00</updated>
+    <author>
+      <name>Boris_Rubarth</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/137622</uri>
+    </author>
+    <content>&lt;DIV&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+I guess you know: Enhancement Package 8 for SAP ECC 6.0 is different, from our technical perspective of Software Logistics.&lt;BR /&gt;
+These are the aspects that I am aware of:&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;OL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN style="font-size: 14pt"&gt;&lt;STRONG&gt;EHP 8 is an "upgrade"&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+SAP Business Suite 7 Innovations 2016 with SAP ECC 6.0 EHP 8 (6.18) is based on SAP NetWeaver 7.50 (NW 7.50), and the procedure is load-based. It is not an update in the sense of the Enhancement Packages (EHPs) until now. It is an upgrade, as the shadow system is created from DVDs, not cloned from the customer system (compare my outdated SCN blog on shadow system: &lt;A class="jive-link-external-small" href="https://blogs.sap.com/?p=104502" rel="noopener noreferrer"&gt;SUM: introduction to shadow system&lt;/A&gt;).&lt;BR /&gt;
+You may check the following SAP notes: &lt;A href="https://launchpad.support.sap.com/#/notes/2318321" rel="noopener noreferrer"&gt;SAP Note 2318321&lt;/A&gt;, &lt;A href="https://launchpad.support.sap.com/#/notes/530335" rel="noopener noreferrer"&gt;SAP Note 530335&lt;/A&gt;. on the load-based approach.&lt;BR /&gt;
+&lt;STRONG&gt;Note&lt;BR /&gt;
+&lt;/STRONG&gt;&amp;nbsp;- the load-based approach does not allow any inactive objects, see &lt;A href="https://launchpad.support.sap.com/#/notes/2435892" rel="noopener noreferrer"&gt;SAP Note 2435892&lt;/A&gt;.&lt;STRONG&gt;&lt;BR /&gt;
+&lt;/STRONG&gt;&amp;nbsp;- with SUM 1.0 SP 19 and higher, the Report RSUPG_TADIR_COMPONENT_CHECK (attached in &lt;A href="https://launchpad.support.sap.com/#/notes/2318321" rel="noopener noreferrer"&gt;SAP Note 2318321&lt;/A&gt;) will be executed by SUM automatically.&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN style="font-size: 14pt"&gt;&lt;STRONG&gt;Unicode only&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+NW 7.50 is unicode-only, and SAP has announced long time ago [see &lt;A href="https://launchpad.support.sap.com/#/notes/2033243" rel="noopener noreferrer"&gt;SAP Note 2033243&lt;/A&gt;] that the successor of SAP NetWeaver 7.40 will only by offered as Unicode system, and that the path to the successor of SAP NetWeaver 7.40 can only be reached from a unicode system ... what was that again? I mean to say that you have to start from a Unicode system to reach NW 7.50 (and to reach EHP 8). For NW 7.50, we do not have a non-unicode kernel. But the SUM procedure to create a shadow system requires the non-unicode kernel for a non-unicode source system. Further one, there is no non-unicode load for the load-based procedure for NW 7.50.&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN style="font-size: 14pt"&gt;&lt;STRONG&gt;ASCS split&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+The SUM will create a separate ASCS instance for the following condition (all have to apply together):&lt;BR /&gt;
+&lt;OL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;The SUM maintenance activity (like an upgrade) is targeting NW 7.50&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;The source system does not yet has a separate ASCS.&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;The source system has more than one instance&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+&lt;P style="padding-left: 60px"&gt;If the source has just one instance, no specific handling happens. Note that the SUM does not explicitely mention this behavior on the dialog, only in the log files. &lt;SPAN style="text-decoration: line-through"&gt;For SUM SP 17, I can imagine that the ASCS split could be offered as option for target 7.40 as well - just an idea.&lt;/SPAN&gt;&lt;BR /&gt;
+[Added on 2016-07-11] Note that with SUM SP 17, for a target based on 7.40, SUM will offer to (optionally) split ASCS.&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;Attention&lt;BR /&gt;
+&lt;/STRONG&gt;important side effect for DMO and the (optional) use of an Additional Application Server (AAS, fka DI): if your target for DMO is 7.50, and your system does not yet has an ASCS, and you decide to run the SUM on an AAS (e.g. for better performance), then the SUM will create the (required) ASCS on the AAS. And (strange but true): from the perspective of the SUM running on AAS, the PAS (CI) is handled as a remote dialog instance. DMO cannot handle and cannot start remote instances (other than ASCS), so your CI will not come up at the end of the SUM procedure.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Kind regards, Boris Rubarth&lt;BR /&gt;
+&lt;SPAN style="font-size: 8pt"&gt;[Product Management Software Logistics, SAP SE]&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;/DIV&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-sap/why-ehp-8-is-different/ba-p/13208658"/>
+    <published>2016-06-30T15:27:01+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-sap/sap-teched-barcelona-experience-the-new-ui-for-software-provisioning/ba-p/13293169</id>
     <title>SAP TechEd Barcelona: Experience the New UI for Software Provisioning Manager (SAPinst)</title>
     <updated>2016-10-26T12:29:25+02:00</updated>
@@ -2182,6 +1988,335 @@ You can drill down to each of the actions and view the relevant objects which ar
 I am very excited about this new service on SAP Cloud Platform and would like to thank &lt;SPAN class="mention-scrubbed"&gt;harald.stevens&lt;/SPAN&gt; for providing me an opportunity to use the Transport Management service which is currently in beta. This is a major step to manage lifecycle of applications/solutions on SAP Cloud Platform.</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-members/transport-portal-sites-using-transport-management-service-on-sap-cloud/ba-p/13365675"/>
     <published>2018-06-18T13:14:46+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-sap/holistic-view-of-unicode-conversion/ba-p/13370489</id>
+    <title>Holistic View of Unicode Conversion</title>
+    <updated>2018-09-13T06:11:53+02:00</updated>
+    <author>
+      <name>former_member6348</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/6348</uri>
+    </author>
+    <content>&lt;STRONG&gt;What is Unicode &amp;amp; why Unicode&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+In a computer system, one code page can be supported in clean manner. But due to globalizations, universal code page is required to support all characters of all languages.&lt;BR /&gt;
+&lt;BR /&gt;
+Unicode is superset of existing character sets.&amp;nbsp; This is an international encoding standard for use with different languages and scripts, by which each letter, digit, or symbol is assigned a unique numeric value that applies across different platforms and programs.&lt;BR /&gt;
+&lt;BR /&gt;
+Unicode does have different encoding formats like UTF-8, UTF-16 &amp;amp; UTF -32. at SAP UTF-8 &amp;amp; UTF-16 is supported for encoding.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;Unicode @SAP &lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;Sunset of Non-Unicode Systems&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;"SAP NetWeaver 7.40 is the last release supporting non-Unicode"&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+(https://service.sap.com/~sapidb/012002523100009958832014E/ ). Additional details can be found at SAP Note 2033243 - End of non-Unicode Support: Release Details&lt;BR /&gt;
+&lt;BR /&gt;
+so precisely SAP ECC 6.0 EHP7(based on NW 740) is last supported non-Unicode system (some database restrictions apply *)&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+in SAP there are three types of non-Unicode systems&lt;BR /&gt;
+&lt;OL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Blended Code Page System (Rel 3.0D)&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;OL start="2"&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;MDMP (Multi Display Multi Processing) (Rel 3.1I) – multiple code pages in one system. &lt;STRONG&gt;MDMP will no longer be (fully) supported from SAP ERP 6.0 onwards. &lt;/STRONG&gt;For more details of MDMP support refer SAP Note 79991 - Multi-Language and Unicode support of SAP applications&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;OL start="3"&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;SCP (Single code page)&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+Here focus of this blog on Unicode conversion from single code page Non-Unicode (NUC) SAP systems to Unicode system&lt;BR /&gt;
+&lt;BR /&gt;
+How to find which code page installed in your system - &amp;nbsp;You can get the information of installed code-pages from the table ‘&lt;STRONG&gt;TCPDB&lt;/STRONG&gt; - Code page used in this database’ via se16. For the SCP system., there will be one code page installed e.g. 1100&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/09/TCPDB.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;Note: -&lt;/STRONG&gt; If TCPDB contains more than one entry then the system is an MDMP system.&lt;BR /&gt;
+&lt;BR /&gt;
+Single Code Page conversion is supported as of release SAP Web Application Server 6.20 and all higher releases.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;Minimum Support Package level (SAP Note - 551344 - Unicode Conversion Documentation&lt;/STRONG&gt;)&lt;BR /&gt;
+You must apply at least the following Support Packages for the Unicode Conversion&lt;STRONG&gt;:&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;SAPKB62065&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;STRONG&gt;SAPKB64023&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;STRONG&gt;SAPKB70017&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;STRONG&gt;SAPKB70106&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+However, as the conversion tools are still being improved, SAP strongly recommends you apply the &lt;STRONG&gt;newest available&lt;/STRONG&gt; Support Package of your release.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;&lt;U&gt;Unicode Conversion Project Holistic view (SCP -- &amp;gt; Unicode)&lt;/U&gt;&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/09/UC_Holistic_View.jpg" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;EM&gt;&lt;STRONG&gt;&lt;U&gt;Pre-Conversion&lt;/U&gt;&lt;/STRONG&gt;&lt;/EM&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+In early phases of project setup below points should be considered well in advance&lt;BR /&gt;
+&lt;OL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Interface Unicode Compatibility&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+Check the interfaces dependency on the code pages as well with system code pages.&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;All interfaces which are communicating through RFC’s can be handled with RFC UC Flag enablement in sm59&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;For third party interfaces should be Unicode compatible once the system is migrated to UC&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;OL start="2"&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Third Party tools are Unicode compatible?&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+e.g. if you have any third-party executables which are working with SAP kernels then those should work with Unicode Kernels.&lt;BR /&gt;
+&lt;BR /&gt;
+In addition, there are tools or jobs which are generating /feeding some files are in non-Unicode format which must be looked during Unicode Conversion&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;OL start="3"&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Printers compatibility&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+The printers are getting used be compatible for Unicode device types&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;OL start="4"&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Hardware Requirements (SAP Note 1139642 - Hardware Requirements in Unicode Systems)&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+Below are additional hardware requirements for Unicode Systems&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;average numbers&lt;/STRONG&gt; based upon parallel benchmarking of non-Unicode and Unicode customers systems&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;CPU: Average increase +10...30%&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;Main Memory: Average increase +40...50%&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;Network load: ~0%&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;STRONG&gt;Database size: &lt;/STRONG&gt;Average increase at customers (sum of all sizes):&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;UTF-8 and CESU-8&lt;/STRONG&gt;: -10% (for more than 90% of the installations the database size &lt;STRONG&gt;decreased because source DB had fragmentations)&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;UTF-16&lt;/STRONG&gt;: +30...+40%&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;OL start="5"&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;UCCHECK (customer abap code is UC flagged or not?)&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;UCCHECK - ABAP Unicode Scan Tool &lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+You can use transaction UCCHECK to examine a Unicode program set for syntax errors without having to set the program attribute "Unicode checks active" for every individual program. From the list of Unicode syntax errors, you can go directly to the affected programs and remove the errors. It is also possible to automatically create transport requests and set the Unicode program attribute for a program set.&lt;BR /&gt;
+&lt;BR /&gt;
+Some application-specific checks, which draw your attention to program points that are not Unicode-compatible, are also integrated.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Sample input screen:&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/09/UCCHECK.jpg" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+The default selection screen is fine to get an overview of affected objects. Note: by default, local object (package $TMP) are excluded from the selection. If there are local objects which are relevant for the customer, the corresponding option "Exclude $* Packages" should be checked off.&lt;BR /&gt;
+&lt;BR /&gt;
+6. Reduce unnecessary data with the help of data volume management&lt;BR /&gt;
+&lt;BR /&gt;
+Unicode Conversion runtime are complete depends on the volume of the data so it’s better to delete unnecessary data, archive historical data etc.&lt;BR /&gt;
+&lt;BR /&gt;
+Below note will help you to prevent the growth of unnecessary data&lt;BR /&gt;
+&lt;BR /&gt;
+2388483 - How-To: Data Management for Technical Tables&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+7. Understand the boundary conditions of the downtime&lt;BR /&gt;
+&lt;BR /&gt;
+To decide the right approach to minimize the downtime this information is very necessary. Accordingly, you can decide the right approach e.g. parallel export /import, distribution monitor, DMO (database migration option – especially for HANA Migrations), special projects with SAP e.g. NZDT, Client transfer approach etc.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+8. Scope of the project&lt;BR /&gt;
+&lt;BR /&gt;
+Normally customer is choosing multiple maintenance activities like upgrade, HANA migration along with Unicode Conversion, DB upgrades, Platform changes, Data Center Relocation.&lt;BR /&gt;
+&lt;BR /&gt;
+With additional scope it will additional activities during the project and which should be planned.&lt;BR /&gt;
+&lt;BR /&gt;
+Customer should consider including Unicode Conversion with any maintenance as said above.&lt;BR /&gt;
+&lt;BR /&gt;
+Note: - if customers insist to an upgrade to NW 7.50 or higher (e.g. S/4HANA), there will be two step approaches, as combination is not possible. As an alternative, NZDT (near zero downtime approach) may be used but this is project-based approach by SAP (693168 - Minimized Downtime Service (MDS))&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+9. Change management an impact of the parallel projects&lt;BR /&gt;
+&lt;BR /&gt;
+With the additional scope of maintenance, the abap code will impact e.g. UCCHECK, SPDD, SPAU, HANA specific custom code impact, planned release project in parallel with Unicode Conversion project. Code freeze is very important during the project.&lt;BR /&gt;
+&lt;BR /&gt;
+10.Always follow latest SAP documentations for additional preparations and best practices&lt;BR /&gt;
+&lt;BR /&gt;
+Only Unicode Conversion - 551344 - Unicode Conversion Documentation&lt;BR /&gt;
+&lt;BR /&gt;
+CU&amp;amp;UC - 928729 - Combined Upgrade &amp;amp; Unicode Conversion (CU&amp;amp;UC)&lt;BR /&gt;
+&lt;BR /&gt;
+DMO/system copy - &lt;A href="https://support.sap.com/en/tools/software-logistics-tools.html" target="test_blank" rel="noopener noreferrer"&gt;https://support.sap.com/en/tools/software-logistics-tools.html&lt;/A&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;EM&gt;&lt;STRONG&gt;&lt;U&gt;Unicode Conversion&lt;/U&gt;&lt;/STRONG&gt;&lt;/EM&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;OL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;STRONG&gt;Technical Preparations &lt;/STRONG&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Consistency Check for cluster &amp;amp; Pool Tables (SAP Notes – 1348055, 1784377 &amp;amp; 1077403)&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Conversion of customer-defined code pages&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Delete Matchcode IDs (report TWTOOL01 &amp;amp; SAP Note 24860)&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Language Flag Maintenance (report RADNTLANG, SAP Note 480671)&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;OTF Documents after the Unicode Conversion (report RSBCS_CONVERT_OTF_FOR_UNICODE - Note 1349413)&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Translation Environment (tcode SE63, Note – 1055820)&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;OL start="2"&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;STRONG&gt;Unicode Pre-conversion – SPUMG&lt;/STRONG&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+&lt;STRONG&gt;SPUMG &lt;/STRONG&gt;- Database analysis tool for collecting words without language/code page information. SPUMG creates control information for the database conversion.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Before start of the SPUMG, you should check all necessary correction are available or not for SPUMG.&lt;BR /&gt;
+&lt;BR /&gt;
+1142572 - Classification of notes of the Unicode conversion tools&lt;BR /&gt;
+&lt;BR /&gt;
+1457258 - Correction instruction for the Additional Preparation Steps&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; SPUMG is consists several important steps. &lt;/STRONG&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Clean the old SPUMG execution if not needed&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Upload the exception list from the SAP Note 996990 - Exception List for transactions SPUMG and SPUM4&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Start the additional preparations steps (report &lt;A href="#UMG_ADD_PREP_STEP" rel="nofollow noopener noreferrer"&gt;UMG_ADD_PREP_STEP&lt;/A&gt;)&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+In some of the preparations steps, it takes very long time e.g. report GRIX_DELETE_RW_EXTRACTS. Check this note applicable for your scenarios 1091152 - RW: Performance problems reading GRIX with ORACLE 10g&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Language List - All languages which are productively used in your system are now inserted in the Language List as &lt;STRONG&gt;active&lt;/STRONG&gt; languages in conjunction with the system code page&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Verify the SPUMG settings (you should change the Global Fallback Code Page from 1100 to 1160)&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Initialize the Worklist - Depending on the data volume the initialization job may take several minutes. The worklist of the Consistency Check (CC worklist) contains a list of all tables taken from the database’s nametab. This will be first steps of the Consistency Check.&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Consistency Check – this is the consistency check for the tables between dictionary and database. You can expect some inconsistencies issues for some tables. Unicode conversion guide has the detailed steps to how to correct&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Nametab Generation – for the Unicode conversion the nametab has to be created for the Unicode export. The report &lt;EM&gt;RADCUCNT&lt;/EM&gt; will be scheduled through automatic steps from SPUMG.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+Note: before nametab creation these tables should be empty &lt;STRONG&gt;DDNTF_CONV_UC and DDNTT_CONV_UC.&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+This step is not mandatory for CU&amp;amp;UC, DMO execution because SUM (Software Update Manager) tool has the phase to generate nametab in uptime. But before SUM tool start you can create nametab using SPUMG to identifies issues prior. During upgrade phases, it will be created once again.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Do not forget – after SPUMG activities kick off, never import dictionary /DB objects manually, Transport, upgrades etc. this will invalidate the SPUMG activities at some extent.&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Additional downtime steps – it will trigger Report UMG_ADD_DOWNTIME_STEP automatically.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+Before entering the Unicode Conversion downtime steps&lt;BR /&gt;
+&lt;OL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Update the database statistics&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Update worklist for any new objects and complete the consistency checks&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Create delta nametab using report UMG_SHOW_UCTABS if required&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;OL start="3"&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;STRONG&gt;Unicode Conversion – Downtime&lt;/STRONG&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+R3load is the tool which export the database and creates a new Unicode database. The SWPM (Software Provisioning Manager, formerly known as ‘sapinst’) is the tool for the performing the export / import process for only Unicode Conversion.&lt;BR /&gt;
+&lt;BR /&gt;
+In CU&amp;amp;UC, this process will be performed after completion of the system upgrade along with some additional preparation steps.&lt;BR /&gt;
+&lt;BR /&gt;
+For specially HANA migration, the Unicode Conversion can be incorporated in SUM tool where is the target is EHP7 (NW 740) + HANA.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;How long does it take to convert a database? &lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Time required to convert the database will depend on many factors:&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Database size&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Number and speed of CPUs available&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Distribution of sizes of the tables&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Procedures&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;OL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;SWPM - sequential&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Parallel export /import using SWPM&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Distribution Monitor&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+High level overview of parallelism of the procedures&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/09/r3load_processes.jpg" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;Which Procedure should be used?&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/09/mig_comparison_v1.jpg" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;A href="https://wiki.scn.sap.com/wiki/pages/viewpage.action?pageId=395285937" rel="noopener noreferrer"&gt;&lt;STRONG&gt;Database Migration Option for Software Update Manger (DMO)&lt;/STRONG&gt;&lt;/A&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+DMO simplifies the procedure of a migration to SAP HANA by combining the upgrade and the migration including Unicode conversion (target release only NW 740)&lt;BR /&gt;
+&lt;BR /&gt;
+Benefits:&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Migration steps are simplified&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;System update, Unicode Conversion (*), and database migration are combined in one tool&lt;BR /&gt;
+(*: only possible for a target based on 7.40 or lower)&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Business downtime is reduced&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;The source database remains consistent, so a fast fallback is possible&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/09/DMO_overview.jpg" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+For more details refer blog &lt;A href="https://blogs.sap.com/2013/11/29/database-migration-option-dmo-of-sum-introduction/" rel="noopener noreferrer"&gt;https://blogs.sap.com/2013/11/29/database-migration-option-dmo-of-sum-introduction/&lt;/A&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Important SAP Notes:&lt;BR /&gt;
+&lt;BR /&gt;
+784118 - System Copy Tools for ABAP Systems&lt;BR /&gt;
+&lt;BR /&gt;
+1322715 - Unicode FAQs&lt;BR /&gt;
+&lt;BR /&gt;
+1319517 - Unicode Collection Note&lt;BR /&gt;
+&lt;BR /&gt;
+1001383 - Distribution Monitor - Known problems and fixes&lt;BR /&gt;
+&lt;BR /&gt;
+936441&amp;nbsp; - Oracle settings for R3load based system copy&lt;BR /&gt;
+&lt;BR /&gt;
+1790232 -&amp;nbsp; FAQ: Unicode - Technical FAQs&lt;BR /&gt;
+&lt;BR /&gt;
+2033243 - End of non-Unicode Support: Release Details&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Rahul Shetti.</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-sap/holistic-view-of-unicode-conversion/ba-p/13370489"/>
+    <published>2018-09-13T06:11:53+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-members/s-4hana-embedded-extended-warehouse-management-ewm-production-integration/ba-p/13431861</id>
