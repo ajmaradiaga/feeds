@@ -2,60 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Cloud-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - SAP Cloud Application Programming Model</title>
-  <updated>2024-03-14T06:00:48.167916+00:00</updated>
+  <updated>2024-03-14T09:00:51.921027+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Cloud Application Programming Model/pd-p/9f13aee1-834c-4105-8e43-ee442775e5ce" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Cloud Application Programming Model blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/sap-cloud-application-programming-model%E3%81%AB%E3%81%8A%E3%81%91%E3%82%8B%E3%83%90%E3%83%83%E3%82%AF%E3%82%B0%E3%83%A9%E3%82%A6%E3%83%B3%E3%83%89%E5%87%A6%E7%90%86%E3%81%AE%E5%AE%9F%E8%A3%85/ba-p/13574546</id>
-    <title>SAP Cloud Application Programming Modelにおけるバックグラウンド処理の実装</title>
-    <updated>2024-01-08T17:04:54+01:00</updated>
-    <author>
-      <name>yasuhira_chiba</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/750022</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-834874248"&gt;&lt;STRONG&gt;はじめに&lt;/STRONG&gt;&lt;/H1&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;本ブログでは、&lt;A href="https://cap.cloud.sap/docs/" target="_blank" rel="noopener nofollow noreferrer"&gt;SAP Cloud Application Programming Model (CAP)&lt;/A&gt;でバックグラウンド処理を実装する際に起こる問題とその解決方法をご紹介します。&lt;/DIV&gt;&lt;DIV&gt;CAPの特にNode.js版に慣れ親しんだ開発者を読者に想定しています。&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;H1 id="toc-hId-638360743"&gt;&lt;STRONG&gt;課題&lt;/STRONG&gt;&lt;/H1&gt;&lt;DIV&gt;&amp;nbsp;&amp;nbsp;&lt;BR /&gt;SAP Cloud Application Programming Model（CAP）を利用してバックエンドアプリケーションを開発する際には、時間のかかる処理をバックグラウンドで実行したい場面があります。&lt;BR /&gt;&lt;BR /&gt;具体的には、&lt;A href="https://help.sap.com/docs/job-scheduling/sap-job-scheduling-service/" target="_blank" rel="noopener noreferrer"&gt;SAP Job Scheduling Service&lt;/A&gt;からHTTPリクエストを介して呼び出されるジョブが考えられます。HTTPリクエスト経由で呼び出されるジョブで15秒以上かかる際には&lt;A href="https://help.sap.com/docs/job-scheduling/sap-job-scheduling-service/asynchronous-mode" target="_blank" rel="noopener noreferrer"&gt;非同期モード&lt;/A&gt;でジョブを呼び出す必要があり、非同期モードではジョブは呼び出された直後にHTTPステータスコード202を返し、完了した時点でジョブ側からSAP Job Scheduling Serviceにステータスの更新を行うような構成になります。&lt;BR /&gt;&lt;BR /&gt;このようなケースではリクエストに対して即座に応答し実際の処理をバックグラウンドで行うために、CAP内の「Context」や「Transaction」といった概念を適切に扱うことが重要です。これを怠ると、ジョブから外部のAPI呼び出す際などにエラーが発生する可能性があるため注意が必要です。以下で発生し得るエラーについて具体的にご紹介します。&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&lt;H3 id="toc-hId-700012676"&gt;エラーが発生する例:&lt;/H3&gt;&lt;BR /&gt;&lt;DIV&gt;(*注意: ジョブ等は本来テクニカルユーザーでAPI呼び出しを行うべきで以下の例の様にPrincipal Propagationを利用することは推奨されません。要件上どうしても必要な場合にのみこの方法の利用を検討下さい。)&lt;/DIV&gt;&lt;BR /&gt;&lt;DIV&gt;CAPで下記の様なOData Functionを定義し、ハンドラーの中でSAP S/4HANAのBusiness Partner一覧をOData API経由で取得します。但し、以下の点に注意してください。&lt;/DIV&gt;&lt;BR /&gt;&lt;UL&gt;&lt;LI&gt;呼び出し直後にステータスコード202を返却し、OData API呼び出しはsetImmediateで起動するコールバック内で実行する&lt;/LI&gt;&lt;LI&gt;S/4 HANAのOData API呼び出しの際にはPrincipal Propagationを利用しfunctionを呼び出したユーザーに紐づくS/4 HANAのユーザーでBusiness Partnerを取得する&lt;/LI&gt;&lt;LI&gt;"Authentication"が"Principal Propagation"に設定されているDestinationを利用する&lt;/LI&gt;&lt;/UL&gt;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;PRE&gt;service BackgroundjobService {
-
-    function errorFunction() returns {};
-
-}&lt;/PRE&gt;&lt;PRE&gt;this.on("errorFunction", async (req) =&amp;gt; { 
-
-    setImmediate(async () =&amp;gt; { // Initiate background job 
-
-        // do some tasks... 
-
-        const service = await cds.connect.to('API_BUSINESS_PARTNER'); 
-
-        const result = await service.run(SELECT.from("A_AddressEmailAddress").columns(["AddressID", "EmailAddress"])) 
-
-        console.log(result); 
-
-    }) 
-
-     
-
-    return cds.context.http.res.status(202); // return 202 Accepted 
-
-})&lt;/PRE&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;上記の様な実装ではOData API呼び出し時点(service.run呼び出し時点）に以下の様なエラーが発生してしまいます。エラーの内容はユーザー情報が載ったJWT(リクエストのAuthorizationヘッダーに格納されている）がDestinationをSAP Destination Serviceに取得しに行く際に渡されていないという旨になっています。&lt;/DIV&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;BR /&gt;&lt;DIV&gt;&lt;BR /&gt;&lt;DIV&gt;Error: Error during request to remote service:&lt;/DIV&gt;&lt;BR /&gt;&lt;DIV&gt;....&lt;/DIV&gt;&lt;BR /&gt;&lt;DIV&gt;Failed to load destination. Caused by: No user token (JWT) has been provided. This is strictly necessary for 'PrincipalPropagation'.&lt;/DIV&gt;&lt;/DIV&gt;&lt;/BLOCKQUOTE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;DIV&gt;Principal Propagationが設定されているDestinationを利用している際には、CAPはSAP Authentication and Trust Management Service(XSUAA)から取得しApprouterでAuthorizationヘッダーにセットされるJWTの値をDestination Serviceまで取りまわすことでどのユーザーがCAPのエンドポイントを叩いているかを判別するためJWTが適切に取りまわされる必要があります。また、同様のエラーは、Destination ServiceにJWTを取りまわす必要が有るOAuth2SAMLBearerAssertionが設定されているDestinationについても起こり得ます。&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp; &amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&amp;nbsp;&lt;/DIV&gt;&lt;H1 id="toc-hId-245333733"&gt;&lt;STRONG&gt;原因&lt;/STRONG&gt;&lt;/H1&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;JWTが適切に取りまわされていないのは、上記実装だとCAPのTransactionを適切に扱えていないことに起因します。&lt;/DIV&gt;&lt;DIV&gt;CAPにはTransactionと言う概念がありAPIを呼び出したユーザー情報やリクエストヘッダの保持、DBのトランザクション等の管理をしています。Transactionは基本的には自動でCAPにより管理されるため、ハンドラーが呼び出された時点で作られ、レスポンスが返された時点でcommit又はrollbackされそれ以降そのTransactionは利用出来なくなります。(&lt;A href="https://cap.cloud.sap/docs/node.js/cds-tx#transaction-management" target="_blank" rel="noopener nofollow noreferrer"&gt;参考&lt;/A&gt;)&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;setImmediateで呼び出したコールバック内の処理は基本的にハンドラーから処理が脱しTransactionが利用出来なくなった後に実行されるため(*1)Transactionが持っているリクエストのヘッダー情報などがコールバック内で利用出来ずユーザー情報の取り回しに失敗して上記の様なエラーが発生します。&lt;/DIV&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;DIV&gt;*1: そうでない場合も存在することに注意。setImmediateが呼ばれた後に、Javascript上の概念であるイベントループに挿入されるタスクとして分離される処理が有る場合にはsetImmediateで起動したコールバックの方が先に実行される可能性があります。具体的にはsetImmediateを呼び出した後にAPI呼び出し等を行いawaitする際など。その場合には上記コードはエラー無く動作します。&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;H1 id="toc-hId-48820228"&gt;&lt;STRONG&gt;解決策&lt;/STRONG&gt;&lt;/H1&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;CAPが提供するcds.spawn というメソッドを利用します。cds.spawnは現在のTransactionから切り離した新しいTransactionで処理を実行することが出来ます。&lt;/DIV&gt;&lt;DIV&gt;&lt;BR /&gt;&lt;PRE&gt;this.on("workingFunction", async (req) =&amp;gt; {
-
-    cds.spawn({headers: req.headers},async () =&amp;gt; { // Initiate background job
-
-        // do some tasks...
-
-        const service = await cds.connect.to('API_BUSINESS_PARTNER');
-
-        const result = await service.run(SELECT.from("A_AddressEmailAddress").columns(["AddressID", "EmailAddress"]))
-
-        console.log(result);
-
-    })
-
-    return cds.context.http.res.status(202); // return 202 Accepted
-
-})&lt;/PRE&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;BR /&gt;&lt;DIV&gt;cds.spawnの第一引数にコールバック内で利用するContext(=新たに生成されるTransactionにセットされる値）を設定します。指定しない場合呼び出し時点のContextの値を引き継ぎますが、Contextはtenant , user , locale のみを基本的に保持する(&lt;A href="https://cap.cloud.sap/docs/node.js/events#cds-event-context" target="_blank" rel="noopener nofollow noreferrer"&gt;参考&lt;/A&gt;)為それ以外のheader情報等は自動で渡されない為明示的に設定しています。&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;H1 id="toc-hId--147693277"&gt;まとめ&lt;/H1&gt;&lt;P&gt;本ブログではNode.js版SAP Cloud Application Programming Modelで実装したバックグラウンドアプリケーションでバックグラウンド処理を実装する際に起こる問題とその解決方法についてご紹介しました。&lt;BR /&gt;&lt;BR /&gt;CAPにはユーザー情報等の取り回しを便利にするためのContextやTransactionと言った概念があり、普段はそれらの概念の事を意識せずに実装を進めていくことが出来ます。しかし一歩立ち入った機能を実装しようとすると本ブログで扱ったような問題に出会いある程度意識せざる負えなくなってきます。今回はContextやTransactionについて深く立ち入りませんでしたが今後のブログでより詳しくご紹介出来ればと考えています。&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/sap-cloud-application-programming-model%E3%81%AB%E3%81%8A%E3%81%91%E3%82%8B%E3%83%90%E3%83%83%E3%82%AF%E3%82%B0%E3%83%A9%E3%82%A6%E3%83%B3%E3%83%89%E5%87%A6%E7%90%86%E3%81%AE%E5%AE%9F%E8%A3%85/ba-p/13574546"/>
-    <published>2024-01-08T17:04:54+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-sap/an-innovative-language-exchange-app-developed-with-sap-build-apps-cap-kyma/ba-p/13588362</id>
     <title>An Innovative Language Exchange App developed with SAP Build Apps, CAP, Kyma, and OpenAI</title>
@@ -893,5 +843,445 @@ if (!validateCaptcha.success) {
     <content>&lt;P&gt;Ever wondered where your CPEA Credits went? Or where they will be spent on in the near future? Which project is consuming what and which sub account is silently munching those credits away?&lt;/P&gt;&lt;P&gt;An often-ignored, yet very interesting service is the&amp;nbsp;&lt;SPAN&gt;&lt;A title="View on SAP Discovery Center" href="https://discovery-center.cloud.sap/serviceCatalog/usage-data-management-service" target="_blank" rel="noopener nofollow noreferrer"&gt;SAP Usage Data Management Service for SAP BTP&lt;/A&gt;&amp;nbsp;which can provide you with all this insight. It tells you which service is used in which sub account, what its consumption is and how many credits you are paying for it. A wealth of information that, once neatly organized, can help you in monitoring your global account better, keeping track of your spending and identifying areas where money is spent with no real business return. And who doesn't like cost savings :-)?&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;Moreover, coupled with a forecasting and alerting mechanism, it could identify anomalies and spikes in consumption which you rather deal with instantly instead of keeping that as a surprise for the monthly bill!&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Ideations about this scenario gave rise to a prototype where we clubbed together a few BTP services:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Usage Data Management service&lt;/STRONG&gt;: for all the great insights mentioned above;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Alert Notification service&lt;/STRONG&gt;: to inform and alert users about spikes and anomalies;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Job Scheduling service&lt;/STRONG&gt;: to regularly fetch new data points;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;SAP Build Work Zone&lt;/STRONG&gt;: to create and present a nice user interface on top of it;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Cloud Application Programming model&lt;/STRONG&gt;: as the brains and glue for all the above.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Baptized with the name "BTP Resource Consumption monitor", the prototype is ready for testing and end-user feedback. It is made available as open source, and as such does not come with SAP Support, yet any feedback to improve the tool is most welcome.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Example of the consumption dashboard per service." style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/78475iFE5D1D285C358B0E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="service.png" alt="Example of the consumption dashboard per service." /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Example of the consumption dashboard per service.&lt;/span&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Ready to try it out for your own CPEA account? You can find the project files and installation documentation in the following SAP-Samples repository:&amp;nbsp;&lt;SPAN&gt;&lt;A href="https://github.com/SAP-samples/btp-resource-consumption-monitor" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/SAP-samples/btp-resource-consumption-monitor&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-sap/prototype-keep-track-of-those-btp-credits/ba-p/13626545"/>
     <published>2024-03-13T12:14:31.345000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/application-development-blog-posts/iso-content-for-common-cap-types/ba-p/13637780</id>
+    <title>ISO content for common CAP types</title>
+    <updated>2024-03-14T08:35:15.623000+01:00</updated>
+    <author>
+      <name>qmacro</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/53</uri>
+    </author>
+    <content>&lt;P&gt;There's an NPM package that provides default content based on the ISO specifications for CAP common types for countries, languages, currencies and timezones. In this post I explore what that package is and how it works. The post is quite long, mostly because I fell down a rabbit hole and was stuck there for quite a while. Hopefully though it's something you might enjoy. Happy exploring!&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-859900728"&gt;Background&lt;/H1&gt;&lt;P&gt;Earlier this month in&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://www.youtube.com/watch?v=kgycosxv9aQ" target="_blank" rel="noopener nofollow noreferrer"&gt;part 7&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;of our&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://www.youtube.com/playlist?list=PL6RpkC85SLQBHPdfHQ0Ry2TMdsT-muECx" target="_blank" rel="noopener nofollow noreferrer"&gt;back to basics Hands-on SAP Dev live stream series on CAP Node.js&lt;/A&gt;, we added a new element&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;countryOfBirth&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;to the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Authors&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;entity definition, so that our simple&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;services.cds&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;looked like this:&lt;/P&gt;&lt;PRE&gt;using { cuid, Country } from '@sap/cds/common';
+
+service bookshop {
+  entity Books : cuid {
+    title: String;
+  }
+  entity Authors : cuid {
+    name: String;
+    countryOfBirth: Country;
+  }
+}&lt;/PRE&gt;&lt;P&gt;This resulted in the generation of lots of DDL for a persistence layer, based on the definition of that&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Country&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;type, which, in&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387241"&gt;@Sap&lt;/a&gt;/cds/common, looks like this (and I've also included here the definitions that are used to describe that type):&lt;/P&gt;&lt;PRE&gt;type Country : Association to sap.common.Countries;
+
+context sap.common {
+
+  entity Countries : CodeList {
+    key code : String(3) @(title : '{i18n&amp;gt;CountryCode}');
+  }
+
+  aspect CodeList @(
+    cds.autoexpose,
+    cds.persistence.skip : 'if-unused'
+  ) {
+    name  : localized String(255)  @title : '{i18n&amp;gt;Name}';
+    descr : localized String(1000) @title : '{i18n&amp;gt;Description}';
+  }
+
+}&lt;/PRE&gt;&lt;P&gt;As a result of referring to the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Country&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;type in&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387241"&gt;@Sap&lt;/a&gt;/cds/common, we saw this in the output of&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;cds watch:&lt;/P&gt;&lt;PRE&gt;[cds] - loaded model from 2 file(s):
+
+  services.cds
+  [...]/node_modules/@sap/cds/common.cds&lt;/PRE&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;See the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://qmacro.org/blog/posts/2024/03/12/iso-content-for-common-cap-types/#appendix" target="_blank" rel="noopener nofollow noreferrer"&gt;Appendix - loading @sap/cds/common&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;section for an explanation of why&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;[...]&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;has been used as a path prefix indicator here.&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;H2 id="toc-hId-792469942"&gt;New entity sets&lt;/H2&gt;&lt;P&gt;Additionally, we saw that as well as entity sets for the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Books&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Authors&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;entities, the OData service also contained two more entity sets, as we can see from the service document (which can be obtained with&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;curl localhost:4004/odata/v4/bookshop | jq .):&lt;/P&gt;&lt;PRE&gt;{
+  "@odata.context": "$metadata",
+  "@odata.metadataEtag": "W/\"l+enQJd57takPctEB4NIbv/1U6KLaLMKeKijx7AfnOo=\"",
+  "value": [
+    {
+      "name": "Books",
+      "url": "Books"
+    },
+    {
+      "name": "Authors",
+      "url": "Authors"
+    },
+    {
+      "name": "Countries",
+      "url": "Countries"
+    },
+    {
+      "name": "Countries_texts",
+      "url": "Countries_texts"
+    }
+  ]
+}&lt;/PRE&gt;&lt;P&gt;as well as in the CAP server landing page:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="qmacro_0-1710401480388.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/80429i1A377E58F331C927/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="qmacro_0-1710401480388.png" alt="qmacro_0-1710401480388.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;For those of you wondering why&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Countries_texts&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;is not listed in the CAP server landing page, there's an interesting reason, but that's a story for another time.&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;H2 id="toc-hId-595956437"&gt;What about the data?&lt;/H2&gt;&lt;P&gt;The response to an OData query operation on the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Countries&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;entity set looked, however, like this:&lt;/P&gt;&lt;PRE&gt;{
+  "@odata.context": "$metadata#Countries",
+  "value": []
+}&lt;/PRE&gt;&lt;P&gt;No data.&lt;/P&gt;&lt;P&gt;On the one hand, that's understandable, we haven't supplied any. But on the other hand (and like the discussion which took place at the time mentioned) it would be great to have that data. Not only for the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Country&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;type, but also for the other CAP&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://cap.cloud.sap/docs/cds/common#code-types" target="_blank" rel="noopener nofollow noreferrer"&gt;common reuse types&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Currency, Language and Timezone.&lt;/P&gt;&lt;P&gt;After all, that data is standard, predictable and pretty much static. It's also something that we all take for granted in R/3 systems, for example, in these tables (and their related&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;-T&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;suffixed language-dependent siblings):&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;T005&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;(countries)&lt;/LI&gt;&lt;LI&gt;TCUR&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;(currencies)&lt;/LI&gt;&lt;LI&gt;T002&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;(languages)&lt;/LI&gt;&lt;LI&gt;TTZZ&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;(timezones)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;In the out-of-the-box provisions from CAP, we don't have this data. But we do have the data in the form of a standard installable NPM package!&lt;/P&gt;&lt;P&gt;I'd totally forgotten about this, which is why I failed to mention it while we were discussing the question. So as a penance (not sure whether to me as the writer of this post, or to you as the reader, sorry) I'm writing up the details here now.&lt;/P&gt;&lt;H1 id="toc-hId-270360213"&gt;NPM package &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387241"&gt;@Sap&lt;/a&gt;/cds-common-content&lt;/H1&gt;&lt;P&gt;The NPM package&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://www.npmjs.com/package/@sap/cds-common-content" target="_blank" rel="noopener nofollow noreferrer"&gt;@sap/cds-common-content&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;EM&gt;"holds default content based on the ISO specification"&lt;/EM&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;for these exact types. Bingo!&lt;/P&gt;&lt;P&gt;The simplest way to make use of this package is to add it to your project:&lt;/P&gt;&lt;PRE&gt;npm add @sap/cds-common-content&lt;/PRE&gt;&lt;P&gt;and then add a&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;using&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directive in your CDS, such as:&lt;/P&gt;&lt;PRE&gt;using from '@sap/cds-common-content';&lt;/PRE&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;I prefer the semantics of invoking&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;npm add&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;over&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;npm install, but as&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;add&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;is just an alias for&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;install, it's all the same under the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;npm&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;hood anyway.&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;P&gt;This all seems quite straightforward. So let's now move away from the customised bookshop project from the live stream series and start with a super simple example project, where we'll see how easy it is to get the data to appear. And it will seem like magic! Then we'll dig in to how it actually works, which will help us understand that bit more about how CAP works. And that's always a bonus, right?&lt;/P&gt;&lt;H2 id="toc-hId-202929427"&gt;Simple example&lt;/H2&gt;&lt;P&gt;So, moving away from the authors and books in the previous&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;services.cds&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;file, we'll start with a brand new CAP project for this simple example, so you can follow along too if you want.&lt;/P&gt;&lt;H3 id="toc-hId-135498641"&gt;Initialising a new CAP project with tiny-sample&lt;/H3&gt;&lt;P&gt;While initialising the new project, we'll use the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;--add&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;option to request the addition of the "tiny-sample" facet which gives us a super simple service exposing a single&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Books&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;entity, complete with a couple of data records supplied in a CSV file.&lt;/P&gt;&lt;P&gt;Here's an example of doing that, with the use of the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;tree&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;command at the end to show the contents of the new project directory (excluding the hidden files):&lt;/P&gt;&lt;PRE&gt;# /home/user/work/scratch
+; cds init --add tiny-sample iso-data-test
+Creating new CAP project in ./iso-data-test
+
+Adding feature 'nodejs'...
+Adding feature 'tiny-sample'...
+
+Successfully created project. Continue with 'cd iso-data-test'.
+Find samples on https://github.com/SAP-samples/cloud-cap-samples
+Learn about next steps at https://cap.cloud.sap
+# /home/user/work/scratch
+; cd iso-data-test/
+# /home/user/work/scratch/iso-data-test
+; tree -F
+.
+|-- README.md
+|-- app/
+|-- db/
+|   |-- data/
+|   |   `-- my.bookshop-Books.csv
+|   `-- data-model.cds
+|-- package.json
+`-- srv/
+    `-- cat-service.cds
+
+5 directories, 5 files
+# /home/user/work/scratch/iso-data-test
+;&lt;/PRE&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;The&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;-F&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;option tells&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;tree&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;to use standard symbols to signify special files, as I want to highlight directories with a trailing&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;/. This&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;-F&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;works in a similar way to the same-named option with the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;ls&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;command.&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;P&gt;The persistence layer definitions in&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;db/data-model.cds&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;look like this:&lt;/P&gt;&lt;PRE&gt;namespace my.bookshop;
+
+entity Books {
+  key ID : Integer;
+  title  : String;
+  stock  : Integer;
+}&lt;/PRE&gt;&lt;P&gt;and the service layer definitions in&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;srv/cat-service.cds&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;look like this:&lt;/P&gt;&lt;PRE&gt;using my.bookshop as my from '../db/data-model';
+
+service CatalogService {
+    @readonly entity Books as projection on my.Books;
+}&lt;/PRE&gt;&lt;P&gt;Nothing unexpected there, all nice and straightforward.&lt;/P&gt;&lt;H3 id="toc-hId--61014864"&gt;Basic output from cds watch&lt;/H3&gt;&lt;P&gt;Starting the CAP server up at this point, we see (amongst other log lines):&lt;/P&gt;&lt;PRE&gt;[cds] - loaded model from 2 file(s):
+
+  srv/cat-service.cds
+  db/data-model.cds
+
+[cds] - connect to db &amp;gt; sqlite { database: ':memory:' }
+  &amp;gt; init from db/data/my.bookshop-Books.csv
+/&amp;gt; successfully deployed to in-memory database.&lt;/PRE&gt;&lt;P&gt;And the service document at&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="http://localhost:4004/odata/v4/catalog" target="_blank" rel="noopener nofollow noreferrer"&gt;http://localhost:4004/odata/v4/catalog&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;looks like this:&lt;/P&gt;&lt;PRE&gt;{
+  "@odata.context": "$metadata",
+  "@odata.metadataEtag": "W/\"8PKoOs3VhYwQoFzBoQObhMsFJJa5jpD1GLFcWZG9r60=\"",
+  "value": [
+    {
+      "name": "Books",
+      "url": "Books"
+    }
+  ]
+}&lt;/PRE&gt;&lt;P&gt;So far so good.&lt;/P&gt;&lt;P&gt;We've covered this in the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://www.youtube.com/playlist?list=PL6RpkC85SLQBHPdfHQ0Ry2TMdsT-muECx" target="_blank" rel="noopener nofollow noreferrer"&gt;back to basics series&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;but it's worth re-iterating here too ... the reason why we see these two files specifically:&lt;/P&gt;&lt;PRE&gt;srv/cat-service.cds
+db/data-model.cds&lt;/PRE&gt;&lt;P&gt;listed in the sources for the CDS model being served (see the "loaded model from 2 file(s)" message in the log output above), is that they're in some specially named directories (db/&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;srv/) that form part of CAP's convention-over-configuration approach to doing the right thing by developers. On startup, the server will automatically look in certain "well-known" locations for CDS definitions. What are these "well-known" locations?&lt;/P&gt;&lt;P&gt;You can ask to see them like this:&lt;/P&gt;&lt;PRE&gt;cds env folders&lt;/PRE&gt;&lt;P&gt;which emits:&lt;/P&gt;&lt;PRE&gt;{ db: 'db/', srv: 'srv/', app: 'app/' }&lt;/PRE&gt;&lt;P&gt;In fact, there's another environment value which it's possible to query, and that is&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;roots:&lt;/P&gt;&lt;PRE&gt;cds env roots&lt;/PRE&gt;&lt;P&gt;and the value returned:&lt;/P&gt;&lt;PRE&gt;[ 'db/', 'srv/', 'app/', 'schema', 'services' ]&lt;/PRE&gt;&lt;P&gt;contains these three directory names, plus two special filenames&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;services&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;schema, which we can interpret as&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;services.cds&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;schema.cds&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;respectively.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-unicode-emoji" title=":light_bulb:"&gt;💡&lt;/span&gt;This is incidentally why, in the simple&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://github.com/qmacro/capb2b" target="_blank" rel="noopener nofollow noreferrer"&gt;capb2b&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;project we're using for the early episodes in the back to basics series, simply&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://github.com/qmacro/capb2b/blob/aac1f7304e3d0884cfe837c3b0bbd4e6bf98a848/services.cds" target="_blank" rel="noopener nofollow noreferrer"&gt;putting all our content into a file called services.cds&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;works!&lt;/P&gt;&lt;H3 id="toc-hId--257528369"&gt;Adding an element with the Country type&lt;/H3&gt;&lt;P&gt;Now to start moving towards the use of the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Country&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;type.&lt;/P&gt;&lt;P&gt;First, let's add an element to the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Books&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;entity definition to show where a book was published. We'll do this (and other enhancements in this experiment) in a separate CDS file, to remind ourselves of how well thought out and capable the CDS language and compilation process is.&lt;/P&gt;&lt;P&gt;In a new file, let's call it&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;db/publicationinfo.cds, let's add this:&lt;/P&gt;&lt;PRE&gt;using from './data-model';
+using { Country } from '@sap/cds/common';
+
+extend my.bookshop.Books with {
+    publishedIn: Country;
+}&lt;/PRE&gt;&lt;UL&gt;&lt;LI&gt;The first&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;using&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directive just imports the definitions from the existing&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;db/data-model.cds&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;file, i.e. the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Books&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;entity in the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;my.bookshop&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;namespace. With this first&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;using&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directive we can then refer to the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;my.bookshop.Books&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;entity, as we do with the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;extend&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directive shortly.&lt;/LI&gt;&lt;LI&gt;The second&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;using&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directive is to bring in the definition of the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://cap.cloud.sap/docs/cds/common#type-country" target="_blank" rel="noopener nofollow noreferrer"&gt;Country reuse type&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;from&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387241"&gt;@Sap&lt;/a&gt;/cds/common. This is so we can use this&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Country&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;type to describe the new element we're adding to the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;my.bookshop.Books&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;entity.&lt;/LI&gt;&lt;LI&gt;Then in the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;extend&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directive we can simply add the new&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;publishedIn&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;element and define it as having the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Country&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;type. We already know about how this type is defined from the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://qmacro.org/blog/posts/2024/03/12/iso-content-for-common-cap-types/#background" target="_blank" rel="noopener nofollow noreferrer"&gt;background section&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;earlier.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;As the CAP server is still running in "watch" mode, things restart and now we see something like this:&lt;/P&gt;&lt;PRE&gt;[cds] - loaded model from 4 file(s):
+
+  srv/cat-service.cds
+  db/publicationinfo.cds
+  [...]/node_modules/@sap/cds/common.cds
+  db/data-model.cds
+
+[cds] - connect using bindings from: { registry: '~/.cds-services.json' }
+[cds] - connect to db &amp;gt; sqlite { database: ':memory:' }
+  &amp;gt; init from db/data/my.bookshop-Books.csv
+/&amp;gt; successfully deployed to in-memory database.&lt;/PRE&gt;&lt;P&gt;The log output here shows us that there are two new files in the list from which the model has been loaded:&lt;/P&gt;&lt;PRE&gt;db/publicationinfo.cds
+[...]/node_modules/@sap/cds/common.cds&lt;/PRE&gt;&lt;P&gt;What's happened of course is that a new file,&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;publicationinfo.cds, is discovered in the well-known&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;db/&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directory. So that is loaded and added to the overall model compilation. And within that file, the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;using { Country } from '@sap/cds/common';&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directive causes the corresponding file from that (built-in) NPM package&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387241"&gt;@Sap&lt;/a&gt;/cds/common&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;to be loaded too. Nice!&lt;/P&gt;&lt;P&gt;And now the CAP server has restarted, serving the new enhanced overall model, we see with a request like this:&lt;/P&gt;&lt;PRE&gt;curl -s localhost:4004/odata/v4/catalog | jq .&lt;/PRE&gt;&lt;P&gt;that the OData service document now sports the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Countries&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Countries_texts&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;entity sets too (because, briefly,&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;sap.common.Countries&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;is defined as an entity in&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;[...]/node_modules/@sap/cds/common.cds&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and therefore is exposed as an entity set in the OData service):&lt;/P&gt;&lt;PRE&gt;{
+  "@odata.context": "$metadata",
+  "@odata.metadataEtag": "W/\"2n4HnZUJly4q6xyptJ6+4ZptvIICSUNdpk6NYX73bGY=\"",
+  "value": [
+    {
+      "name": "Books",
+      "url": "Books"
+    },
+    {
+      "name": "Countries",
+      "url": "Countries"
+    },
+    {
+      "name": "Countries_texts",
+      "url": "Countries_texts"
+    }
+  ]
+}&lt;/PRE&gt;&lt;P&gt;Again. So far, so good.&lt;/P&gt;&lt;H3 id="toc-hId--454041874"&gt;Starting to look at the data&lt;/H3&gt;&lt;P&gt;We have some books data, courtesy of the two CSV records that came as part of the "tiny-sample" facet, which we can see with:&lt;/P&gt;&lt;PRE&gt;curl -s localhost:4004/odata/v4/catalog/Books | jq .&lt;/PRE&gt;&lt;P&gt;which returns this entity set response:&lt;/P&gt;&lt;PRE&gt;{
+  "@odata.context": "$metadata#Books",
+  "value": [
+    {
+      "ID": 1,
+      "title": "Wuthering Heights",
+      "stock": 100,
+      "publishedIn_code": null
+    },
+    {
+      "ID": 2,
+      "title": "Jane Eyre",
+      "stock": 500,
+      "publishedIn_code": null
+    }
+  ]
+}&lt;/PRE&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;Those eagle-eyed amongst you might be wondering about the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;publishedIn_code&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;property. That's one that's been auto-generated as a result of CAP's excellent&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://cap.cloud.sap/docs/guides/domain-modeling#associations" target="_blank" rel="noopener nofollow noreferrer"&gt;managed associations&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;constructs.&lt;/P&gt;&lt;P&gt;Here, specifically, it comes from the combination of the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Country&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;type used to describe the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;publishedIn&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;element:&lt;/P&gt;&lt;PRE&gt;extend my.bookshop.Books with {
+    publishedIn: Country;
+}&lt;/PRE&gt;&lt;P&gt;and the very definition of&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Country&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;which is a&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://cap.cloud.sap/docs/guides/domain-modeling#managed-1-associations" target="_blank" rel="noopener nofollow noreferrer"&gt;managed "to-one" association&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;as we have already seen:&lt;/P&gt;&lt;PRE&gt;type Country : Association to sap.common.Countries;&lt;/PRE&gt;&lt;P&gt;This results in, amongst other things, a foreign-key relationship being needed, and being realised via the construction of a property for this, made up of the names of the two elements in the relationship, i.e.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;publishedIn&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;(the new element in&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;my.bookshop.Books)&lt;/LI&gt;&lt;LI&gt;code&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;(the key element in&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;sap.common.Countries)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;joined with an&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;_&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;underscore character to become&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;publishedIn_code.&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;P&gt;However, we don't yet have any country data. Requesting the equivalent entity set like this:&lt;/P&gt;&lt;PRE&gt;curl -s localhost:4004/odata/v4/catalog/Countries | jq .&lt;/PRE&gt;&lt;P&gt;returns a rather sad and empty looking entity set:&lt;/P&gt;&lt;PRE&gt;{
+  "@odata.context": "$metadata#Countries",
+  "value": []
+}&lt;/PRE&gt;&lt;P&gt;So ...&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387241"&gt;@Sap&lt;/a&gt;/cds-common-content&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;to the rescue!&lt;/P&gt;&lt;H3 id="toc-hId--650555379"&gt;Using &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387241"&gt;@Sap&lt;/a&gt;/cds-common-content&lt;/H3&gt;&lt;P&gt;Like we saw earlier, this can be brought into the project simply by adding it as a package. So let's do that now:&lt;/P&gt;&lt;PRE&gt;npm add @sap/cds-common-content&lt;/PRE&gt;&lt;P&gt;After seeing output like this:&lt;/P&gt;&lt;PRE&gt;added 115 packages, and audited 116 packages in 17s
+
+21 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities&lt;/PRE&gt;&lt;P&gt;we see that&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;package.json&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;now has the package listed in the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;dependencies&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;section:&lt;/P&gt;&lt;PRE&gt;{
+  "name": "iso-data-test",
+  "version": "1.0.0",
+  "description": "A simple CAP project.",
+  "repository": "&amp;lt;Add your repository here&amp;gt;",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@sap/cds": "^7",
+    "@sap/cds-common-content": "^1.4.0",
+    "express": "^4"
+  },
+  "devDependencies": {
+    "@cap-js/sqlite": "^1"
+  },
+  "scripts": {
+    "start": "cds-serve"
+  }
+}&lt;/PRE&gt;&lt;P&gt;and the rest of the dependencies have been installed too (through a more general NPM install side-effect) - we can see this with&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;npm list; here's an example invocation:&lt;/P&gt;&lt;PRE&gt;; npm list
+iso-data-test@1.0.0 /home/user/work/scratch/iso-data-test
++-- @cap-js/sqlite@1.5.1
++-- @sap/cds-common-content@1.4.0
++-- @sap/cds@7.7.2
+`-- express@4.18.3&lt;/PRE&gt;&lt;P&gt;So now, to actually make use of this package and what it brings, we have to add a&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;using&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directive, as we saw earlier.&lt;/P&gt;&lt;P&gt;Let's add that to the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;db/publicationinfo.cds&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;file, like this:&lt;/P&gt;&lt;PRE&gt;using from './data-model';
+using { Country } from '@sap/cds/common';
+using from '@sap/cds-common-content';
+
+extend my.bookshop.Books with {
+    publishedIn: Country;
+}&lt;/PRE&gt;&lt;P&gt;As the CAP server is still running in "watch" mode, it restarts, and &lt;span class="lia-unicode-emoji" title=":collision:"&gt;💥&lt;/span&gt; what an explosion of log output!&lt;/P&gt;&lt;PRE&gt;[cds] - loaded model from 6 file(s):
+
+  srv/cat-service.cds
+  db/publicationinfo.cds
+  node_modules/@sap/cds-common-content/index.cds
+  db/data-model.cds
+  node_modules/@sap/cds-common-content/db/index.cds
+  node_modules/@sap/cds/common.cds
+
+[cds] - connect using bindings from: { registry: '~/.cds-services.json' }
+[cds] - connect to db &amp;gt; sqlite { url: ':memory:' }
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_zh_TW.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_zh_CN.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_tr.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_th.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_sv.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_ru.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_ro.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_pt.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_pl.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_no.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_nl.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_ms.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_ko.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_ja.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_it.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_hu.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_fr.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_fi.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_es_MX.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_es.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_en.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_de.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_da.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_cs.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries_texts_ar.csv
+  &amp;gt; init from node_modules/@sap/cds-common-content/db/data/sap-common-Countries.csv
+  &amp;gt; init from db/data/my.bookshop-Books.csv
+/&amp;gt; successfully deployed to in-memory database.&lt;/PRE&gt;&lt;P&gt;Wow! What's more, we now have country data in the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Countries&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;entity set:&lt;/P&gt;&lt;PRE&gt;curl -s 'localhost:4004/odata/v4/catalog/Countries?$top=5' \
+  | jq .&lt;/PRE&gt;&lt;PRE&gt;{
+  "@odata.context": "$metadata#Countries",
+  "value": [
+    {
+      "name": "Andorra",
+      "descr": "Andorra",
+      "code": "AD"
+    },
+    {
+      "name": "Utd Arab Emir.",
+      "descr": "United Arab Emirates",
+      "code": "AE"
+    },
+    {
+      "name": "Afghanistan",
+      "descr": "Afghanistan",
+      "code": "AF"
+    },
+    {
+      "name": "Antigua/Barbuda",
+      "descr": "Antigua and Barbuda",
+      "code": "AG"
+    },
+    {
+      "name": "Anguilla",
+      "descr": "Anguilla",
+      "code": "AI"
+    }
+  ]
+}&lt;/PRE&gt;&lt;P&gt;That's fab. But. What's going on? Where is this coming from? How does this work?&lt;/P&gt;&lt;H3 id="toc-hId--922300253"&gt;Digging in to what's happening&lt;/H3&gt;&lt;P&gt;Let's take a bit of time to figure out how this is all working, and why we now have country data.&lt;/P&gt;&lt;P&gt;We added a single line to the CDS model:&lt;/P&gt;&lt;PRE&gt;using from '@sap/cds-common-content';&lt;/PRE&gt;&lt;P&gt;What did the addition of this line actually do to cause that explosion of change and the appearance of ISO country data?&lt;/P&gt;&lt;P&gt;Well, our first clue is the extra entries that now are appearing in the list of files from which the CDS model is constructed:&lt;/P&gt;&lt;PRE&gt;[cds] - loaded model from 6 file(s):
+
+  srv/cat-service.cds
+  db/publicationinfo.cds
+  node_modules/@sap/cds-common-content/index.cds
+  db/data-model.cds
+  node_modules/@sap/cds-common-content/db/index.cds
+  node_modules/@sap/cds/common.cds&lt;/PRE&gt;&lt;P&gt;Working through them, we first see our base files:&lt;/P&gt;&lt;PRE&gt;srv/cat-service.cds
+db/data-model.cds&lt;/PRE&gt;&lt;P&gt;We also see the two extra files that were picked up once we added the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;db/publicationinfo.cds&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;file which itself summoned the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387241"&gt;@Sap&lt;/a&gt;/cds/common&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;content:&lt;/P&gt;&lt;PRE&gt;db/publicationinfo.cds
+node_modules/@sap/cds/common.cds&lt;/PRE&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;At this point I've stopped being deliberately vague (with&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;[...]) about the specific location of the files in&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;node_modules/, because it's worth highlighting here something that has changed. The&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;npm add&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;action just before caused the rest of the packages (defined in&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;package.json) to be installed in the project. This means that there's now a project-local&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;node_modules/&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directory containing everything that this project needs, including all the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;@sap&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;prefixed NPM packages.&lt;/P&gt;&lt;P&gt;A quick&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;tree -F -L 3&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;shows the directory structure containing those resources (I've removed some of the output for brevity):&lt;/P&gt;&lt;PRE&gt;./
+|-- README.md
+|-- app/
+|-- db/
+|   |-- data/
+|   |   `-- my.bookshop-Books.csv
+|   |-- data-model.cds
+|   `-- publicationinfo.cds
+|-- node_modules/
+|   |-- @cap-js/
+|   |   |-- cds-types/
+|   |   |-- db-service/
+|   |   `-- sqlite/
+|   |-- @sap/
+|   |   |-- cds/
+|   |   |-- cds-common-content/
+|   |   |-- cds-compiler/
+|   |   |-- cds-fiori/
+|   |   `-- cds-foss/
+|   |-- ...
+|   `-- yaml/
+|       |-- LICENSE
+|       |-- README.md
+|       |-- bin.mjs*
+|       |-- browser/
+|       |-- dist/
+|       |-- package.json
+|       `-- util.js
+|-- package-lock.json
+|-- package.json
+`-- srv/
+    `-- cat-service.cds&lt;/PRE&gt;&lt;P&gt;So this means that the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;@sap/cds/common&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;package is being loaded now from the project-local set of packages, i.e. in&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;node_modules/&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;relative to the project directory (i.e.&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;./node_modules/) and not the global NPM package area any more.&lt;/P&gt;&lt;P&gt;This in turn means that the full (relative) path to this file now in the list is clean and short(er):&lt;/P&gt;&lt;PRE&gt;node_modules/@sap/cds/common.cds&lt;/PRE&gt;&lt;/BLOCKQUOTE&gt;&lt;P&gt;OK, so we know why these four of the six files are being loaded, and where from:&lt;/P&gt;&lt;PRE&gt;srv/cat-service.cds
+db/data-model.cds
+db/publicationinfo.cds
+node_modules/@sap/cds/common.cds&lt;/PRE&gt;&lt;P&gt;So what about the other two in the list:&lt;/P&gt;&lt;PRE&gt;node_modules/@sap/cds-common-content/index.cds
+node_modules/@sap/cds-common-content/db/index.cds&lt;/PRE&gt;&lt;P&gt;which are now also being brought in to construct the model?&lt;/P&gt;&lt;P&gt;Well, given the "cds-common-content" that appears in the path of these files, we can be pretty certain that they're related to this single line we just added:&lt;/P&gt;&lt;PRE&gt;using from '@sap/cds-common-content';&lt;/PRE&gt;&lt;P&gt;so what is actually happening here?&lt;/P&gt;&lt;P&gt;Well, if we look a bit deeper inside the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387241"&gt;@Sap&lt;/a&gt;/cds-common-content&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;package, like this:&lt;/P&gt;&lt;PRE&gt;tree -F -L 2 node_modules/@sap/cds-common-content&lt;/PRE&gt;&lt;P&gt;there's a bit of a clue in the output, especially if we're familiar with CAP's&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://cap.cloud.sap/docs/guides/extensibility/composition" target="_blank" rel="noopener nofollow noreferrer"&gt;Reuse and Compose&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;concepts:&lt;/P&gt;&lt;PRE&gt;node_modules/@sap/cds-common-content/
+|-- CHANGELOG.md
+|-- LICENSE
+|-- README.md
+|-- db/
+|   |-- index.cds
+|   `-- data/
+|-- index.cds
+`-- package.json
+
+3 directories, 6 files&lt;/PRE&gt;&lt;P&gt;Look at those&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;index.cds&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;files. The&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://cap.cloud.sap/docs/guides/extensibility/composition#index-cds" target="_blank" rel="noopener nofollow noreferrer"&gt;Using index.cds Entry Points&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;section of the Reuse and Compose section of the Capire documentation says this, in the context of a&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;using&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directive like we have here (i.e.&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;using from '@sap/cds-common-content';):&lt;/P&gt;&lt;P&gt;&lt;EM&gt;"The&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;using from&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;statements assume that the imported packages provide&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;index.cds&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;in their roots as&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://cap.cloud.sap/docs/guides/extensibility/composition#entry-points" target="_blank" rel="noopener nofollow noreferrer"&gt;public entry points&lt;/A&gt;, which they do."&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;So, that means that the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;using&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directive will cause this file:&lt;/P&gt;&lt;PRE&gt;node_modules/@sap/cds-common-content/index.cds&lt;/PRE&gt;&lt;P&gt;to also be loaded and its CDS contents added into the overall model construction. So what's in this file? This:&lt;/P&gt;&lt;PRE&gt;using from './db';&lt;/PRE&gt;&lt;P&gt;&lt;span class="lia-unicode-emoji" title=":rabbit:"&gt;🐇&lt;/span&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://en.wikipedia.org/wiki/Alice%27s_Adventures_in_Wonderland" target="_blank" rel="noopener nofollow noreferrer"&gt;Curiouser and curiouser&lt;/A&gt;!&lt;/P&gt;&lt;P&gt;So let's now follow&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;EM&gt;this&lt;/EM&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;using&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directive, the resource reference within which should be interpreted as local to the containing&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;index.cds&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;file, i.e. we're now going to follow this path to&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;./db/, which&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;EM&gt;also&lt;/EM&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;contains an&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;index.cds:&lt;/P&gt;&lt;PRE&gt;node_modules/@sap/cds-common-content/
+|-- CHANGELOG.md
+|-- LICENSE
+|-- README.md
+|-- db/
+|   |-- index.cds  [--------------------+
+|   `-- data/                           |
+|-- index.cds  -- using from './db'; ---+
+`-- package.json&lt;/PRE&gt;&lt;P&gt;So what's in&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;./db/index.cds? This:&lt;/P&gt;&lt;PRE&gt;using sap.common.Languages from '@sap/cds/common';
+using sap.common.Countries from '@sap/cds/common';
+using sap.common.Currencies from '@sap/cds/common';
+using sap.common.Timezones from '@sap/cds/common';&lt;/PRE&gt;&lt;P&gt;Ooh!&lt;/P&gt;&lt;P&gt;What is the effect of doing this? Well it has a direct effect and a sort of side-effect too.&lt;/P&gt;&lt;P&gt;The direct effect is that all four entity definitions referenced in this&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;./db/index.cds&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;file, that is to say these four:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;sap.common.Languages&lt;/LI&gt;&lt;LI&gt;sap.common.Countries&lt;/LI&gt;&lt;LI&gt;sap.common.Currencies&lt;/LI&gt;&lt;LI&gt;sap.common.Timezones&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;are added to the overall model.&lt;/P&gt;&lt;P&gt;But the side-effect is that the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;./db/data/&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directory here also becomes a candidate location for the automatic&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://cap.cloud.sap/docs/guides/databases#providing-initial-data" target="_blank" rel="noopener nofollow noreferrer"&gt;provision of initial data&lt;/A&gt;!&lt;/P&gt;&lt;P&gt;And what's in that&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;./db/data/&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directory? Let's have a look:&lt;/P&gt;&lt;PRE&gt;ls node_modules/@sap/cds-common-content/db/data/&lt;/PRE&gt;&lt;P&gt;Lots and lots of CSV files (I've cut the list down to just a few here):&lt;/P&gt;&lt;PRE&gt;./                                     sap-common-Languages_texts_cs.csv
+../                                    sap-common-Languages_texts_da.csv
+sap-common-Countries.csv               sap-common-Languages_texts_de.csv
+sap-common-Countries_texts.csv         sap-common-Languages_texts_en.csv
+sap-common-Countries_texts_ar.csv      sap-common-Languages_texts_es.csv
+sap-common-Countries_texts_zh_CN.csv   sap-common-Timezones_texts_cs.csv
+sap-common-Countries_texts_zh_TW.csv   sap-common-Timezones_texts_da.csv
+sap-common-Currencies.csv              sap-common-Timezones_texts_de.csv
+sap-common-Currencies_texts.csv        sap-common-Timezones_texts_el.csv
+sap-common-Currencies_texts_ar.csv     sap-common-Timezones_texts_en.csv
+...&lt;/PRE&gt;&lt;P&gt;And we know what happens with initial data, for those entities whose namespaced-names match up with CSV filenames in directories such as these - the data is automatically imported to become data for those entities!&lt;/P&gt;&lt;P&gt;Notice too that for each of the four entities, there is a single CSV file containing the core data, and multiple CSV files for the corresponding&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://cap.cloud.sap/docs/guides/localized-data#declaring-localized-data" target="_blank" rel="noopener nofollow noreferrer"&gt;localized&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;elements, in accompanying&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;_texts*&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;suffixed files.&lt;/P&gt;&lt;P&gt;Here's one example, for the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;sap.common.Countries&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;entity. A neat list of the intial CSV data files for this entity can be retrieved with:&lt;/P&gt;&lt;PRE&gt;cd node_modules/@sap/cds-common-content/db/data/ \
+  &amp;amp;&amp;amp; ls -1 sap-common-Countries*.csv&lt;/PRE&gt;&lt;P&gt;which produces:&lt;/P&gt;&lt;PRE&gt;sap-common-Countries.csv
+sap-common-Countries_texts.csv
+sap-common-Countries_texts_ar.csv
+sap-common-Countries_texts_cs.csv
+sap-common-Countries_texts_da.csv
+sap-common-Countries_texts_de.csv
+sap-common-Countries_texts_en.csv
+sap-common-Countries_texts_es.csv
+sap-common-Countries_texts_es_MX.csv
+sap-common-Countries_texts_fi.csv
+sap-common-Countries_texts_fr.csv
+sap-common-Countries_texts_hu.csv
+sap-common-Countries_texts_it.csv
+sap-common-Countries_texts_ja.csv
+sap-common-Countries_texts_ko.csv
+sap-common-Countries_texts_ms.csv
+sap-common-Countries_texts_nl.csv
+sap-common-Countries_texts_no.csv
+sap-common-Countries_texts_pl.csv
+sap-common-Countries_texts_pt.csv
+sap-common-Countries_texts_ro.csv
+sap-common-Countries_texts_ru.csv
+sap-common-Countries_texts_sv.csv
+sap-common-Countries_texts_th.csv
+sap-common-Countries_texts_tr.csv
+sap-common-Countries_texts_zh_CN.csv
+sap-common-Countries_texts_zh_TW.csv&lt;/PRE&gt;&lt;P&gt;We can see the three groups of files for&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;sap.common.Countries:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;the single core data file&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;sap-common-Countries.csv&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;containing values for the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;code,&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;name&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;descr&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;fields (in English as default).&lt;/LI&gt;&lt;LI&gt;the single core localized data file&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;sap-common-Countries_texts.csv&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;- where the filename is not specific to an explicit locale - containing values for the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;locale,&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;code,&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;name&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;descr&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;field. The language specific content is English by default.&lt;/LI&gt;&lt;LI&gt;the multiple language-specific localized data files&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;sap-common-Countries_texts_&amp;lt;locale-identifier&amp;gt;.csv&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;containing the same data as the core localized file but with the texts translated into the language indicated by the locale-identifier in the file name.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;You'll likely remember seeing a list of all these CSV files in the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://qmacro.org/blog/posts/2024/03/12/iso-content-for-common-cap-types/#explosion" target="_blank" rel="noopener nofollow noreferrer"&gt;explosion of output&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;from the running CAP server earlier.&lt;/P&gt;&lt;P&gt;And what's the outcome of this?&lt;/P&gt;&lt;P&gt;To find out, let's expand the core books data now to include values for the new&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;publishedIn_code&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;field at the persistence layer, so that the content of&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;db/data/my.bookshop-Books.csv&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;now looks like this:&lt;/P&gt;&lt;PRE&gt;ID;title;stock;publishedIn_code
+1;Wuthering Heights;100;DE
+2;Jane Eyre;500;HU&lt;/PRE&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;Yes I know Wuthering Heights wasn't published in Germany, nor was Jane Eyre published in Hungary, but thank you for wondering about that.&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;P&gt;Now, NOT ONLY (μέν) can we follow navigation properties to see the publication countries for our books, like this (note the country names "Germany" and "Hungary"):&lt;/P&gt;&lt;PRE&gt;curl \
+    --silent \
+    --url 'localhost:4004/odata/v4/catalog/Books?$expand=publishedIn' \
+  | jq .&lt;/PRE&gt;&lt;P&gt;to get this:&lt;/P&gt;&lt;PRE&gt;{
+  "@odata.context": "$metadata#Books(publishedIn())",
+  "value": [
+    {
+      "ID": 1,
+      "title": "Wuthering Heights",
+      "stock": 100,
+      "publishedIn_code": "DE",
+      "publishedIn": {
+        "name": "Germany",
+        "descr": "Germany",
+        "code": "DE"
+      }
+    },
+    {
+      "ID": 2,
+      "title": "Jane Eyre",
+      "stock": 500,
+      "publishedIn_code": "HU",
+      "publishedIn": {
+        "name": "Hungary",
+        "descr": "Hungary",
+        "code": "HU"
+      }
+    }
+  ]
+}&lt;/PRE&gt;&lt;P&gt;BUT ALSO (δέ) we can ask for this information in our own language (locale)! Here's an example, requesting the same resource but with a different locale (French), via standard HTTP headers:&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;I'm fond of the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="http://www.jowillmott.co.uk/simpleguide/notes/%CE%BC%CE%AD%CE%BD%E2%80%A6%CE%B4%CE%AD..." target="_blank" rel="noopener nofollow noreferrer"&gt;strong particle pairing&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;of μέν ... δέ which I first learned about as an important construct in Ancient Greek, and I find myself often using the (English) equivalent ("not only ... but also").&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;PRE&gt;curl \
+    --silent \
+    --header 'Accept-Language: fr' \
+    --url 'localhost:4004/odata/v4/catalog/Books?$expand=publishedIn' \
+  | jq .&lt;/PRE&gt;&lt;P&gt;The representation of the resource requested is now different, in that the names of the countries are now in French ("Allemagne" and "Hungarie"):&lt;/P&gt;&lt;PRE&gt;{
+  "@odata.context": "$metadata#Books(publishedIn())",
+  "value": [
+    {
+      "ID": 1,
+      "title": "Wuthering Heights",
+      "stock": 100,
+      "publishedIn_code": "DE",
+      "publishedIn": {
+        "name": "Allemagne",
+        "descr": "Allemagne",
+        "code": "DE"
+      }
+    },
+    {
+      "ID": 2,
+      "title": "Jane Eyre",
+      "stock": 500,
+      "publishedIn_code": "HU",
+      "publishedIn": {
+        "name": "Hongrie",
+        "descr": "Hongrie",
+        "code": "HU"
+      }
+    }
+  ]
+}&lt;/PRE&gt;&lt;P&gt;C'est vraiment magnifique!&lt;/P&gt;&lt;P&gt;Of course, one wouldn't often use an explicit&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Accept-Language&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;header in an HTTP request, but think of what headers your browser sends by default when making requests, and think of what your French colleague's browser might send. Exactly!&lt;/P&gt;&lt;H1 id="toc-hId--532007744"&gt;Wrapping up&lt;/H1&gt;&lt;P&gt;OK, I think I've reached a point where I can now safely escape this rabbit hole of discovery. The bottom line is that there is a standard NPM package available that provides actual ISO data for the four CAP reuse types. You've learned how to use it, and what it provides. Moreover, you've learned how it provides what it does, and what goes on behind the scenes. That, hopefully, has given you a tiny bit more insight into the wonders of CAP.&lt;/P&gt;&lt;P&gt;And there's still so much more to discover. Until next time!&lt;/P&gt;&lt;HR /&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--728521249"&gt;Appendix - loading &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387241"&gt;@Sap&lt;/a&gt;/cds/common&lt;/H1&gt;&lt;P&gt;In the Background section earlier, the output of&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;cds watch&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;showed this line:&lt;/P&gt;&lt;PRE&gt;  [...]/node_modules/@sap/cds/common.cds&lt;/PRE&gt;&lt;P&gt;The reason I included a&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;[...]&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;"prefix" was to signify that there will be a different path shown depending on whether an&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;npm install&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;of the project dependencies (which include&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387241"&gt;@Sap&lt;/a&gt;/cds) has been executed, or not.&lt;/P&gt;&lt;P&gt;If an&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;npm install&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;has been executed, then there will be a project-local&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;node_modules/&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;directory, and the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387241"&gt;@Sap&lt;/a&gt;/cds/common&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;resource will have been loaded from within there, i.e.&lt;/P&gt;&lt;PRE&gt;./node_modules/@sap/cds/common.cds&lt;/PRE&gt;&lt;P&gt;If an&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;npm install&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;hasn't been executed, and we're running the CAP server from the NPM&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://github.com/qmacro/capb2b/blob/20f9cebefd63f9d897eeb47b53634fd7416653b5/.devcontainer/Dockerfile#L11" target="_blank" rel="noopener nofollow noreferrer"&gt;globally installed&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387241"&gt;@Sap&lt;/a&gt;/cds-dk&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;package, then it will have been loaded from that globally installed package location, and look something like this (depending on what your NPM global package management directory setup looks like):&lt;/P&gt;&lt;PRE&gt;../../usr/local/share/npm-global/lib/
+  node_modules/@sap/cds-dk/
+  node_modules/@sap/cds/common.cds&lt;/PRE&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;This location value would typically be shown in a single line; I've split the value up over a few lines purely for readability.&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;P&gt;You can find out where your (normally globally installed)&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387241"&gt;@Sap&lt;/a&gt;/cds-dk&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;package is, using the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;cds env&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;command:&lt;/P&gt;&lt;PRE&gt;cds env _home_cds-dk&lt;/PRE&gt;&lt;P&gt;In the context of this particular dev container in which I'm working, this is the value that is emitted:&lt;/P&gt;&lt;PRE&gt;'/usr/lib/node_modules/@sap/cds-dk/'&lt;/PRE&gt;&lt;P&gt;(&lt;A href="https://qmacro.org/blog/posts/2024/03/12/iso-content-for-common-cap-types/" target="_self" rel="nofollow noopener noreferrer"&gt;Originally published on qmacro.org)&lt;/A&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/application-development-blog-posts/iso-content-for-common-cap-types/ba-p/13637780"/>
+    <published>2024-03-14T08:35:15.623000+01:00</published>
   </entry>
 </feed>
