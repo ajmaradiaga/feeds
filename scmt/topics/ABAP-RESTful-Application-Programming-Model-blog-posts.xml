@@ -2,548 +2,1473 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-RESTful-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2024-03-14T21:00:08.189134+00:00</updated>
+  <updated>2024-03-15T00:00:05.565705+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model blog posts in SAP Community</subtitle>
   <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/how-to-create-a-fiori-elements-app-for-a-time-dependent-rap-bo/ba-p/13581100</id>
-    <title>How to create a Fiori Elements App for a Time-Dependent RAP BO</title>
-    <updated>2023-11-29T17:39:25+01:00</updated>
+    <id>https://community.sap.com/t5/technology-blogs-by-members/unmanaged-query-in-root-view-entities/ba-p/13579707</id>
+    <title>Unmanaged Query in Root View Entities</title>
+    <updated>2023-12-28T12:17:13+01:00</updated>
     <author>
-      <name>patrick_winkler</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/729521</uri>
+      <name>phillip_doerrschuck94</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/601604</uri>
     </author>
-    <content>&lt;H1 id="toc-hId-835704422"&gt;Introduction&lt;/H1&gt;&lt;P&gt;In this blog post, you will learn how to create a Fiori Elements app for a Time-Dependent RAP Business Object.&lt;BR /&gt;Time dependency means that the underlying table has a date that represents the start or end of the record validity as a key field.&lt;BR /&gt;Our goal is to create a Fiori Elements app where&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The user can filter the data based on record validity to display current, past, or future valid entries&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;The user can use a delimit action to split an existing time slice&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;Validations ensure that only one time slice is valid at any time and that there are no gaps between time slices&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;To follow this blog, you should be familiar with&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;ABAP RESTful Programming Model&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;Fiori Elements&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This blog is relevant for:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;SAP S/4HANA On-Premises 2023 or higher&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;SAP S/4HANA Cloud, Public Edition&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;SAP S/4HANA Cloud, Private Edition&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;SAP BTP, ABAP Environment&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-639190917"&gt;Generate RAP BO for time-dependent customizing table&lt;/H1&gt;&lt;P&gt;The time-dependent table has the following definition:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Time depend.'
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #C
-@AbapCatalog.dataMaintenance : #ALLOWED
-define table ztimedep {
-  key client              : abap.clnt not null;
-  key numc1               : abap.numc(1) not null;
-  key validity_begin_date : abap.dats not null;
-  validity_end_date       : abap.dats;
-  content                 : abap.char(30);
-  last_changed_at         : abp_lastchange_tstmpl;
-  local_last_changed_at   : abp_locinst_lastchange_tstmpl;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;With the &lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/generating-business-configuration-maintenance-object-with-generate-abap-repository-objects-wizard" target="_blank" rel="noopener noreferrer"&gt;BC Maintenance Object ADT Wizard&lt;/A&gt;, you generate the RAP BO for this table. This way, you can also use the &lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/custom-business-configurations-app" target="_blank" rel="noopener noreferrer"&gt;Custom Business Configurations&lt;/A&gt; app, so you don't need to create a custom Fiori Elements app. You can also create your own custom Fiori app based on the generated service binding if you don't want to use this app. For more information, see &lt;A href="https://blogs.sap.com/2023/03/31/how-to-create-a-fiori-elements-app-for-a-rap-bo-with-transport-selection/" target="_blank" rel="noopener noreferrer"&gt;this blog&lt;/A&gt;. The following modifications can also be made to any existing RAP BO and&amp;nbsp;can be implemented independently of each other.&lt;/P&gt;&lt;H1 id="toc-hId-442677412"&gt;Time slice validation&lt;/H1&gt;&lt;P&gt;Add the following validation to the table entity in the behavior definition. By using the validity date fields as trigger fields, you can ensure that all changes to the time slice are validated. Also add this validation to the preparation action because a draft-enabled BO has been generated and this validation should be executed for the draft instance.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;validation ValidateTimeSlice on save { field ValidityBeginDate, ValidityEndDate; }
-
-draft determine action Prepare {
-  validation TimeDepend ~ ValidateTimeSlice;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Note the comments in the code for a detailed explanation:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  METHOD ValidateTimeSlice.
-    DATA check_date TYPE d.
-    CONSTANTS c_state_area TYPE string VALUE `TimeValidity`.
-    "Entities can only be read if the key is specified in full
-    "Validation requires not only the modified entity, but all others with the same initial key
-    "Therefore, we use the parent entity to retrieve all sibling entities and additionally read ValidityEndDate
-    READ ENTITIES OF zi_timedepend_s IN LOCAL MODE
-      ENTITY timedependall BY \_timedepend
-      FROM VALUE #( ( %tky-singletonid = 1
-                      %tky-%is_draft = keys[ 1 ]-%is_draft ) )
-      RESULT FINAL(all_keys).
-    READ ENTITY IN LOCAL MODE zi_timedepend
-      FIELDS ( ValidityEndDate ) WITH CORRESPONDING #( all_keys )
-      RESULT DATA(all_entities).
-    "Sort by ValidityBeginDate
-    SORT all_entities BY numc1 ValidityBeginDate ASCENDING.
-
-    LOOP AT keys ASSIGNING FIELD-SYMBOL(&amp;lt;key&amp;gt;).
-      "We are using state messages: https://help.sap.com/docs/abap-cloud/abap-rap/state-messages?version=sap_btp
-      "Therefore, invalidate existing messages first
-      INSERT VALUE #( %tky        = &amp;lt;key&amp;gt;-%tky
-                      %state_area = c_state_area ) INTO TABLE reported-timedepend.
-      READ TABLE all_entities WITH KEY %tky = &amp;lt;key&amp;gt;-%tky BINARY SEARCH INTO DATA(entity).
-      DATA(tabix) = sy-tabix.
-      "Check1: If ValidityEndDate is set, it must be before ValidityBeginDate
-      IF entity-ValidityEndDate IS NOT INITIAL AND entity-ValidityEndDate &amp;lt; entity-ValidityBeginDate.
-        INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky ) INTO TABLE failed-timedepend.
-        INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky
-                        %state_area = c_state_area
-                        %path-timedependall-singletonid = 1
-                        %path-timedependall-%is_draft = &amp;lt;key&amp;gt;-%is_draft
-                        %element-ValidityEndDate = if_abap_behv=&amp;gt;mk-on "to highlight the affected cell
-                        %msg = new_message_with_text( text = `End date is before Begin date` ) ) INTO TABLE reported-timedepend.
-        CONTINUE.
-      ENDIF.
-      "Check2: Since we sorted by ValidityBeginDate, we can read the preceding chronological entity and check for gaps or overlaps.
-      READ TABLE all_entities INDEX tabix - 1 ASSIGNING FIELD-SYMBOL(&amp;lt;prev_entity&amp;gt;).
-      IF sy-subrc = 0 AND &amp;lt;prev_entity&amp;gt;-numc1 = &amp;lt;key&amp;gt;-numc1.
-        check_date = entity-ValidityBeginDate - 1.
-        IF &amp;lt;prev_entity&amp;gt;-ValidityEndDate &amp;lt;&amp;gt; check_date.
-          IF &amp;lt;prev_entity&amp;gt;-ValidityEndDate &amp;gt; check_date.
-            DATA(text) = `Time slices overlap`.
-          ELSE.
-            text = `Gap between time slices`.
-          ENDIF.
-          INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky ) INTO TABLE failed-timedepend.
-          INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky
-                          %state_area = c_state_area
-                          %path-timedependall-singletonid = 1
-                          %path-timedependall-%is_draft = &amp;lt;key&amp;gt;-%is_draft
-                          %element-ValidityBeginDate = if_abap_behv=&amp;gt;mk-on
-                          %msg = new_message_with_text( text = text ) ) INTO TABLE reported-timedepend.
-        ENDIF.
-      ENDIF.
-      "Check3: check the following chronological entity
-      READ TABLE all_entities INDEX tabix + 1 ASSIGNING FIELD-SYMBOL(&amp;lt;next_entity&amp;gt;).
-      IF sy-subrc = 0 AND &amp;lt;next_entity&amp;gt;-numc1 = &amp;lt;key&amp;gt;-numc1.
-        check_date = entity-ValidityEndDate + 1.
-        IF &amp;lt;next_entity&amp;gt;-ValidityBeginDate &amp;lt;&amp;gt; check_date.
-          IF &amp;lt;next_entity&amp;gt;-ValidityBeginDate &amp;lt; check_date.
-            text = `Time slices overlap`.
-          ELSE.
-            text = `Gap between time slices`.
-          ENDIF.
-          INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky ) INTO TABLE failed-timedepend.
-          INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky
-                          %state_area = c_state_area
-                          %path-timedependall-singletonid = 1
-                          %path-timedependall-%is_draft = &amp;lt;key&amp;gt;-%is_draft
-                          %element-ValidityEndDate = if_abap_behv=&amp;gt;mk-on
-                          %msg = new_message_with_text( text = text ) ) INTO TABLE reported-timedepend.
-        ENDIF.
-      ENDIF.
-    ENDLOOP.
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;In the following example, a new record is added, but its time slice overlaps with the existing records. Note that the validation is executed when you save.&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/11/Example_validation-3.png" border="0" /&gt;&lt;/P&gt;&lt;P style=" padding-left : 300px; "&gt;&lt;EM&gt;Validation example&lt;/EM&gt;&lt;/P&gt;&lt;H1 id="toc-hId-246163907"&gt;Delimit action&lt;/H1&gt;&lt;P&gt;A typical task is to split or delimit an existing time-dependent record. We provide the user with an action where a record is selected and a new ValididyEndDate is provided by the user. The existing data record is adjusted with the specified date and a new data record is also created.&lt;BR /&gt;&lt;BR /&gt;Create a new abstract entity for parameterizing the action:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Delimit'
-define abstract entity ZD_DELIMITTP
-{
-  @EndUserText.label: 'New Validity End Date'
-  ValidityEndDate : abap.dats;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Add the following action to the table entity in the behavior definition and, if applicable, the behavior projection. Also, add a &lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/side-effects?version=sap_btp" target="_blank" rel="noopener noreferrer"&gt;side effect&lt;/A&gt; so that the table is refreshed when the action is applied to multiple rows.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;"behavior definition
-factory action ( features: instance ) Delimit parameter ZD_DELIMITTP [1];
-side effects
-  { action Delimit affects entity _TimeDependAll; }
-"behavior projection
-projection;
-strict;
-use draft;
-use side effects;
-
-use action Delimit;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Add the action to the metadata extension:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  @UI.identification: [ {
-    position: 1 , 
-    label: 'Numc1'
-  } ]
-  @UI.lineItem: [ {
-    position: 1 , 
-    label: 'Numc1'
-  },
-  {
-    type: #FOR_ACTION, 
-    dataAction: 'Delimit', 
-    label: 'Delimit Selected Entry'
-  } ]
-  @UI.facet: [ {
-    id: 'ZI_TimeDepend', 
-    purpose: #STANDARD, 
-    type: #IDENTIFICATION_REFERENCE, 
-    label: 'Time depend.', 
-    position: 1 
-  } ]
-  Numc1;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Note the comments in the code for a detailed explanation:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  METHOD get_global_authorizations.
-    AUTHORITY-CHECK OBJECT 'S_TABU_NAM' ID 'TABLE' FIELD 'ZI_TIMEDEPEND' ID 'ACTVT' FIELD '02'.
-    DATA(is_authorized) = COND #( WHEN sy-subrc = 0 THEN if_abap_behv=&amp;gt;auth-allowed
-                                  ELSE if_abap_behv=&amp;gt;auth-unauthorized ).
-    result-%action-delimit = is_authorized.
-  ENDMETHOD.
-
-  METHOD get_instance_features.
-    "The delimitation action shall only be possible for draft entities as the transport selection logic requires a draft entity
-    result = VALUE #( FOR &amp;lt;key&amp;gt; IN keys (
-               %tky = &amp;lt;key&amp;gt;-%tky
-               %action-delimit = COND #( WHEN &amp;lt;key&amp;gt;-%is_draft = if_abap_behv=&amp;gt;mk-on
-                                         THEN if_abap_behv=&amp;gt;fc-o-enabled
-                                         ELSE if_abap_behv=&amp;gt;fc-o-disabled ) ) ).
-  ENDMETHOD.
-
-  METHOD delimit.
-    DATA new_timedepend TYPE TABLE FOR CREATE zi_timedepend_s\_timedepend.
-    DATA modify_timedepend TYPE TABLE FOR UPDATE zi_timedepend.
-
-    CHECK lines( keys ) &amp;gt; 0.
-    READ ENTITIES OF zi_timedepend_s IN LOCAL MODE
-      ENTITY timedepend
-        ALL FIELDS WITH CORRESPONDING #( keys )
-        RESULT FINAL(ref_timedepends).
-    APPEND VALUE #( %is_draft = keys[ 1 ]-%is_draft
-                    singletonid = 1 )
-      TO new_timedepend ASSIGNING FIELD-SYMBOL(&amp;lt;new_timedepend&amp;gt;).
-
-    LOOP AT keys ASSIGNING FIELD-SYMBOL(&amp;lt;key&amp;gt;).
-      READ TABLE ref_timedepends WITH TABLE KEY draft COMPONENTS %tky = &amp;lt;key&amp;gt;-%tky INTO DATA(ref_timedepend).
-      "The new ValidityEndDate must be between the current ValidityBeginDate and ValidityEndDate.
-      IF &amp;lt;key&amp;gt;-%param-ValidityEndDate &amp;lt; ref_timedepend-ValidityBeginDate OR &amp;lt;key&amp;gt;-%param-ValidityEndDate &amp;gt;= ref_timedepend-ValidityEndDate.
-        INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky ) INTO TABLE failed-timedepend.
-        INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky
-                        %path-timedependall-singletonid = 1
-                        %path-timedependall-%is_draft = &amp;lt;key&amp;gt;-%is_draft
-                        %msg = new_message_with_text( text = |{ &amp;lt;key&amp;gt;-%param-ValidityEndDate DATE = USER } is not a valid date for delimit action| ) ) INTO TABLE reported-timedepend.
-        CONTINUE.
-      ENDIF.
-      "new record-ValidityBeginDate = user selected date + 1 day
-      "new record-ValidityEndDate = reference record-ValidityEndDate
-      ref_timedepend-ValidityBeginDate = &amp;lt;key&amp;gt;-%param-ValidityEndDate + 1.
-      INSERT VALUE #( %cid = &amp;lt;key&amp;gt;-%cid
-                      %is_draft = &amp;lt;key&amp;gt;-%is_draft
-                      %data = CORRESPONDING #( ref_timedepend EXCEPT lastChangedAt localLastChangedAt singletonid ) "don't copy technical fields
-       ) INTO TABLE &amp;lt;new_timedepend&amp;gt;-%target.
-      "reference record-ValidityEndDate = user selected date
-      INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky
-                      ValidityEndDate = &amp;lt;key&amp;gt;-%param-ValidityEndDate
-                      %control-ValidityEndDate = if_abap_behv=&amp;gt;mk-on ) INTO TABLE modify_timedepend.
-    ENDLOOP.
-    IF new_timedepend[ 1 ]-%target IS NOT INITIAL.
-      MODIFY ENTITIES OF zi_timedepend_s IN LOCAL MODE
-        ENTITY timedependall CREATE BY \_timedepend
-        FIELDS ( numc1
-                 ValidityBeginDate
-                 ValidityEndDate
-                 content ) WITH new_timedepend
-        ENTITY  timedepend  UPDATE FIELDS  ( ValidityEndDate ) WITH modify_timedepend
-          MAPPED FINAL(mapped_create).
-      mapped-timedepend = mapped_create-timedepend.
-    ENDIF.
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In the following example, the record valid for October is delimited:&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/11/delimit_selection.png" border="0" /&gt;&lt;/P&gt;&lt;P style=" padding-left : 300px; "&gt;&lt;EM&gt;Delimit Selected Entry&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/11/delimit_result.png" border="0" /&gt;&lt;/P&gt;&lt;P style=" padding-left : 300px; "&gt;&lt;EM&gt;Delimit Action Result&lt;/EM&gt;&lt;/P&gt;&lt;H1 id="toc-hId-49650402"&gt;Validity View Variants&lt;/H1&gt;&lt;P&gt;The user should be able to filter the entries by their validity regarding a key date:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Currently valid&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;Valid in the past&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;Valid in the future&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;There are two alternative solutions:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;View settings variants&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;Calculated or Virtual validity field&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-111302335"&gt;View settings variants&lt;/H3&gt;&lt;P&gt;The user can use the table view settings to create the required filter conditions.&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/11/current_filter.png" border="0" /&gt;&lt;/P&gt;&lt;P style=" padding-left : 240px; "&gt;&lt;EM&gt;Filter Conditions for Effective Date Today&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;For this approach, you must ensure that both ValidityBeginDate and ValidityEndDate are within a reasonable period of time so that Today +/- can be applied. You can change the time slice validation by changing the first check:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;      "Check1: ValidityBeginDate and ValidityEndDate must be within a reasonable timeframe
-      DATA(max_date) = CONV d( cl_abap_context_info=&amp;gt;get_system_date( ) + 99999 ).
-      DATA(min_date) = CONV d( cl_abap_context_info=&amp;gt;get_system_date( ) - 99999 ).
-      IF entity-ValidityEndDate &amp;lt; entity-ValidityBeginDate
-        OR entity-ValidityEndDate &amp;gt; max_date.
-        IF entity-ValidityEndDate &amp;lt; entity-ValidityBeginDate.
-          DATA(err_text) = `End date must be greather than Begin date`.
-        ELSE.
-          err_text = |End date must not be greather than {  max_date DATE = USER }|.
-        ENDIF.
-        INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky ) INTO TABLE failed-timedepend.
-        INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky
-                        %state_area = c_state_area
-                        %path-timedependall-singletonid = 1
-                        %path-timedependall-%is_draft = &amp;lt;key&amp;gt;-%is_draft
-                        %element-ValidityEndDate = if_abap_behv=&amp;gt;mk-on "to highlight the affected cell
-                        %msg = new_message_with_text( text = err_text ) ) INTO TABLE reported-timedepend.
-        CONTINUE.
-      ENDIF.
-      IF entity-ValidityBeginDate &amp;lt; min_date.
-        INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky ) INTO TABLE failed-timedepend.
-        INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky
-                        %state_area = c_state_area
-                        %path-timedependall-singletonid = 1
-                        %path-timedependall-%is_draft = &amp;lt;key&amp;gt;-%is_draft
-                        %element-ValidityBeginDate = if_abap_behv=&amp;gt;mk-on
-                        %msg = new_message_with_text( text = |Begin date must be greather than { min_date DATE = USER }| ) ) INTO TABLE reported-timedepend.
-        CONTINUE.
-      ENDIF.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The user now has the option to set this view as the &lt;A href="https://experience.sap.com/fiori-design-web/variant-management/" target="_blank" rel="noopener noreferrer"&gt;default view&lt;/A&gt; for all and create other view variants, for example, for Valid in the future.&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/11/current_view.png" border="0" /&gt;&lt;/P&gt;&lt;P style=" padding-left : 330px; "&gt;&lt;EM&gt;Default view&lt;/EM&gt;&lt;/P&gt;&lt;H3 id="toc-hId--85211170"&gt;Calculated or virtual validity field&lt;/H3&gt;&lt;P&gt;&lt;BR /&gt;A field "Validity" is added to the data model that calculates the validity of each record with the system date as the key date. The user can use this field in the filter conditions.&lt;BR /&gt;&lt;BR /&gt;Create a custom domain that represents the different validity values:&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/11/domain-1.png" border="0" /&gt;&lt;/P&gt;&lt;P style=" padding-left : 300px; "&gt;&lt;EM&gt;Validity domain&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;Create a custom value help entity for the domain:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;"for use in SAP BTP, ABAP Environment or S/4HANA Cloud Public Edition
-@ObjectModel.dataCategory: #VALUE_HELP
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Validity'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.resultSet.sizeCategory: #XS
-define view entity ZI_ValidityVH
-  as select from DDCDS_CUSTOMER_DOMAIN_VALUE( p_domain_name : 'ZVALIDITY' ) as Id
-  association [0..1] to DDCDS_CUSTOMER_DOMAIN_VALUE_T as _Text on  _Text.value_low   = $projection.Validity
-                                                               and _Text.language    = $session.system_language
-                                                               and _Text.domain_name = Id.domain_name
-                                                               and _Text.value_position = Id.value_position
-{
-         @ObjectModel.text.element: ['Description']
-  key    value_low                                 as Validity,
-         @Semantics.text: true
-         _Text( p_domain_name : 'ZVALIDITY' ).text as Description
-}
-
-"for use in S/4HANA Cloud Private Edition and S/4HANA On-Premises
-@ObjectModel.dataCategory: #VALUE_HELP
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Validity'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.resultSet.sizeCategory: #XS
-define view entity ZI_ValidityVH
-  as select from dd07l as id
-  association [0..1] to dd07t as _text on  _text.domname    = id.domname
-                                       and _text.ddlanguage = $session.system_language
-                                       and _text.as4local   = id.as4local
-                                       and _text.valpos     = id.valpos
-                                       and _text.as4vers    = id.as4vers
-{
-      @ObjectModel.text.element: ['Description']
-  key domvalue_l   as Validity,
-      @Semantics.text: true
-      _text.ddtext as Description
-}
-where
-      id.domname  = 'ZVALIDITY'
-  and id.as4local = 'A'
-  and id.as4vers  = '0000'&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Add a calculated field to the base CDS Entity of the table. It calculates the validity value based on the system date. Use the custom value help entity for value help definition. If you want to add an additional visual indicator for the validity, you can use the &lt;A href="https://sapui5.hana.ondemand.com/sdk/#/topic/0d501b16e43d45d0a19ae54a3be883d3" target="_blank" rel="noopener nofollow noreferrer"&gt;criticality annotation&lt;/A&gt;.&lt;BR /&gt;&lt;BR /&gt;If you have a projection layer, also add the new field to the projection CDS entity.&lt;BR /&gt;&lt;BR /&gt;In this case, you also have the option to define a &lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/modeling-virtual-elements?version=sap_btp" target="_blank" rel="noopener noreferrer"&gt;virtual element&lt;/A&gt; in the projection view instead of the calculated field in the base view. The advantage is that you don't need to define a determination with the same logic as in the CDS view, because the calculation is executed for both the active instance and the draft instance via the annotated ABAP class.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Time depend.'
-@AccessControl.authorizationCheck: #CHECK
-define view entity ZI_TimeDepend
-  as select from ztimedep
-  association to parent ZI_TimeDepend_S as _TimeDependAll on $projection.SingletonID = _TimeDependAll.SingletonID
-{
-  key numc1                 as Numc1,
-  key validity_begin_date   as ValidityBeginDate,
-      content               as Content,
-      validity_end_date     as ValidityEndDate,
-      @Semantics.systemDateTime.lastChangedAt: true
-      last_changed_at       as LastChangedAt,
-      @Semantics.systemDateTime.localInstanceLastChangedAt: true
-      local_last_changed_at as LocalLastChangedAt,
-      1                     as SingletonID,
-      @Consumption.valueHelpDefinition: [{  entity:
-      {name: 'ZI_ValidityVH' , element: 'Validity' }
-      }]
-      case
-         when validity_begin_date &amp;lt;= $session.system_date and ( validity_end_date &amp;gt;= $session.system_date or validity_end_date is initial ) then 'C'
-         when validity_begin_date &amp;gt; $session.system_date then 'F'
-      else 'P'
-      end                   as Validity,
-      _TimeDependAll
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Adapt the draft table by adding the calculated field:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'ZI_TimeDepend - Draft'
-@AbapCatalog.enhancement.category : #EXTENSIBLE_ANY
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #RESTRICTED
-define table ztimedep_d {
-  key mandt             : mandt not null;
-  key numc1             : abap.numc(1) not null;
-  key validitybegindate : abap.dats not null;
-  content               : abap.char(30);
-  validityenddate       : abap.dats;
-  lastchangedat         : abp_lastchange_tstmpl;
-  locallastchangedat    : abp_locinst_lastchange_tstmpl;
-  singletonid           : abap.int1;
-  validity              : abap.char(1);
-  "%admin"              : include sych_bdl_draft_admin_inc;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Add the following determination to the table entity in the behavior definition to update the validity value when the validity dates are changed. A &lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/side-effects?version=sap_btp" target="_blank" rel="noopener noreferrer"&gt;side effect&lt;/A&gt; is used so that the validity change is reflected on the UI. If you have a projection layer, reuse the side effect in the behavior projection. If you already have a side effect for the delimit action, simply extend the side effect list.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;"behavior definition  
-  determination setValidity on modify { field ValidityEndDate; }
-
-  side effects
-  { field ValidityEndDate affects field Validity; }
-
-"behavior projection
-  use side effects;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Implement the determination:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  METHOD setvalidity.
-    DATA modify_timedepend TYPE TABLE FOR UPDATE zi_timedepend.
-    CHECK lines( keys ) &amp;gt; 0.
-    READ ENTITIES OF zi_timedepend_s IN LOCAL MODE
-      ENTITY timedepend
-        ALL FIELDS WITH CORRESPONDING #( keys )
-        RESULT FINAL(ref_timedepends).
-    LOOP AT ref_timedepends ASSIGNING FIELD-SYMBOL(&amp;lt;timedepends&amp;gt;).
-      INSERT VALUE #( %tky = &amp;lt;timedepends&amp;gt;-%tky
-                      validity = COND #( WHEN &amp;lt;timedepends&amp;gt;-ValidityBeginDate &amp;lt;= cl_abap_context_info=&amp;gt;get_system_date( )
-                                              AND ( &amp;lt;timedepends&amp;gt;-ValidityEndDate &amp;gt;= cl_abap_context_info=&amp;gt;get_system_date( ) OR &amp;lt;timedepends&amp;gt;-ValidityEndDate IS INITIAL ) THEN 'C'
-                                         WHEN &amp;lt;timedepends&amp;gt;-ValidityBeginDate &amp;gt; cl_abap_context_info=&amp;gt;get_system_date( ) THEN 'F'
-                                         ELSE 'P' )
-                      %control-validity = if_abap_behv=&amp;gt;mk-on ) INTO TABLE modify_timedepend.
-    ENDLOOP.
-    MODIFY ENTITIES OF zi_timedepend_s IN LOCAL MODE
-      ENTITY timedepend
-      UPDATE FIELDS  ( validity )
-      WITH modify_timedepend.
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Set the new field Validity as readonly in the behavior definition:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;field ( readonly )
-   Validity,
-   SingletonID,
-   LastChangedAt,
-   LocalLastChangedAt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The user can now filter the records in the view settings based on the validity value:&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/11/validity_filter-1.png" border="0" /&gt;&lt;/P&gt;&lt;P style=" padding-left : 360px; "&gt;&lt;EM&gt;Validity Filter&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;The user now has the option to set this view as the default view for all:&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/11/default_View.png" border="0" /&gt;&lt;/P&gt;&lt;P style=" padding-left : 330px; "&gt;&lt;EM&gt;Default view&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;If the user expands the ValidityEndDate for an outdated entry, the validity column value is updated once the focus is moved from the ValidityEndDate cell.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/how-to-create-a-fiori-elements-app-for-a-time-dependent-rap-bo/ba-p/13581100"/>
-    <published>2023-11-29T17:39:25+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/hidden-treasure-rap-glossary-in-the-abap-keyword-documentation/ba-p/13579262</id>
-    <title>Hidden Treasure: RAP Glossary in the ABAP Keyword Documentation</title>
-    <updated>2023-12-14T12:23:22+01:00</updated>
-    <author>
-      <name>AndreaUS</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/163332</uri>
-    </author>
-    <content>&lt;P&gt;Did you know that the ABAP Keyword Documentation provides a dedicated glossary for all things RAP? RAP stands for the ABAP RESTful Application Programming Model. We have done our best to collect all the terms related to RAP and explain them in a technically correct and consistent way, and in line with the official product names.&lt;BR /&gt;&lt;BR /&gt;The RAP glossary is available at the following link: &lt;A href="https://help.sap.com/doc/abapdocu_cp_index_htm/CLOUD/en-US/index.htm?file=abenrap_glossary.htm" target="_blank" rel="noopener noreferrer"&gt;RAP Glossary&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;Here's what it looks like:&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/RAP_glossary1.png" border="0" /&gt;&lt;/P&gt;&lt;P&gt;This glossary is part of a larger project: We are currently developing domain-specific glossaries for the entire ABAP language. All terms that are currently listed in the &lt;A href="https://help.sap.com/doc/abapdocu_cp_index_htm/CLOUD/en-US/index.htm?file=abenabap_glossary.htm" target="_blank" rel="noopener noreferrer"&gt;ABAP glossary&lt;/A&gt; will be sorted into semantic lists per topic, for example, ABAP CDS, ABAP Dictionary, ABAP SQL, and so on.&lt;BR /&gt;&lt;BR /&gt;The RAP glossary is constantly being updated, so stay tuned.&lt;BR /&gt;&lt;BR /&gt;Feedback is welcome.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/hidden-treasure-rap-glossary-in-the-abap-keyword-documentation/ba-p/13579262"/>
-    <published>2023-12-14T12:23:22+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/abap-rap-locking-abap-restful-application-programming-model-rap/ba-p/13578314</id>
-    <title>ABAP RAP Locking - ABAP Restful Application Programming Model (RAP)</title>
-    <updated>2023-12-28T02:42:37+01:00</updated>
-    <author>
-      <name>AbhishekSharma</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/9942</uri>
-    </author>
-    <content>Hello,&lt;BR /&gt;
-&lt;BR /&gt;
-In this beginner blog post we are going to see how we can Implement Locking in ABAP Restful Application Programming Model using Unmanaged scenario.&lt;BR /&gt;
+    <content>&lt;H4 id="toc-hId-1222273159"&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/H4&gt;&lt;BR /&gt;
+&lt;DIV&gt;In the context of the Restful ABAP Programming Model, when you think about an Unmanaged Query, you're mostly thinking of a Custom Entity. In this blog post, I would like to introduce a method to implement an Unmanaged Query in combination with a Core Data Service (CDS) Root View Entity. I want to explain the advantages and disadvantages using a specific example.&lt;/DIV&gt;&lt;BR /&gt;
+&lt;DIV&gt;&lt;/DIV&gt;&lt;BR /&gt;
+&lt;DIV&gt;&lt;BR /&gt;
 &lt;BR /&gt;
 &amp;nbsp;&lt;BR /&gt;
-&lt;H2 id="toc-hId-964074114"&gt;&lt;SPAN style="color: #0000ff"&gt;Previous Blog Posts&lt;/SPAN&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;H3 id="toc-hId-896643328"&gt;&lt;A href="https://blogs.sap.com/2023/02/13/abap-restful-application-programming-model-rap-abap-rap-file-upload-large-objects-lob/" rel="noopener noreferrer"&gt;ABAP RAP – File Upload Large Objects (LOB)&lt;/A&gt;&lt;/H3&gt;&lt;BR /&gt;
-&lt;H3 id="toc-hId-700129823"&gt;&lt;A href="https://blogs.sap.com/2023/01/24/abap-restful-application-programming-model-isolated/" rel="noopener noreferrer"&gt;ABAP RAP – #ISOLATED&lt;/A&gt;&lt;/H3&gt;&lt;BR /&gt;
-&lt;H3 id="toc-hId-503616318"&gt;&lt;A href="https://blogs.sap.com/2023/01/19/abap-restful-application-programming-model-change_set/" rel="noopener noreferrer"&gt;ABAP RAP – #CHANGE_SET&lt;/A&gt;&lt;/H3&gt;&lt;BR /&gt;
-&lt;H3 id="toc-hId-307102813"&gt;&lt;A href="https://blogs.sap.com/2022/12/08/abap-rap-instance-authorization/" rel="noopener noreferrer"&gt;ABAP RAP – Instance Authorization&lt;/A&gt;&lt;/H3&gt;&lt;BR /&gt;
-&lt;H3 id="toc-hId-110589308"&gt;&lt;A href="https://blogs.sap.com/2022/11/25/abap-rap-global-authorization/" rel="noopener noreferrer"&gt;ABAP RAP – Global Authorization&lt;/A&gt;&lt;/H3&gt;&lt;BR /&gt;
-&lt;H3 id="toc-hId--85924197"&gt;&lt;A href="https://blogs.sap.com/2023/03/23/abap-restful-application-programming-model-rap-abap-rap-factory-actions/" rel="noopener noreferrer"&gt;ABAP RAP - Factory Actions&lt;/A&gt;&lt;/H3&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId--411520421"&gt;&lt;/H2&gt;&lt;BR /&gt;
-Ref :&amp;nbsp;&lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/pessimistic-concurrency-control-locking?version=sap_btp" rel="noopener noreferrer"&gt;https://help.sap.com/docs/abap-cloud/abap-rap/pessimistic-concurrency-control-locking?version=sap_btp&lt;/A&gt;&lt;BR /&gt;
-&lt;BR /&gt;
+&lt;H4 id="toc-hId-1025759654"&gt;&lt;STRONG&gt;Example&lt;/STRONG&gt;&lt;/H4&gt;&lt;BR /&gt;
+&lt;DIV&gt;Two Fiori applications are required: One app is needed for maintaining an HTML email signature in a Database Table with placeholder for Name &amp;amp; Position, and the other app is intended to locate a specific signature for the logged-in user and replacing these placeholder.&lt;/DIV&gt;&lt;BR /&gt;
+&lt;DIV&gt;&lt;/DIV&gt;&lt;BR /&gt;
+&lt;/DIV&gt;&lt;BR /&gt;
+&lt;DIV&gt;The search process for the signature should follow the organizational model from specific to more and more unspecific. If a signature is maintained for the logged-in user, it should be retrieved. If no signature is maintained for the user, the search should extend to the organizational and position levels. If, even with this combination, no signature is maintained, the signature from the organization level should be adopted.&lt;/DIV&gt;&lt;BR /&gt;
+&lt;DIV&gt;&lt;/DIV&gt;&lt;BR /&gt;
+&lt;DIV&gt;&lt;/DIV&gt;&lt;BR /&gt;
 &amp;nbsp;&lt;BR /&gt;
+&lt;H4 id="toc-hId-829246149"&gt;&lt;STRONG&gt;Implementation&lt;/STRONG&gt;&lt;/H4&gt;&lt;BR /&gt;
+&lt;DIV&gt;In my Example is a database table named "ZSIGNATURE" where signatures are stored based on the key fields "ORGANIZATION," "POS," and "USERNAME."&lt;/DIV&gt;&lt;BR /&gt;
+&lt;DIV&gt;&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;define table zsignature {&lt;BR /&gt;
+  key client       : abap.clnt not null;&lt;BR /&gt;
+  key organisation : abap.char(8) not null;&lt;BR /&gt;
+  key pos          : abap.char(8) not null;&lt;BR /&gt;
+  key username     : xubname not null;&lt;BR /&gt;
+  signature        : abap.string(0);&lt;BR /&gt;
 &lt;BR /&gt;
-&lt;IFRAME width="560" height="315" src="https://www.youtube.com/embed/QtWQ6ZpW10k?si=ZMUp2GClP4EZK_7r" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen=""&gt;&lt;/IFRAME&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId--608033926"&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;PRE&gt;&lt;CODE&gt;&lt;STRONG&gt;Note&lt;/STRONG&gt;: Creation of RAP Un-Managed application is not part of this Blog Post.&lt;BR /&gt;
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+A CDS Root View "Z_I_SIGNATURE" has been created for the database table, with a managed behavior implementation. No specific Code has been added to the managed Implementation Class.&lt;BR /&gt;
 &lt;BR /&gt;
+In the next step, a Projection View named "Z_C_SIGNATURE_MAINTAIN" was created for the Interface View, which is used for maintain signatures. Additionally, a Metadata Extension with annotations for the Fiori application was added to this Projection View.&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;@EndUserText.label: 'Signature Maintain View'&lt;BR /&gt;
+@AccessControl.authorizationCheck: #NOT_REQUIRED&lt;BR /&gt;
+@Metadata.allowExtensions: true&lt;BR /&gt;
+define root view entity Z_C_SIGNATURE_MAINTAIN &lt;BR /&gt;
+ provider contract transactional_query&lt;BR /&gt;
+ as projection on Z_I_SIGNATURE&lt;BR /&gt;
+{&lt;BR /&gt;
+    key Organisation,&lt;BR /&gt;
+    key Pos,&lt;BR /&gt;
+    key Username,&lt;BR /&gt;
+    Signature&lt;BR /&gt;
+}&lt;BR /&gt;
 &lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&lt;H2 id="topic-title" id="toc-hId--804547431"&gt;&lt;SPAN style="color: #0000ff"&gt;Pessimistic Concurrency Control (Locking)&lt;/SPAN&gt;&lt;/H2&gt;&lt;BR /&gt;
-Locking in general prevents simultaneous modification access to data when more then one user tries to work on same record.&lt;BR /&gt;
+Afterwards, a service definition was created, along with an ODATA V2 service binding, from which an application was generated using the "List Report Page" template in the Business Application Studio. As there is no built-in editor for formatting HTML code in Fiori Elements standard, I replaced the "Signature" section with a custom XML fragment in the Business Application Studio. I achieved this by utilizing the Fiori Page Map.&lt;BR /&gt;
+&lt;DIV&gt;In the XML fragment, I inserted a rich-text editor for editing the signature. This allows signatures to be formatted and saved in HTML format. With that, the initial application for creating and editing signatures was completed.&lt;/DIV&gt;&lt;BR /&gt;
+&lt;DIV&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Screenshot1-2.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+For the application to read a specific signature per user, I could have worked with a table function for row retrieval and field calculation using a virtual field. To avoid wasting time with an uncertain outcome, I planned to use a custom entity. However, during setup, I noticed that the "&lt;STRONG&gt;@ObjectModel.query.implementedBy&lt;/STRONG&gt;" annotation can also be used for view entities.&lt;BR /&gt;
 &lt;BR /&gt;
-Record is Exclusively locked in case of Pessimistic Lock scenario. Locking of record is ensured by applying enqueue locks using Enqueue Lock Function Modules.&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Screenshot2-2.png" /&gt;&lt;BR /&gt;
 &lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
+&lt;/DIV&gt;&lt;BR /&gt;
+&lt;/DIV&gt;&lt;BR /&gt;
+&lt;DIV&gt;&lt;BR /&gt;
+&lt;DIV&gt;&lt;BR /&gt;
+&lt;DIV&gt;&lt;BR /&gt;
+&lt;DIV&gt;&lt;/DIV&gt;&lt;BR /&gt;
+&lt;/DIV&gt;&lt;BR /&gt;
+&lt;/DIV&gt;&lt;BR /&gt;
+&lt;/DIV&gt;&lt;BR /&gt;
+&lt;DIV&gt;&lt;BR /&gt;
 &lt;BR /&gt;
-The lifetime of such an exclusive locks:&lt;BR /&gt;
-&lt;UL id="loio99d8162b8d7d4a83ae65320d2a03b8ab__ul_uxw_yj4_sqb" class="ul"&gt;&lt;BR /&gt;
- 	&lt;LI class="li"&gt;&lt;BR /&gt;
-&lt;P class="p"&gt;The enqueue lock is released once the ABAP session is terminated.&lt;/P&gt;&lt;BR /&gt;
-&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI class="li"&gt;Exclusive lock is released when &lt;SPAN class="ph"&gt;RAP&lt;/SPAN&gt;&amp;nbsp;LUW is terminated with a&amp;nbsp;&lt;SAMP class="ph codeph"&gt;COMMIT&lt;/SAMP&gt;&amp;nbsp;or&amp;nbsp;&lt;SAMP class="ph codeph"&gt;ROLLBACK&lt;/SAMP&gt;.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI class="li"&gt;In case of Draft record, scenarios, the lock is not dependent to LUW or the ABAP sessions.&amp;nbsp; Lock remains active till draft Instance is available. The lock is released when draft is discarded or deleted or if the draft instance is activated and the LUW is terminated.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
+I thought to myself: Nice! I already have the Interface View, and if it's possible to create a Projection View, I can directly adopt the fields. So I created a new Projection View called "Z_C_SIGNATURE_READ" and tried to use the annotation. &lt;EM&gt;&lt;STRONG&gt;Work's like a charm!&amp;nbsp;&lt;/STRONG&gt;&lt;/EM&gt;&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;@EndUserText.label: 'Signature Read View'&lt;BR /&gt;
+@AccessControl.authorizationCheck: #NOT_REQUIRED&lt;BR /&gt;
+@ObjectModel.query.implementedBy: 'ABAP:ZCL_SIGNATURE_READ'&lt;BR /&gt;
+@Metadata.allowExtensions: true&lt;BR /&gt;
+define root view entity Z_C_SIGNATURE_READ&lt;BR /&gt;
+ provider contract transactional_query&lt;BR /&gt;
+ as projection on Z_I_SIGNATURE&lt;BR /&gt;
+{&lt;BR /&gt;
+    key Organisation,&lt;BR /&gt;
+    key Pos,&lt;BR /&gt;
+    key Username,&lt;BR /&gt;
+    Signature&lt;BR /&gt;
+}&lt;BR /&gt;
+&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+Afterwards, I implemented the already familiar interface "IF_RAP_QUERY_PROVIDER" in the class "ZCL_SIGNATURE_READ," which is known from the custom entity. There, I determined the data from the organizational model for the logged-in user through an evaluation path and replaced the placeholders.&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;METHOD if_rap_query_provider~select.&lt;BR /&gt;
+    DATA: lt_objects   TYPE objec_t,&lt;BR /&gt;
+          lt_signature TYPE TABLE OF z_c_signature_read.&lt;BR /&gt;
 &lt;BR /&gt;
-Locking is not Invoked by CREATE operation in any case, since there is no active instance that can be locked during the CREATE operation.&lt;BR /&gt;
-&lt;OL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;B&gt;&lt;/B&gt;In RAP business objects, enqueue locks are used for pessimistic concurrency control. Exclusively locking happens on data.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Locking is defined in the behavior definition of the Business Object entity.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;The lock mechanism can only be defined in the behavior definition in the interface layer.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Its must not be specified in a projection behavior definition.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/OL&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
 &lt;BR /&gt;
-In Behavior Definition Locking can be defined by using below options:&lt;BR /&gt;
-&lt;UL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;B&gt;Lock master &lt;/B&gt;– This is used to Implement Locking in un-Managed scenario, In this case RAP Framework will not handle any Locking for BO. Developer needs to write logic to Handle locking.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-&lt;UL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;B&gt;Lock master unmanaged &lt;/B&gt;– Implemented in Managed scenario, if application developer do not want framework to take care of Locking on Business Object.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-If you do not want the standard locking mechanism by the managed business object framework, you can create an unmanaged lock in the managed scenario. This enables you to implement your own locking logic for the business object.&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H2 id="toc-hId--653806579"&gt;&lt;SPAN style="color: #0000ff"&gt;Implementing Locking&lt;/SPAN&gt;&lt;/H2&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Create Lock Object&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/l1-1.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Highlighted are the Lock Object Name and created Function Modules which we are going to use soon.&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-In Behavior Definition of Root Interface view, maintain Lock Master as shown in below picture.&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/l2.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Activate Behavior Definition and as a result&lt;BR /&gt;
-&lt;BR /&gt;
-New method available &lt;SAMP class="ph codeph"&gt;FOR LOCK&lt;/SAMP&gt; in Unmanaged scenarios in Behavior Implementation class and must be implemented for the lock master entities.&lt;BR /&gt;
-&lt;BR /&gt;
-Lock master only responsible to lock Root Entities.&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-New Lock method gets generated as shown in below picture:&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/l3.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Lock method is generated with Importing and Changing Parameters:&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/l4.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-There are two changing parameters failed and reported.&lt;BR /&gt;
-&lt;UL class="ul"&gt;&lt;BR /&gt;
- 	&lt;LI class="li"&gt;The Failed parameter is used to log the causes when a lock fails.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI class="li"&gt;The Reported&amp;nbsp;parameter is used to store messages about the fail cause. and can also be used to report Error message to frontend.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Below is code to Implement Locking on Root Entity&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;METHOD lock.&lt;BR /&gt;
+    DATA(lo_paging) = io_request-&amp;gt;get_paging( ).&lt;BR /&gt;
     TRY.&lt;BR /&gt;
-        DATA(lock) = cl_abap_lock_object_factory=&amp;gt;get_instance( iv_name = 'EZLOCKSTUDENT' ).&lt;BR /&gt;
-      CATCH cx_abap_lock_failure INTO DATA(exception).&lt;BR /&gt;
-        RAISE SHORTDUMP exception.&lt;BR /&gt;
+        "Filter not needed, because we all calculate fields in Backend&lt;BR /&gt;
+        DATA(lo_filter) = io_request-&amp;gt;get_filter( )-&amp;gt;get_as_ranges( ).&lt;BR /&gt;
+      CATCH cx_rap_query_filter_no_range.&lt;BR /&gt;
     ENDTRY.&lt;BR /&gt;
 &lt;BR /&gt;
-    LOOP AT keys ASSIGNING FIELD-SYMBOL(&amp;lt;lfs_student&amp;gt;).&lt;BR /&gt;
-      TRY.&lt;BR /&gt;
-          lock-&amp;gt;enqueue(&lt;BR /&gt;
-             it_parameter  = VALUE #( ( name = 'ID' value = REF #( &amp;lt;lfs_student&amp;gt;-Id ) ) )&lt;BR /&gt;
-          ).&lt;BR /&gt;
-        CATCH cx_abap_foreign_lock INTO DATA(foreign_lock).&lt;BR /&gt;
-          APPEND VALUE #(&lt;BR /&gt;
-           id = keys[ 1 ]-Id&lt;BR /&gt;
-           %msg = new_message_with_text(&lt;BR /&gt;
-                    severity = if_abap_behv_message=&amp;gt;severity-error&lt;BR /&gt;
-                    text     = 'Record is locked by' &amp;amp;&amp;amp; foreign_lock-&amp;gt;user_name&lt;BR /&gt;
-                  )&lt;BR /&gt;
-          ) TO reported-student.&lt;BR /&gt;
-          APPEND VALUE #(&lt;BR /&gt;
-           id = keys[ 1 ]-Id&lt;BR /&gt;
-          ) TO failed-student.&lt;BR /&gt;
-        CATCH cx_abap_lock_failure INTO exception.&lt;BR /&gt;
-          RAISE SHORTDUMP exception.&lt;BR /&gt;
-      ENDTRY.&lt;BR /&gt;
-    ENDLOOP.&lt;BR /&gt;
+    CALL FUNCTION 'HR_STRUCTURE_GET'&lt;BR /&gt;
+      EXPORTING&lt;BR /&gt;
+        root_plvar      = '01'&lt;BR /&gt;
+        root_otype      = 'US'&lt;BR /&gt;
+        root_objid      = sy-uname&lt;BR /&gt;
+        pathid          = 'US-BP-OO'&lt;BR /&gt;
+      IMPORTING&lt;BR /&gt;
+        result_objects  = lt_objects&lt;BR /&gt;
+      EXCEPTIONS&lt;BR /&gt;
+        plvar_not_found = 1&lt;BR /&gt;
+        root_not_found  = 2&lt;BR /&gt;
+        path_not_found  = 3&lt;BR /&gt;
+        internal_error  = 4&lt;BR /&gt;
+        OTHERS          = 5.&lt;BR /&gt;
+&lt;BR /&gt;
+    DATA(ls_o) = VALUE #( lt_objects[ otype = 'O' ] OPTIONAL ).&lt;BR /&gt;
+    DATA(ls_s) = VALUE #( lt_objects[ otype = 'S' ] OPTIONAL ).&lt;BR /&gt;
+    DATA(ls_us) = VALUE #( lt_objects[ otype = 'US' ] OPTIONAL ).&lt;BR /&gt;
+&lt;BR /&gt;
+    "First check if there is a Signature for specific User&lt;BR /&gt;
+    IF ls_us IS NOT INITIAL.&lt;BR /&gt;
+      SELECT SINGLE * FROM z_i_signature WHERE username = @ls_us-realo INTO @DATA(ls_signature).&lt;BR /&gt;
+    ENDIF.&lt;BR /&gt;
+&lt;BR /&gt;
+    "Second check combination position &amp;amp; organisation&lt;BR /&gt;
+    IF ls_signature IS INITIAL AND ls_s IS NOT INITIAL AND ls_o IS NOT INITIAL.&lt;BR /&gt;
+      SELECT SINGLE * FROM z_i_signature WHERE pos = @ls_s-realo AND organisation = @ls_o-realo INTO @ls_signature.&lt;BR /&gt;
+    ENDIF.&lt;BR /&gt;
+&lt;BR /&gt;
+    "Third one check for organisation&lt;BR /&gt;
+    IF ls_signature IS INITIAL AND ls_o IS NOT INITIAL.&lt;BR /&gt;
+      SELECT SINGLE * FROM z_i_signature WHERE organisation = @ls_o-realo INTO @ls_signature.&lt;BR /&gt;
+    ENDIF.&lt;BR /&gt;
+&lt;BR /&gt;
+    ls_signature-Signature = replace( val = ls_signature-Signature sub = '${User}' with = ls_us-stext ).&lt;BR /&gt;
+    ls_signature-Signature = replace( val = ls_signature-Signature sub = '${Position}' with = ls_s-stext ).&lt;BR /&gt;
+&lt;BR /&gt;
+    APPEND CORRESPONDING #( ls_signature ) TO lt_signature.&lt;BR /&gt;
+&lt;BR /&gt;
+    io_response-&amp;gt;set_total_number_of_records( 1 ).&lt;BR /&gt;
+    io_response-&amp;gt;set_data( lt_signature ).&lt;BR /&gt;
   ENDMETHOD.&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+At the newest S/4 HANA On Premise release level (2022), it is not possible yet to externalize annotations into a metadata extension for a custom entity. Since we are dealing with a CDS Root View Entity, annotations can be easily outsourced here as well.&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;@Metadata.layer: #CUSTOMER&lt;BR /&gt;
+annotate view Z_C_SIGNATURE_READ&lt;BR /&gt;
+    with &lt;BR /&gt;
+{&lt;BR /&gt;
+    @UI.facet: [&lt;BR /&gt;
+           {&lt;BR /&gt;
+               label: 'Signature',&lt;BR /&gt;
+               id : 'Signature',&lt;BR /&gt;
+               purpose: #STANDARD,&lt;BR /&gt;
+               type : #IDENTIFICATION_REFERENCE,&lt;BR /&gt;
+               position: 10,&lt;BR /&gt;
+               targetQualifier: 'Signature'&lt;BR /&gt;
+           }]&lt;BR /&gt;
+    @EndUserText.label: 'Organisation (O)'&lt;BR /&gt;
+    @UI.selectionField: [{ position: 10 }]&lt;BR /&gt;
+    @UI.lineItem: [{ position: 10 }]&lt;BR /&gt;
+    Organisation;&lt;BR /&gt;
+    @EndUserText.label: 'Position (S)'&lt;BR /&gt;
+    @UI.selectionField: [{ position: 20 }]&lt;BR /&gt;
+    @UI.lineItem: [{ position: 20 }]&lt;BR /&gt;
+    Pos;&lt;BR /&gt;
+    @EndUserText.label: 'User (US)'&lt;BR /&gt;
+    @UI.selectionField: [{ position: 30 }]&lt;BR /&gt;
+    @UI.lineItem: [{ position: 30 }]&lt;BR /&gt;
+    Username;    &lt;BR /&gt;
+    @EndUserText.label: 'Signature'&lt;BR /&gt;
+    @UI.identification: [{ position: 10, qualifier: 'Signature' }]&lt;BR /&gt;
+    Signature;&lt;BR /&gt;
+    &lt;BR /&gt;
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+Now, in a second application, I can display the formatted signature for the logged-in user.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Screenshot_success.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;H4 id="toc-hId-632732644"&gt;&lt;STRONG&gt;Summary (TLDR)&lt;/STRONG&gt;&lt;/H4&gt;&lt;BR /&gt;
+I wasn't aware previously that I could use an Unmanaged Query in a CDS Root View Entity, allowing me to override the GET method for web protocols. Almost all examples I came across regarding Unmanaged Queries were based on Custom Entities. This approach offers several advantages, but it always requires a database table as the foundation.&lt;BR /&gt;
+&lt;BR /&gt;
+Here are the advantages that come to mind:&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;For complex SQL queries, the result can be cumulated at the row level, and CRUD operations (if key values are not altered) can be implemented in a managed scenario.&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;An interface/projection view construct is possible.&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;A separate Unmanaged Query implementation can be created for each projection view or interface view.&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Metadata extensions can be created (which is currently not possible for a custom entity).&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;You can use it for BAdI Definitions, so the customer can implement custom field calulations&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/DIV&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-members/unmanaged-query-in-root-view-entities/ba-p/13579707"/>
+    <published>2023-12-28T12:17:13+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-members/abap-search-cds-view-tool-version-2-also-finds-rap-objects/ba-p/13573349</id>
+    <title>ABAP Search CDS View Tool - Version 2, also finds RAP Objects</title>
+    <updated>2024-01-04T17:50:50+01:00</updated>
+    <author>
+      <name>AlwinPut</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/164553</uri>
+    </author>
+    <content>The initial goal of the tool is to search hierarchically the Released Basic CDS views of Database Tables.&lt;BR /&gt;
+&lt;BR /&gt;
+The goal is extended to generally search hierarchically for parent views of a data source (Database table, CDS view or DDic view). That made it possible to also search for Root CDS views which are used in RAP behavior definitions.&lt;BR /&gt;
+&lt;BR /&gt;
+Also showing a list of all CDS views is now possible. Filtering can be done in the selection screen and in the IDA ALV grid.&lt;BR /&gt;
+&lt;BR /&gt;
+Version 1 used SAP table DDLS_RIS_INDEX, however the table does not specify which data source is the main data source. So therefor the tool needs it's own index database table (ZSCV_CDS_REL) containing only the main data source (on other words the sql FROM) of a CDS view. The tool is now precise and faster.&lt;BR /&gt;
+&lt;BR /&gt;
+In the list search method filtering on the Main Database Table name is also possible, because it is also buffered in the Index database table of the tool (ZSCV_CDS_REL).&lt;BR /&gt;
+&lt;H2 id="toc-hId-963925257"&gt;Start the tool&lt;/H2&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Transaction ZCDS_VIEW_SEARCH.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;H2 id="toc-hId-767411752"&gt;Index Table&lt;/H2&gt;&lt;BR /&gt;
+The program uses a custom index table. So if you want new or changed custom CDS views in the results, than than you have to click the button "Delta update CDS Index Table" to update the index.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/IndexTableStatus.jpg" height="90" width="341" /&gt;&lt;/P&gt;&lt;BR /&gt;
+After a SAP upgrade the program ZSCV_SEARCH_INDEXER should be executed in background. See chapter "After SAP upgrade".&lt;BR /&gt;
+&lt;H2 id="toc-hId-570898247"&gt;Search Method&lt;/H2&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/SearchMethod.jpg" height="94" width="400" /&gt;&lt;/P&gt;&lt;BR /&gt;
+There are two Search Methods. For the Hierarchy search one child data source (Database table, CDS view or DDic view) must be entered, so that tool can search hierarchically all parent data sources (CDS views and DDic views).&lt;BR /&gt;
+&lt;BR /&gt;
+The List search shows all CDS views. The selection screen can filter the list and the results in the IDA ALV grid can be filtered.&lt;BR /&gt;
+&lt;BR /&gt;
+Filtering on one Main Database Table should result in the same CDS views.&lt;BR /&gt;
+&lt;H1 id="toc-hId-245302023"&gt;Search CDS View Scenarios&lt;/H1&gt;&lt;BR /&gt;
+&lt;H2 id="toc-hId-177871237"&gt;Scenario: Find Basic Views of DB table&lt;/H2&gt;&lt;BR /&gt;
+We need for Business Object Sales Order stored in database table VBAK the Basic CDS view.&lt;BR /&gt;
+&lt;BR /&gt;
+By the parameters are set to find the released basic CDS views:&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/BasicCdsViews.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Fill the Database Table&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/BasicCdsViews2.jpg" height="81" width="504" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Press F8&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/BasicCdsViews3-1.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;See that there is one Super Entity View which is I_SalesDocument. But specifically for Sales Order the Sub CDS view / Entity I_SalesOrder should be used.&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;The Super and Sub are manually registered and are not registered for all CDS views.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+This result can also created by using Search Method List.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/BasicCdsViews4.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;H2 id="toc-hId--18642268"&gt;Scenario: Find all not released basic views of DB table&lt;/H2&gt;&lt;BR /&gt;
+If you don't find a Released Basic CDS View, than it could be that a Basic CDS View is not yet released by SAP.&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/UnreleasedDbTableBasicViews.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;When Search Method List you can see an overview of Released and Unreleased Basic CDS views.&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/UnreleasedDbTableBasicViews2.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;See that T142 and T142T have no released Basic CDS views, but T143 and T143T do have released Basic CDS views.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;H2 id="toc-hId--215155773"&gt;Scenario: Find all related views of DB table&lt;/H2&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Go back to the selection screen.&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Push button All in frame View Type to clear the selection.&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/DbTableAllViews.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Push button All statuses in frame API State to clear the selection.&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/DbTableAllViews2.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Press F8&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/DbTableAllViewsResult.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;See there are 542 CDS views found.&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;You can also add the DDic views to the result and than you see 634 views.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;H2 id="toc-hId--411669278"&gt;Scenario: Find all Basic cds views&lt;/H2&gt;&lt;BR /&gt;
+This can be done by using the List Search Method.&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Restart the tool.&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Select the List Search Method.&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/AllBasicViews-1.jpg" height="81" width="318" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
 &amp;nbsp;&lt;BR /&gt;
 &lt;BR /&gt;
-To test this functionality, we are going to open same record in two Browser windows. Since we do not have multiple users to validate the functionality.&lt;BR /&gt;
-&lt;BR /&gt;
-We have created one record which is available on both the browsers windows assuming different users are viewing same record.&lt;BR /&gt;
-&lt;BR /&gt;
 &amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/l8Both.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;By default the Released Basic CDS views are selected.&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/AllBasicViews2.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Press F8&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/AllBasicViews3.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Now you have a complete list of all Released Basic CDS views with the Main DB Table.&lt;BR /&gt;
+The list can be exported to Excel.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;H1 id="toc-hId--737265502"&gt;Search RAP Object Scenarios&lt;/H1&gt;&lt;BR /&gt;
+&lt;H2 id="toc-hId--804696288"&gt;Scenario: Find Released RAP Object for Business Object Sales Order stored in DB table VBAK&lt;/H2&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Fill the Database Table&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/BasicCdsViews2.jpg" height="81" width="504" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Keep the API state selection unchanged.&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/VbakRapObject.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Set Main RAP Entity to X&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/VbakRapObject2.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Press F8&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/VbakRapObject4.jpg" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;See that VBAK has 7 CDS views which are related to a RAP Behavior Definition.&lt;BR /&gt;
+Specifically for Sales Orders we should use I_SalesOrderTP.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+When no released RAP Root entity is found, than you can search for unreleased RAP Root entity by clearing the API State fields by pushing on button "All statuses".&lt;BR /&gt;
+&lt;H1 id="toc-hId--360552429"&gt;How does querying work?&lt;/H1&gt;&lt;BR /&gt;
+Below you see a diagram starting from CDS View I_SalesOrder to it's main source I_SalesDocument and so on till it's main source table VBAK.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/CdsViewDiagram.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
 &lt;BR /&gt;
-user 1 (on Left) starts editing record and have not saved it.&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;[1] The most important new feature is that the tool has now it’s own CDS View index database table (ZSCV_CDS_REL) containing the relation between the CDS view and the main data source, which is retrieved from the SQL FROM. The tool was based on SAP CDS index database table DDLS_RIS_INDEX, which contains relations to all related CDS views, also the JOINs and COMPOSITIONs and ASSOCIATIONs, without indicating which data source is the main data source. Therefor this new index table is needed. On a S/4HANA 2022 Core system there are about 90.000 CDS views. Filling the index table takes about 1 hour. After that you start searching.&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;[2] The second new feature is that the main database table name is buffered in the new index table. For example the main database table of I_SalesOrder is VBAK. For all the CDS views the hierarchy search is executed to determine the main database table. It takes about 10 hours to fill all main database table names.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;H1 id="toc-hId--557065934"&gt;Installation&lt;/H1&gt;&lt;BR /&gt;
+&lt;OL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Use&amp;nbsp;&lt;A href="https://abapgit.org/" target="_blank" rel="noopener nofollow noreferrer"&gt;ABAP Git&lt;/A&gt;&amp;nbsp;to install the software.&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Download code from GitHub:&amp;nbsp;&lt;A href="https://github.com/alwinvandeput/zscv_search_cds_views" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/alwinvandeput/zscv_search_cds_views&lt;/A&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Start in background task program ZSCV_SEARCH_INDEXER. Now wait for about one hour.&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/Installation.jpg" height="83" width="333" /&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;In the search program you can that the indexer is stil running.&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/BatchIsRunning.jpg" height="90" width="325" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+&lt;H1 id="toc-hId--753579439"&gt;After SAP upgrade&lt;/H1&gt;&lt;BR /&gt;
+After a SAP upgrade the program ZSCV_SEARCH_INDEXER should be executed in background with Delta update.&lt;BR /&gt;
 &lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/l9EditOne.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/DeltaUpdate-1.jpg" height="100" width="355" /&gt;&lt;BR /&gt;
+&lt;H1 id="toc-hId--950092944"&gt;Tip: When indexer process is cancelled&lt;/H1&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Start program ZSCV_SEARCH_INDEX_TOOLS&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Select "Reset run statuses" and set the From date and time to time point just before the last time the indexer ran.&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/IndexerCancelled2.jpg" height="187" width="288" /&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-members/abap-search-cds-view-tool-version-2-also-finds-rap-objects/ba-p/13573349"/>
+    <published>2024-01-04T17:50:50+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-members/fiori-app-using-rap-unmanaged-scenario-odata-v4-with-popup/ba-p/13573023</id>
+    <title>Fiori app using RAP Unmanaged scenario OData V4 with Popup</title>
+    <updated>2024-01-05T18:03:55+01:00</updated>
+    <author>
+      <name>listat</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/159325</uri>
+    </author>
+    <content>In this blog post you will learn how to implement Fiori List Report/Object Page application using RAP Unmanaged scenario with OData V4.&lt;BR /&gt;
 &lt;BR /&gt;
-Meanwhile User 2 (on Right) tries to Delete same record which User 1 is trying to Update. User 2 select the record and tries to Delete, gets confirmation Popup to delete record.&lt;BR /&gt;
+&lt;STRONG&gt;Blog concentrates on the following features&lt;/STRONG&gt;:&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Popup implementation,&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Function with parameters,&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Generated Fiori app extensions.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+System version: SAP S4HANA ON PREMISE 2021.&lt;BR /&gt;
+&lt;H2 id="toc-hId-963922306"&gt;&lt;STRONG&gt;Business requirements&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
+Create Fiori app where user could overview and filter list of records, display single record in detail.&lt;BR /&gt;
 &lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/l9EditDelete.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
+On initial screen with list of records user shall be able to select single record, press custom button on Toolbar and get Popup window for data input. Few values displayed in Popup window should be from selected record (fields closed for input), the rest - open for input, with value validation.&lt;BR /&gt;
 &lt;BR /&gt;
-User 2 gets Confirmation Popup to Delete selected record and click on Delete button.&lt;BR /&gt;
+After user confirms input in Popup window, new record(s) should be created in backend, email sent and list with records refreshed.&lt;BR /&gt;
+&lt;H2 id="toc-hId-767408801"&gt;&lt;STRONG&gt;Design&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
+For implementation it was decided to use RAP with Unmanaged scenario with binding type OData V4, later generating Fiori elements app based on List Report Page template.&lt;BR /&gt;
 &lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/l9EditDeleteConfirm.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
+Few features were implemented in SAP BAS with a help of extensions in generated Fiori app, as it was not possible to achieve the same fully on backend side.&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic;overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/Pic-1.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Figure 1. Initial screen design&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic;font-family: SAPRegular, 'Helvetica Neue', Arial, sans-serif;overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/Pic-2-1.jpg" height="187" width="188" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Figure 2. Popup window for data input&lt;/P&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/Pic-3-2.jpg" height="97" width="240" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Figure 3. Confirmation popup&lt;/P&gt;&lt;BR /&gt;
 &lt;BR /&gt;
-But since we have Implemented Pessimistic Locking, Record is already locked by User 1 while updating it.&lt;BR /&gt;
+&lt;H2 id="toc-hId-570895296"&gt;&lt;STRONG&gt;Implementation&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
+Following objects were created in SAP S/4 HANA system:&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;DB table ZDISPATCH_DB,&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;CDS view (root view entity) Z_DISPATCH,&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;CDS view (projection) Z_DISPATCH_PROJ,&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;CDS view (abstract entity) Z_DISPATCH_POPUP,&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Metadata extension Z_DISPATCH_ME,&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Behavior definition Z_DISPATCH,&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Behavior definition Z_DISPATCH_PROJ,&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Class Z_CL_DISPATCH_BEHAVIOR,&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Service Definition Z_DISPATCH_PROJ_SRV,&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Service Binding Z_DISPATCH_PROJ_V4UI.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+Additionally for Direction and Quantity fields CDS view were created to provide Value Help and calculated quantity.&lt;BR /&gt;
 &lt;BR /&gt;
-and In this case User 2 will get Error Message which we have filled in Reported Parameter.&lt;BR /&gt;
+&lt;STRONG&gt;DB table ZDISPATCH_DB&lt;/STRONG&gt; from which data will be selected for representation in Fiori app has following structure:&lt;BR /&gt;
+&lt;TABLE width="619"&gt;&lt;BR /&gt;
+&lt;TBODY&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;Field Name&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;Key&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;Data Element&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;Data Type&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;Length&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;Decimal Places&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;Check Table&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;MANDT&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;X&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;MANDT&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;CLNT&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;3&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;T000&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;EXIDV&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;X&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;EXIDV&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;CHAR&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;20&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;DIRECTION&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;X&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;Z_DIRECTION&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;CHAR&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;1&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;COUNTER&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;X&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;Z_COUNTER&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;CHAR&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;2&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;DISPATCH_ID&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;X&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;Z_DISPATCH_ID&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;CHAR&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;10&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;TRANSFER_ID&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;X&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;Z_TRANSFER_ID&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;CHAR&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;10&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;WERKS&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;WERKS_D&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;CHAR&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;4&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;T001W&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;LGORT&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;LGORT_D&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;CHAR&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;4&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;T001L&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;TRANS_DATE&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;Z_TRANS_DATE&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;DATS&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;8&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;TRANS_TIME&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;Z_TRANS_TIME&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;TIMS&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;6&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;MATNR&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;MATNR&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;CHAR&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;40&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;MARA&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;LIFNR&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;LIFNR&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;CHAR&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;10&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;LFA1&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;BNAME&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;XUBNAME&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;CHAR&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;12&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;USR02&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;VEHICLE_ID&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;Z_VEHICLE_ID&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;CHAR&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;20&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;QUANTITY&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;Z_QUANTITY&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;QUAN&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;3&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;MEINS&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;MEINS&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;UNIT&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;3&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;0&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;T006&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TD style="width: 121.875px"&gt;LASTCHANGEDAT&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 25.9271px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 193.729px"&gt;ABP_LASTCHANGE_TSTMPL&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 51.4271px"&gt;DEC&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 52.6875px"&gt;21&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 71.7396px"&gt;7&lt;/TD&gt;&lt;BR /&gt;
+&lt;TD style="width: 60.9479px"&gt;&lt;/TD&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;/TBODY&gt;&lt;BR /&gt;
+&lt;/TABLE&gt;&lt;BR /&gt;
+&lt;STRONG&gt;CDS view (root view entity) Z_DISPATCH&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED&lt;BR /&gt;
+@EndUserText.label: 'Dispatch, Root Entity'&lt;BR /&gt;
+define root view entity Z_DISPATCH&lt;BR /&gt;
+  as select from zdispatch_db as Record_DB&lt;BR /&gt;
+  association [0..1] to Z_DIRECTION                as _Direction       on  $projection.Direction = _Direction.Code&lt;BR /&gt;
+  association [0..1] to I_Plant           as _Plant           on  $projection.Plant = _Plant.Plant&lt;BR /&gt;
+  association [0..1] to I_StorageLocation as _StorageLocation on  $projection.Plant           = _StorageLocation.Plant&lt;BR /&gt;
+                                                                           and $projection.StorageLocation = _StorageLocation.StorageLocation&lt;BR /&gt;
+  association [0..*] to I_MaterialText                 as _MaterialText    on  $projection.Material = _MaterialText.Material&lt;BR /&gt;
+  association [0..1] to I_Supplier                     as _Supplier        on  $projection.Supplier = _Supplier.Supplier&lt;BR /&gt;
+  association [0..1] to I_UserContactCard              as _User            on  $projection.UserID = _User.ContactCardID&lt;BR /&gt;
+  association [0..1] to I_UnitOfMeasure                as _UnitOfMeasure   on  $projection.UnitOfMeasure = _UnitOfMeasure.UnitOfMeasure&lt;BR /&gt;
+  association [0..1] to I_UserContactCard              as _DispatchUser    on  _DispatchUser.ContactCardID = $session.user&lt;BR /&gt;
+  association [0..1] to Z_DISPATCH_QUANTITY        as _VendorQuantity  on  $projection.Plant           = _VendorQuantity.Plant&lt;BR /&gt;
+                                                                           and $projection.StorageLocation = _VendorQuantity.StorageLocation&lt;BR /&gt;
+                                                                           and $projection.Supplier        = _VendorQuantity.Supplier&lt;BR /&gt;
+{&lt;BR /&gt;
+  key Record_DB.exidv         as HandlingUnit,&lt;BR /&gt;
+  key Record_DB.direction     as Direction,&lt;BR /&gt;
+  key Record_DB.counter       as Counter,&lt;BR /&gt;
+  key Record_DB.dispatch_id   as DispatchID,&lt;BR /&gt;
+  key Record_DB.transfer_id   as TransferID,&lt;BR /&gt;
+      Record_DB.werks         as Plant,&lt;BR /&gt;
+      Record_DB.lgort         as StorageLocation,&lt;BR /&gt;
+      @Semantics.dateTime: true&lt;BR /&gt;
+      Record_DB.trans_date    as TransactionDate,&lt;BR /&gt;
+      @Semantics.dateTime: true&lt;BR /&gt;
+      Record_DB.trans_time    as TransactionTime,&lt;BR /&gt;
+      Record_DB.matnr         as Material,&lt;BR /&gt;
+      Record_DB.lifnr         as Supplier,&lt;BR /&gt;
+      Record_DB.bname         as UserID,&lt;BR /&gt;
+      Record_DB.vehicle_id    as VehicleID,&lt;BR /&gt;
+      @Semantics.quantity.unitOfMeasure: 'UnitOfMeasure'&lt;BR /&gt;
+      Record_DB.quantity      as Quantity,&lt;BR /&gt;
+      Record_DB.meins         as UnitOfMeasure,&lt;BR /&gt;
 &lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/l9EditDeleteConfirmError.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H2 id="toc-hId--850320084"&gt;&lt;/H2&gt;&lt;BR /&gt;
-Thanks-&lt;BR /&gt;
+      Record_DB.lastchangedat as Lastchangedat,&lt;BR /&gt;
 &lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
+      // Associations&lt;BR /&gt;
+      _Direction,&lt;BR /&gt;
+      _Plant,&lt;BR /&gt;
+      _StorageLocation,&lt;BR /&gt;
+      _MaterialText,&lt;BR /&gt;
+      _Supplier,&lt;BR /&gt;
+      _User,&lt;BR /&gt;
+      _UnitOfMeasure,&lt;BR /&gt;
+      _DispatchUser,&lt;BR /&gt;
+      _VendorQuantity&lt;BR /&gt;
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&lt;STRONG&gt;CDS view (projection) Z_DISPATCH_PROJ&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]&lt;BR /&gt;
+@AccessControl.authorizationCheck: #NOT_REQUIRED&lt;BR /&gt;
+@EndUserText.label: 'Dispatch, Projection View'&lt;BR /&gt;
+@Metadata.ignorePropagatedAnnotations: true&lt;BR /&gt;
+@Metadata.allowExtensions: true&lt;BR /&gt;
+@Search.searchable: true&lt;BR /&gt;
+@ObjectModel.usageType:{&lt;BR /&gt;
+    serviceQuality: #X,&lt;BR /&gt;
+    sizeCategory: #S,&lt;BR /&gt;
+    dataClass: #MIXED&lt;BR /&gt;
+}&lt;BR /&gt;
 &lt;BR /&gt;
-&amp;nbsp;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/abap-rap-locking-abap-restful-application-programming-model-rap/ba-p/13578314"/>
-    <published>2023-12-28T02:42:37+01:00</published>
+@UI:{ headerInfo: {&lt;BR /&gt;
+    typeName: 'Record',&lt;BR /&gt;
+    typeNamePlural: 'Records',&lt;BR /&gt;
+    title: {&lt;BR /&gt;
+        type: #STANDARD,&lt;BR /&gt;
+        value: 'HandlingUnit'&lt;BR /&gt;
+    }&lt;BR /&gt;
+} }&lt;BR /&gt;
+define root view entity Z_DISPATCH_PROJ&lt;BR /&gt;
+  provider contract transactional_query&lt;BR /&gt;
+  as projection on Z_DISPATCH&lt;BR /&gt;
+{&lt;BR /&gt;
+  key HandlingUnit,&lt;BR /&gt;
+      @ObjectModel.text.element: ['DirectionName']&lt;BR /&gt;
+  key Direction,&lt;BR /&gt;
+  key Counter,&lt;BR /&gt;
+  key DispatchID,&lt;BR /&gt;
+  key TransferID,&lt;BR /&gt;
+      _Direction._Text[1: Language = $session.system_language ].Description                           as DirectionName,&lt;BR /&gt;
+&lt;BR /&gt;
+      //Filter field&lt;BR /&gt;
+      @Search.defaultSearchElement: true&lt;BR /&gt;
+      @ObjectModel.text.element: ['PlantName']&lt;BR /&gt;
+      @Consumption.valueHelpDefinition: [{&lt;BR /&gt;
+             entity: {&lt;BR /&gt;
+                 name: 'I_Plant',  &lt;BR /&gt;
+                 element: 'Plant'&lt;BR /&gt;
+             }}]&lt;BR /&gt;
+      Plant,&lt;BR /&gt;
+      _Plant.PlantName,&lt;BR /&gt;
+&lt;BR /&gt;
+      //Filter field&lt;BR /&gt;
+      @Search.defaultSearchElement: true&lt;BR /&gt;
+      @ObjectModel.text.element: ['StorageLocationName']&lt;BR /&gt;
+      @Consumption.valueHelpDefinition: [{&lt;BR /&gt;
+             entity: {&lt;BR /&gt;
+                 name: 'I_StorageLocation', &lt;BR /&gt;
+                 element: 'StorageLocation'&lt;BR /&gt;
+             },&lt;BR /&gt;
+             additionalBinding  : [{ localElement   : 'Plant',&lt;BR /&gt;
+                                     element        : 'Plant'&lt;BR /&gt;
+                                    }]&lt;BR /&gt;
+             }]&lt;BR /&gt;
+      StorageLocation,&lt;BR /&gt;
+      _StorageLocation.StorageLocationName,&lt;BR /&gt;
+&lt;BR /&gt;
+      @Semantics.dateTime: true&lt;BR /&gt;
+      TransactionDate,&lt;BR /&gt;
+      @Semantics.dateTime: true&lt;BR /&gt;
+      TransactionTime,&lt;BR /&gt;
+&lt;BR /&gt;
+      //Filter field&lt;BR /&gt;
+      @Search.defaultSearchElement: true&lt;BR /&gt;
+      @ObjectModel.text.element: ['MaterialName']&lt;BR /&gt;
+      Material,&lt;BR /&gt;
+      _MaterialText[1: Language = $session.system_language ].MaterialName                             as MaterialName,&lt;BR /&gt;
+&lt;BR /&gt;
+      //Filter field&lt;BR /&gt;
+      @Search.defaultSearchElement: true&lt;BR /&gt;
+      @ObjectModel.text.element: ['SupplierName']&lt;BR /&gt;
+      @Consumption.valueHelpDefinition: [{&lt;BR /&gt;
+             entity: {&lt;BR /&gt;
+                 name: 'I_Supplier',&lt;BR /&gt;
+                 element: 'Supplier'&lt;BR /&gt;
+             }}]&lt;BR /&gt;
+      Supplier,&lt;BR /&gt;
+      _Supplier.OrganizationBPName1                                                                   as SupplierName,&lt;BR /&gt;
+      _Supplier._StandardAddress._DefaultEmailAddress.EmailAddress                                    as SupplierEmail,&lt;BR /&gt;
+&lt;BR /&gt;
+      @ObjectModel.text.element: ['FullName']&lt;BR /&gt;
+      UserID,&lt;BR /&gt;
+      _User.FullName,&lt;BR /&gt;
+      VehicleID,&lt;BR /&gt;
+&lt;BR /&gt;
+      @Semantics.quantity.unitOfMeasure: 'UnitOfMeasure'&lt;BR /&gt;
+      Quantity,&lt;BR /&gt;
+      @Semantics.unitOfMeasure: true&lt;BR /&gt;
+      @ObjectModel.text.element: ['UnitOfMeasureName']&lt;BR /&gt;
+      UnitOfMeasure,&lt;BR /&gt;
+      _UnitOfMeasure._Text[1: Language = $session.system_language ].UnitOfMeasureName,&lt;BR /&gt;
+&lt;BR /&gt;
+      @ObjectModel.text.element: ['DispatchUserFullName']&lt;BR /&gt;
+      _DispatchUser.ContactCardID                                                                     as DispatchUser,&lt;BR /&gt;
+      _DispatchUser.FullName                                                                          as DispatchUserFullName,&lt;BR /&gt;
+&lt;BR /&gt;
+      _DispatchUser.EmailAddress                                                                      as DispatchUserEmail,&lt;BR /&gt;
+&lt;BR /&gt;
+      @Semantics.quantity.unitOfMeasure: 'VendorTotalUoM'&lt;BR /&gt;
+      _VendorQuantity.TotalQuantity                                                                   as VendorTotalQuantity,&lt;BR /&gt;
+      @ObjectModel.text.element: ['VendorTotalUoMName']&lt;BR /&gt;
+      _VendorQuantity.UnitOfMeasure                                                                   as VendorTotalUoM,&lt;BR /&gt;
+      _VendorQuantity._UnitOfMeasure._Text[1: Language = $session.system_language ].UnitOfMeasureName as VendorTotalUoMName,&lt;BR /&gt;
+      &lt;BR /&gt;
+      Lastchangedat,&lt;BR /&gt;
+&lt;BR /&gt;
+      // Associations&lt;BR /&gt;
+      _Direction,&lt;BR /&gt;
+      _Plant,&lt;BR /&gt;
+      _StorageLocation,&lt;BR /&gt;
+      _MaterialText,&lt;BR /&gt;
+      _Supplier,&lt;BR /&gt;
+      _User,&lt;BR /&gt;
+      _UnitOfMeasure,&lt;BR /&gt;
+      _DispatchUser,&lt;BR /&gt;
+      _VendorQuantity&lt;BR /&gt;
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&lt;STRONG&gt;CDS view (abstract entity) Z_DISPATCH_POPUP&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;@EndUserText.label: 'Popup'&lt;BR /&gt;
+@Metadata.allowExtensions: true&lt;BR /&gt;
+define abstract entity Z_DISPATCH_POPUP&lt;BR /&gt;
+{&lt;BR /&gt;
+  @EndUserText.label: 'Vendor'&lt;BR /&gt;
+  Imv_Supplier      : lifnr;&lt;BR /&gt;
+  @EndUserText.label: 'Material'&lt;BR /&gt;
+  Imv_Material      : matnr;&lt;BR /&gt;
+  @EndUserText.label: 'Quantity'&lt;BR /&gt;
+  @Semantics.quantity.unitOfMeasure: 'Imv_UnitOfMeasure'&lt;BR /&gt;
+  Imv_Quantity      : z_quantity;&lt;BR /&gt;
+  @EndUserText.label: 'Unit of Measure'&lt;BR /&gt;
+  Imv_UnitOfMeasure : meins;&lt;BR /&gt;
+  @EndUserText.label: 'Vehicle ID'&lt;BR /&gt;
+  Imv_VehicleID     : z_vehicle_id;&lt;BR /&gt;
+&lt;BR /&gt;
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+In Popup default values can be set and Value Help defined in following way:&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;...&lt;BR /&gt;
+  @Consumption.defaultValue: '0900'&lt;BR /&gt;
+  @Consumption.valueHelpDefinition: [{ entity: { name: 'I_Plant',  element: 'Plant' }}]&lt;BR /&gt;
+  @EndUserText.label: 'Supplying Plant (Mandatory)'&lt;BR /&gt;
+  Imv_Supl_Plant    : werks_d;&lt;BR /&gt;
+...&lt;BR /&gt;
+  @Consumption.valueHelpDefinition: [{&lt;BR /&gt;
+         entity     : {&lt;BR /&gt;
+             name   : 'I_StorageLocation', &lt;BR /&gt;
+             element: 'StorageLocation'&lt;BR /&gt;
+         },&lt;BR /&gt;
+         additionalBinding  : [{ localElement   : 'Imv_Supl_Plant',&lt;BR /&gt;
+                                 element        : 'Plant'&lt;BR /&gt;
+                                }]&lt;BR /&gt;
+         }]&lt;BR /&gt;
+  @EndUserText.label: 'Supplying Sloc (Mandatory)'&lt;BR /&gt;
+  Imv_Supl_Sloc     : lgort_d;&lt;BR /&gt;
+...&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&lt;STRONG&gt;Metadata extension Z_DISPATCH_ME&lt;/STRONG&gt; with button definition for Action 'Register_Dispatch':&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;@Metadata.layer: #CUSTOMER&lt;BR /&gt;
+@UI:{ headerInfo: {&lt;BR /&gt;
+    typeName: 'Record',&lt;BR /&gt;
+    typeNamePlural: 'Records',&lt;BR /&gt;
+    title: { type: #STANDARD, value: 'Supplier' },&lt;BR /&gt;
+    description: { type: #STANDARD, value: 'SupplierName'  }&lt;BR /&gt;
+} }&lt;BR /&gt;
+&lt;BR /&gt;
+@UI.presentationVariant: [{&lt;BR /&gt;
+    sortOrder: [&lt;BR /&gt;
+       { by: 'TransactionDate', direction: #ASC },&lt;BR /&gt;
+       { by: 'Supplier', direction: #ASC } ,&lt;BR /&gt;
+       { by: 'Material', direction: #ASC } ,&lt;BR /&gt;
+       { by: 'Direction', direction: #ASC } ],&lt;BR /&gt;
+&lt;BR /&gt;
+     visualizations: [{ type: #AS_LINEITEM }],&lt;BR /&gt;
+     requestAtLeast: [ 'TransactionDate', 'Supplier', 'Material', 'Quantity', 'UnitOfMeasure', 'Direction' ]&lt;BR /&gt;
+     }]&lt;BR /&gt;
+annotate entity Z_DISPATCH_PROJ with&lt;BR /&gt;
+{&lt;BR /&gt;
+  @UI.facet: [&lt;BR /&gt;
+               {label: 'Record Details',&lt;BR /&gt;
+                id: 'RecordInfo',&lt;BR /&gt;
+                type: #COLLECTION,&lt;BR /&gt;
+                position: 10 },&lt;BR /&gt;
+  &lt;BR /&gt;
+               {id: 'General',&lt;BR /&gt;
+                purpose: #STANDARD,&lt;BR /&gt;
+                position: 10,&lt;BR /&gt;
+                type: #IDENTIFICATION_REFERENCE,&lt;BR /&gt;
+                parentId: 'RecordInfo' },  &lt;BR /&gt;
+  &lt;BR /&gt;
+               {label: 'Quantity',&lt;BR /&gt;
+                id: 'QuantityInfo',&lt;BR /&gt;
+                type: #COLLECTION,&lt;BR /&gt;
+                position: 20 },               &lt;BR /&gt;
+&lt;BR /&gt;
+               {id: 'SupplierData',&lt;BR /&gt;
+                purpose: #STANDARD,&lt;BR /&gt;
+                type: #FIELDGROUP_REFERENCE,&lt;BR /&gt;
+                parentId: 'RecordInfo',&lt;BR /&gt;
+                label: 'Supplier Info',&lt;BR /&gt;
+                position: 10,&lt;BR /&gt;
+                targetQualifier: 'SupplierGroup' },&lt;BR /&gt;
+&lt;BR /&gt;
+               {id: 'TransactionData',&lt;BR /&gt;
+                purpose: #STANDARD,&lt;BR /&gt;
+                type: #FIELDGROUP_REFERENCE,&lt;BR /&gt;
+                parentId: 'RecordInfo',&lt;BR /&gt;
+                label: 'Transaction Info',&lt;BR /&gt;
+                position: 20,&lt;BR /&gt;
+                targetQualifier: 'TransactionGroup' },&lt;BR /&gt;
+                &lt;BR /&gt;
+               {id: 'Quantity',&lt;BR /&gt;
+                purpose: #STANDARD,&lt;BR /&gt;
+                targetQualifier: 'Quantity',&lt;BR /&gt;
+                position: 10,&lt;BR /&gt;
+                label: 'Transaction Quantity',&lt;BR /&gt;
+                type: #FIELDGROUP_REFERENCE,&lt;BR /&gt;
+                parentId: 'QuantityInfo'  },&lt;BR /&gt;
+                &lt;BR /&gt;
+               {id: 'AllowedQuantity',&lt;BR /&gt;
+                purpose: #STANDARD,&lt;BR /&gt;
+                targetQualifier: 'AllowedQuantity',&lt;BR /&gt;
+                position: 20,&lt;BR /&gt;
+                label: 'Allowed Quantity',&lt;BR /&gt;
+                type: #FIELDGROUP_REFERENCE,&lt;BR /&gt;
+                parentId: 'QuantityInfo'  }       &lt;BR /&gt;
+        ]&lt;BR /&gt;
+&lt;BR /&gt;
+  @UI:{ lineItem: [ {position: 10, importance: #LOW },&lt;BR /&gt;
+                    { type: #FOR_ACTION,&lt;BR /&gt;
+                      dataAction: 'Register_Dispatch' ,&lt;BR /&gt;
+                      label: 'Func Itm' }&lt;BR /&gt;
+                    ],&lt;BR /&gt;
+        identification: [{position: 10 }]&lt;BR /&gt;
+           }&lt;BR /&gt;
+  HandlingUnit;&lt;BR /&gt;
+  @UI:{ lineItem: [{position: 20,importance: #HIGH }],&lt;BR /&gt;
+        identification: [{position: 20 }]}&lt;BR /&gt;
+  Direction;&lt;BR /&gt;
+  @UI:{ lineItem: [{position: 30,importance: #LOW }],&lt;BR /&gt;
+        identification: [{position: 30 }] }&lt;BR /&gt;
+  Counter;&lt;BR /&gt;
+  @UI:{ lineItem: [{position: 50,importance: #LOW }],&lt;BR /&gt;
+        identification: [{position: 50 }],&lt;BR /&gt;
+        selectionField: [{position: 10 }] }&lt;BR /&gt;
+  @Consumption.filter:{ mandatory:true,&lt;BR /&gt;
+                        selectionType : #SINGLE,&lt;BR /&gt;
+                        multipleSelections : false,&lt;BR /&gt;
+                        defaultValue : '0900' }&lt;BR /&gt;
+  Plant;&lt;BR /&gt;
+  @UI:{ lineItem: [{position: 60,importance: #LOW }],&lt;BR /&gt;
+        identification: [{position: 60 }],&lt;BR /&gt;
+        selectionField: [{position: 20 }] }&lt;BR /&gt;
+  @Consumption.filter:{ mandatory:true,&lt;BR /&gt;
+                        selectionType : #SINGLE,&lt;BR /&gt;
+                        multipleSelections : false,&lt;BR /&gt;
+                        defaultValue : '0990' }&lt;BR /&gt;
+  StorageLocation;&lt;BR /&gt;
+  @UI:{ lineItem: [{position: 70,importance: #LOW }],&lt;BR /&gt;
+        fieldGroup: [{ type: #STANDARD, qualifier: 'TransactionGroup', position: 10, importance: #HIGH  }]}&lt;BR /&gt;
+  TransactionDate;&lt;BR /&gt;
+  @UI:{ lineItem: [{position: 80,importance: #LOW }],&lt;BR /&gt;
+        fieldGroup: [{ type: #STANDARD, qualifier: 'TransactionGroup', position: 20, importance: #HIGH  }] }&lt;BR /&gt;
+  TransactionTime;&lt;BR /&gt;
+  @UI:{ lineItem: [{position: 90,importance: #HIGH }],&lt;BR /&gt;
+        selectionField: [{position: 40 }],&lt;BR /&gt;
+        fieldGroup: [{ type: #STANDARD, qualifier: 'Quantity', position: 10, importance: #HIGH  }] }&lt;BR /&gt;
+  @Consumption.filter:{ mandatory:false }&lt;BR /&gt;
+  Material;&lt;BR /&gt;
+  &lt;BR /&gt;
+  @UI:{ lineItem: [{position: 100,importance: #HIGH }],&lt;BR /&gt;
+        selectionField: [{position: 30 }],&lt;BR /&gt;
+        fieldGroup: [{ type: #STANDARD, qualifier: 'SupplierGroup', position: 10, importance: #HIGH  }] }&lt;BR /&gt;
+  @Consumption.filter:{ mandatory:true,  &lt;BR /&gt;
+                        selectionType : #SINGLE,&lt;BR /&gt;
+                        multipleSelections : false }&lt;BR /&gt;
+  Supplier;&lt;BR /&gt;
+  @UI:{ lineItem: [{position: 110,importance: #LOW }]}&lt;BR /&gt;
+  SupplierName;&lt;BR /&gt;
+  &lt;BR /&gt;
+  @UI:{ lineItem: [{position: 120,importance: #LOW }],&lt;BR /&gt;
+        fieldGroup: [{ type: #STANDARD, qualifier: 'SupplierGroup', position: 20, importance: #HIGH  }]}&lt;BR /&gt;
+  SupplierEmail;&lt;BR /&gt;
+  @UI:{ lineItem: [{position: 130,importance: #LOW }],&lt;BR /&gt;
+        fieldGroup: [{ type: #STANDARD, qualifier: 'TransactionGroup', position: 10, importance: #HIGH  }] }&lt;BR /&gt;
+  UserID;&lt;BR /&gt;
+  @UI:{ lineItem: [{position: 140,importance: #LOW }],&lt;BR /&gt;
+        identification: [{position: 130 }] }&lt;BR /&gt;
+  DispatchID;&lt;BR /&gt;
+  @UI:{ lineItem: [{position: 150,importance: #LOW }],&lt;BR /&gt;
+        identification: [{position: 140 }] }&lt;BR /&gt;
+  TransferID;  &lt;BR /&gt;
+  @UI:{ lineItem: [{position: 160,importance: #LOW }],&lt;BR /&gt;
+        identification: [{position: 150 }] }&lt;BR /&gt;
+  VehicleID;&lt;BR /&gt;
+  @UI:{ lineItem: [{position: 170,importance: #HIGH, label: 'Quantity' }],&lt;BR /&gt;
+        fieldGroup: [{ type: #STANDARD, qualifier: 'Quantity', position :30, importance: #HIGH  }] }&lt;BR /&gt;
+  @EndUserText.label: 'Quantity'&lt;BR /&gt;
+  Quantity;&lt;BR /&gt;
+  @UI:{ lineItem: [{position: 180,importance: #HIGH, label: 'UoM' }],&lt;BR /&gt;
+        fieldGroup: [{ type: #STANDARD, qualifier: 'Quantity', position :40, importance: #HIGH  }] }&lt;BR /&gt;
+  @EndUserText.label: 'UoM'&lt;BR /&gt;
+  UnitOfMeasure;&lt;BR /&gt;
+&lt;BR /&gt;
+  @UI.hidden: true&lt;BR /&gt;
+  DispatchUser;&lt;BR /&gt;
+&lt;BR /&gt;
+  @UI:{ lineItem: [{position: 190,importance: #LOW }],&lt;BR /&gt;
+        identification: [{position: 160 }] }&lt;BR /&gt;
+  DispatchUserEmail;&lt;BR /&gt;
+&lt;BR /&gt;
+  @UI:{ lineItem: [{position: 200,importance: #HIGH, label: 'Total' }],&lt;BR /&gt;
+        fieldGroup: [{ type: #STANDARD, qualifier: 'AllowedQuantity', position :50, importance: #HIGH  }] }&lt;BR /&gt;
+  @EndUserText.label: 'Total'&lt;BR /&gt;
+  VendorTotalQuantity;&lt;BR /&gt;
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&lt;DIV&gt;&lt;BR /&gt;
+&lt;P style="margin: 0"&gt;&lt;STRONG style="font-size: 1rem"&gt;Behavior definition Z_DISPATCH&lt;/STRONG&gt;&lt;SPAN style="font-size: 1rem"&gt;, here function 'Register_Dispatch' has as input CDS view for abstract Entity.&lt;/SPAN&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;/DIV&gt;&lt;BR /&gt;
+Selection of Row with check box in List Report is available if Action is implemented.&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;unmanaged implementation in class Z_CL_DISPATCH_BEHAVIOR unique;&lt;BR /&gt;
+strict;&lt;BR /&gt;
+&lt;BR /&gt;
+define behavior for Z_DISPATCH alias DispatchRecord&lt;BR /&gt;
+lock master&lt;BR /&gt;
+authorization master ( global )&lt;BR /&gt;
+{&lt;BR /&gt;
+  delete;&lt;BR /&gt;
+  function Register_Dispatch parameter Z_DISPATCH_POPUP result [1] $self;&lt;BR /&gt;
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&lt;STRONG&gt;Behavior definition Z_DISPATCH_PROJ&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;projection;&lt;BR /&gt;
+strict;&lt;BR /&gt;
+&lt;BR /&gt;
+define behavior for Z_DISPATCH_PROJ&lt;BR /&gt;
+{&lt;BR /&gt;
+  use delete;&lt;BR /&gt;
+  use function Register_Dispatch;&lt;BR /&gt;
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&lt;STRONG&gt;Class Z_CL_DISPATCH_BEHAVIOR&lt;/STRONG&gt;, extracts from local implementation provided below. Detailed logic for table update and email sending not provided as it is not main topic of this blog.&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;Method Definition:&lt;BR /&gt;
+    METHODS register_dispatch FOR READ&lt;BR /&gt;
+      IMPORTING keys FOR FUNCTION dispatchrecord~register_dispatch RESULT result.&lt;BR /&gt;
+&lt;BR /&gt;
+Method Implementation:&lt;BR /&gt;
+  METHOD register_dispatch.&lt;BR /&gt;
+*--- read record from CDS&lt;BR /&gt;
+    READ ENTITY z_dispatch_proj&lt;BR /&gt;
+         FIELDS ( plant )&lt;BR /&gt;
+         WITH CORRESPONDING #( keys )&lt;BR /&gt;
+       RESULT DATA(lt_dispatch_rec).&lt;BR /&gt;
+&lt;BR /&gt;
+    LOOP AT keys ASSIGNING FIELD-SYMBOL(&amp;lt;lfs_keys&amp;gt;).&lt;BR /&gt;
+      TRY.&lt;BR /&gt;
+&lt;BR /&gt;
+      READ TABLE lt_dispatch_rec REFERENCE INTO DATA(lr_dispatch_rec)&lt;BR /&gt;
+      WITH KEY %key = &amp;lt;lfs_keys&amp;gt;-%key.&lt;BR /&gt;
+      IF sy-subrc &amp;lt;&amp;gt; 0.&lt;BR /&gt;
+        CONTINUE.&lt;BR /&gt;
+      ENDIF.&lt;BR /&gt;
+&lt;BR /&gt;
+* posting of record(s) in DB&lt;BR /&gt;
+* sending email&lt;BR /&gt;
+&lt;BR /&gt;
+     CATCH zcx_msg INTO lr_exception.&lt;BR /&gt;
+          APPEND VALUE #(  handlingunit = &amp;lt;lfs_keys&amp;gt;-handlingunit&lt;BR /&gt;
+                           direction = &amp;lt;lfs_keys&amp;gt;-direction&lt;BR /&gt;
+                           counter = &amp;lt;lfs_keys&amp;gt;-counter&lt;BR /&gt;
+                           dispatchid = &amp;lt;lfs_keys&amp;gt;-dispatchid&lt;BR /&gt;
+                           transferid = &amp;lt;lfs_keys&amp;gt;-transferid&lt;BR /&gt;
+                         ) TO failed-dispatchrecord.&lt;BR /&gt;
+&lt;BR /&gt;
+          APPEND VALUE #( %msg = new_message( id       = lr_exception-&amp;gt;if_t100_message~t100key-msgid&lt;BR /&gt;
+                                              number   = lr_exception-&amp;gt;if_t100_message~t100key-msgno&lt;BR /&gt;
+                                              v1       = lr_exception-&amp;gt;v_msgv1&lt;BR /&gt;
+                                              v2       = lr_exception-&amp;gt;v_msgv2&lt;BR /&gt;
+                                              v3       = lr_exception-&amp;gt;v_msgv3&lt;BR /&gt;
+                                              v4       = lr_exception-&amp;gt;v_msgv4&lt;BR /&gt;
+                                              severity = if_abap_behv_message=&amp;gt;severity-error )&lt;BR /&gt;
+                          %key-handlingunit = &amp;lt;lfs_keys&amp;gt;-handlingunit&lt;BR /&gt;
+                          %key-direction = &amp;lt;lfs_keys&amp;gt;-direction&lt;BR /&gt;
+                          %key-counter = &amp;lt;lfs_keys&amp;gt;-counter&lt;BR /&gt;
+                          %key-dispatchid = &amp;lt;lfs_keys&amp;gt;-dispatchid&lt;BR /&gt;
+                          %key-transferid = &amp;lt;lfs_keys&amp;gt;-transferid&lt;BR /&gt;
+                          handlingunit = &amp;lt;lfs_keys&amp;gt;-handlingunit&lt;BR /&gt;
+                          direction = &amp;lt;lfs_keys&amp;gt;-direction&lt;BR /&gt;
+                          counter = &amp;lt;lfs_keys&amp;gt;-counter&lt;BR /&gt;
+                          dispatchid = &amp;lt;lfs_keys&amp;gt;-dispatchid&lt;BR /&gt;
+                          transferid = &amp;lt;lfs_keys&amp;gt;-transferid&lt;BR /&gt;
+                        ) TO reported-dispatchrecord.&lt;BR /&gt;
+     ENDTRY.&lt;BR /&gt;
+&lt;BR /&gt;
+    ENDLOOP.&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+In implementation of Function 'Register Dispatch' should be no COMMIT nor ROLLBACK commands. If you need COMMIT you can use it, for example, inside FM called in separate task:&lt;BR /&gt;
+&lt;DIV&gt;&lt;BR /&gt;
+&lt;DIV&gt;&lt;BR /&gt;
+&lt;P style="margin: 0"&gt;&lt;SPAN style="color: #0000ff"&gt;CALL FUNCTION &lt;/SPAN&gt;&lt;SPAN style="color: #008000"&gt;'Z_EMAIL_IN_TASK'&lt;/SPAN&gt;&lt;SPAN style="color: #0000ff"&gt; STARTING NEW TASK &lt;/SPAN&gt;&lt;SPAN style="color: #000000"&gt;imv_task_name&lt;/SPAN&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P style="margin: 0"&gt;&lt;SPAN style="color: #0000ff"&gt; DESTINATION &lt;/SPAN&gt;&lt;SPAN style="color: #008000"&gt;'NONE' ...&lt;/SPAN&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;/DIV&gt;&lt;BR /&gt;
+&lt;/DIV&gt;&lt;BR /&gt;
+&lt;STRONG&gt;Service Definition Z_DISPATCH_PROJ_SRV&lt;/STRONG&gt;. Here all associations used in CDS view (root view entity) Z_DISPATCH are exposed for usage.&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;@EndUserText.label: 'Dispatch, Service Definition'&lt;BR /&gt;
+define service Z_DISPATCH_PROJ_SRV {&lt;BR /&gt;
+  expose Z_DISPATCH_PROJ as DispatchRecord;&lt;BR /&gt;
+  expose Z_DIRECTION as Direction;&lt;BR /&gt;
+  expose I_Plant as Plant;&lt;BR /&gt;
+  expose I_StorageLocation as StorageLocation;&lt;BR /&gt;
+  expose I_MaterialText as MaterialText;&lt;BR /&gt;
+  expose I_Supplier as Supplier;&lt;BR /&gt;
+  expose I_UserContactCard as User;&lt;BR /&gt;
+  expose I_UnitOfMeasure as UnitOfMeasure;&lt;BR /&gt;
+  expose Z_DISPATCH_QUANTITY as VendorQuantity;&lt;BR /&gt;
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&lt;STRONG&gt;Service Binding Z_DISPATCH_PROJ_V4UI&lt;/STRONG&gt;.&lt;BR /&gt;
+&lt;BR /&gt;
+After Service Binding was created for service Z_DISPATCH_PROJ_SRV&lt;STRONG&gt;, &lt;/STRONG&gt;OData V4 - UI binding type, Service Group is available in transaction /IWBEP/V4_ADMIN.&lt;BR /&gt;
+&lt;BR /&gt;
+In transaction /IWFND/V4_ADMIN service group Z_DISPATCH_PROJ_V4UI was published.&lt;BR /&gt;
+&lt;BR /&gt;
+Now preview link is available in Service Binding.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/Pic-3-1.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Figure 4. Service preview&lt;/P&gt;&lt;BR /&gt;
+Button on Toolbar is present and Popup for input is displayed. Values from selected Item not passed.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/Pic-4.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Figure 5, Service preview&lt;/P&gt;&lt;BR /&gt;
+In &lt;STRONG&gt;SAP BAS&lt;/STRONG&gt; Fiori Elements app was generated using List Report Page template and service Z_DISPATCH_PROJ_V4UI.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/Pic-5-2.jpg" height="328" width="165" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Figure 6, Fiori application file paths&lt;/P&gt;&lt;BR /&gt;
+In Fiori project several changed made to file &lt;STRONG&gt;manifest.json&lt;/STRONG&gt;.&lt;BR /&gt;
+&lt;BR /&gt;
+Section for Controller extension added with Controller Name as Application ID followed by path to controller file in webapp folder:&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/Pic-5.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Figure 7, Controller Extension&lt;/P&gt;&lt;BR /&gt;
+In targets find "DispatchRecordList" and in Settings add LineItem "Control Configuration":&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;"press" is pointing at file "Action_Dispatch" with function onOpenPopUp with event processing logic,&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;"enabled" is pointing at file "Dispatch_Enabled" with function onPopUpEnabled with logic to control state of button enabled/disabled.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/Pic-7.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Figure 8, Action button&lt;/P&gt;&lt;BR /&gt;
+For custom local JSON model and OData model entries done in madifest.json file "dataSources" and "models" parts accordingly:&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/Pic-6_1.jpg" height="65" width="223" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Figure 9. New data source&lt;/P&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/Pic-6_2.jpg" height="231" width="290" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Figure 10, New models&lt;/P&gt;&lt;BR /&gt;
+LocalJSON is used as variable to memorize selected Item key fields. OData model "CustomModel" is used for OData V4 call to backend.&lt;BR /&gt;
+&lt;BR /&gt;
+File &lt;STRONG&gt;Component.js&lt;/STRONG&gt; has code to set new JSON and OData models. [Application ID] was placed instead of application id value from manifest.json file.&lt;BR /&gt;
+&lt;PRE class="language-javascript"&gt;&lt;CODE&gt;sap.ui.define(&lt;BR /&gt;
+    [&lt;BR /&gt;
+        "sap/fe/core/AppComponent",&lt;BR /&gt;
+    ],&lt;BR /&gt;
+    function (Component) {&lt;BR /&gt;
+        "use strict";&lt;BR /&gt;
+&lt;BR /&gt;
+        return Component.extend("[Application ID].Component", {&lt;BR /&gt;
+            metadata: {&lt;BR /&gt;
+                manifest: "json"&lt;BR /&gt;
+            },&lt;BR /&gt;
+            init: function () {&lt;BR /&gt;
+                // call the base component's init function&lt;BR /&gt;
+                Component.prototype.init.apply(this, arguments);&lt;BR /&gt;
+                // create the views based on the url/hash&lt;BR /&gt;
+                this.getRouter().initialize();&lt;BR /&gt;
+&lt;BR /&gt;
+                // setting the model to the core&lt;BR /&gt;
+                // so that it’s available in the whole application&lt;BR /&gt;
+                sap.ui.getCore().setModel(this.getModel("CustomModel"), "ODataModel");&lt;BR /&gt;
+                sap.ui.getCore().setModel(this.getModel("LocalJSON"), "LocalJSONModel");&lt;BR /&gt;
+            }&lt;BR /&gt;
+        });&lt;BR /&gt;
+    }&lt;BR /&gt;
+);&lt;BR /&gt;
+&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+Fragment was added in file &lt;STRONG&gt;InputPopUp.fragment.xml &lt;/STRONG&gt;in folder view. Here 5 fields added with 2 push buttons at the end. Look and feel similar to popup generated with CDS view. Only Quantity and Vehicle ID fields are enabled for input.&lt;BR /&gt;
+&lt;BR /&gt;
+Pay attention that [Application ID] was placed instead of application id value from manifest.json file.&lt;BR /&gt;
+&lt;PRE class="language-markup"&gt;&lt;CODE&gt;&amp;lt;core:FragmentDefinition&lt;BR /&gt;
+    xmlns="sap.m"&lt;BR /&gt;
+    xmlns:core="sap.ui.core"&lt;BR /&gt;
+&amp;gt;&lt;BR /&gt;
+    &amp;lt;Dialog&lt;BR /&gt;
+        id="PopUpDialog"&lt;BR /&gt;
+    &amp;gt;&lt;BR /&gt;
+        &amp;lt;VBox&lt;BR /&gt;
+            width="100%"&lt;BR /&gt;
+            direction="Column"&lt;BR /&gt;
+            id="vbox0"&lt;BR /&gt;
+            alignContent="Center"&lt;BR /&gt;
+            alignItems="Center"&lt;BR /&gt;
+        &amp;gt;&lt;BR /&gt;
+            &amp;lt;items&amp;gt;&lt;BR /&gt;
+                &amp;lt;Text&lt;BR /&gt;
+                    id="SupplierLabel"&lt;BR /&gt;
+                    xmlns="sap.m"&lt;BR /&gt;
+                    width="300px"&lt;BR /&gt;
+                    text="{i18n&amp;gt;SupplierLabelText}"&lt;BR /&gt;
+                    class="sapUiSmallMarginBegin sapUiSmallMarginEnd"&lt;BR /&gt;
+                /&amp;gt;&lt;BR /&gt;
+&lt;BR /&gt;
+                &amp;lt;Input&lt;BR /&gt;
+                    id="SupplierInput"&lt;BR /&gt;
+                    width="300px"&lt;BR /&gt;
+                    valueLiveUpdate="true"&lt;BR /&gt;
+                    enabled="false"&lt;BR /&gt;
+                    class="sapUiSmallMarginBegin sapUiSmallMarginEnd"&lt;BR /&gt;
+                /&amp;gt;&lt;BR /&gt;
+&lt;BR /&gt;
+                &amp;lt;Text&lt;BR /&gt;
+                    id="MaterialLabel"&lt;BR /&gt;
+                    xmlns="sap.m"&lt;BR /&gt;
+                    width="300px"&lt;BR /&gt;
+                    text="{i18n&amp;gt;MaterialLabelText}"&lt;BR /&gt;
+                    class="sapUiSmallMarginBegin sapUiSmallMarginEnd"&lt;BR /&gt;
+                /&amp;gt;&lt;BR /&gt;
+&lt;BR /&gt;
+                &amp;lt;Input&lt;BR /&gt;
+                    id="MaterialInput"&lt;BR /&gt;
+                    width="300px"&lt;BR /&gt;
+                    valueLiveUpdate="true"&lt;BR /&gt;
+                    enabled="false"&lt;BR /&gt;
+                    class="sapUiSmallMarginBegin sapUiSmallMarginEnd"&lt;BR /&gt;
+                /&amp;gt;&lt;BR /&gt;
+&lt;BR /&gt;
+               &amp;lt;Text&lt;BR /&gt;
+                    id="QuantityLabel"&lt;BR /&gt;
+                    xmlns="sap.m"&lt;BR /&gt;
+                    width="300px"&lt;BR /&gt;
+                    text="{i18n&amp;gt;QuantityLabelText}"&lt;BR /&gt;
+                    class="sapUiSmallMarginBegin sapUiSmallMarginEnd"&lt;BR /&gt;
+                /&amp;gt;&lt;BR /&gt;
+&lt;BR /&gt;
+                &amp;lt;Input&lt;BR /&gt;
+                    id="QuantityInput"&lt;BR /&gt;
+                    width="300px"&lt;BR /&gt;
+                    valueLiveUpdate="true"&lt;BR /&gt;
+                    enabled="true"&lt;BR /&gt;
+                    class="sapUiSmallMarginBegin sapUiSmallMarginEnd"&lt;BR /&gt;
+                /&amp;gt;                &lt;BR /&gt;
+&lt;BR /&gt;
+               &amp;lt;Text&lt;BR /&gt;
+                    id="UnitOfMeasureLabel"&lt;BR /&gt;
+                    xmlns="sap.m"&lt;BR /&gt;
+                    width="300px"&lt;BR /&gt;
+                    text="{i18n&amp;gt;UnitOfMeasureLabelText}"&lt;BR /&gt;
+                    class="sapUiSmallMarginBegin sapUiSmallMarginEnd"&lt;BR /&gt;
+                /&amp;gt;&lt;BR /&gt;
+&lt;BR /&gt;
+                &amp;lt;Input&lt;BR /&gt;
+                    id="UnitOfMeasureInput"&lt;BR /&gt;
+                    width="300px"&lt;BR /&gt;
+                    valueLiveUpdate="true"&lt;BR /&gt;
+                    enabled="false"&lt;BR /&gt;
+                    class="sapUiSmallMarginBegin sapUiSmallMarginEnd"&lt;BR /&gt;
+                /&amp;gt;                  &lt;BR /&gt;
+&lt;BR /&gt;
+               &amp;lt;Text&lt;BR /&gt;
+                    id="VehicleIDLabel"&lt;BR /&gt;
+                    xmlns="sap.m"&lt;BR /&gt;
+                    width="300px"&lt;BR /&gt;
+                    text="{i18n&amp;gt;VehicleIDLabelText}"&lt;BR /&gt;
+                    class="sapUiSmallMarginBegin sapUiSmallMarginEnd"&lt;BR /&gt;
+                /&amp;gt;&lt;BR /&gt;
+&lt;BR /&gt;
+                &amp;lt;Input&lt;BR /&gt;
+                    id="VehicleIDInput"&lt;BR /&gt;
+                    width="300px"&lt;BR /&gt;
+                    valueLiveUpdate="true"&lt;BR /&gt;
+                    enabled="true"&lt;BR /&gt;
+                    class="sapUiSmallMarginBegin sapUiSmallMarginEnd"&lt;BR /&gt;
+                /&amp;gt;                                                &lt;BR /&gt;
+            &amp;lt;/items&amp;gt;&lt;BR /&gt;
+        &amp;lt;/VBox&amp;gt;&lt;BR /&gt;
+        &amp;lt;beginButton&amp;gt;&lt;BR /&gt;
+            &amp;lt;Button&lt;BR /&gt;
+                id="ExecuteBtn"&lt;BR /&gt;
+                text="{i18n&amp;gt;OKBtnText}"&lt;BR /&gt;
+                press=".extension.[Application ID].ext.controller.LRExtend.onPopUpOK"&lt;BR /&gt;
+            /&amp;gt;&lt;BR /&gt;
+        &amp;lt;/beginButton&amp;gt;&lt;BR /&gt;
+        &amp;lt;endButton&amp;gt;&lt;BR /&gt;
+            &amp;lt;Button&lt;BR /&gt;
+                icon="sap-icon://undo"&lt;BR /&gt;
+                id="PopUpCloseBtn"&lt;BR /&gt;
+                text="{i18n&amp;gt;CloseBtnText}"&lt;BR /&gt;
+                press=".extension.[Application ID].ext.controller.LRExtend.onPopUpClose"&lt;BR /&gt;
+            /&amp;gt;&lt;BR /&gt;
+        &amp;lt;/endButton&amp;gt;&lt;BR /&gt;
+    &amp;lt;/Dialog&amp;gt;&lt;BR /&gt;
+&amp;lt;/core:FragmentDefinition&amp;gt;&lt;BR /&gt;
+&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+File &lt;STRONG&gt;Dispatch_Enabled.js&lt;/STRONG&gt; contains function &lt;STRONG&gt;onPopUpEnabled&lt;/STRONG&gt; for custom button "Dispatch" status change depending on quantity of selected Line Items.&lt;BR /&gt;
+&lt;PRE class="language-javascript"&gt;&lt;CODE&gt;sap.ui.define(&lt;BR /&gt;
+    [],&lt;BR /&gt;
+    function () {&lt;BR /&gt;
+        "use strict";&lt;BR /&gt;
+        return {&lt;BR /&gt;
+            onPopUpEnabled: function (oContext, aSelectedContexts) {&lt;BR /&gt;
+                // oContext :  is the binding context of the current entity&lt;BR /&gt;
+                // aSelectedContexts : contains an array of binding contexts corresponding to&lt;BR /&gt;
+                //       selected items in case of table action (or)&lt;BR /&gt;
+&lt;BR /&gt;
+                if (aSelectedContexts &amp;amp;&amp;amp; aSelectedContexts.length === 1) {&lt;BR /&gt;
+                    return true;&lt;BR /&gt;
+                }&lt;BR /&gt;
+                return false;&lt;BR /&gt;
+            },&lt;BR /&gt;
+        };&lt;BR /&gt;
+    }&lt;BR /&gt;
+);&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+File &lt;STRONG&gt;Action_Dispatch.js&lt;/STRONG&gt; contains function &lt;STRONG&gt;onOpenPopUp&lt;/STRONG&gt; which will read values of selected Item and open Popup window. Local JSON model is used to memorize selected item key fields.&lt;BR /&gt;
+&lt;BR /&gt;
+Again [Application ID] was placed instead of application id value from manifest.json file.&lt;BR /&gt;
+&lt;PRE class="language-javascript"&gt;&lt;CODE&gt;sap.ui.define(&lt;BR /&gt;
+    [ ],&lt;BR /&gt;
+    function (oFunction) {&lt;BR /&gt;
+        "use strict";&lt;BR /&gt;
+        return {&lt;BR /&gt;
+            onOpenPopUp: function (oContext, aSelectedContexts, oLContext = this) {&lt;BR /&gt;
+                // oContext :  is the binding context of the current entity&lt;BR /&gt;
+                // aSelectedContexts : contains an array of binding contexts corresponding to&lt;BR /&gt;
+                //       selected items in case of table action (or)&lt;BR /&gt;
+ &lt;BR /&gt;
+                // create dialog&lt;BR /&gt;
+                if (aSelectedContexts &amp;amp;&amp;amp; aSelectedContexts.length === 1) {&lt;BR /&gt;
+                    // read values from selected context line&lt;BR /&gt;
+                    for (let index = 0; index &amp;lt; aSelectedContexts.length; index++) {&lt;BR /&gt;
+                        var oSelContext = aSelectedContexts[index];&lt;BR /&gt;
+&lt;BR /&gt;
+                        // show dialog&lt;BR /&gt;
+                        this.oInputDialog ??= this.loadFragment({&lt;BR /&gt;
+                            name: "[Application ID].view.InputPopUp"&lt;BR /&gt;
+                        });&lt;BR /&gt;
+                        if (this.oInputDialog) {&lt;BR /&gt;
+                            this.oInputDialog.then(function (oDialog) {&lt;BR /&gt;
+&lt;BR /&gt;
+                                //set key of selected record to local model&lt;BR /&gt;
+                                var sHandlingUnit = oSelContext.getProperty("HandlingUnit");&lt;BR /&gt;
+                                var sDirection = oSelContext.getProperty("Direction");&lt;BR /&gt;
+                                var sCounter = oSelContext.getProperty("Counter");&lt;BR /&gt;
+                                var sDispatchID = oSelContext.getProperty("DispatchID");&lt;BR /&gt;
+                                var sTransferID = oSelContext.getProperty("TransferID");&lt;BR /&gt;
+&lt;BR /&gt;
+                                var oLocalJSON = sap.ui.getCore().getModel("LocalJSONModel");&lt;BR /&gt;
+                                if (oLocalJSON) {&lt;BR /&gt;
+                                    oLocalJSON.setData(&lt;BR /&gt;
+                                        {&lt;BR /&gt;
+                                            "HandlingUnit": sHandlingUnit,&lt;BR /&gt;
+                                            "Direction": sDirection,&lt;BR /&gt;
+                                            "Counter": sCounter,&lt;BR /&gt;
+                                            "DispatchID": sDispatchID,&lt;BR /&gt;
+                                            "TransferID": sTransferID&lt;BR /&gt;
+                                        }&lt;BR /&gt;
+                                    );&lt;BR /&gt;
+                                    sap.ui.getCore().setModel(oLocalJSON);&lt;BR /&gt;
+                                }&lt;BR /&gt;
+&lt;BR /&gt;
+                                // pass values of selected record to Pop-up&lt;BR /&gt;
+                                var sSupplier = oSelContext.getProperty("Supplier");&lt;BR /&gt;
+                                var sMaterial = oSelContext.getProperty("Material");&lt;BR /&gt;
+                                var sUnitOfMeasure = oSelContext.getProperty("UnitOfMeasure");&lt;BR /&gt;
+&lt;BR /&gt;
+                                var oSupplierInput = sap.ui.getCore().byId("SupplierInput");&lt;BR /&gt;
+                                if (oSupplierInput) {&lt;BR /&gt;
+                                    oSupplierInput.setValue(sSupplier);&lt;BR /&gt;
+                                    oSupplierInput.fireChange();&lt;BR /&gt;
+                                }&lt;BR /&gt;
+                                var oMaterialInput = sap.ui.getCore().byId("MaterialInput");&lt;BR /&gt;
+                                if (oMaterialInput) {&lt;BR /&gt;
+                                    oMaterialInput.setValue(sMaterial);&lt;BR /&gt;
+                                    oMaterialInput.fireChange();&lt;BR /&gt;
+                                }&lt;BR /&gt;
+                                var oUnitOfMeasure = sap.ui.getCore().byId("UnitOfMeasureInput");&lt;BR /&gt;
+                                if (oUnitOfMeasure) {&lt;BR /&gt;
+                                    oUnitOfMeasure.setValue(sUnitOfMeasure);&lt;BR /&gt;
+                                    oUnitOfMeasure.fireChange();&lt;BR /&gt;
+                                }&lt;BR /&gt;
+&lt;BR /&gt;
+                                oDialog.open();&lt;BR /&gt;
+                            });&lt;BR /&gt;
+                        }&lt;BR /&gt;
+                    }; //end for&lt;BR /&gt;
+                    return true;&lt;BR /&gt;
+                }&lt;BR /&gt;
+                return false;&lt;BR /&gt;
+            },  //onOpenPopUp&lt;BR /&gt;
+&lt;BR /&gt;
+        };&lt;BR /&gt;
+    }        &lt;BR /&gt;
+);&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+Finally file &lt;STRONG&gt;LRExtend.controller.js&lt;/STRONG&gt; contains controller extension described in manifest.json.&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Function &lt;STRONG&gt;onInit&lt;/STRONG&gt; makes button defined in RAP not visible. Button ID you can find using browser developer tools: F12-&amp;gt;Elements section. In example below instead of real id label [RAP button ID] provided.&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Function &lt;STRONG&gt;onPopUpClose&lt;/STRONG&gt; was marked in fragment file for press event of PopUpCloseBtn button. In implementation input fields are cleared and list is refreshed (same as "Go" button press) with a help of commant: &lt;EM&gt;this.base.getExtensionAPI().refresh();&lt;/EM&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Function &lt;STRONG&gt;onPopUpOpen&lt;/STRONG&gt; was marked in fragment file for press event of ExecuteBtn button. In implementation fields values are read from popup window, label read from i18n* files, confirmation dialog prepared (second popup). If user chooses Yes, call to backed is performed. For that context binding is done, parameters set.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;PRE class="language-javascript"&gt;&lt;CODE&gt;sap.ui.define(&lt;BR /&gt;
+    [&lt;BR /&gt;
+        "sap/ui/core/mvc/ControllerExtension",&lt;BR /&gt;
+        "sap/m/Dialog",&lt;BR /&gt;
+        "sap/m/DialogType",&lt;BR /&gt;
+        "sap/m/Text",&lt;BR /&gt;
+        "sap/m/Button",&lt;BR /&gt;
+        "sap/m/ButtonType",&lt;BR /&gt;
+        "sap/m/MessageToast",&lt;BR /&gt;
+        "sap/m/MessageBox"&lt;BR /&gt;
+    ],&lt;BR /&gt;
+&lt;BR /&gt;
+    function (ControllerExtension, Dialog, DialogType, Text, Button, ButtonType, MessageToast, MessageBox) {&lt;BR /&gt;
+        "use strict";&lt;BR /&gt;
+&lt;BR /&gt;
+        return ControllerExtension.extend("[Application ID].ext.controller.LRExtend", {&lt;BR /&gt;
+            override: {&lt;BR /&gt;
+                onInit: function (oEvent) {&lt;BR /&gt;
+                    //disable button from RAP&lt;BR /&gt;
+                    var oFuncButton = sap.ui.getCore().byId("[RAP button ID]");&lt;BR /&gt;
+                    if (oFuncButton) {&lt;BR /&gt;
+                        oFuncButton.setVisible(false);&lt;BR /&gt;
+                    }&lt;BR /&gt;
+                },&lt;BR /&gt;
+                onAfterRendering: function (oEvent) { }&lt;BR /&gt;
+            },&lt;BR /&gt;
+            onPopUpClose: function (oContext) {&lt;BR /&gt;
+                // close Pop-up dialog window&lt;BR /&gt;
+                var oInputDialog = sap.ui.getCore().byId("PopUpDialog");&lt;BR /&gt;
+                if (oInputDialog) {&lt;BR /&gt;
+                    // clean input fields&lt;BR /&gt;
+                    var oQuantityInput = sap.ui.getCore().byId("QuantityInput");&lt;BR /&gt;
+                    if (oQuantityInput) {&lt;BR /&gt;
+                        var iQuantityInput = oQuantityInput.getValue();&lt;BR /&gt;
+                        iQuantityInput = "";&lt;BR /&gt;
+                        oQuantityInput.setValue(iQuantityInput);&lt;BR /&gt;
+                        oQuantityInput.fireChange();&lt;BR /&gt;
+                    }               &lt;BR /&gt;
+                    var oVehicleIDInput = sap.ui.getCore().byId("VehicleIDInput");&lt;BR /&gt;
+                    if (oVehicleIDInput) {&lt;BR /&gt;
+                        var sVehicleIDInput = oVehicleIDInput.getValue();&lt;BR /&gt;
+                        sVehicleIDInput = "";&lt;BR /&gt;
+                        oVehicleIDInput.setValue(sVehicleIDInput);&lt;BR /&gt;
+                        oVehicleIDInput.fireChange();&lt;BR /&gt;
+                    }       &lt;BR /&gt;
+                    oInputDialog.close();&lt;BR /&gt;
+                    //Refresh in any case&lt;BR /&gt;
+                    this.base.getExtensionAPI().refresh();&lt;BR /&gt;
+                }&lt;BR /&gt;
+            },&lt;BR /&gt;
+            onPopUpOK: function (oContext) {&lt;BR /&gt;
+                // get values from Dialog input fields&lt;BR /&gt;
+                var oSupplierInput = sap.ui.getCore().byId("SupplierInput");&lt;BR /&gt;
+                var oMaterialInput = sap.ui.getCore().byId("MaterialInput");&lt;BR /&gt;
+                var oQuantityInput = sap.ui.getCore().byId("QuantityInput");&lt;BR /&gt;
+                var oUnitOfMeasureInput = sap.ui.getCore().byId("UnitOfMeasureInput");&lt;BR /&gt;
+                var oVehicleIDInput = sap.ui.getCore().byId("VehicleIDInput");&lt;BR /&gt;
+&lt;BR /&gt;
+                if (oSupplierInput) {&lt;BR /&gt;
+                    var sSupplierInput = oSupplierInput.getValue();&lt;BR /&gt;
+                }&lt;BR /&gt;
+                if (oMaterialInput) {&lt;BR /&gt;
+                    var sMaterialInput = oMaterialInput.getValue();&lt;BR /&gt;
+                }&lt;BR /&gt;
+                if (oQuantityInput) {&lt;BR /&gt;
+                    var iQuantityInput = oQuantityInput.getValue();&lt;BR /&gt;
+                }&lt;BR /&gt;
+                if (oUnitOfMeasureInput) {&lt;BR /&gt;
+                    var sUnitOfMeasureInput = oUnitOfMeasureInput.getValue();&lt;BR /&gt;
+                }&lt;BR /&gt;
+                if (oVehicleIDInput) {&lt;BR /&gt;
+                    var sVehicleIDInput = oVehicleIDInput.getValue();&lt;BR /&gt;
+                }&lt;BR /&gt;
+&lt;BR /&gt;
+                var oi18nModel = sap.ui.getCore().getModel("i18n");&lt;BR /&gt;
+                var oi18nBundle = oi18nModel.getResourceBundle();&lt;BR /&gt;
+                var sMsgTitleConfirm = oi18nBundle.getText("MsgTitleConfirm");&lt;BR /&gt;
+                var sMsgTextConfirm = oi18nBundle.getText("MsgTextConfirm", [sMaterialInput, iQuantityInput, sUnitOfMeasureInput]);&lt;BR /&gt;
+                var sBtnConfirmYes = oi18nBundle.getText("BtnConfirmYes");&lt;BR /&gt;
+                var sBtnConfirmNo = oi18nBundle.getText("BtnConfirmNo");&lt;BR /&gt;
+                var sMsgDispatchSuccess = oi18nBundle.getText("MsgDispatchSuccess");&lt;BR /&gt;
+&lt;BR /&gt;
+                // Confirmation dialog&lt;BR /&gt;
+                var oConfirmationDialog = new Dialog({&lt;BR /&gt;
+                    title: sMsgTitleConfirm,&lt;BR /&gt;
+                    type: 'Message',&lt;BR /&gt;
+                    content: new Text({ text: sMsgTextConfirm }),&lt;BR /&gt;
+                    beginButton: new Button({&lt;BR /&gt;
+                        text: sBtnConfirmYes, press: function () {&lt;BR /&gt;
+                            oConfirmationDialog.close();&lt;BR /&gt;
+                            // User confirmed =&amp;gt; sent request to backend&lt;BR /&gt;
+                            var oGlobalBusyDialog = new sap.m.BusyDialog();&lt;BR /&gt;
+&lt;BR /&gt;
+                            //Models assigned in Component.js init&lt;BR /&gt;
+                            var oDataModel = sap.ui.getCore().getModel("ODataModel");&lt;BR /&gt;
+&lt;BR /&gt;
+                            if (oDataModel) {&lt;BR /&gt;
+                                oGlobalBusyDialog.open();&lt;BR /&gt;
+                            }&lt;BR /&gt;
+&lt;BR /&gt;
+                            // get selected entry key&lt;BR /&gt;
+                            var oLocalJSONModel = sap.ui.getCore().getModel("LocalJSONModel");&lt;BR /&gt;
+                            if (oLocalJSONModel) {&lt;BR /&gt;
+                                var sHandlingUnit = oLocalJSONModel.getProperty("/HandlingUnit");&lt;BR /&gt;
+                                var sDirection = oLocalJSONModel.getProperty("/Direction");&lt;BR /&gt;
+                                var sCounter = oLocalJSONModel.getProperty("/Counter");&lt;BR /&gt;
+                                var sDispatchID = oLocalJSONModel.getProperty("/DispatchID");&lt;BR /&gt;
+                                var sTransferID = oLocalJSONModel.getProperty("/TransferID");&lt;BR /&gt;
+                            }&lt;BR /&gt;
+&lt;BR /&gt;
+                            //"/DispatchRecord(HandlingUnit='9',Direction='T',Counter='',DispatchID='',TransferID='')/[namespace with service].Register_Dispatch(...)"&lt;BR /&gt;
+                            var oDispatchFunction = oDataModel.bindContext("/DispatchRecord(HandlingUnit='" + sHandlingUnit + "',Direction='" + sDirection + "',Counter='" + sCounter + "',DispatchID='" + sDispatchID + "',TransferID='" + sTransferID + "')/[namespace with service].Register_Dispatch(...)");&lt;BR /&gt;
+                            oDispatchFunction.setParameter("Imv_Supplier", sSupplierInput);&lt;BR /&gt;
+                            oDispatchFunction.setParameter("Imv_Material", sMaterialInput);&lt;BR /&gt;
+                            oDispatchFunction.setParameter("Imv_Quantity", iQuantityInput);&lt;BR /&gt;
+                            oDispatchFunction.setParameter("Imv_UnitOfMeasure", sUnitOfMeasureInput);&lt;BR /&gt;
+                            oDispatchFunction.setParameter("Imv_VehicleID", sVehicleIDInput);&lt;BR /&gt;
+                            oDispatchFunction.execute().then(function () {&lt;BR /&gt;
+                                oGlobalBusyDialog.close();&lt;BR /&gt;
+                                oDataModel.refresh();&lt;BR /&gt;
+                                MessageToast.show(sMsgDispatchSuccess);&lt;BR /&gt;
+                            }.bind(this), function (oError) {&lt;BR /&gt;
+                                oGlobalBusyDialog.close();&lt;BR /&gt;
+                                MessageBox.error(oError.message);&lt;BR /&gt;
+                            }&lt;BR /&gt;
+                            );&lt;BR /&gt;
+                        }&lt;BR /&gt;
+                    }),&lt;BR /&gt;
+                    endButton: new Button({&lt;BR /&gt;
+                        text: sBtnConfirmNo, press: function () {&lt;BR /&gt;
+                            oConfirmationDialog.close();&lt;BR /&gt;
+                        }&lt;BR /&gt;
+                    }),&lt;BR /&gt;
+                    afterClose: function () { oConfirmationDialog.destroy(); }&lt;BR /&gt;
+                });&lt;BR /&gt;
+                oConfirmationDialog.open();&lt;BR /&gt;
+            }&lt;BR /&gt;
+        })&lt;BR /&gt;
+    }&lt;BR /&gt;
+);&lt;BR /&gt;
+&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+[namespace with service] is the same value which is present in metadata file, for example "_it" parameter Type (before last dot).&lt;BR /&gt;
+&lt;BR /&gt;
+In Gateway service metadata file accessible in Browser function&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/Pic-11.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Figure 11, Function Register_Dispatch in metadata&lt;/P&gt;&lt;BR /&gt;
+OData V4 call to backend will have following details:&lt;BR /&gt;
+&lt;BR /&gt;
+HTTP method: GET&lt;BR /&gt;
+&lt;BR /&gt;
+URI:../sap/opu/odata4/sap/z_dispatch_proj_v4ui/srvd/sap/z_dispatch_proj_srv/0001/&lt;STRONG&gt;DispatchRecord&lt;/STRONG&gt;(HandlingUnit='9',Direction='T',Counter='',DispatchID='',TransferID='')/com.sap.gateway.srvd.z_dispatch_proj_srv.v0001.&lt;STRONG&gt;Register_Dispatch&lt;/STRONG&gt;(Imv_Supplier='',Imv_Material='',Imv_Quantity=4,Imv_UnitOfMeasure='',Imv_VehicleID='')&lt;BR /&gt;
+&lt;BR /&gt;
+DispatchRecord(parameters list) - is selected Line Item with it's key fields values inside round brackets,&lt;BR /&gt;
+&lt;BR /&gt;
+Register_Dispatch(importing parameters) - function name prefixed with namespace with it's importing parameters inside round brackets.&lt;BR /&gt;
+&lt;BR /&gt;
+For RAP Operations implementation you can refer to documentation:&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/operations" rel="noopener noreferrer"&gt;https://help.sap.com/docs/abap-cloud/abap-rap/operations&lt;/A&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+OData V4 calls from SAP UI5:&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;A href="https://sapui5.hana.ondemand.com/sdk/#/api/sap.ui.model.odata.v4.ODataContextBinding%23methods/execute" rel="nofollow noopener noreferrer"&gt;https://sapui5.hana.ondemand.com/sdk/#/api/sap.ui.model.odata.v4.ODataContextBinding%23methods/execute&lt;/A&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+As you can see RAP and Fiori elements app generation gives most of the functionality, whereas additional extensions in BAS provide required flexibility: more validations, popups and so on.&lt;BR /&gt;
+&lt;BR /&gt;
+Good luck all!</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-members/fiori-app-using-rap-unmanaged-scenario-odata-v4-with-popup/ba-p/13573023"/>
+    <published>2024-01-05T18:03:55+01:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-sap/how-to-add-a-new-field-to-the-rap-bo-of-a-customizing-table/ba-p/13575643</id>
