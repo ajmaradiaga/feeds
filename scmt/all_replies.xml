@@ -2,96 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2024-03-16T12:14:01.908475+00:00</updated>
+  <updated>2024-03-16T12:29:01.556656+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/handling-cutoff-dates-during-bw-transition-to-sap-datasphere/ba-p/13633942</id>
-    <title>Handling Cutoff Dates during BW transition to SAP Datasphere</title>
-    <updated>2024-03-15T20:12:15.860000+01:00</updated>
-    <author>
-      <name>DKK</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/131035</uri>
-    </author>
-    <content>&lt;P&gt;&lt;SPAN&gt;In this blog, we will describe how SAP Datasphere can handle the "automatic handling of Cutoff Dates" from multiple attributes of the same Entity. More specific, on a recent engagement the customer wanted to migrate its current SAP BW infrastructure to SAP Datasphere one, but there was no direct solution regarding this specific situation.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="sql_script.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/78442i54BB281827A21A0C/image-size/large?v=v2&amp;amp;px=999" role="button" title="sql_script.png" alt="sql_script.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Business Case&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;On this scenario, the Employee Entity could be described by many different attributes, such as "English Level" / "Employee Category" / "Division" and so on. During time, it was possible to have different values which could unique identify the Employee Entity.&lt;/P&gt;&lt;P&gt;For example, if we want to describe the Employee Category during time, we can easily conclude that for a period T1 the employee can has the value "Junior" and then for the upcoming or current period T2 can has a different value,such as "Senior". If we extend this, to all the required attributes, we conclude to numerous possible transitions which can overlap among them or not, during time. SAP BW is able to handle this kind of request directly but SAP Datasphere not yet.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Demo on SAP Datasphere&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Two local tables created on Data Builder for the Employees attributes regarding "English Level" and "Category". Each one, had the different "picture" of Employee for a specific period. Then, by using the "Analytical View" option of Data Builder we create a sql-script which constructs the final result. Each combination of possible attributes per Employee should be unique per period.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="dsp_example_date.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/78713iD30B22149FB54582/image-size/large?v=v2&amp;amp;px=999" role="button" title="dsp_example_date.png" alt="dsp_example_date.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;This is a limited demo, on a real scenario the number of the possible Attributes could be dozens. Furthermore, a concern regarding the performance of this implementation came up from the customer. SAP Datasphere is able to provide two approaches on this question. Either by materializing the Result set on a Table either by using the Data Persistence option of Data Builder (materialize the ResultSet in memory).&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Following is a generalised sql script which can be adapted to any scenario. Comments are provided on the script how to extend it.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;SELECT DISTINCT 
-EMP_ID,ENGLISH_LEVEL,CATEGORY
-,min(x)over(partition BY EMP_ID,ENGLISH_LEVEL,CATEGORY/*HERE  I HAVE TO ADD AND ALL THE ADDED DIMENSION ATTRIBUTES  */ ) AS VALID_FROM
-,min(xx)over(partition BY EMP_ID,ENGLISH_LEVEL,CATEGORY/*HERE  I HAVE TO ADD AND ALL THE ADDED DIMENSION ATTRIBUTES  */ ) AS VALID_TO
-
---STEP 4 I APPLY THE RULE USING THE ROW_NUMBER =1 (MIN AND MAX) AND THEN I REDUCE 1 DAY ON THE VALID_TO CLM  , EXCEPT THE LAST ONE PERIOD--
-FROM (
-SELECT 
-EMP_ID,ENGLISH_LEVEL,CATEGORY,
-VALID_FROM,VALID_TO
-,CASE WHEN RN_FROM = 1 THEN VALID_FROM END AS x
-
-,CASE WHEN RN_TO = 1 THEN CASE WHEN VALID_TO = TO_DATE('2999-12-31') THEN TO_DATE('2999-12-31') ELSE VALID_TO END  END AS xx
-
---STEP 3 OUR GOAL IS TO GROUP IN ONE ROW "SIMILAR GROUPS". BECAUSE I HAVE THE INFO IN MORE THAN 1 ROW. SO I HAVE TO ADD A ROW_NUMBER
--- ON ON THE VALID_FROM AND VALID_TO COLUMN IN ORDER TO BE ABLE TO TAKE THE MIN AND MAX COUPLE PER GROUPS
----
-FROM (SELECT 
-EMP_ID,ENGLISH_LEVEL,CATEGORY,
-VALID_FROM,VALID_TO,
-ROW_NUMBER()over(partition BY EMP_ID,ENGLISH_LEVEL,CATEGORY/*HERE  I HAVE TO ADD AND ALL THE ADDED DIMENSION ATTRIBUTES  */ ORDER BY VALID_FROM) AS RN_FROM,
-ROW_NUMBER()over(partition BY EMP_ID,ENGLISH_LEVEL,CATEGORY/*HERE  I HAVE TO ADD AND ALL THE ADDED DIMENSION ATTRIBUTES  */  ORDER BY VALID_TO desc) AS RN_TO
-
-FROM (
-SELECT EMP_ID,ENGLISH_LEVEL,CATEGORY,/* CONTINUE TO ADD THE ATTRIBUTES FROM THE REMAINING DIMENSIONS */
-VALID_FROM,VALID_TO
-FROM (
-SELECT a.EMP_ID,a.VALID_FROM,a.VALID_TO,
-b.ENGLISH_LEVEL
-,c.CATEGORY
-/* CONTINUE TO ADD THE ATTRIBUTES FROM THE REMAINING DIMENSIONS */
-
-from
-------------------------STEP 2
-(SELECT * FROM 
-
-(SELECT 
-EMP_ID ,DATE_ AS VALID_FROM ,add_days(lead(DATE_)over(PARTITION BY EMP_ID ORDER BY DATE_),-1) AS VALID_TO
-
---STEP 1  , UNION ALL THE VALID FROM AND VALID TO FROM DIFFERENT_DIMENSIONS
-FROM (
- SELECT EMP_ID ,VALID_FROM AS DATE_ FROM ENGLISH_DIMENSION
- UNION 
- SELECT EMP_ID ,VALID_TO FROM ENGLISH_DIMENSION
- UNION 
- SELECT EMP_ID ,VALID_FROM FROM CATEGORY_DIMENSION
- UNION 
- SELECT EMP_ID, VALID_TO FROM CATEGORY_DIM	ENSION
- /* UNION  SELECT EMP_ID, VALID_TO FROM DIMENSION_x ...... */
-  )
- )WHERE VALID_TO  IS NOT null --EXCLUDE THE LAST DATE (DO NOT CREATE PERIOD)
- )a
-----------------------STEP 2 , FROM THE PERIOD CREATED I WILL JOIN TO ALL AVAILABLE DIMENSIONS 
- 
-inner JOIN ENGLISH_DIMENSION b 
-ON a.EMP_ID = b.EMP_ID
-AND a.VALID_FROM BETWEEN b.VALID_FROM AND b.VALID_TO
-
-inner JOIN CATEGORY_DIMENSION c 
-ON a.EMP_ID = c.EMP_ID
-AND a.VALID_FROM BETWEEN c.VALID_FROM AND c.VALID_TO
-
-/* CONTINUE TO ADD THE INNER JOIN  FROM THE REMAINING DIMENSIONS 
-inner JOIN CATEGORY_DIMENSION_x x
-ON a.EMP_ID = x.EMP_ID
-AND a.VALID_FROM BETWEEN x.VALID_FROM AND x.VALID_TO
-...
-...
-inner join ...
-*/
-)
-)
-)
-)
-ORDER BY VALID_FROM&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/handling-cutoff-dates-during-bw-transition-to-sap-datasphere/ba-p/13633942"/>
-    <published>2024-03-15T20:12:15.860000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-sap/unified-analytics-with-sap-datasphere-databricks-lakehouse-platform-data/bc-p/13640139#M170979</id>
     <title>Re: Unified Analytics with SAP Datasphere &amp; Databricks Lakehouse Platform- Data Federation Scenarios</title>
@@ -1410,5 +1324,17 @@ Content-Type: application/json
     <content>&lt;P&gt;&lt;SPAN&gt;Hi &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/150681"&gt;@corina&lt;/a&gt;&amp;nbsp;, &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;I’m wondering if there’s a way I can programmatically use this capability. For example, we could use SD_SCHEDULING FM to get scheduling dates (delivery date, pick date, etc.) in ECC/On-primise. Is it possible to do this in Public Cloud?&lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/get-to-know-business-process-scheduling-bps/bc-p/13640421#M55834"/>
     <published>2024-03-16T13:09:00.571000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-sap/clean-code-checks-for-abap-cloud-edition/bc-p/13640422#M170986</id>
+    <title>Re: Clean code checks for ABAP – Cloud Edition</title>
+    <updated>2024-03-16T13:23:40.422000+01:00</updated>
+    <author>
+      <name>OlgaDolinskaja</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/6638</uri>
+    </author>
+    <content>&lt;P&gt;Hi&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1418269"&gt;@ManojNachi&lt;/a&gt;&amp;nbsp;,&lt;/P&gt;&lt;P&gt;yes, this should be possible. Just create a package&amp;nbsp;&lt;SPAN&gt;/CC4A/CODE_PAL.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Kind Regards,&lt;BR /&gt;Olga.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-sap/clean-code-checks-for-abap-cloud-edition/bc-p/13640422#M170986"/>
+    <published>2024-03-16T13:23:40.422000+01:00</published>
   </entry>
 </feed>
