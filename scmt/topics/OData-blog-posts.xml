@@ -2,52 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/OData-blog-posts.xml</id>
   <title>SAP Community - OData</title>
-  <updated>2024-03-25T12:11:27.481014+00:00</updated>
+  <updated>2024-03-26T12:11:25.187535+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/OData/pd-p/551580658536717501828021060147962" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>OData blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/usage-of-expand-entity-in-odata-service-consumption-model/ba-p/13598261</id>
-    <title>Usage of Expand Entity in OData Service Consumption Model</title>
-    <updated>2024-02-08T08:53:59.468000+01:00</updated>
-    <author>
-      <name>alrikx</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/667134</uri>
-    </author>
-    <content>&lt;P&gt;I completed&amp;nbsp;&lt;A href="https://developers.sap.com/mission.abap-env-connect-2-environments.html" target="_blank" rel="noopener noreferrer"&gt;this mission on SAP Learning&lt;/A&gt;&amp;nbsp;explaining how to connect Your &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+BTP%25252C+ABAP+environment/pd-p/73555000100800001164" class="lia-product-mention" data-product="11-1"&gt;SAP BTP, ABAP environment&lt;/a&gt;&amp;nbsp;to an external &lt;a href="https://community.sap.com/t5/c-khhcw49343/OData/pd-p/551580658536717501828021060147962" class="lia-product-mention" data-product="323-1"&gt;OData&lt;/a&gt;&amp;nbsp;Service. Here you import the $metadata file in Eclipse and it generates the stubs and artifacts needed to interact with this remote service. Pretty cool...&lt;span class="lia-unicode-emoji" title=":winking_face:"&gt;😉&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-836837628"&gt;&lt;STRONG&gt;Problem&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;After I’ve integrated a remote OData service, the consumption worked fine, till the point, I wanted to use the OData Option "$Expand". This blogpost explains how to do it based on an example.&lt;/P&gt;&lt;P&gt;The generated CDS Entity ZA_MATERIAL contains an association to entity ZA_TEXT:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;define root abstract entity ZA_MATERIAL {
-    [...]
-    _Text : association [0..*] to ZA_TEXT on 1 = 1; 
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;I want to read the Material and the associated texts in one request. This way you create a read request for the entity Material with the expand option for entity Text:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA: odata_client_proxy TYPE REF TO /iwbep/if_cp_client_proxy,
-      read_list_request  TYPE REF TO /iwbep/if_cp_request_read_list,
-      read_list_response TYPE REF TO /iwbep/if_cp_response_read_lst,
-      lt_business_data   TYPE TABLE OF ZA_MATERIAL.
-
-      [...]
-
-    read_list_request = odata_client_proxy-&amp;gt;create_resource_for_entity_set( 'MATERIAL' )-&amp;gt;create_request_for_read( ).
-    DATA(lr_node) =  read_list_request-&amp;gt;create_expand_node( ).
-    lr_node-&amp;gt;add_expand( iv_expand_property_path =  '_TEXT' ).
-    read_list_response = read_list_request-&amp;gt;execute( ).
-    read_list_response-&amp;gt;get_business_data( IMPORTING et_business_data = lt_business_data ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The problem is that in ABAP the associations are not available in lt_business_data and I was not able to get the expanded entities from method&lt;/P&gt;&lt;PRE&gt;read_list_response-&amp;gt;get_business_data.&lt;/PRE&gt;&lt;P&gt;What a pitty...I thought first&lt;span class="lia-unicode-emoji" title=":grimacing_face:"&gt;😬&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-640324123"&gt;&lt;STRONG&gt;Resolution&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;I found out that the missing piece is the correct data type of the table, that I hand over to method get_business_data. I’ve created my own types with a slight deviation:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;TYPES tt_sap_mat_txt TYPE STANDARD TABLE OF ZA_TEXT WITH NON-UNIQUE DEFAULT KEY.
-TYPES BEGIN OF ty_sap_material.
-       INCLUDE TYPE ZA_MATERIAL.
-TYPES: _Text TYPE tt_sap_mat_txt,
-       END OF ty_sap_material.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Now I replaced the direct use of the CDS entity with my custom type.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;    DATA: odata_client_proxy TYPE REF TO /iwbep/if_cp_client_proxy,
-          read_list_request  TYPE REF TO /iwbep/if_cp_request_read_list,
-          read_list_response TYPE REF TO /iwbep/if_cp_response_read_lst,
-          "THIS WAS THE ORIGINAL LINE: 
-          "lt_business_data   TYPE TABLE OF ZA_MATERIAL.
-          "HERE THE CHANGED LINE WITH MY OWN TYPE:
-          lt_business_data   TYPE TABLE OF ty_sap_material.
-    [...]
-    read_list_request = odata_client_proxy-&amp;gt;create_resource_for_entity_set( 'MATERIAL' )-&amp;gt;create_request_for_read( ).
-    DATA(lr_node) =  read_list_request-&amp;gt;create_expand_node( ).
-    lr_node-&amp;gt;add_expand( iv_expand_property_path =  '_TEXT' ).
-    read_list_response = read_list_request-&amp;gt;execute( ).
-    read_list_response-&amp;gt;get_business_data( IMPORTING et_business_data = lt_business_data ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Finally I can access the expanded entity’s data, as a nested table, e. g.:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;Data(lv_lang) = lt_business_data[ 1 ]-_text[ 1 ]-Language.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-443810618"&gt;Final Remarks&lt;/H1&gt;&lt;UL&gt;&lt;LI&gt;You can use the custom type also in case you don’t use expand, e. g. when you have mixed scenarios with and without expand. In case you don’t request expand, the respective nested table is empty.&lt;/LI&gt;&lt;LI&gt;You can expand multiple associated entities in one call by extending your custom type with more nested tables.&lt;/LI&gt;&lt;LI&gt;In the latest version of &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+BTP%25252C+ABAP+environment/pd-p/73555000100800001164" class="lia-product-mention" data-product="11-2"&gt;SAP BTP, ABAP environment&lt;/a&gt;&amp;nbsp;(Release 2311), when creating a service consumption model ABAP types in a generated class instead of abstract CDS entities are provided. They are flat structures, and you can also apply this trick when you read with expand option. To do so, use the local types instead of the CDS entities. The class also provides a table type definition for every entity, that you can reuse.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;if you like this post or it helped you, don't hesistate to give kudos.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/usage-of-expand-entity-in-odata-service-consumption-model/ba-p/13598261"/>
-    <published>2024-02-08T08:53:59.468000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-members/syniti-rdg-adds-a-feature-of-importing-workflow-from-one-change-request-to/ba-p/13586733</id>
     <title>Syniti RDG adds a feature of Importing Workflow from one change request to another change request.</title>
@@ -910,5 +868,17 @@ annotate view ZC_MY_Expenses with
 &amp;lt;/batchParts&amp;gt;&lt;/PRE&gt;&lt;P style=" text-align: center; "&gt;&lt;EM&gt;Payload example for creating Pay Components in SF via Batch Upsert&lt;/EM&gt;&lt;/P&gt;&lt;P style=" padding-left : 30px; text-align : justify; "&gt;After running the Integration in CPI, the new pay components get added to the Rehire panel under Compensation as shown below,&lt;/P&gt;&lt;P style=" padding-left : 30px; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ankitkumarpatel_3-1710860041719.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/83303iAC6FCA539985F8B2/image-size/large?v=v2&amp;amp;px=999" role="button" title="ankitkumarpatel_3-1710860041719.png" alt="ankitkumarpatel_3-1710860041719.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; padding-left : 30px; "&gt;&lt;EM&gt;Fig 6. Compensation after adding Pay Components via Batch Upsert&lt;/EM&gt;&lt;/P&gt;&lt;H3 id="toc-hId-529325236"&gt;&lt;STRONG&gt;&lt;U&gt;Conclusion:&lt;/U&gt;&lt;/STRONG&gt;&lt;/H3&gt;&lt;P style=" padding-left : 30px; text-align : justify; "&gt;Updating and maintaining pay components is essential to ensure accurate payroll-related information remains available for clients. In scenarios where SuccessFactors is not the source of data, dependency on other systems for accuracy persists. This blog sheds light on the relationship between compensation events and pay compensation changes, particularly during major event changes, and their impact on salary calculations. Similar approaches can be adopted to address other scenarios not covered here. Thank you for taking the time to read through this blog.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-members/managing-recurring-pay-components-in-successfactors-using-batch-upsert/ba-p/13643292"/>
     <published>2024-03-21T15:17:35.137000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-members/accessing-s4hana-tables-via-an-odata-connection-from-a-user-portal/ba-p/13649009</id>
+    <title>Accessing S4HANA tables via an OData connection from a user-portal</title>
+    <updated>2024-03-25T19:57:51.735000+01:00</updated>
+    <author>
+      <name>sureshsharma_sharma</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/195369</uri>
+    </author>
+    <content>&lt;P&gt;Hi Friends,&lt;/P&gt;&lt;P&gt;I am new to OData.&lt;/P&gt;&lt;P&gt;I need to create an OData service (URL) that will allow external users logged in via a portal to access data from an S4 System and pull selected information.&amp;nbsp;&lt;/P&gt;&lt;P&gt;What are the components, and steps? Is there a port involved? Is there a token involved?&lt;/P&gt;&lt;P&gt;If someone can provide a step by step help, that would be great.&lt;/P&gt;&lt;P&gt;Any help would be highly appreciated.&lt;/P&gt;&lt;P&gt;Best,&lt;BR /&gt;RS&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-members/accessing-s4hana-tables-via-an-odata-connection-from-a-user-portal/ba-p/13649009"/>
+    <published>2024-03-25T19:57:51.735000+01:00</published>
   </entry>
 </feed>
