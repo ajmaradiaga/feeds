@@ -2,223 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-S4HANA-blog-posts.xml</id>
   <title>SAP Community - SAP S/4HANA</title>
-  <updated>2024-04-06T11:01:28.194665+00:00</updated>
+  <updated>2024-04-06T13:49:26.246068+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP S/4HANA/pd-p/73554900100800000266" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP S/4HANA blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/deploying-sap-s-4hana-containers-with-kubernetes/ba-p/13651471</id>
-    <title>Deploying SAP S/4HANA Containers with Kubernetes</title>
-    <updated>2024-03-27T20:25:04.400000+01:00</updated>
-    <author>
-      <name>andrewgugger</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/124293</uri>
-    </author>
-    <content>&lt;P&gt;This blog post is the second part in a series around using SAP S/4HANA with containers. I would encourage you to read Part 1: &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/containerizing-sap-s-4hana-systems-with-docker/ba-p/13581243" target="_self"&gt;Containerizing SAP S/4HANA Containers with Docker&lt;/A&gt; first, where we discussed what Docker is and how we can use it in conjunction with SAP S/4HANA to solve some problems related to N + M landscape. I have been working on this project alongside my colleagues Maxim Shmyrev and Griffin McMann. Let’s dive right in!&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;Overview&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Here is an overview of the topics I will cover in this blog post:&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;What is Kubernetes?&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;Configuring the pod&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;Configuring the service&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;Configuring the NGINX Reverse Proxy&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;Creating additional pods&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;Conclusion&amp;nbsp;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;FONT size="5"&gt;What is Kubernetes?&amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Now that we have learned how to build a docker image of a SAP S/4HANA system, we need to deploy containers for our ABAP developers to make use of them! We will use Kubernetes (or K8s) to deploy multiple containers. Kubernetes is an open-source technology used to deploy containerized applications. We can also utilize it to manage the incoming connections from the SAP GUI. We will be using Kubernetes Pods to run the container of our SAP S/4HANA that we built in the previous tutorial. The great thing about Kubernetes is that we can use simple yaml files to define our container orchestration parameters and with one command we can deploy as many pods as we want.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="andrewgugger_0-1711548462549.png" style="width: 635px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/87486i487EB78387536C00/image-dimensions/635x292?v=v2" width="635" height="292" role="button" title="andrewgugger_0-1711548462549.png" alt="andrewgugger_0-1711548462549.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In theory, different ABAP developers and other users will ask for their own SAP S/4HANA system to connect to. The diagram above depicts users connecting to their own SAP S/4HANA systems that were deployed with Kubernetes and are all running on the same server. This infrastructure allows you to deploy many pods on-demand where developers can pull their code into these isolated S/4HANA systems via gCTS or abapGit. The changes made in these S/4HANA systems can then be committed to a centralized repository, merged and then pulled back into a DEV, QA, or production system. This solution can speed up the development process by circumventing object lock and can be used as a solution for N+M landscapes.&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;Configuring the Pod&amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;In production situations, it is best practice to create a yaml file that defines a deployment. A deployment is a Kubernetes object that manages a set of identical pods. For our simple use case, however, we will create yaml file which will define pod A:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;apiVersion: v1 
-kind: Pod 
-metadata: 
-  name: s4hana2023a 
-  labels: 
-    app: s4-2023a 
-spec: 
-  hostname: veuxci 
-  containers: 
-  - args: 
-    - infinity 
-    command: 
-    - sleep 
-    name: s4hana2023-a 
-    image: your_image_repo.com/s4hana:2023 
-    imagePullPolicy: IfNotPresent 
-    ports: 
-      - containerPort: 4237 
-        protocol: TCP 
-      - containerPort: 3200 
-        protocol: TCP 
-      - containerPort: 3300 
-        protocol: TCP 
-      - containerPort: 8000 
-        protocol: TCP 
-      - containerPort: 50000 
-        protocol: TCP 
-      - containerPort: 44300 
-        protocol: TCP 
-      - containerPort: 1129 
-        protocol: TCP 
-      - containerPort: 1128 
-        protocol: TCP 
-    resources: 
-      limits: 
-        cpu: '2' 
-        memory: 48Gi 
-      requests: 
-        cpu: '2' 
-        memory: 48Gi &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;From this yaml file you can see that we are defining a pod with the name: s4hana2023a, app: s4-2023a, the image we are using (s4hana:2023), exposing some ports necessary for connecting to the system and then finally resource limits and requests. The resource limits parameter defines the maximum amount of a resource that a container can use, in this case the container can only use 2 CPUs and 45Gi of memory. If the container exceeds this amount it will throttle or terminate it to prevent it from impacting the performance of other containers. The resource requests parameter specifies the amount of a resource that the containers guaranteed to receive.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Save the yaml file as pod_a.yaml and deploy the pod by running the command:&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;Kubectl apply -f pod_a.yaml -n &amp;lt;name_of_namespace&amp;gt; &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;You can run this command any time you make changes to this yaml file and you want those changes to reflect in the pod currently running. The –n denotes which namespace you want to deploy/apply the changes of the pod to. A namespace is a way to organize the objects in your Kubernetes cluster. For our scenario, all of the objects will exist in the same namespace.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;Configuring the Service&amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Now that we have deployed our pod we will need to create a Kubernetes service to manage the connection from the outside world to the pod. We can create this service by defining some parameters to the bottom of our existing yaml file. Your pod_a.yaml file should now look like this:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;apiVersion: v1 
-kind: Pod 
-metadata: 
-  name: s4hana2023a 
-  labels: 
-    app: s4-2023a 
-spec: 
-  hostname: veuxci 
-  containers: 
-  - args: 
-    - infinity 
-    command: 
-    - sleep 
-    name: s4hana2023-a 
-    image: your_image_repo.com/s4hana:2023 
-    imagePullPolicy: IfNotPresent 
-    ports: 
-      - containerPort: 4237 
-        protocol: TCP 
-      - containerPort: 3200 
-        protocol: TCP 
-      - containerPort: 3300 
-        protocol: TCP 
-      - containerPort: 8000 
-        protocol: TCP 
-      - containerPort: 50000 
-        protocol: TCP 
-      - containerPort: 44300 
-        protocol: TCP 
-      - containerPort: 1129 
-        protocol: TCP 
-      - containerPort: 1128 
-        protocol: TCP 
-    resources: 
-      limits: 
-        cpu: '2' 
-        memory: 48Gi 
-      requests: 
-        cpu: '2' 
-        memory: 48Gi 
---- 
-apiVersion: v1 
-kind: Service 
-metadata: 
-  name: s4hana2023-combined-service-a 
-spec: 
-  selector: 
-    app: s4-2023a 
-  ports: 
-    - name: servicea-sapgui #Service for SAPGUI 
-      protocol: TCP 
-      port: 3200 
-      targetPort: 3200 
-      nodePort: 30000 
-    - name: servicea-fiori #Service for Fiori 
-      protocol: TCP 
-      port: 44300 
-      targetPort: 44300 
-      nodePort: 31001 
-    - name: servicea-eclipse #Service for Eclipse 
-      protocol: TCP 
-      port: 3300 
-      targetPort: 3300 
-      nodePort: 30301 
-  type: NodePort&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;At the bottom of our yaml file you can see that we are defining a Kubernetes Service with the name of s4hana2023-combined-serivce-a, and notice that the ‘app’ parameter is the same name as the ‘app’ parameter for our pod: s4-2023a. This tells Kubernetes that the networking rules for this service should be applied to pod a. Within this combined service we have three services for three different connections: SAP GUI, Fiori, and Eclipse. Within each of these services we have defined the protocol (TCP) as well as these other parameters:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;Port: 3200 
-targetPort: 3200 
-nodePort:30000 
-type: nodePort &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The NodePort is what exposes our S/4HANA system running inside a Kubernetes pod to the outside world. From there, the service will route the connection to the targetPort of 3200 of pod A.&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;From the diagram below you can see what these different port parameters correspond to in the yaml file.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="andrewgugger_0-1711553005666.png" style="width: 614px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/87541i69E5D2A22790C6C7/image-dimensions/614x264?v=v2" width="614" height="264" role="button" title="andrewgugger_0-1711553005666.png" alt="andrewgugger_0-1711553005666.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;There is only one glaring issue with trying to connect through the NodePort we just created. The NodePort range is 30000 – 32767 and the SAPGUI can only connect via port 3200 (3200-3299). We solve this problem by deploying a NGINX Reverse Proxy to handle the incoming requests coming from port 3200 (or 32XX) and forwarding them to our NodePort.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="andrewgugger_0-1711635722367.png" style="width: 722px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/88081i6B48AA5CC1C49D98/image-dimensions/722x374?v=v2" width="722" height="374" role="button" title="andrewgugger_0-1711635722367.png" alt="andrewgugger_0-1711635722367.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;Configuring the NGINX Reverse Proxy&lt;/FONT&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;It is important to note that instead of NGINX, it could be any other reverse proxy solution, such as Traefik. For our tutorial we will run our NGINX reverse proxy in a docker container. From the command below you can see we are running the latest version of nginx and we are exposing ports 3200, 3201, 3202 and 3203. The last two digits in the port 3200 refer to the instance number, for example instance number 00 will connect to port 3200, instance number 01 will connect to port 3201, instance 02 port 3202. We will be able to load balance our users to their designated pods based on what instance number they chose but when they connect to the Kubernetes service their traffic will be routed back to the correct instance number of 00. Feel free to expose more ports based on the number of pods you would like to run in parallel. If this seems confusing, it will become clearer as you continue reading.&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Running a NGINX docker container:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;sudo docker run -d --name nginx-base -p 3200:3200 -p 3201:3201 -p 3202:3202 -p 3203:3203 nginx:latest&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The next step we need to do is to copy the nginx.conf file to our local directory with the following command:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;sudo docker cp [container-id]:/etc/nginx/nginx.conf /your/local/dir/nginx.conf&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;We then want to add these lines to the bottom of the nginx.conf file:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;stream { 
-    server { 
-        listen 3200; 
- 
-        proxy_pass my-server.com:30000; 
-        proxy_connect_timeout 300s; 
-        proxy_timeout 600s; 
-    } 
-    server { 
-        listen 3201; 
- 
-        proxy_pass my-server.com:30001; 
-        proxy_connect_timeout 300s; 
-        proxy_timeout 600s; 
-    } 
- 
-    server { 
-        listen 3202; 
- 
-        proxy_pass my-server.com:30002; 
-        proxy_connect_timeout 300s; 
-        proxy_timeout 600s; 
-    } 
-    server { 
-        listen 3203; 
- 
-        proxy_pass my-server.com:30003; 
-        proxy_connect_timeout 300s; 
-        proxy_timeout 600s; 
-    } 
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Here you can see that NGINX is listening on port 3200 and if it receives a request on this port, it will pass the request off to port 30000, where our Kubernetes NodePort service is exposed. From there it will forward the request to the pod. In this nginx.conf file we are also listening on other ports in case we decide to spin up extra pods:&amp;nbsp;&lt;/P&gt;&lt;P&gt;3201 to 30001&amp;nbsp;&lt;/P&gt;&lt;P&gt;3202 to 30002&amp;nbsp;&lt;/P&gt;&lt;P&gt;3203 to 30003&amp;nbsp;&lt;/P&gt;&lt;P&gt;Once you have added these lines to the nginx.conf file and added any additional ports that you have also exposed when creating the nginx container, this file can be copied back to the /etc/nginx/ dir in the container with the following command:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;sudo docker cp /hana/data/bootcamp/ngin2/nginx.conf [container-id]:/etc/nginx/&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Reload the nginx service so that the changes in the nginx.conf file take place:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;sudo docker exec [container-id] nginx -s reload&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;Creating additional pods&lt;/FONT&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Now, all of the infrastructure has been setup and if we want to create a “pod-b” all we need to do is copy our pod-a yaml file and change each “a” to “b” and assign it a different NodePort for our SAPGUI, Eclipse, and Fiori connections, in this case 30001, 31001, and 30301.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;apiVersion: v1 
-kind: Pod 
-metadata: 
-  name: s4hana2023b
-  labels: 
-    app: s4-2023b
-spec: 
-  hostname: veuxci 
-  containers: 
-  - args: 
-    - infinity 
-    command: 
-    - sleep 
-    name: s4hana2023-b
-    image: your_image_repo.com/s4hana:2023 
-    imagePullPolicy: IfNotPresent 
-    ports: 
-      - containerPort: 4237 
-        protocol: TCP 
-      - containerPort: 3200 
-        protocol: TCP 
-      - containerPort: 3300 
-        protocol: TCP 
-      - containerPort: 8000 
-        protocol: TCP 
-      - containerPort: 50000 
-        protocol: TCP 
-      - containerPort: 44300 
-        protocol: TCP 
-      - containerPort: 1129 
-        protocol: TCP 
-      - containerPort: 1128 
-        protocol: TCP 
-    resources: 
-      limits: 
-        cpu: '2' 
-        memory: 48Gi 
-      requests: 
-        cpu: '2' 
-        memory: 48Gi 
---- 
- 
-apiVersion: v1 
-kind: Service 
-metadata: 
-  name: s4hana2023-combined-service-b
-spec: 
-  selector: 
-    app: s4-2023b
-  ports: 
-    - name: serviceb-sapgui #Service for SAPGUI 
-      protocol: TCP 
-      port: 3200 
-      targetPort: 3200 
-      nodePort: 30001 
-    - name: serviceb-fiori #Service for Fiori 
-      protocol: TCP 
-      port: 44300 
-      targetPort: 44300 
-      nodePort: 31001 
-    - name: serviceb-eclipse #Service for Eclipse 
-      protocol: TCP 
-      port: 3300 
-      targetPort: 3300 
-      nodePort: 30301 
-  type: NodePort &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Then run the same command to start up pod b:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;Kubectl apply -f pod-b.yaml &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Repeat this step to create as many pods as you would like!&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="andrewgugger_0-1711553892541.png" style="width: 758px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/87593i1F6DEC18E71CE60F/image-dimensions/758x397?v=v2" width="758" height="397" role="button" title="andrewgugger_0-1711553892541.png" alt="andrewgugger_0-1711553892541.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In the image above, you can see the infrastructure that we have now created. If user A wants to connect to pod A they can use instance 00 which connects them to the nginx reverse proxy on port 3200 and this will forward them to port 30000 which is the NodePort for Service A that then passes the request to Pod A. User B will connect via instance 01 which means they will use port 3201 and NGINX will pass the request to the NodePort for service B (30001). The benefit of this architecture is that if you need another S/4HANA system, you don’t need to provision another server or VM. One can simply edit a few lines of code in the yaml file to create a new K8s pod and service eliminating the time and effort for provisioning a new sandbox system. Please note that this diagram only displays the services defined for our SAPGUI connections (NodePorts 30000, 30001, and 30002), and does not show the services we defined for Eclipse and Fiori.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;Conclusion&amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;In this blog post we walked through the steps to deploy containerized SAP S/4HANA systems using Kubernetes. We discussed how this architecture allows for the on-demand provisioning of isolated S/4HANA systems, accelerating the development process by being a solution for N+M landscapes. We demonstrated how to deploy Kubernetes pods and services using an Infrastructure as Code (IaC) approach, utilizing simple yaml files. If you enjoyed this blog post, please stay tuned for other topics my team members and I will be covering next, including how to install ABAPGit and gCTS in these containerized systems S/4HANA systems. This is a project that my colleagues Maxim Shmyrev, Griffin McMann, and I have been working on for a little while now and we are excited about the possibilities this creates for our customers. If you have questions about this blog post or the tutorial, let me know in the comments below!&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="andrewgugger_0-1711554081712.png" style="width: 547px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/87594i8396B0D94D3D1225/image-dimensions/547x305?v=v2" width="547" height="305" role="button" title="andrewgugger_0-1711554081712.png" alt="andrewgugger_0-1711554081712.png" /&gt;&lt;/span&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/deploying-sap-s-4hana-containers-with-kubernetes/ba-p/13651471"/>
-    <published>2024-03-27T20:25:04.400000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-architecture-blog-posts/30-days-of-sharing-and-learning-for-enterprise-architects-starts-on-april/ba-p/13653738</id>
     <title>30 Days of Sharing and Learning for Enterprise Architects: Starts on April 1st</title>
@@ -509,5 +296,17 @@ def generate_response(llm: BaseLanguageModel, query: str)-&amp;gt;any:
     <content>&lt;H1 id="toc-hId-862458942"&gt;Introduction&lt;/H1&gt;&lt;P&gt;With the Advanced Shipping and Receiving (Adv. SR) functionality the integration of &amp;nbsp;SAP S/4HANA Supply Chain for Transportation Management and SAP S/4HANA Supply Chain for Extended Warehouse Management is refactored, compared to the direct integration of SAP TM Freight Order to the SAP EWM Transportation Unit (see also the &lt;A href="https://blogs.sap.com/2021/03/12/sap-advanced-shipping-receiving-the-new-simplified-integration-between-sap-transportation-management-tm-sap-extended-warehouse-management-ewm/" target="_blank" rel="noopener noreferrer"&gt;blog&lt;/A&gt; entry of Jörg Michaelis).&lt;/P&gt;&lt;P&gt;While in the integration scenario of TM Freight Order and EWM Transportation Unit the webservice interface “TransportationOrderLoadingAppointmentNotification” is used, for Adv. SR a direct integration of the EWM warehouse order documents and the TM Freight Unit is implemented. During the updates of the document's situations can occur in which an asynchronous processing of updates is necessary (for example the TM documents are locked exclusively by another process).&lt;BR /&gt;For these asynchronous updates TM facilitates the Background RFC (bgRFC) technology in combination with the TM trigger concept (for further details to the bgRFC concept, please refer to SAP Notes: “&lt;A href="https://me.sap.com/notes/2930217" target="_blank" rel="noopener noreferrer"&gt;2930217&lt;/A&gt; – bgRFC Concept and High Level Process in SAP Transportation Management”, “&lt;A href="https://me.sap.com/notes/2526415" target="_blank" rel="noopener noreferrer"&gt;2526415&lt;/A&gt; - Updated trigger concept using bgRFC processing” and “&lt;A href="https://me.sap.com/notes/3125518" target="_blank" rel="noopener noreferrer"&gt;3125518&lt;/A&gt; - bgRFC maintenance in the context of SAP Transportation Management”. For more general questions regarding the bgRFC configuration refer to SAP note “&lt;A href="https://me.sap.com/notes/2309399" target="_blank" rel="noopener noreferrer"&gt;2309399&lt;/A&gt; - How to use SBGRFCCONF effectively?”).&lt;/P&gt;&lt;P&gt;In SAP Transportation Management the trigger concept and the usage of bgRFC technology for asynchronous processes are used since TM 9.5 / S/4HANA 1709 (compare SAP note &lt;A href="https://me.sap.com/notes/2641251/E" target="_blank" rel="noopener noreferrer"&gt;2641251&lt;/A&gt;).&lt;BR /&gt;Both is not exclusive for the Advanced Shipping and Receiving processes. Non the less, during the past Go-Lives with the Adv. SR processes and the close integration of the TM documents to its predecessor documents in LE and EWM, the trigger processing has been more in focus (for more details on monitoring the bgRFC units in Transportation Management see the SCN blog&lt;A href="https://community.sap.com/t5/supply-chain-management-blogs-by-sap/analyse-bgrfc-units-created-by-sap-tm-application/ba-p/13580335" target="_self"&gt;&amp;nbsp;Analyse bgRFC Units created by SAP TM application.)&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;As the understanding of the trigger concept and the processing of the triggers is now of more importance for the operations monitoring, I want to share some of the insights our CoE team has gathered in the past Go-Lives which we supported in this blog.&lt;/P&gt;&lt;P&gt;Disclaimer: The described concept is of the status in the S/4HANA 2022 release. Changes to the concept or the implementation might apply in subsequent releases.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-665945437"&gt;BGRFC update concept in Adv. SR&lt;/H1&gt;&lt;P&gt;During the process execution of the Advanced Shipping and Receiving in- or outbound process the TM Freight Unit has to be kept in synch with its predecessor documents. Depending on the integration scenario and process state this can be the MM/SD order documents, LE deliveries or EWM in-/outbound delivery order documents. If applicable and necessary, these updates are processed asynchronously. For these asynchronous updates TM utilizes bgRFC units which refer to specific TM triggers. Along the process execution different TM triggers are used for different update scenarios. This might be explained in more detail in another blog post.&lt;/P&gt;&lt;P&gt;All the different triggers which are used in the Adv. SR processes are stateless, i.e., the triggers themselves do not carry any information which change to the source document created the trigger for the update of the target document. Thus during the processing of the trigger the application will derive the updates from the predecessor document.&lt;/P&gt;&lt;P&gt;The picture below shows a detailed example to explain the concept: In the loading of a EWM Outbound Delivery Order (ODO) contains four Handling Units (HU). The Outbound Delivery Order refers to one Freight Unit in which the HUs are reflected as Package Items.&lt;BR /&gt;In the example the Freight Unit is locked exclusively by an End User and thus the loading information cannot be updated in the Freight Unit by the EWM loading process immediately. The loading process of each HU will create one bgRFC trigger, which will be reprocessed periodically using the bgRFC framework. The time between each reprocessing is derived by a S/4HANA TM specific application logic.&lt;/P&gt;&lt;P&gt;At the point of time when the first of the four triggers is being processed, the source document – the EWM ODO – already contains all the changes which lead to the creation of the bgRFC units. Thus once the first trigger is processed, the other three triggers are obsolete as the update to the Freight Unit is not derived from the trigger context (-&amp;gt; stateless &lt;span class="lia-unicode-emoji" title=":winking_face:"&gt;😉&lt;/span&gt;), but from the source document directly.&lt;/P&gt;&lt;P&gt;To that reason the application added some logic to identify situations in which the triggers are obsolete and then shortcuts the processing of the BGRFC units, to avoid overhead in the processing. The following picture shell illustrate that behavior:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Picture1.png" style="width: 958px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/91912iA9CEE097044E25B6/image-size/large?v=v2&amp;amp;px=999" role="button" title="Picture1.png" alt="Picture1.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;When monitoring BGRFC interfaces for ASR processes it can be observed that a higher number of triggers queue up for one TM document – for example due to locked Freight Unit – and then suddenly all triggers are gone. That is exactly the situation described above that the first trigger brings all relevant updates to the TM Freight Unit und thus the processing of the subsequent triggers is not applying any changes and thus consumes significantly less time.&lt;/P&gt;&lt;H1 id="toc-hId-469431932"&gt;Some technical details on the update process&lt;/H1&gt;&lt;P&gt;Regarding the above described process some questions might come up, like:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Where are the TM Triggers defined?&lt;/LI&gt;&lt;LI&gt;How is the delay time between the reprocessing of the bgRFC units calculated?&lt;/LI&gt;&lt;LI&gt;How does the application determine when a trigger is obsolete?&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Regarding the definition of the relevant TM Triggers we have to take a look at the BOPF object /SCMTMS/LINC. This object has been introduced with the Adv. SR processes. The “Logistics Integration Controller” object contains business logic for the integration of the TM Freight Unit to its predecessor documents.&lt;BR /&gt;Each Action on the ROOT node of the /SCMTMS/LINC object corresponds to one of the triggers used in the Adv. SR processes.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="Picture2.png" style="width: 364px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/91913i783415BC0A8AAC73/image-size/large?v=v2&amp;amp;px=999" role="button" title="Picture2.png" alt="Picture2.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="Picture3.png" style="width: 604px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/91914i576940FC7D854956/image-size/large?v=v2&amp;amp;px=999" role="button" title="Picture3.png" alt="Picture3.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="Picture4.png" style="width: 326px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/91915i50CD2E83C2220D31/image-size/large?v=v2&amp;amp;px=999" role="button" title="Picture4.png" alt="Picture4.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;As described at the beginning for one TM document multiple triggers of the same type can exist for the same S/4HANA TM document in parallel. During creation of the BGRFC unit also an instance on the ACTIVITY node of the /SCMTMS/LINC object is created.&lt;BR /&gt;Via the root node information of the document ID (BTD_ID) and the document type code (BTD_TCO) the Activity is linked to the predecessor document. The activity itself contains the information for which trigger type it has been created via the TRIGGER_ID field. The processing status indicates if the relevant change is scheduled (value “S”) or already processed (value “P”).&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Picture5.png" style="width: 604px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/91917iF7C929DA790F8EE1/image-size/large?v=v2&amp;amp;px=999" role="button" title="Picture5.png" alt="Picture5.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Picture6.png" style="width: 604px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/91918i86F2E8C4EB9A36A5/image-size/large?v=v2&amp;amp;px=999" role="button" title="Picture6.png" alt="Picture6.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;To identify which document type code is referring to which document type the attribute “C_TBD_TCO” of constants interface /SCMTMS/IF_COMMON_C can be checked, as shown in the screenshot below on the example of the EWM ODO, which has the document type code “496”.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="Picture7.png" style="width: 604px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/91919iCFAF43160C53A1A4/image-size/large?v=v2&amp;amp;px=999" role="button" title="Picture7.png" alt="Picture7.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In the above provided example of the loading process the relevant BOPF action is “SET_TOR_STATUS”. Within the implementation it is checked if for the particular trigger a scheduled activity exists.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Picture8.png" style="width: 604px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/91923iF536813BAE4E3094/image-size/large?v=v2&amp;amp;px=999" role="button" title="Picture8.png" alt="Picture8.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Picture9.png" style="width: 604px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/91924i2D8C4C31B6A12842/image-size/large?v=v2&amp;amp;px=999" role="button" title="Picture9.png" alt="Picture9.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The screenshots show that in case no scheduled activity node can be found, the processing logic of the BOPF action is not executed.&lt;BR /&gt;After successful processing of the LINC action, also the activity node is updated.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Picture10.png" style="width: 604px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/91926i77FBCAC47A96BD81/image-size/large?v=v2&amp;amp;px=999" role="button" title="Picture10.png" alt="Picture10.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Picture11.png" style="width: 604px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/91927i87A98CE532669983/image-size/large?v=v2&amp;amp;px=999" role="button" title="Picture11.png" alt="Picture11.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Thus, after successful processing the status of the relevant node instances on the activity node of the LINC object will be updated from “S – Scheduled” to “P – Processed”. When the next trigger is processed and no open activity for this trigger type is found, the trigger will be processed without applying the entire application logic.&lt;/P&gt;&lt;H1 id="toc-hId-272918427"&gt;BGRFC Wait Times&lt;/H1&gt;&lt;P&gt;In the beginning of the blog, it has been mentioned that the time between the reprocessing of a bgRFC unit in S/4HANA TM is derived by an application specific logic. The application specific logic is based on the retries of the individual BGRFC unit. The logic is implemented in class /SCMTMS/CL_TRIG_HELPER.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Picture12.png" style="width: 604px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/91928i514DA10642943C76/image-size/large?v=v2&amp;amp;px=999" role="button" title="Picture12.png" alt="Picture12.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Besides the wait time also the maximum number of retries per bgRFC unit is handled in the application specific logic. The default retry count is set via the member variable of class /SCMTMS/CL_TRIG_HELPER and is defaulted as 256 retries.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Picture13.png" style="width: 604px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/91929iBB39EE91CFF6538F/image-size/large?v=v2&amp;amp;px=999" role="button" title="Picture13.png" alt="Picture13.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Picture14.png" style="width: 604px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/91930i2A03F89D679E1928/image-size/large?v=v2&amp;amp;px=999" role="button" title="Picture14.png" alt="Picture14.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The bgRFC units in S/4HANA TM are processed for 2 days with an implemented cool down mechanism so that units which could not be processed successfully will have increasing delays between reprocessing.&lt;/P&gt;&lt;H1 id="toc-hId-76404922"&gt;Summary&lt;/H1&gt;&lt;P&gt;The provided example should give a brief explanation how in the Advanced Shipping and Receiving processes the stateless updates between EWM and TM are processed using the bgRFC concept.&lt;BR /&gt;The example briefly explains the application specific calculation of the reprocessing wait times for the bgRFC units in Transportation Management.&lt;/P&gt;&lt;P&gt;Having worked through go-lives of interfaces which used sequenced messages that had to be processed exactly once and in the right order to ensure a consistent document status along the document chain, I found the stateless trigger concept quiet handy since I did not need to care in which sequence the messages needed to be processed.&lt;BR /&gt;Furthermore in the Adv. SR. process a single failed bgRFC unit does not block the entire queue, so that a unit which for example failed due to a temporary inconsistency does not necessarily block the entire communication between EWM and TM for the affected documents.&lt;BR /&gt;At the same time when I first worked with this concept in scenarios with many updates happening in a short period of time I needed a moment to get used to the idea that it does not matter which trigger was created by which change or in which sequence the trigger needed to be processed.&lt;/P&gt;&lt;P&gt;I hope the provided example helped you to understand the advantage of the stateless trigger concept, the calculation of the wait time between the reprocessing of the bgRFC units and the mechanisms implemented in the application to avoid unnecessary trigger processing.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;Learn more about&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A title="SAP Premium Engagement" href="https://www.sap.com/services-support/premium-support.html" target="_blank" rel="noopener noreferrer"&gt;SAP Premium Engagement&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and how a global team of experts can help you to get the most out of your SAP solutions.&lt;BR /&gt;&lt;P&gt;If you already are a Premium Engagement customer, contact your Technical Quality Manager (TQM) to discuss how Premium Engagement services can help you with a custom-tailored and efficient service portfolio to make your project a success!&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;#CoE EMEA SCM1&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/supply-chain-management-blogs-by-sap/advanced-shipping-and-receiving-go-live-support-insights-in-bgrfc-based-ewm/ba-p/13660391"/>
     <published>2024-04-05T23:24:02.079000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-architecture-blog-posts/discover-sap-btp-s-strategy-and-roadmap-highlights/ba-p/13660877</id>
+    <title>Discover SAP BTP’s Strategy and Roadmap Highlights</title>
+    <updated>2024-04-06T14:34:45.497000+02:00</updated>
+    <author>
+      <name>PaulKurchina</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/5786</uri>
+    </author>
+    <content>&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="SP Quote.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/92174i7732D23B6B1884E5/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="SP Quote.png" alt="SP Quote.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In this session Steffen Pietsch unveiled the strategic vision and latest innovations of SAP Business Technology Platform (BTP) at the Next Generation SAP Enterprise Architects 2024 Forum. Steffen discussed how SAP BTP serves as the cornerstone of SAP's strategy, offering a business-centric platform that enables seamless end-to-end process solutions, innovative application development, and comprehensive integration. He also discussed how BTP’s key capabilities are driving efficiency and transformation across SAP landscapes, with a special focus on AI’s role in shaping future developments. Whether you're an enterprise architect, developer, or business leader, this session offered critical insights into leveraging BTP for optimizing your SAP environment and fostering a culture of continuous innovation.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Key Themes – AI Assisted:&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Steffen Pietsch recommended that the audience actively engage with SAP BTP to drive their digital transformation initiatives. He also encouraged adopting the platform's innovative tools and services, leveraging SAP's ecosystem for collaboration, and exploring the available resources and support from SAP to fully realize the potential of SAP BTP in transforming their business processes.&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;Here are some other recommendations from this session: &lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Utilizing SAP BTP's comprehensive capabilities for digital transformation: Encourages businesses to adopt SAP BTP as a cornerstone for their digital transformation efforts, leveraging its wide range of functionalities to innovate and streamline operations.&lt;/LI&gt;&lt;LI&gt;Engaging with the SAP ecosystem for collaboration and innovation: Recommends tapping into the extensive network of SAP partners, customers, and developers to share insights, collaborate on solutions, and foster innovation within the SAP BTP framework.&lt;/LI&gt;&lt;LI&gt;Leveraging SAP BTP tools and services for enterprise application development: Suggests making full use of the development tools, services, and APIs available on SAP BTP to build, extend, and integrate custom applications that meet specific business needs.&lt;/LI&gt;&lt;LI&gt;Exploring resources and support provided by SAP to maximize BTP's potential: Advises attendees to utilize the educational materials, technical documentation, and support services offered by SAP to enhance their understanding and utilization of SAP BTP, thereby maximizing the value derived from the platform.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Remember:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;"SAP BTP wears two hats: It is the foundation of the SAP portfolio and the business-centric platform for customers and partners to innovate and to transform. With SAP BTP we're not just advancing technology – we're shaping the future of business."&lt;/P&gt;&lt;P&gt;- Steffen Pietsch&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Access Presentation: &lt;A href="https://drive.google.com/file/d/1qgfFNBcOrJamWus_EmnjLIWn22EFkFpS/view?usp=drivesdk" target="_self" rel="nofollow noopener noreferrer"&gt;Here&lt;/A&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Watch the YouTube Video of Steffan's Presentation:&amp;nbsp;&lt;/STRONG&gt; &lt;A href="https://youtu.be/LtmjVFhkHiY?si=LdNwy7ooVgmi7m2T" target="_blank" rel="noopener nofollow noreferrer"&gt;Here&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://www.youtube.com/watch?v=LtmjVFhkHiY" target="_self" rel="nofollow noopener noreferrer"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="2024-04-05_09-58-34.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/92184i5FF9D4AE91612E80/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="2024-04-05_09-58-34.jpg" alt="2024-04-05_09-58-34.jpg" /&gt;&lt;/span&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://youtu.be/1fv8d6bDaGI?si=G183MQ6tJh1AQVE4" target="_blank" rel="noopener nofollow noreferrer"&gt;&amp;nbsp;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;CTA&lt;/STRONG&gt;&lt;BR /&gt;For Enterprise Architect SAP Community Updates and More: Connect with and Follow Paul Kurchina -&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;U&gt;&lt;A href="https://www.google.com/url?q=https://www.google.com/url?q%3Dhttps://www.linkedin.com/in/paulkurchina/%26amp;sa%3DD%26amp;source%3Deditors%26amp;ust%3D1712333934256248%26amp;usg%3DAOvVaw2LZDpEw2t8SzGC_mhfAkSm&amp;amp;sa=D&amp;amp;source=docs&amp;amp;ust=1712333934264848&amp;amp;usg=AOvVaw00lR6dky8uVLMwe7q-CG2A" target="_blank" rel="noopener nofollow noreferrer"&gt;https://www.linkedin.com/in/paulkurchina/&lt;/A&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Flag Photo with &lt;/STRONG&gt;Steffen Pietsch&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="20240227_142815.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/92168i200C7BF0095B039C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="20240227_142815.jpg" alt="20240227_142815.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-architecture-blog-posts/discover-sap-btp-s-strategy-and-roadmap-highlights/ba-p/13660877"/>
+    <published>2024-04-06T14:34:45.497000+02:00</published>
   </entry>
 </feed>
