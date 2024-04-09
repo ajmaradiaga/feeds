@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-S4HANA-Cloud-ABAP-Environment-blog-posts.xml</id>
   <title>SAP Community - SAP S/4HANA Cloud ABAP Environment</title>
-  <updated>2024-04-08T23:01:46.131147+00:00</updated>
+  <updated>2024-04-09T02:01:20.621049+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP S/4HANA Cloud ABAP Environment/pd-p/60907aa9-99e9-4d5d-9103-8b970e9bc0a4" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP S/4HANA Cloud ABAP Environment blog posts in SAP Community</subtitle>
@@ -564,465 +564,535 @@ With this warning we want to enforce &lt;A href="https://github.com/SAP/stylegui
       <name>clemrngt</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/46084</uri>
     </author>
-    <content>&lt;H2 id="toc-hId-963895435"&gt;&lt;STRONG&gt;INTRODUCTION&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;EM&gt;&lt;U&gt;Technical prerequisites&lt;/U&gt;&lt;/EM&gt;: S/4 Hana On premise or S/4 Hana private cloud edition environment.&lt;BR /&gt;
-&lt;BR /&gt;
-In this blog, the aim is to create a Fiori application using the RAP framework, based on an existing BAPI, while complying with SAP guidelines to achieve the clean core objective.&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;EM&gt;&lt;U&gt;Use case&lt;/U&gt;&lt;/EM&gt;: For this presentation, we'll be looking to see whether deliveries have existing HUs (Handling Units). If so, we need to be able to delete these HUs.&lt;BR /&gt;
-&lt;BR /&gt;
-In legacy ABAP, we can use the BAPI_HU_DELETE_FROM_DEL BAPI.&lt;BR /&gt;
-&lt;BR /&gt;
-We'll now look at how to integrate this into a RAP object, following the SAP recommendations for a clean core.&lt;BR /&gt;
-&lt;BR /&gt;
-I'll also come back to the use of the RAP framework with the use of ABAP Standard, without the objective of clean core or cloud compliance, to show you some of the differences.&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H2 id="toc-hId-767381930"&gt;&lt;STRONG&gt;ABAP RAP, in the context of ABAP CLOUD&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
-Let's take a very brief look at the ABAP RAP framework and its structure to provide the main foundations for this blog, all in the context of ABAP Cloud development.&lt;BR /&gt;
-&lt;BR /&gt;
-However, I recommend that you read the SAPPRESS book "ABAP RESTful Application Programming Model - A comprehensive guide" (1), which will explain all the details of this framework perfectly.&lt;BR /&gt;
-&lt;BR /&gt;
-Before delving into the structure of the framework, let's return to the notion of LUW in the cloud, as this will have a major impact on our development.&lt;BR /&gt;
-&lt;BR /&gt;
-As mentioned in detail in this SAP Blog (2), while it used to be recommended to use IN UPDATE TASK (which, among other things, avoided writing to databases when there were implicit commits and increased performance, but I invite you to read the article cited above) when it was desired to write to the SAP database using the ABAP standard. This is no longer the case with ABAP cloud, since the performance of the HANA database means that it can now be dispensed with. However, this implies that database writes only take place at the end of the SAP LUW (during the save sequence, see later in the explanation of the RAP framework), since in the event of an implicit commit, database modifications would be made and we would no longer respect ACID rules (again, see the article cited above).&lt;BR /&gt;
-&lt;BR /&gt;
-This is where the structure of the RAP framework comes in:&lt;BR /&gt;
-&lt;BR /&gt;
-The RAP framework can be broken down into 2 main phases:&lt;BR /&gt;
-&lt;BR /&gt;
-- Interaction phase&lt;BR /&gt;
-&lt;BR /&gt;
-- Save sequence&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/2023-12-27_15-01-08.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-During the interaction phase, data is placed in a buffer, where it can be enriched and verified.&lt;BR /&gt;
-&lt;BR /&gt;
-During the save sequence, the data in the buffer can no longer be modified and is saved in the database (this is the end of the SAP LUW).&lt;BR /&gt;
-&lt;BR /&gt;
-These are the rules followed by the RAP framework in the case of ABAP cloud development:&lt;BR /&gt;
-&lt;BR /&gt;
-The following violations will always lead to a runtime error in a RAP context (Even if ABAP CLOUD is used or STANDARD ABAP is used) :&lt;BR /&gt;
-&lt;BR /&gt;
-- Explicit use of COMMIT WORK or ROLLBACK WORK statements, as the transaction handling and database commit is exclusively handled by RAP.&lt;BR /&gt;
-&lt;BR /&gt;
-- Calling the update or background task (bgPF) in the interaction phase or early-save phase.&lt;BR /&gt;
-&lt;BR /&gt;
-Some other operations only lead to runtime errors, if the RAP behavior definition is implemented in ABAP for Cloud Development and the strict mode is applied:&lt;BR /&gt;
-&lt;BR /&gt;
-- Invoking authorization checks in the early-save or late-save phase.&lt;BR /&gt;
-&lt;BR /&gt;
-Modifying database operations in the interaction phase or early-save phase.&lt;BR /&gt;
-&lt;BR /&gt;
-- Raising business events in the interaction phase or early-save phase.&lt;BR /&gt;
-&lt;BR /&gt;
-(Implicit or explicit) database commits for the primary database connection in the late-save phase.&lt;BR /&gt;
-&lt;BR /&gt;
-NOTE FOR STANDARD ABAP USAGE : Looking at this rules, if you're not in the optic of clean core, you can develop in STANDARD ABAP, and perform implicit commit during late phase for example, or use IN UPDATE TASK statement, but in my case I prefer following the more stricter rules of ABAP RAP FRAMEWORK even if I'm developing in STANDARD ABAP.&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H2 id="toc-hId-570868425"&gt;&lt;STRONG&gt;The 2 possible scenarios in the RAP framework&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
-There are 2 types of scenarios for implementing the process: managed or unmanaged.&lt;BR /&gt;
-&lt;BR /&gt;
-With the managed scenario, the SAP system automatically generates the methods and the business object. With the unmanaged scenario, everything must be developed by hand.&lt;BR /&gt;
-&lt;UL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;The use case for the managed scenario is as follows: Creating a new application from scratch (greenfield approach) - typically, data will be stored persistently in new Z tables. Then enhance the standard generated via validations, determinations, and actions.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-This is not the case here, as we want to store/modify our data in standard tables using legacy objects (a BAPI).&lt;BR /&gt;
-&lt;UL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;The use case for the unmanaged scenario is as follows: Revamping an existing application (brownfield approach). The existing application provides an API that can and should be used for the implementation of interaction phase and save sequence due to its characteristics (structure, decoupling of business logic and technical aspects).&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-In this case, we'd have to develop everything from the phase interaction to the save sequence. We're not interested in this implementation, as we don't have an API to manage buffering for our needs, and would like to use the SAP standard for the interaction part.&lt;BR /&gt;
-&lt;UL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;In this case there is a 3rd scenario: Managed scenario with unmanaged save: Using parts of an existing application (e.g., a BAPI) in the save sequence ONLY.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-Note : it exists also Managed scenario with additional save : Adding further update logic to the save sequence (e.g., in the application log) that doesn’t affect the actual business object. But we will not use it.&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H2 id="toc-hId-374354920"&gt;&lt;STRONG&gt;How to use the BAPI in cloud ABAP context ?&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
-SAP provides the objects it wishes to expose for cloud development by Whitelisting them. If these objects are not exposed, SAP can also propose their successors (e.g. in the case of BAPIs, if not exposed, a RAP behavior can be proposed instead).&lt;BR /&gt;
-&lt;BR /&gt;
-This can be verified either directly in ADT (3), or on GitHub (4).&lt;BR /&gt;
-&lt;BR /&gt;
-In our case, the desired BAPI is neither exposed nor replaced.&lt;BR /&gt;
-&lt;BR /&gt;
-Following SAP guidelines (5) (6), we will create a wrapper around this BAPI, and whitelist this wrapper. When SAP will propose a successor to this BAPI, it will be possible to remove the wrapper and use the successor object instead.&lt;BR /&gt;
-&lt;BR /&gt;
-To create a wrapper around a BAPI, follow this tutorial (7).&lt;BR /&gt;
-&lt;BR /&gt;
-Here, we've created the ZCL_WRAP_DEL_HU_FAC ( and ZCL_WRAP_DEL_HU using ZIF_WRAP_BAP_HU_DEL) class, which will be used to delete HUs.&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;INTERFACE zif_wrap_bapi_hu_del&lt;BR /&gt;
-  PUBLIC .&lt;BR /&gt;
-  "Delivery Number&lt;BR /&gt;
-  TYPES de_number             TYPE BAPIDELICIOUSDELIVERY-DELIVERY_NUMBER.&lt;BR /&gt;
-  "HU&lt;BR /&gt;
-  TYPES de_hu                 TYPE BAPIHUKEY-HU_EXID.&lt;BR /&gt;
-  "Return table&lt;BR /&gt;
-  TYPES de_returns      TYPE bapirettab.&lt;BR /&gt;
-&lt;BR /&gt;
-METHODS delete&lt;BR /&gt;
-IMPORTING iv_number type de_number&lt;BR /&gt;
-          iv_hu type de_hu&lt;BR /&gt;
-RETURNING VALUE(rt_results) TYPE de_returns.&lt;BR /&gt;
-&lt;BR /&gt;
-ENDINTERFACE.&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;CLASS zcl_wrap_del_hu DEFINITION&lt;BR /&gt;
-  PUBLIC&lt;BR /&gt;
-  FINAL&lt;BR /&gt;
-  CREATE PUBLIC .&lt;BR /&gt;
-&lt;BR /&gt;
-  PUBLIC SECTION.&lt;BR /&gt;
-    INTERFACES zif_wrap_bapi_hu_del.&lt;BR /&gt;
-      PROTECTED SECTION.&lt;BR /&gt;
-  PRIVATE SECTION.&lt;BR /&gt;
-ENDCLASS.&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;BR /&gt;
-CLASS zcl_wrap_del_hu IMPLEMENTATION.&lt;BR /&gt;
-&lt;BR /&gt;
- METHOD zif_wrap_bapi_hu_del~delete.&lt;BR /&gt;
-    CALL FUNCTION 'BAPI_HU_DELETE_FROM_DEL'&lt;BR /&gt;
-    EXPORTING&lt;BR /&gt;
-    delivery = iv_number&lt;BR /&gt;
-    hukey = iv_hu&lt;BR /&gt;
-    TABLES&lt;BR /&gt;
-    return = rt_results.&lt;BR /&gt;
-    .&lt;BR /&gt;
- ENDMETHOD.&lt;BR /&gt;
-&lt;BR /&gt;
-ENDCLASS.&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;CLASS zcl_wrap_del_hu_fac DEFINITION&lt;BR /&gt;
-  PUBLIC&lt;BR /&gt;
-  FINAL&lt;BR /&gt;
-  CREATE PRIVATE .&lt;BR /&gt;
-&lt;BR /&gt;
-  PUBLIC SECTION.&lt;BR /&gt;
-      CLASS-METHODS create_instance&lt;BR /&gt;
-      RETURNING VALUE(result) TYPE REF TO zif_wrap_bapi_hu_del.&lt;BR /&gt;
-  PROTECTED SECTION.&lt;BR /&gt;
-  PRIVATE SECTION.&lt;BR /&gt;
-    METHODS constructor.&lt;BR /&gt;
-&lt;BR /&gt;
-ENDCLASS.&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;BR /&gt;
-CLASS zcl_wrap_del_hu_fac IMPLEMENTATION.&lt;BR /&gt;
-&lt;BR /&gt;
-  METHOD create_instance.&lt;BR /&gt;
-&lt;BR /&gt;
-    result = NEW zcl_wrap_del_hu(  ).&lt;BR /&gt;
-  ENDMETHOD.&lt;BR /&gt;
-&lt;BR /&gt;
-  METHOD constructor.&lt;BR /&gt;
-  ENDMETHOD.&lt;BR /&gt;
-&lt;BR /&gt;
-ENDCLASS.&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-And we have released the wrapper and its interface as with listed APIs&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Image1-3.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Image2-2.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-So, it can be used now in ABAP for cloud development.&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H2 id="toc-hId-177841415"&gt;&lt;STRONG&gt;RAP object definition and implementation&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
-Now that we have our whitelisted object for use in our rap object, we're going to start creating our business object.&lt;BR /&gt;
-&lt;BR /&gt;
-We have created a package using ABAP for cloud development.&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Image3-5.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-1) CDS creation&lt;BR /&gt;
-&lt;BR /&gt;
-- We create a CDS Root view entity which will store the delivery number, and whether at least one HU is linked to this delivery. (We have create the private CDS view ZP_HU to find the first line of eah Handler Unit for a delivery and then we join this view in the CDS Root Entity to check if at least one HU exists).&lt;BR /&gt;
-&lt;BR /&gt;
-Note here that we are using the CDS released by sap, which replaces the standard vekp-type tables).&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]&lt;BR /&gt;
-@AccessControl.authorizationCheck: #NOT_REQUIRED&lt;BR /&gt;
-@EndUserText.label: 'CDS internal use HU'&lt;BR /&gt;
-@Metadata.ignorePropagatedAnnotations: true&lt;BR /&gt;
-@ObjectModel.usageType:{&lt;BR /&gt;
-    serviceQuality: #X,&lt;BR /&gt;
-    sizeCategory: #S,&lt;BR /&gt;
-    dataClass: #MIXED&lt;BR /&gt;
-}&lt;BR /&gt;
-define view entity ZP_HU &lt;BR /&gt;
-as select from I_DeliveryDocument &lt;BR /&gt;
-left outer join I_HandlingUnitHeader on I_HandlingUnitHeader.HandlingUnitPackingObjectKey = I_DeliveryDocument.DeliveryDocument &lt;BR /&gt;
-{&lt;BR /&gt;
-    key I_DeliveryDocument.DeliveryDocument as deliveryDocument,&lt;BR /&gt;
-    min(I_HandlingUnitHeader.HandlingUnitInternalID) as hu,&lt;BR /&gt;
-    min(I_HandlingUnitHeader.HandlingUnitPackingObjectKey) as objectkey&lt;BR /&gt;
-}&lt;BR /&gt;
-group by&lt;BR /&gt;
-  I_DeliveryDocument.DeliveryDocument&lt;BR /&gt;
-having&lt;BR /&gt;
-  count(*) = 1&lt;BR /&gt;
-&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED&lt;BR /&gt;
-@EndUserText.label: 'Handling Units for Delivery'&lt;BR /&gt;
-define root view entity ZI_DELIV_HU as select from I_DeliveryDocument&lt;BR /&gt;
-left outer join ZP_HU on ZP_HU.deliveryDocument = I_DeliveryDocument.DeliveryDocument&lt;BR /&gt;
-{&lt;BR /&gt;
-    key I_DeliveryDocument.DeliveryDocument as DeliveryDocument,&lt;BR /&gt;
-    case&lt;BR /&gt;
-        when $projection.DeliveryDocument = ZP_HU.objectkey&lt;BR /&gt;
-          then cast ( 'X' as boole_d ) &lt;BR /&gt;
-        else cast ( ' ' as boole_d ) &lt;BR /&gt;
-        end                               as HUAssigned&lt;BR /&gt;
-}&lt;BR /&gt;
-&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-- We create the associated projection view, which will be used to create the web service. The projection view reduces the business object to the simple use it will be put to in the Fiori application, whereas the ZI_DELIV_HU cds could be reused by other applications.&lt;BR /&gt;
-&lt;BR /&gt;
-(Here there are no differences between the 2 cds, but there could have been).&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;@EndUserText.label: 'Projection view ZI_DELIV_HU'&lt;BR /&gt;
-@AccessControl.authorizationCheck: #NOT_REQUIRED&lt;BR /&gt;
-@Metadata.allowExtensions: true&lt;BR /&gt;
-define root view entity ZC_DELIV_HU as projection on ZI_DELIV_HU&lt;BR /&gt;
-{&lt;BR /&gt;
-    key DeliveryDocument,&lt;BR /&gt;
-    HUAssigned&lt;BR /&gt;
-}&lt;BR /&gt;
-&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-Note: we could have created cds for additional value helps&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-2) We create the behavior definition&lt;BR /&gt;
-&lt;BR /&gt;
-- We specify first the strict mode for all the necessary syntax checks, and the authorization method used (authorization check).&lt;BR /&gt;
-&lt;BR /&gt;
-- Then we specify the operations that can be used: in this case, we only wish to update our business object to remove the HU assignment flag, so we specify "update". (we'll come back to internal).&lt;BR /&gt;
-&lt;BR /&gt;
-- Next, we enrich the automatically-generated standard by adding a validation in which we use the BAPI in test mode to check that everything's running smoothly.&lt;BR /&gt;
-&lt;BR /&gt;
-- We also enrich the standard with an "unassign" action that will remove the HUs flag assigned to the CDS. This action will use the UPDATE operation internally to modify the entity, and user should not be able to modify by himself the flag : He has to use the unassign button (here the explanation why internal is specified in the definition : UPDATE could only be used internally, in the RAP business object implementation).&lt;BR /&gt;
-&lt;BR /&gt;
-- finally, we specify Unmanaged save to use the BAPI in the save sequence and save the data in the database.&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;managed with unmanaged save implementation in class zbp_i_deliv_hu unique;&lt;BR /&gt;
-strict ( 2 );&lt;BR /&gt;
-&lt;BR /&gt;
-define behavior for ZI_DELIV_HU //alias &amp;lt;alias_name&amp;gt;&lt;BR /&gt;
-//persistent table &amp;lt;???&amp;gt;&lt;BR /&gt;
-lock master&lt;BR /&gt;
-authorization master ( instance )&lt;BR /&gt;
-//etag master &amp;lt;field_name&amp;gt;&lt;BR /&gt;
-{&lt;BR /&gt;
-  //  create;&lt;BR /&gt;
-  internal update;&lt;BR /&gt;
-  //  delete;&lt;BR /&gt;
-  action unassign;&lt;BR /&gt;
-  validation validateDelivery on save { create; update; }&lt;BR /&gt;
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-3) Create the implementation&lt;BR /&gt;
-&lt;BR /&gt;
-- Creating the action&lt;BR /&gt;
-&lt;BR /&gt;
-EML is used to update the object by deleting the flag. If the user attempts to remove the flag from an object already without a flag (without HUs), an error message is displayed.&lt;BR /&gt;
-&lt;BR /&gt;
-- Validation creation (at save time)&lt;BR /&gt;
-&lt;BR /&gt;
-Execute the BAPI in test mode to check that everything's ok. If not, an error message is displayed.&lt;BR /&gt;
-&lt;BR /&gt;
-- Create save sequence :&lt;BR /&gt;
-&lt;BR /&gt;
-The BAPI is called in the last phase, at the end of the SAP LUW. Once the save sequence is complete, the RAP framework takes care of committing it.&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;CLASS lhc_ZI_DELIV_HU DEFINITION INHERITING FROM cl_abap_behavior_handler.&lt;BR /&gt;
-  PRIVATE SECTION.&lt;BR /&gt;
-&lt;BR /&gt;
-    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION&lt;BR /&gt;
-      IMPORTING keys REQUEST requested_authorizations FOR zi_deliv_hu RESULT result.&lt;BR /&gt;
-&lt;BR /&gt;
-    METHODS unassign FOR MODIFY&lt;BR /&gt;
-      IMPORTING keys FOR ACTION zi_deliv_hu~unassign.&lt;BR /&gt;
-&lt;BR /&gt;
-    METHODS validateDelivery FOR VALIDATE ON SAVE&lt;BR /&gt;
-      IMPORTING keys FOR zi_deliv_hu~validateDelivery.&lt;BR /&gt;
-&lt;BR /&gt;
-ENDCLASS.&lt;BR /&gt;
-&lt;BR /&gt;
-CLASS lhc_ZI_DELIV_HU IMPLEMENTATION.&lt;BR /&gt;
-&lt;BR /&gt;
-  METHOD get_instance_authorizations.&lt;BR /&gt;
-* Here you check authorizations&lt;BR /&gt;
-  ENDMETHOD.&lt;BR /&gt;
-&lt;BR /&gt;
-  METHOD unassign.&lt;BR /&gt;
-* We read the current value of the key instances&lt;BR /&gt;
-    READ ENTITIES OF zi_deliv_hu IN LOCAL MODE&lt;BR /&gt;
-      ENTITY zi_deliv_hu&lt;BR /&gt;
-      ALL FIELDS&lt;BR /&gt;
-      WITH CORRESPONDING #( keys )&lt;BR /&gt;
-      RESULT DATA(lt_sh_for_unassign).&lt;BR /&gt;
-* We loop at the finding values to check if instances have HUs qssigned or no, If yes we report an error&lt;BR /&gt;
-    LOOP AT lt_sh_for_unassign ASSIGNING FIELD-SYMBOL(&amp;lt;ls_sh_for_unassign_err&amp;gt;) WHERE huassigned = ' '.&lt;BR /&gt;
-      reported-zi_deliv_hu = VALUE #( BASE reported-zi_deliv_hu&lt;BR /&gt;
-                                                            ( %tky = &amp;lt;ls_sh_for_unassign_err&amp;gt;-%tky&lt;BR /&gt;
-                                                              %msg = me-&amp;gt;new_message( severity = if_abap_behv_message=&amp;gt;severity-error&lt;BR /&gt;
-                                                                                      id       = 'ZHU_MSG'&lt;BR /&gt;
-                                                                                      number   = '002'&lt;BR /&gt;
-                                                                                      v2 = |{ &amp;lt;ls_sh_for_unassign_err&amp;gt;-deliverydocument ALPHA = OUT }| ) ) ).&lt;BR /&gt;
-&lt;BR /&gt;
-    ENDLOOP.&lt;BR /&gt;
-    DELETE lt_sh_for_unassign WHERE huassigned = ' '.&lt;BR /&gt;
-* We modify entities to delete the flag and un-assign the HUs linked to the delivery&lt;BR /&gt;
-    LOOP AT lt_sh_for_unassign ASSIGNING FIELD-SYMBOL(&amp;lt;ls_sh_for_unassign&amp;gt;).&lt;BR /&gt;
-      MODIFY ENTITIES OF zi_deliv_hu IN LOCAL MODE&lt;BR /&gt;
-          ENTITY zi_deliv_hu&lt;BR /&gt;
-          UPDATE FROM&lt;BR /&gt;
-              VALUE #( FOR sh IN lt_sh_for_unassign (&lt;BR /&gt;
-                %key = sh-%key&lt;BR /&gt;
-                deliverydocument = sh-deliverydocument&lt;BR /&gt;
-                huassigned = ' '&lt;BR /&gt;
-                %control-huassigned = if_abap_behv=&amp;gt;mk-on ) ).&lt;BR /&gt;
-    ENDLOOP.&lt;BR /&gt;
-&lt;BR /&gt;
-  ENDMETHOD.&lt;BR /&gt;
-&lt;BR /&gt;
-  METHOD validateDelivery.&lt;BR /&gt;
-* Validate here the data&lt;BR /&gt;
-* For example, if the BAPI have a test mode it is be possible to execute it in test mode and in case of error report errors&lt;BR /&gt;
-* However here it's not the case for BAPI_HU_DELETE_FROM_DEL&lt;BR /&gt;
-* It's still possible to add our own validation&lt;BR /&gt;
-  ENDMETHOD.&lt;BR /&gt;
-&lt;BR /&gt;
-ENDCLASS.&lt;BR /&gt;
-&lt;BR /&gt;
-CLASS lsc_ZI_DELIV_HU DEFINITION INHERITING FROM cl_abap_behavior_saver.&lt;BR /&gt;
-  PROTECTED SECTION.&lt;BR /&gt;
-&lt;BR /&gt;
-    METHODS save_modified REDEFINITION.&lt;BR /&gt;
-&lt;BR /&gt;
-    METHODS cleanup_finalize REDEFINITION.&lt;BR /&gt;
-&lt;BR /&gt;
-ENDCLASS.&lt;BR /&gt;
-&lt;BR /&gt;
-CLASS lsc_ZI_DELIV_HU IMPLEMENTATION.&lt;BR /&gt;
-&lt;BR /&gt;
-  METHOD save_modified.&lt;BR /&gt;
-* We loop at the updated instances with deleted flag&lt;BR /&gt;
-    LOOP AT update-zi_deliv_hu INTO DATA(ls_update).&lt;BR /&gt;
-&lt;BR /&gt;
-* In this loop we find all the HU linked to the delivery&lt;BR /&gt;
-      SELECT HandlingUnitExternalID&lt;BR /&gt;
-      FROM I_HandlingUnitHeader&lt;BR /&gt;
-      WHERE HandlingUnitPackingObjectKey = @ls_update-DeliveryDocument&lt;BR /&gt;
-      INTO TABLE @DATA(lt_hu_to_delete).&lt;BR /&gt;
-&lt;BR /&gt;
-* Loop to all HUs assigned to delivery&lt;BR /&gt;
-      LOOP AT lt_hu_to_delete INTO DATA(ls_hu_to_delete).&lt;BR /&gt;
-* Call the bapi to delete the HU using the wrapper for the cloud&lt;BR /&gt;
-        DATA(lt_hu_delete) = zcl_wrap_del_hu_fac=&amp;gt;create_instance( )-&amp;gt;delete(&lt;BR /&gt;
-          EXPORTING&lt;BR /&gt;
-          iv_number = ls_update-DeliveryDocument&lt;BR /&gt;
-          iv_hu = ls_hu_to_delete-HandlingUnitExternalID ).&lt;BR /&gt;
-&lt;BR /&gt;
-* At this stage we can't report errors, it should has been verify that everything is fine before the save sequence&lt;BR /&gt;
-* But in case of error we still give an information message&lt;BR /&gt;
-        reported-zi_deliv_hu = VALUE #( BASE reported-zi_deliv_hu&lt;BR /&gt;
-        FOR r IN lt_hu_delete WHERE ( type = 'E' )&lt;BR /&gt;
-        ( deliverydocument = ls_update-deliverydocument&lt;BR /&gt;
-        %msg = me-&amp;gt;new_message(&lt;BR /&gt;
-        id = r-id&lt;BR /&gt;
-        number = r-number&lt;BR /&gt;
-        severity = if_abap_behv_message=&amp;gt;severity-information&lt;BR /&gt;
-        v1 = r-message_v1&lt;BR /&gt;
-        v2 = r-message_v2&lt;BR /&gt;
-        v3 = r-message_v3&lt;BR /&gt;
-        v4 = r-message_v4 ) ) ).&lt;BR /&gt;
-&lt;BR /&gt;
-        IF reported IS INITIAL.&lt;BR /&gt;
-          reported-zi_deliv_hu = VALUE #( BASE reported-zi_deliv_hu&lt;BR /&gt;
-                                                                ( %key = ls_update-%key&lt;BR /&gt;
-                                                                  %msg = me-&amp;gt;new_message( severity = if_abap_behv_message=&amp;gt;severity-success&lt;BR /&gt;
-                                                                                          id       = 'ZHU_MSG'&lt;BR /&gt;
-                                                                                          number   = '002'&lt;BR /&gt;
-                                                                                          v1 = |{ ls_update-deliverydocument ALPHA = OUT }| ) ) ).&lt;BR /&gt;
-        ENDIF.&lt;BR /&gt;
-      ENDLOOP.&lt;BR /&gt;
-    ENDLOOP.&lt;BR /&gt;
-  ENDMETHOD.&lt;BR /&gt;
-&lt;BR /&gt;
-  METHOD cleanup_finalize.&lt;BR /&gt;
-* Clean after save&lt;BR /&gt;
-  ENDMETHOD.&lt;BR /&gt;
-&lt;BR /&gt;
-ENDCLASS.&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-4) We create a behavior consumption definition to reduce CRUD operations to the application if necessary (here I create the consumption but it is identical to ZI_DELIV_HU )&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;projection;&lt;BR /&gt;
-strict ( 2 );&lt;BR /&gt;
-&lt;BR /&gt;
-define behavior for ZC_DELIV_HU //alias &amp;lt;alias_name&amp;gt;&lt;BR /&gt;
-{&lt;BR /&gt;
-&lt;BR /&gt;
-  use action unassign;&lt;BR /&gt;
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-5) We create the metadatas, adding the extra button for Unassigned HUs.&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;@Metadata.layer: #CORE&lt;BR /&gt;
-annotate entity ZC_DELIV_HU&lt;BR /&gt;
-    with &lt;BR /&gt;
-{&lt;BR /&gt;
-  @UI: { lineItem: [{ position: 10, importance: #HIGH },&lt;BR /&gt;
-                    { type: #FOR_ACTION, dataAction: 'unassign', label: 'Unassign' }],&lt;BR /&gt;
-         selectionField: [{ position: 10 }] }&lt;BR /&gt;
-  DeliveryDocument;&lt;BR /&gt;
-  @UI.lineItem: [{ position: 20 },&lt;BR /&gt;
-                 { label : 'HU(s) assigned ?' }]&lt;BR /&gt;
-  @UI.selectionField: [{ position: 20 }]               &lt;BR /&gt;
-  @UI.identification:[ { label: 'HU(s) assigned ?' } ]&lt;BR /&gt;
-  @EndUserText.label: 'HU(s) assigned ?'&lt;BR /&gt;
-  HUAssigned;&lt;BR /&gt;
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-6) Create the definition service&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;@EndUserText.label: 'Service def deliv hu'&lt;BR /&gt;
-define service ZUI_DELIV_HU {&lt;BR /&gt;
-  expose ZC_DELIV_HU;&lt;BR /&gt;
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-7) create the binding service&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Image4-2.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-8) All that's left to do is create the Fiori application with VS Code or SAP BAS (8) using SAP Fiori elements&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/2024-01-04_08-34-53.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H2 id="toc-hId--18672090"&gt;&lt;STRONG&gt;CONCLUSION&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
-This is how I create Fiori applications using the Rap framework, taking into account the SAP guidelines for the cloud.&lt;BR /&gt;
-&lt;BR /&gt;
-For more similar content, follow the ABAP Development environment Topic page (&lt;A href="https://community.sap.com/topics/abap"&gt;https://community.sap.com/topics/abap&lt;/A&gt;), post and answer questions (&lt;A href="https://answers.sap.com/tags/833755570260738661924709785639136" rel="noopener noreferrer"&gt;https://answers.sap.com/tags/833755570260738661924709785639136&lt;/A&gt;), and read other posts on the topic (&lt;A href="https://blogs.sap.com/tags/833755570260738661924709785639136/" rel="noopener noreferrer"&gt;https://blogs.sap.com/tags/833755570260738661924709785639136/&lt;/A&gt;)&lt;BR /&gt;
-You can also follow my profile for similar content.&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-(1) &lt;A href="https://www.sap-press.com/abap-restful-application-programming-model_5647/" rel="nofollow noopener noreferrer"&gt;Learn the ABAP RESTful Application Programming Model | - by SAP PRESS (sap-press.com)&lt;/A&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-(2)&amp;nbsp;&lt;A href="https://blogs.sap.com/2022/12/05/the-sap-luw-in-abap-cloud/" rel="noopener noreferrer"&gt;https://blogs.sap.com/2022/12/05/the-sap-luw-in-abap-cloud/&lt;/A&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-(3)&amp;nbsp;&lt;A href="https://blogs.sap.com/2023/08/15/smooth-transition-to-abap-for-cloud-developmentcheat-sheet/comment-page-1/#comment-685200" rel="noopener noreferrer"&gt;https://blogs.sap.com/2023/08/15/smooth-transition-to-abap-for-cloud-developmentcheat-sheet/comment-page-1/#comment-685200&lt;/A&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-(4)&amp;nbsp;&lt;A href="https://raw.githubusercontent.com/SAP/abap-atc-cr-cv-s4hc/main/src/objectReleaseInfo_PCE2022.json" rel="nofollow noopener noreferrer"&gt;https://raw.githubusercontent.com/SAP/abap-atc-cr-cv-s4hc/main/src/objectReleaseInfo_PCE2022.json&lt;/A&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-(5)&amp;nbsp;&lt;A href="https://www.sap.com/documents/2023/05/b0bd8ae6-747e-0010-bca6-c68f7e60039b.html" rel="noopener noreferrer"&gt;https://www.sap.com/documents/2023/05/b0bd8ae6-747e-0010-bca6-c68f7e60039b.html&lt;/A&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-(6)&amp;nbsp;&lt;A href="https://blogs.sap.com/2022/10/25/how-to-use-embedded-steampunk-in-sap-s-4hana-cloud-private-edition-and-in-on-premise-the-new-abap-extensibility-guide/" rel="noopener noreferrer"&gt;https://blogs.sap.com/2022/10/25/how-to-use-embedded-steampunk-in-sap-s-4hana-cloud-private-edition-and-in-on-premise-the-new-abap-extensibility-guide/&lt;/A&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-(7)&amp;nbsp;&lt;A href="https://developers.sap.com/tutorials/abap-s4hanacloud-purchasereq-create-wrapper.html" rel="noopener noreferrer"&gt;https://developers.sap.com/tutorials/abap-s4hanacloud-purchasereq-create-wrapper.html&lt;/A&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-(8)&amp;nbsp;&lt;A href="https://blogs.sap.com/2022/10/31/fiori-development-with-vscode-and-nodejs/" rel="noopener noreferrer"&gt;https://blogs.sap.com/2022/10/31/fiori-development-with-vscode-and-nodejs/&lt;/A&gt;</content>
+    <content>&lt;H2 id="toc-hId-963895435"&gt;&lt;STRONG&gt;INTRODUCTION&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;&lt;EM&gt;&lt;U&gt;Technical prerequisites&lt;/U&gt;&lt;/EM&gt;: S/4 Hana On premise or S/4 Hana private cloud edition environment.&lt;BR /&gt;&lt;BR /&gt;In this blog, the aim is to create a Fiori application using the RAP framework, based on an existing BAPI, while complying with SAP guidelines to achieve the clean core objective.&lt;BR /&gt;&lt;BR /&gt;&lt;EM&gt;&lt;U&gt;Use case&lt;/U&gt;&lt;/EM&gt;: For this presentation, we'll be looking to see whether deliveries have existing HUs (Handling Units). If so, we need to be able to delete these HUs.&lt;BR /&gt;&lt;BR /&gt;In legacy ABAP, we can use the BAPI_HU_DELETE_FROM_DEL BAPI.&lt;BR /&gt;&lt;BR /&gt;We'll now look at how to integrate this into a RAP object, following the SAP recommendations for a clean core.&lt;BR /&gt;&lt;BR /&gt;I'll also come back to the use of the RAP framework with the use of ABAP Standard, without the objective of clean core or cloud compliance, to show you some of the differences.&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-767381930"&gt;&lt;STRONG&gt;ABAP RAP, in the context of ABAP CLOUD&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;Let's take a very brief look at the ABAP RAP framework and its structure to provide the main foundations for this blog, all in the context of ABAP Cloud development.&lt;BR /&gt;&lt;BR /&gt;However, I recommend that you read the SAPPRESS book "ABAP RESTful Application Programming Model - A comprehensive guide" (1), which will explain all the details of this framework perfectly.&lt;BR /&gt;&lt;BR /&gt;Before delving into the structure of the framework, let's return to the notion of LUW in the cloud, as this will have a major impact on our development.&lt;BR /&gt;&lt;BR /&gt;As mentioned in detail in this SAP Blog (2), while it used to be recommended to use IN UPDATE TASK (which, among other things, avoided writing to databases when there were implicit commits and increased performance, but I invite you to read the article cited above) when it was desired to write to the SAP database using the ABAP standard. This is no longer the case with ABAP cloud, since the performance of the HANA database means that it can now be dispensed with. However, this implies that database writes only take place at the end of the SAP LUW (during the save sequence, see later in the explanation of the RAP framework), since in the event of an implicit commit, database modifications would be made and we would no longer respect ACID rules (again, see the article cited above).&lt;BR /&gt;&lt;BR /&gt;This is where the structure of the RAP framework comes in:&lt;BR /&gt;&lt;BR /&gt;The RAP framework can be broken down into 2 main phases:&lt;BR /&gt;&lt;BR /&gt;- Interaction phase&lt;BR /&gt;&lt;BR /&gt;- Save sequence&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/2023-12-27_15-01-08.png" border="0" /&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;During the interaction phase, data is placed in a buffer, where it can be enriched and verified.&lt;BR /&gt;&lt;BR /&gt;During the save sequence, the data in the buffer can no longer be modified and is saved in the database (this is the end of the SAP LUW).&lt;BR /&gt;&lt;BR /&gt;These are the rules followed by the RAP framework in the case of ABAP cloud development:&lt;BR /&gt;&lt;BR /&gt;The following violations will always lead to a runtime error in a RAP context (Even if ABAP CLOUD is used or STANDARD ABAP is used) :&lt;BR /&gt;&lt;BR /&gt;- Explicit use of COMMIT WORK or ROLLBACK WORK statements, as the transaction handling and database commit is exclusively handled by RAP.&lt;BR /&gt;&lt;BR /&gt;- Calling the update or background task (bgPF) in the interaction phase or early-save phase.&lt;BR /&gt;&lt;BR /&gt;Some other operations only lead to runtime errors, if the RAP behavior definition is implemented in ABAP for Cloud Development and the strict mode is applied:&lt;BR /&gt;&lt;BR /&gt;- Invoking authorization checks in the early-save or late-save phase.&lt;BR /&gt;&lt;BR /&gt;- Modifying database operations in the interaction phase or early-save phase.&lt;BR /&gt;&lt;BR /&gt;- Raising business events in the interaction phase or early-save phase.&lt;BR /&gt;&lt;BR /&gt;- (Implicit or explicit) database commits for the primary database connection in the late-save phase.&lt;BR /&gt;&lt;BR /&gt;NOTE FOR STANDARD ABAP USAGE : Looking at this rules, if you're not in the optic of clean core, you can develop in STANDARD ABAP, and perform implicit commit during late phase for example, or use IN UPDATE TASK statement, but in my case I prefer following the more stricter rules of ABAP RAP FRAMEWORK even if I'm developing in STANDARD ABAP.&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-570868425"&gt;&lt;STRONG&gt;The 2 possible scenarios in the RAP framework&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;There are 2 types of scenarios for implementing the process: managed or unmanaged.&lt;BR /&gt;&lt;BR /&gt;With the managed scenario, the SAP system automatically generates the methods and the business object. With the unmanaged scenario, everything must be developed by hand.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;UL&gt;&lt;UL&gt;&lt;LI&gt;The use case for the managed scenario is as follows: Creating a new application from scratch (greenfield approach) - typically, data will be stored persistently in new Z tables. Then enhance the standard generated via validations, determinations, and actions.&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;This is not the case here, as we want to store/modify our data in standard tables using legacy objects (a BAPI).&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;UL&gt;&lt;UL&gt;&lt;LI&gt;The use case for the unmanaged scenario is as follows: Revamping an existing application (brownfield approach). The existing application provides an API that can and should be used for the implementation of interaction phase and save sequence due to its characteristics (structure, decoupling of business logic and technical aspects).&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;In this case, we'd have to develop everything from the phase interaction to the save sequence. We're not interested in this implementation, as we don't have an API to manage buffering for our needs, and would like to use the SAP standard for the interaction part.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;UL&gt;&lt;UL&gt;&lt;LI&gt;In this case there is a 3rd scenario: Managed scenario with unmanaged save: Using parts of an existing application (e.g., a BAPI) in the save sequence ONLY.&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;Note : it exists also Managed scenario with additional save : Adding further update logic to the save sequence (e.g., in the application log) that doesn’t affect the actual business object. But we will not use it.&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-374354920"&gt;&lt;STRONG&gt;How to use the BAPI in cloud ABAP context ?&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;SAP provides the objects it wishes to expose for cloud development by Whitelisting them. If these objects are not exposed, SAP can also propose their successors (e.g. in the case of BAPIs, if not exposed, a RAP behavior can be proposed instead).&lt;BR /&gt;&lt;BR /&gt;This can be verified either directly in ADT (3), or on GitHub (4).&lt;BR /&gt;&lt;BR /&gt;In our case, the desired BAPI is neither exposed nor replaced.&lt;BR /&gt;&lt;BR /&gt;Following SAP guidelines (5) (6), we will create a wrapper around this BAPI, and whitelist this wrapper. When SAP will propose a successor to this BAPI, it will be possible to remove the wrapper and use the successor object instead.&lt;BR /&gt;&lt;BR /&gt;To create a wrapper around a BAPI, follow this tutorial (7).&lt;BR /&gt;&lt;BR /&gt;Here, we've created the ZCL_WRAP_DEL_HU_FAC ( and ZCL_WRAP_DEL_HU using ZIF_WRAP_BAP_HU_DEL) class, which will be used to delete HUs.&lt;/P&gt;&lt;PRE&gt;INTERFACE zif_wrap_bapi_hu_del
+
+  PUBLIC .
+
+  "Delivery Number
+
+  TYPES de_number             TYPE BAPIDELICIOUSDELIVERY-DELIVERY_NUMBER.
+
+  "HU
+
+  TYPES de_hu                 TYPE BAPIHUKEY-HU_EXID.
+
+  "Return table
+
+  TYPES de_returns      TYPE bapirettab.
+
+
+
+METHODS delete
+
+IMPORTING iv_number type de_number
+
+          iv_hu type de_hu
+
+RETURNING VALUE(rt_results) TYPE de_returns.
+
+
+
+ENDINTERFACE.&lt;/PRE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;PRE&gt;CLASS zcl_wrap_del_hu DEFINITION
+
+  PUBLIC
+
+  FINAL
+
+  CREATE PUBLIC .
+
+
+
+  PUBLIC SECTION.
+
+    INTERFACES zif_wrap_bapi_hu_del.
+
+      PROTECTED SECTION.
+
+  PRIVATE SECTION.
+
+ENDCLASS.
+
+
+
+
+
+
+
+CLASS zcl_wrap_del_hu IMPLEMENTATION.
+
+
+
+ METHOD zif_wrap_bapi_hu_del~delete.
+
+    CALL FUNCTION 'BAPI_HU_DELETE_FROM_DEL'
+
+    EXPORTING
+
+    delivery = iv_number
+
+    hukey = iv_hu
+
+    TABLES
+
+    return = rt_results.
+
+    .
+
+ ENDMETHOD.
+
+
+
+ENDCLASS.&lt;/PRE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;PRE&gt;CLASS zcl_wrap_del_hu_fac DEFINITION
+
+  PUBLIC
+
+  FINAL
+
+  CREATE PRIVATE .
+
+
+
+  PUBLIC SECTION.
+
+      CLASS-METHODS create_instance
+
+      RETURNING VALUE(result) TYPE REF TO zif_wrap_bapi_hu_del.
+
+  PROTECTED SECTION.
+
+  PRIVATE SECTION.
+
+    METHODS constructor.
+
+
+
+ENDCLASS.
+
+
+
+
+
+
+
+CLASS zcl_wrap_del_hu_fac IMPLEMENTATION.
+
+
+
+  METHOD create_instance.
+
+
+
+    result = NEW zcl_wrap_del_hu(  ).
+
+  ENDMETHOD.
+
+
+
+  METHOD constructor.
+
+  ENDMETHOD.
+
+
+
+ENDCLASS.&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;And we have released the wrapper and its interface as with listed APIs&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Image1-3.png" border="0" /&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Image2-2.png" border="0" /&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;So, it can be used now in ABAP for cloud development.&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-177841415"&gt;&lt;STRONG&gt;RAP object definition and implementation&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;Now that we have our whitelisted object for use in our rap object, we're going to start creating our business object.&lt;BR /&gt;&lt;BR /&gt;We have created a package using ABAP for cloud development.&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Image3-5.png" border="0" /&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;1) CDS creation&lt;BR /&gt;&lt;BR /&gt;- We create a CDS Root view entity which will store the delivery number, and whether at least one HU is linked to this delivery. (We have create the private CDS view ZP_HU to find the first line of eah Handler Unit for a delivery and then we join this view in the CDS Root Entity to check if at least one HU exists).&lt;BR /&gt;&lt;BR /&gt;Note here that we are using the CDS released by sap, which replaces the standard vekp-type tables).&lt;/P&gt;&lt;PRE&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
+
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+
+@EndUserText.label: 'CDS internal use HU'
+
+@Metadata.ignorePropagatedAnnotations: true
+
+@ObjectModel.usageType:{
+
+    serviceQuality: #X,
+
+    sizeCategory: #S,
+
+    dataClass: #MIXED
+
+}
+
+define view entity ZP_HU 
+
+as select from I_DeliveryDocument 
+
+left outer join I_HandlingUnitHeader on I_HandlingUnitHeader.HandlingUnitPackingObjectKey = I_DeliveryDocument.DeliveryDocument 
+
+{
+
+    key I_DeliveryDocument.DeliveryDocument as deliveryDocument,
+
+    min(I_HandlingUnitHeader.HandlingUnitInternalID) as hu,
+
+    min(I_HandlingUnitHeader.HandlingUnitPackingObjectKey) as objectkey
+
+}
+
+group by
+
+  I_DeliveryDocument.DeliveryDocument
+
+having
+
+  count(*) = 1
+
+&lt;/PRE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;PRE&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
+
+@EndUserText.label: 'Handling Units for Delivery'
+
+define root view entity ZI_DELIV_HU as select from I_DeliveryDocument
+
+left outer join ZP_HU on ZP_HU.deliveryDocument = I_DeliveryDocument.DeliveryDocument
+
+{
+
+    key I_DeliveryDocument.DeliveryDocument as DeliveryDocument,
+
+    case
+
+        when $projection.DeliveryDocument = ZP_HU.objectkey
+
+          then cast ( 'X' as boole_d ) 
+
+        else cast ( ' ' as boole_d ) 
+
+        end                               as HUAssigned
+
+}
+
+&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;- We create the associated projection view, which will be used to create the web service. The projection view reduces the business object to the simple use it will be put to in the Fiori application, whereas the ZI_DELIV_HU cds could be reused by other applications.&lt;BR /&gt;&lt;BR /&gt;(Here there are no differences between the 2 cds, but there could have been).&lt;/P&gt;&lt;PRE&gt;@EndUserText.label: 'Projection view ZI_DELIV_HU'
+
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+
+@Metadata.allowExtensions: true
+
+define root view entity ZC_DELIV_HU as projection on ZI_DELIV_HU
+
+{
+
+    key DeliveryDocument,
+
+    HUAssigned
+
+}
+
+&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;Note: we could have created cds for additional value helps&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;2) We create the behavior definition&lt;BR /&gt;&lt;BR /&gt;- We specify first the strict mode for all the necessary syntax checks, and the authorization method used (authorization check).&lt;BR /&gt;&lt;BR /&gt;- Then we specify the operations that can be used: in this case, we only wish to update our business object to remove the HU assignment flag, so we specify "update". (we'll come back to internal).&lt;BR /&gt;&lt;BR /&gt;- Next, we enrich the automatically-generated standard by adding a validation in which we use the BAPI in test mode to check that everything's running smoothly.&lt;BR /&gt;&lt;BR /&gt;- We also enrich the standard with an "unassign" action that will remove the HUs flag assigned to the CDS. This action will use the UPDATE operation internally to modify the entity, and user should not be able to modify by himself the flag : He has to use the unassign button (here the explanation why internal is specified in the definition : UPDATE could only be used internally, in the RAP business object implementation).&lt;BR /&gt;&lt;BR /&gt;- finally, we specify Unmanaged save to use the BAPI in the save sequence and save the data in the database.&lt;/P&gt;&lt;PRE&gt;managed with unmanaged save implementation in class zbp_i_deliv_hu unique;
+
+strict ( 2 );
+
+
+
+define behavior for ZI_DELIV_HU //alias &amp;lt;alias_name&amp;gt;
+
+//persistent table &amp;lt;???&amp;gt;
+
+lock master
+
+authorization master ( instance )
+
+//etag master &amp;lt;field_name&amp;gt;
+
+{
+
+  //  create;
+
+  internal update;
+
+  //  delete;
+
+  action unassign;
+
+  validation validateDelivery on save { create; update; }
+
+}&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;3) Create the implementation&lt;BR /&gt;&lt;BR /&gt;- Creating the action&lt;BR /&gt;&lt;BR /&gt;EML is used to update the object by deleting the flag. If the user attempts to remove the flag from an object already without a flag (without HUs), an error message is displayed.&lt;BR /&gt;&lt;BR /&gt;- Validation creation (at save time)&lt;BR /&gt;&lt;BR /&gt;Execute the BAPI in test mode to check that everything's ok. If not, an error message is displayed.&lt;BR /&gt;&lt;BR /&gt;- Create save sequence :&lt;BR /&gt;&lt;BR /&gt;The BAPI is called in the last phase, at the end of the SAP LUW. Once the save sequence is complete, the RAP framework takes care of committing it.&lt;/P&gt;&lt;PRE&gt;CLASS lhc_ZI_DELIV_HU DEFINITION INHERITING FROM cl_abap_behavior_handler.
+
+  PRIVATE SECTION.
+
+
+
+    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
+
+      IMPORTING keys REQUEST requested_authorizations FOR zi_deliv_hu RESULT result.
+
+
+
+    METHODS unassign FOR MODIFY
+
+      IMPORTING keys FOR ACTION zi_deliv_hu~unassign.
+
+
+
+    METHODS validateDelivery FOR VALIDATE ON SAVE
+
+      IMPORTING keys FOR zi_deliv_hu~validateDelivery.
+
+
+
+ENDCLASS.
+
+
+
+CLASS lhc_ZI_DELIV_HU IMPLEMENTATION.
+
+
+
+  METHOD get_instance_authorizations.
+
+* Here you check authorizations
+
+  ENDMETHOD.
+
+
+
+  METHOD unassign.
+
+* We read the current value of the key instances
+
+    READ ENTITIES OF zi_deliv_hu IN LOCAL MODE
+
+      ENTITY zi_deliv_hu
+
+      ALL FIELDS
+
+      WITH CORRESPONDING #( keys )
+
+      RESULT DATA(lt_sh_for_unassign).
+
+* We loop at the finding values to check if instances have HUs qssigned or no, If yes we report an error
+
+    LOOP AT lt_sh_for_unassign ASSIGNING FIELD-SYMBOL(&amp;lt;ls_sh_for_unassign_err&amp;gt;) WHERE huassigned = ' '.
+
+      reported-zi_deliv_hu = VALUE #( BASE reported-zi_deliv_hu
+
+                                                            ( %tky = &amp;lt;ls_sh_for_unassign_err&amp;gt;-%tky
+
+                                                              %msg = me-&amp;gt;new_message( severity = if_abap_behv_message=&amp;gt;severity-error
+
+                                                                                      id       = 'ZHU_MSG'
+
+                                                                                      number   = '002'
+
+                                                                                      v2 = |{ &amp;lt;ls_sh_for_unassign_err&amp;gt;-deliverydocument ALPHA = OUT }| ) ) ).
+
+
+
+    ENDLOOP.
+
+    DELETE lt_sh_for_unassign WHERE huassigned = ' '.
+
+* We modify entities to delete the flag and un-assign the HUs linked to the delivery
+
+    LOOP AT lt_sh_for_unassign ASSIGNING FIELD-SYMBOL(&amp;lt;ls_sh_for_unassign&amp;gt;).
+
+      MODIFY ENTITIES OF zi_deliv_hu IN LOCAL MODE
+
+          ENTITY zi_deliv_hu
+
+          UPDATE FROM
+
+              VALUE #( FOR sh IN lt_sh_for_unassign (
+
+                %key = sh-%key
+
+                deliverydocument = sh-deliverydocument
+
+                huassigned = ' '
+
+                %control-huassigned = if_abap_behv=&amp;gt;mk-on ) ).
+
+    ENDLOOP.
+
+
+
+  ENDMETHOD.
+
+
+
+  METHOD validateDelivery.
+
+* Validate here the data
+
+* For example, if the BAPI have a test mode it is be possible to execute it in test mode and in case of error report errors
+
+* However here it's not the case for BAPI_HU_DELETE_FROM_DEL
+
+* It's still possible to add our own validation
+
+  ENDMETHOD.
+
+
+
+ENDCLASS.
+
+
+
+CLASS lsc_ZI_DELIV_HU DEFINITION INHERITING FROM cl_abap_behavior_saver.
+
+  PROTECTED SECTION.
+
+
+
+    METHODS save_modified REDEFINITION.
+
+
+
+    METHODS cleanup_finalize REDEFINITION.
+
+
+
+ENDCLASS.
+
+
+
+CLASS lsc_ZI_DELIV_HU IMPLEMENTATION.
+
+
+
+  METHOD save_modified.
+
+* We loop at the updated instances with deleted flag
+
+    LOOP AT update-zi_deliv_hu INTO DATA(ls_update).
+
+
+
+* In this loop we find all the HU linked to the delivery
+
+      SELECT HandlingUnitExternalID
+
+      FROM I_HandlingUnitHeader
+
+      WHERE HandlingUnitPackingObjectKey = @ls_update-DeliveryDocument
+
+      INTO TABLE @DATA(lt_hu_to_delete).
+
+
+
+* Loop to all HUs assigned to delivery
+
+      LOOP AT lt_hu_to_delete INTO DATA(ls_hu_to_delete).
+
+* Call the bapi to delete the HU using the wrapper for the cloud
+
+        DATA(lt_hu_delete) = zcl_wrap_del_hu_fac=&amp;gt;create_instance( )-&amp;gt;delete(
+
+          EXPORTING
+
+          iv_number = ls_update-DeliveryDocument
+
+          iv_hu = ls_hu_to_delete-HandlingUnitExternalID ).
+
+
+
+* At this stage we can't report errors, it should has been verify that everything is fine before the save sequence
+
+* But in case of error we still give an information message
+
+        reported-zi_deliv_hu = VALUE #( BASE reported-zi_deliv_hu
+
+        FOR r IN lt_hu_delete WHERE ( type = 'E' )
+
+        ( deliverydocument = ls_update-deliverydocument
+
+        %msg = me-&amp;gt;new_message(
+
+        id = r-id
+
+        number = r-number
+
+        severity = if_abap_behv_message=&amp;gt;severity-information
+
+        v1 = r-message_v1
+
+        v2 = r-message_v2
+
+        v3 = r-message_v3
+
+        v4 = r-message_v4 ) ) ).
+
+
+
+        IF reported IS INITIAL.
+
+          reported-zi_deliv_hu = VALUE #( BASE reported-zi_deliv_hu
+
+                                                                ( %key = ls_update-%key
+
+                                                                  %msg = me-&amp;gt;new_message( severity = if_abap_behv_message=&amp;gt;severity-success
+
+                                                                                          id       = 'ZHU_MSG'
+
+                                                                                          number   = '002'
+
+                                                                                          v1 = |{ ls_update-deliverydocument ALPHA = OUT }| ) ) ).
+
+        ENDIF.
+
+      ENDLOOP.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+
+  METHOD cleanup_finalize.
+
+* Clean after save
+
+  ENDMETHOD.
+
+
+
+ENDCLASS.&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;4) We create a behavior consumption definition to reduce CRUD operations to the application if necessary (here I create the consumption but it is identical to ZI_DELIV_HU )&lt;/P&gt;&lt;PRE&gt;projection;
+
+strict ( 2 );
+
+
+
+define behavior for ZC_DELIV_HU //alias &amp;lt;alias_name&amp;gt;
+
+{
+
+
+
+  use action unassign;
+
+}&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;5) We create the metadatas, adding the extra button for Unassigned HUs.&lt;/P&gt;&lt;PRE&gt;@Metadata.layer: #CORE
+
+annotate entity ZC_DELIV_HU
+
+    with 
+
+{
+
+  @UI: { lineItem: [{ position: 10, importance: #HIGH },
+
+                    { type: #FOR_ACTION, dataAction: 'unassign', label: 'Unassign' }],
+
+         selectionField: [{ position: 10 }] }
+
+  DeliveryDocument;
+
+  @UI.lineItem: [{ position: 20 },
+
+                 { label : 'HU(s) assigned ?' }]
+
+  @UI.selectionField: [{ position: 20 }]               
+
+  @UI.identification:[ { label: 'HU(s) assigned ?' } ]
+
+  @EndUserText.label: 'HU(s) assigned ?'
+
+  HUAssigned;
+
+}&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;6) Create the definition service&lt;/P&gt;&lt;PRE&gt;@EndUserText.label: 'Service def deliv hu'
+
+define service ZUI_DELIV_HU {
+
+  expose ZC_DELIV_HU;
+
+}&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;7) create the binding service&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Image4-2.png" border="0" /&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;span class="lia-unicode-emoji" title=":smiling_face_with_sunglasses:"&gt;😎&lt;/span&gt; All that's left to do is create the Fiori application with VS Code or SAP BAS (8) using SAP Fiori elements&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/2024-01-04_08-34-53.png" border="0" /&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId--18672090"&gt;&lt;STRONG&gt;CONCLUSION&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;This is how I create Fiori applications using the Rap framework, taking into account the SAP guidelines for the cloud.&lt;BR /&gt;&lt;BR /&gt;For more similar content, follow the ABAP Development environment Topic page (&lt;A href="https://community.sap.com/topics/abap" target="_blank"&gt;https://community.sap.com/topics/abap&lt;/A&gt;), post and answer questions (&lt;A href="https://answers.sap.com/tags/833755570260738661924709785639136" target="_blank" rel="noopener noreferrer"&gt;https://answers.sap.com/tags/833755570260738661924709785639136&lt;/A&gt;), and read other posts on the topic (&lt;A href="https://blogs.sap.com/tags/833755570260738661924709785639136/" target="_blank" rel="noopener noreferrer"&gt;https://blogs.sap.com/tags/833755570260738661924709785639136/&lt;/A&gt;)&lt;BR /&gt;You can also follow my profile for similar content.&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;(1) &lt;A href="https://www.sap-press.com/abap-restful-application-programming-model_5647/" target="_blank" rel="noopener nofollow noreferrer"&gt;Learn the ABAP RESTful Application Programming Model | - by SAP PRESS (sap-press.com)&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;(2)&amp;nbsp;&lt;A href="https://blogs.sap.com/2022/12/05/the-sap-luw-in-abap-cloud/" target="_blank" rel="noopener noreferrer"&gt;https://blogs.sap.com/2022/12/05/the-sap-luw-in-abap-cloud/&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;(3)&amp;nbsp;&lt;A href="https://blogs.sap.com/2023/08/15/smooth-transition-to-abap-for-cloud-developmentcheat-sheet/comment-page-1/#comment-685200" target="_blank" rel="noopener noreferrer"&gt;https://blogs.sap.com/2023/08/15/smooth-transition-to-abap-for-cloud-developmentcheat-sheet/comment-page-1/#comment-685200&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;(4)&amp;nbsp;&lt;A href="https://raw.githubusercontent.com/SAP/abap-atc-cr-cv-s4hc/main/src/objectReleaseInfo_PCE2022.json" target="_blank" rel="noopener nofollow noreferrer"&gt;https://raw.githubusercontent.com/SAP/abap-atc-cr-cv-s4hc/main/src/objectReleaseInfo_PCE2022.json&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;(5)&amp;nbsp;&lt;A href="https://www.sap.com/documents/2023/05/b0bd8ae6-747e-0010-bca6-c68f7e60039b.html" target="_blank" rel="noopener noreferrer"&gt;https://www.sap.com/documents/2023/05/b0bd8ae6-747e-0010-bca6-c68f7e60039b.html&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;(6)&amp;nbsp;&lt;A href="https://blogs.sap.com/2022/10/25/how-to-use-embedded-steampunk-in-sap-s-4hana-cloud-private-edition-and-in-on-premise-the-new-abap-extensibility-guide/" target="_blank" rel="noopener noreferrer"&gt;https://blogs.sap.com/2022/10/25/how-to-use-embedded-steampunk-in-sap-s-4hana-cloud-private-edition-and-in-on-premise-the-new-abap-extensibility-guide/&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;(7)&amp;nbsp;&lt;A href="https://developers.sap.com/tutorials/abap-s4hanacloud-purchasereq-create-wrapper.html" target="_blank" rel="noopener noreferrer"&gt;https://developers.sap.com/tutorials/abap-s4hanacloud-purchasereq-create-wrapper.html&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;(8)&amp;nbsp;&lt;A href="https://blogs.sap.com/2022/10/31/fiori-development-with-vscode-and-nodejs/" target="_blank" rel="noopener noreferrer"&gt;https://blogs.sap.com/2022/10/31/fiori-development-with-vscode-and-nodejs/&lt;/A&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-members/cloud-ready-rap-object-using-legacy-bapi-clean-core-objective/ba-p/13572339"/>
     <published>2024-01-04T02:10:06+01:00</published>
   </entry>
