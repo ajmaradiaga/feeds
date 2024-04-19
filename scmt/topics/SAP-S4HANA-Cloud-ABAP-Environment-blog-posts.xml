@@ -2,666 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-S4HANA-Cloud-ABAP-Environment-blog-posts.xml</id>
   <title>SAP Community - SAP S/4HANA Cloud ABAP Environment</title>
-  <updated>2024-04-19T11:01:31.525050+00:00</updated>
+  <updated>2024-04-19T14:01:35.194498+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP S/4HANA Cloud ABAP Environment/pd-p/60907aa9-99e9-4d5d-9103-8b970e9bc0a4" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP S/4HANA Cloud ABAP Environment blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-members/cloud-ready-rap-object-using-legacy-bapi-clean-core-objective/ba-p/13572339</id>
-    <title>Cloud ready RAP object using legacy BAPI - Clean Core objective</title>
-    <updated>2024-01-04T02:10:06+01:00</updated>
-    <author>
-      <name>clemrngt</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/46084</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-963895435"&gt;&lt;STRONG&gt;INTRODUCTION&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;&lt;EM&gt;&lt;U&gt;Technical prerequisites&lt;/U&gt;&lt;/EM&gt;: S/4 Hana On premise or S/4 Hana private cloud edition environment.&lt;BR /&gt;&lt;BR /&gt;In this blog, the aim is to create a Fiori application using the RAP framework, based on an existing BAPI, while complying with SAP guidelines to achieve the clean core objective.&lt;BR /&gt;&lt;BR /&gt;&lt;EM&gt;&lt;U&gt;Use case&lt;/U&gt;&lt;/EM&gt;: For this presentation, we'll be looking to see whether deliveries have existing HUs (Handling Units). If so, we need to be able to delete these HUs.&lt;BR /&gt;&lt;BR /&gt;In legacy ABAP, we can use the BAPI_HU_DELETE_FROM_DEL BAPI.&lt;BR /&gt;&lt;BR /&gt;We'll now look at how to integrate this into a RAP object, following the SAP recommendations for a clean core.&lt;BR /&gt;&lt;BR /&gt;I'll also come back to the use of the RAP framework with the use of ABAP Standard, without the objective of clean core or cloud compliance, to show you some of the differences.&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-767381930"&gt;&lt;STRONG&gt;ABAP RAP, in the context of ABAP CLOUD&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;Let's take a very brief look at the ABAP RAP framework and its structure to provide the main foundations for this blog, all in the context of ABAP Cloud development.&lt;BR /&gt;&lt;BR /&gt;However, I recommend that you read the SAPPRESS book "ABAP RESTful Application Programming Model - A comprehensive guide" (1), which will explain all the details of this framework perfectly.&lt;BR /&gt;&lt;BR /&gt;Before delving into the structure of the framework, let's return to the notion of LUW in the cloud, as this will have a major impact on our development.&lt;BR /&gt;&lt;BR /&gt;As mentioned in detail in this SAP Blog (2), while it used to be recommended to use IN UPDATE TASK (which, among other things, avoided writing to databases when there were implicit commits and increased performance, but I invite you to read the article cited above) when it was desired to write to the SAP database using the ABAP standard. This is no longer the case with ABAP cloud, since the performance of the HANA database means that it can now be dispensed with. However, this implies that database writes only take place at the end of the SAP LUW (during the save sequence, see later in the explanation of the RAP framework), since in the event of an implicit commit, database modifications would be made and we would no longer respect ACID rules (again, see the article cited above).&lt;BR /&gt;&lt;BR /&gt;This is where the structure of the RAP framework comes in:&lt;BR /&gt;&lt;BR /&gt;The RAP framework can be broken down into 2 main phases:&lt;BR /&gt;&lt;BR /&gt;- Interaction phase&lt;BR /&gt;&lt;BR /&gt;- Save sequence&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/2023-12-27_15-01-08.png" border="0" /&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;During the interaction phase, data is placed in a buffer, where it can be enriched and verified.&lt;BR /&gt;&lt;BR /&gt;During the save sequence, the data in the buffer can no longer be modified and is saved in the database (this is the end of the SAP LUW).&lt;BR /&gt;&lt;BR /&gt;These are the rules followed by the RAP framework in the case of ABAP cloud development:&lt;BR /&gt;&lt;BR /&gt;The following violations will always lead to a runtime error in a RAP context (Even if ABAP CLOUD is used or STANDARD ABAP is used) :&lt;BR /&gt;&lt;BR /&gt;- Explicit use of COMMIT WORK or ROLLBACK WORK statements, as the transaction handling and database commit is exclusively handled by RAP.&lt;BR /&gt;&lt;BR /&gt;- Calling the update in background task (bgPF) in the interaction phase or early-save phase.&lt;BR /&gt;&lt;BR /&gt;Some other operations only lead to runtime errors, if the RAP behavior definition is implemented in ABAP for Cloud Development and the strict mode is applied:&lt;BR /&gt;&lt;BR /&gt;- Invoking authorization checks in the early-save or late-save phase.&lt;BR /&gt;&lt;BR /&gt;- Modifying database operations in the interaction phase or early-save phase.&lt;BR /&gt;&lt;BR /&gt;- Raising business events in the interaction phase or early-save phase.&lt;BR /&gt;&lt;BR /&gt;- (Implicit or explicit) database commits for the primary database connection in the late-save phase.&lt;BR /&gt;&lt;BR /&gt;NOTE FOR STANDARD ABAP USAGE : Looking at this rules, if you're not in the optic of clean core, you can develop in STANDARD ABAP, and perform implicit commit during late phase for example, or use IN UPDATE TASK statement, but in my case I prefer following the more stricter rules of ABAP RAP FRAMEWORK even if I'm developing in STANDARD ABAP.&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-570868425"&gt;&lt;STRONG&gt;The 2 possible scenarios in the RAP framework&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;There are 2 types of scenarios for implementing the process: managed or unmanaged.&lt;BR /&gt;&lt;BR /&gt;With the managed scenario, the SAP system automatically generates the methods and the business object. With the unmanaged scenario, everything must be developed by hand.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;UL&gt;&lt;UL&gt;&lt;LI&gt;The use case for the managed scenario is as follows: Creating a new application from scratch (greenfield approach) - typically, data will be stored persistently in new Z tables. Then enhance the standard generated via validations, determinations, and actions.&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;This is not the case here, as we want to store/modify our data in standard tables using legacy objects (a BAPI).&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;UL&gt;&lt;UL&gt;&lt;LI&gt;The use case for the unmanaged scenario is as follows: Revamping an existing application (brownfield approach). The existing application provides an API that can and should be used for the implementation of interaction phase and save sequence due to its characteristics (structure, decoupling of business logic and technical aspects).&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;In this case, we'd have to develop everything from the phase interaction to the save sequence. We're not interested in this implementation, as we don't have an API to manage buffering for our needs, and would like to use the SAP standard for the interaction part.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;UL&gt;&lt;UL&gt;&lt;LI&gt;In this case there is a 3rd scenario: Managed scenario with unmanaged save: Using parts of an existing application (e.g., a BAPI) in the save sequence ONLY.&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;Note : it exists also Managed scenario with additional save : Adding further update logic to the save sequence (e.g., in the application log) that doesn’t affect the actual business object. But we will not use it.&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-374354920"&gt;&lt;STRONG&gt;How to use the BAPI in cloud ABAP context ?&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;SAP provides the objects it wishes to expose for cloud development by Whitelisting them. If these objects are not exposed, SAP can also propose their successors (e.g. in the case of BAPIs, if not exposed, a RAP behavior can be proposed instead).&lt;BR /&gt;&lt;BR /&gt;This can be verified either directly in ADT (3), or on GitHub (4).&lt;BR /&gt;&lt;BR /&gt;In our case, the desired BAPI is neither exposed nor replaced.&lt;BR /&gt;&lt;BR /&gt;Following SAP guidelines (5) (6), we will create a wrapper around this BAPI, and whitelist this wrapper. When SAP will propose a successor to this BAPI, it will be possible to remove the wrapper and use the successor object instead.&lt;BR /&gt;&lt;BR /&gt;To create a wrapper around a BAPI, follow this tutorial (7).&lt;BR /&gt;&lt;BR /&gt;Here, we've created the ZCL_WRAP_DEL_HU_FAC ( and ZCL_WRAP_DEL_HU using ZIF_WRAP_BAP_HU_DEL) class, which will be used to delete HUs.&lt;/P&gt;&lt;PRE&gt;INTERFACE zif_wrap_bapi_hu_del
-
-  PUBLIC .
-
-  "Delivery Number
-
-  TYPES de_number             TYPE BAPIDELICIOUSDELIVERY-DELIVERY_NUMBER.
-
-  "HU
-
-  TYPES de_hu                 TYPE BAPIHUKEY-HU_EXID.
-
-  "Return table
-
-  TYPES de_returns      TYPE bapirettab.
-
-
-
-METHODS delete
-
-IMPORTING iv_number type de_number
-
-          iv_hu type de_hu
-
-RETURNING VALUE(rt_results) TYPE de_returns.
-
-
-
-ENDINTERFACE.&lt;/PRE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;PRE&gt;CLASS zcl_wrap_del_hu DEFINITION
-
-  PUBLIC
-
-  FINAL
-
-  CREATE PUBLIC .
-
-
-
-  PUBLIC SECTION.
-
-    INTERFACES zif_wrap_bapi_hu_del.
-
-      PROTECTED SECTION.
-
-  PRIVATE SECTION.
-
-ENDCLASS.
-
-
-
-
-
-
-
-CLASS zcl_wrap_del_hu IMPLEMENTATION.
-
-
-
- METHOD zif_wrap_bapi_hu_del~delete.
-
-    CALL FUNCTION 'BAPI_HU_DELETE_FROM_DEL'
-
-    EXPORTING
-
-    delivery = iv_number
-
-    hukey = iv_hu
-
-    TABLES
-
-    return = rt_results.
-
-    .
-
- ENDMETHOD.
-
-
-
-ENDCLASS.&lt;/PRE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;PRE&gt;CLASS zcl_wrap_del_hu_fac DEFINITION
-
-  PUBLIC
-
-  FINAL
-
-  CREATE PRIVATE .
-
-
-
-  PUBLIC SECTION.
-
-      CLASS-METHODS create_instance
-
-      RETURNING VALUE(result) TYPE REF TO zif_wrap_bapi_hu_del.
-
-  PROTECTED SECTION.
-
-  PRIVATE SECTION.
-
-    METHODS constructor.
-
-
-
-ENDCLASS.
-
-
-
-
-
-
-
-CLASS zcl_wrap_del_hu_fac IMPLEMENTATION.
-
-
-
-  METHOD create_instance.
-
-
-
-    result = NEW zcl_wrap_del_hu(  ).
-
-  ENDMETHOD.
-
-
-
-  METHOD constructor.
-
-  ENDMETHOD.
-
-
-
-ENDCLASS.&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;And we have released the wrapper and its interface as with listed APIs&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Image1-3.png" border="0" /&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Image2-2.png" border="0" /&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;So, it can be used now in ABAP for cloud development.&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-177841415"&gt;&lt;STRONG&gt;RAP object definition and implementation&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;Now that we have our whitelisted object for use in our rap object, we're going to start creating our business object.&lt;BR /&gt;&lt;BR /&gt;We have created a package using ABAP for cloud development.&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Image3-5.png" border="0" /&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;1) CDS creation&lt;BR /&gt;&lt;BR /&gt;- We create a CDS Root view entity which will store the delivery number, and whether at least one HU is linked to this delivery. (We have create the private CDS view ZP_HU to find the first line of eah Handler Unit for a delivery and then we join this view in the CDS Root Entity to check if at least one HU exists).&lt;BR /&gt;&lt;BR /&gt;Note here that we are using the CDS released by sap, which replaces the standard vekp-type tables).&lt;/P&gt;&lt;PRE&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-
-@EndUserText.label: 'CDS internal use HU'
-
-@Metadata.ignorePropagatedAnnotations: true
-
-@ObjectModel.usageType:{
-
-    serviceQuality: #X,
-
-    sizeCategory: #S,
-
-    dataClass: #MIXED
-
-}
-
-define view entity ZP_HU 
-
-as select from I_DeliveryDocument 
-
-left outer join I_HandlingUnitHeader on I_HandlingUnitHeader.HandlingUnitPackingObjectKey = I_DeliveryDocument.DeliveryDocument 
-
-{
-
-    key I_DeliveryDocument.DeliveryDocument as deliveryDocument,
-
-    min(I_HandlingUnitHeader.HandlingUnitInternalID) as hu,
-
-    min(I_HandlingUnitHeader.HandlingUnitPackingObjectKey) as objectkey
-
-}
-
-group by
-
-  I_DeliveryDocument.DeliveryDocument
-
-having
-
-  count(*) = 1
-
-&lt;/PRE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;PRE&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-
-@EndUserText.label: 'Handling Units for Delivery'
-
-define root view entity ZI_DELIV_HU as select from I_DeliveryDocument
-
-left outer join ZP_HU on ZP_HU.deliveryDocument = I_DeliveryDocument.DeliveryDocument
-
-{
-
-    key I_DeliveryDocument.DeliveryDocument as DeliveryDocument,
-
-    case
-
-        when $projection.DeliveryDocument = ZP_HU.objectkey
-
-          then cast ( 'X' as boole_d ) 
-
-        else cast ( ' ' as boole_d ) 
-
-        end                               as HUAssigned
-
-}
-
-&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;- We create the associated projection view, which will be used to create the web service. The projection view reduces the business object to the simple use it will be put to in the Fiori application, whereas the ZI_DELIV_HU cds could be reused by other applications.&lt;BR /&gt;&lt;BR /&gt;(Here there are no differences between the 2 cds, but there could have been).&lt;/P&gt;&lt;PRE&gt;@EndUserText.label: 'Projection view ZI_DELIV_HU'
-
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-
-@Metadata.allowExtensions: true
-
-define root view entity ZC_DELIV_HU as projection on ZI_DELIV_HU
-
-{
-
-    key DeliveryDocument,
-
-    HUAssigned
-
-}
-
-&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;Note: we could have created cds for additional value helps&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;2) We create the behavior definition&lt;BR /&gt;&lt;BR /&gt;- We specify first the strict mode for all the necessary syntax checks, and the authorization method used (authorization check).&lt;BR /&gt;&lt;BR /&gt;- Then we specify the operations that can be used: in this case, we only wish to update our business object to remove the HU assignment flag, so we specify "update". (we'll come back to internal).&lt;BR /&gt;&lt;BR /&gt;- Next, we enrich the automatically-generated standard by adding a validation in which we use the BAPI in test mode to check that everything's running smoothly.&lt;BR /&gt;&lt;BR /&gt;- We also enrich the standard with an "unassign" action that will remove the HUs flag assigned to the CDS. This action will use the UPDATE operation internally to modify the entity, and user should not be able to modify by himself the flag : He has to use the unassign button (here the explanation why internal is specified in the definition : UPDATE could only be used internally, in the RAP business object implementation).&lt;BR /&gt;&lt;BR /&gt;- finally, we specify Unmanaged save to use the BAPI in the save sequence and save the data in the database.&lt;/P&gt;&lt;PRE&gt;managed with unmanaged save implementation in class zbp_i_deliv_hu unique;
-
-strict ( 2 );
-
-
-
-define behavior for ZI_DELIV_HU //alias &amp;lt;alias_name&amp;gt;
-
-//persistent table &amp;lt;???&amp;gt;
-
-lock master
-
-authorization master ( instance )
-
-//etag master &amp;lt;field_name&amp;gt;
-
-{
-
-  //  create;
-
-  internal update;
-
-  //  delete;
-
-  action unassign;
-
-  validation validateDelivery on save { create; update; }
-
-}&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;3) Create the implementation&lt;BR /&gt;&lt;BR /&gt;- Creating the action&lt;BR /&gt;&lt;BR /&gt;EML is used to update the object by deleting the flag. If the user attempts to remove the flag from an object already without a flag (without HUs), an error message is displayed.&lt;BR /&gt;&lt;BR /&gt;- Validation creation (at save time)&lt;BR /&gt;&lt;BR /&gt;Execute the BAPI in test mode to check that everything's ok. If not, an error message is displayed.&lt;BR /&gt;&lt;BR /&gt;- Create save sequence :&lt;BR /&gt;&lt;BR /&gt;The BAPI is called in the last phase, at the end of the SAP LUW. Once the save sequence is complete, the RAP framework takes care of committing it.&lt;/P&gt;&lt;PRE&gt;CLASS lhc_ZI_DELIV_HU DEFINITION INHERITING FROM cl_abap_behavior_handler.
-
-  PRIVATE SECTION.
-
-
-
-    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-
-      IMPORTING keys REQUEST requested_authorizations FOR zi_deliv_hu RESULT result.
-
-
-
-    METHODS unassign FOR MODIFY
-
-      IMPORTING keys FOR ACTION zi_deliv_hu~unassign.
-
-
-
-    METHODS validateDelivery FOR VALIDATE ON SAVE
-
-      IMPORTING keys FOR zi_deliv_hu~validateDelivery.
-
-
-
-ENDCLASS.
-
-
-
-CLASS lhc_ZI_DELIV_HU IMPLEMENTATION.
-
-
-
-  METHOD get_instance_authorizations.
-
-* Here you check authorizations
-
-  ENDMETHOD.
-
-
-
-  METHOD unassign.
-
-* We read the current value of the key instances
-
-    READ ENTITIES OF zi_deliv_hu IN LOCAL MODE
-
-      ENTITY zi_deliv_hu
-
-      ALL FIELDS
-
-      WITH CORRESPONDING #( keys )
-
-      RESULT DATA(lt_sh_for_unassign).
-
-* We loop at the finding values to check if instances have HUs qssigned or no, If yes we report an error
-
-    LOOP AT lt_sh_for_unassign ASSIGNING FIELD-SYMBOL(&amp;lt;ls_sh_for_unassign_err&amp;gt;) WHERE huassigned = ' '.
-
-      reported-zi_deliv_hu = VALUE #( BASE reported-zi_deliv_hu
-
-                                                            ( %tky = &amp;lt;ls_sh_for_unassign_err&amp;gt;-%tky
-
-                                                              %msg = me-&amp;gt;new_message( severity = if_abap_behv_message=&amp;gt;severity-error
-
-                                                                                      id       = 'ZHU_MSG'
-
-                                                                                      number   = '002'
-
-                                                                                      v2 = |{ &amp;lt;ls_sh_for_unassign_err&amp;gt;-deliverydocument ALPHA = OUT }| ) ) ).
-
-
-
-    ENDLOOP.
-
-    DELETE lt_sh_for_unassign WHERE huassigned = ' '.
-
-* We modify entities to delete the flag and un-assign the HUs linked to the delivery
-
-    LOOP AT lt_sh_for_unassign ASSIGNING FIELD-SYMBOL(&amp;lt;ls_sh_for_unassign&amp;gt;).
-
-      MODIFY ENTITIES OF zi_deliv_hu IN LOCAL MODE
-
-          ENTITY zi_deliv_hu
-
-          UPDATE FROM
-
-              VALUE #( FOR sh IN lt_sh_for_unassign (
-
-                %key = sh-%key
-
-                deliverydocument = sh-deliverydocument
-
-                huassigned = ' '
-
-                %control-huassigned = if_abap_behv=&amp;gt;mk-on ) ).
-
-    ENDLOOP.
-
-
-
-  ENDMETHOD.
-
-
-
-  METHOD validateDelivery.
-
-* Validate here the data
-
-* For example, if the BAPI have a test mode it is be possible to execute it in test mode and in case of error report errors
-
-* However here it's not the case for BAPI_HU_DELETE_FROM_DEL
-
-* It's still possible to add our own validation
-
-  ENDMETHOD.
-
-
-
-ENDCLASS.
-
-
-
-CLASS lsc_ZI_DELIV_HU DEFINITION INHERITING FROM cl_abap_behavior_saver.
-
-  PROTECTED SECTION.
-
-
-
-    METHODS save_modified REDEFINITION.
-
-
-
-    METHODS cleanup_finalize REDEFINITION.
-
-
-
-ENDCLASS.
-
-
-
-CLASS lsc_ZI_DELIV_HU IMPLEMENTATION.
-
-
-
-  METHOD save_modified.
-
-* We loop at the updated instances with deleted flag
-
-    LOOP AT update-zi_deliv_hu INTO DATA(ls_update).
-
-
-
-* In this loop we find all the HU linked to the delivery
-
-      SELECT HandlingUnitExternalID
-
-      FROM I_HandlingUnitHeader
-
-      WHERE HandlingUnitPackingObjectKey = @ls_update-DeliveryDocument
-
-      INTO TABLE @DATA(lt_hu_to_delete).
-
-
-
-* Loop to all HUs assigned to delivery
-
-      LOOP AT lt_hu_to_delete INTO DATA(ls_hu_to_delete).
-
-* Call the bapi to delete the HU using the wrapper for the cloud
-
-        DATA(lt_hu_delete) = zcl_wrap_del_hu_fac=&amp;gt;create_instance( )-&amp;gt;delete(
-
-          EXPORTING
-
-          iv_number = ls_update-DeliveryDocument
-
-          iv_hu = ls_hu_to_delete-HandlingUnitExternalID ).
-
-
-
-* At this stage we can't report errors, it should has been verify that everything is fine before the save sequence
-
-* But in case of error we still give an information message
-
-        reported-zi_deliv_hu = VALUE #( BASE reported-zi_deliv_hu
-
-        FOR r IN lt_hu_delete WHERE ( type = 'E' )
-
-        ( deliverydocument = ls_update-deliverydocument
-
-        %msg = me-&amp;gt;new_message(
-
-        id = r-id
-
-        number = r-number
-
-        severity = if_abap_behv_message=&amp;gt;severity-information
-
-        v1 = r-message_v1
-
-        v2 = r-message_v2
-
-        v3 = r-message_v3
-
-        v4 = r-message_v4 ) ) ).
-
-
-
-        IF reported IS INITIAL.
-
-          reported-zi_deliv_hu = VALUE #( BASE reported-zi_deliv_hu
-
-                                                                ( %key = ls_update-%key
-
-                                                                  %msg = me-&amp;gt;new_message( severity = if_abap_behv_message=&amp;gt;severity-success
-
-                                                                                          id       = 'ZHU_MSG'
-
-                                                                                          number   = '002'
-
-                                                                                          v1 = |{ ls_update-deliverydocument ALPHA = OUT }| ) ) ).
-
-        ENDIF.
-
-      ENDLOOP.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-
-
-  METHOD cleanup_finalize.
-
-* Clean after save
-
-  ENDMETHOD.
-
-
-
-ENDCLASS.&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;4) We create a behavior consumption definition to reduce CRUD operations to the application if necessary (here I create the consumption but it is identical to ZI_DELIV_HU )&lt;/P&gt;&lt;PRE&gt;projection;
-
-strict ( 2 );
-
-
-
-define behavior for ZC_DELIV_HU //alias &amp;lt;alias_name&amp;gt;
-
-{
-
-
-
-  use action unassign;
-
-}&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;5) We create the metadatas, adding the extra button for Unassigned HUs.&lt;/P&gt;&lt;PRE&gt;@Metadata.layer: #CORE
-
-annotate entity ZC_DELIV_HU
-
-    with 
-
-{
-
-  @UI: { lineItem: [{ position: 10, importance: #HIGH },
-
-                    { type: #FOR_ACTION, dataAction: 'unassign', label: 'Unassign' }],
-
-         selectionField: [{ position: 10 }] }
-
-  DeliveryDocument;
-
-  @UI.lineItem: [{ position: 20 },
-
-                 { label : 'HU(s) assigned ?' }]
-
-  @UI.selectionField: [{ position: 20 }]               
-
-  @UI.identification:[ { label: 'HU(s) assigned ?' } ]
-
-  @EndUserText.label: 'HU(s) assigned ?'
-
-  HUAssigned;
-
-}&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;6) Create the definition service&lt;/P&gt;&lt;PRE&gt;@EndUserText.label: 'Service def deliv hu'
-
-define service ZUI_DELIV_HU {
-
-  expose ZC_DELIV_HU;
-
-}&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;7) create the binding service&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/12/Image4-2.png" border="0" /&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;span class="lia-unicode-emoji" title=":smiling_face_with_sunglasses:"&gt;😎&lt;/span&gt;All that's left to do is create the Fiori application with VS Code or SAP BAS (8) using SAP Fiori elements&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/2024-01-04_08-34-53.png" border="0" /&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId--18672090"&gt;&lt;STRONG&gt;CONCLUSION&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;This is how I create Fiori applications using the Rap framework, taking into account the SAP guidelines for the cloud.&lt;BR /&gt;&lt;BR /&gt;For more similar content, follow the ABAP Development environment Topic page (&lt;A href="https://community.sap.com/topics/abap" target="_blank"&gt;https://community.sap.com/topics/abap&lt;/A&gt;), post and answer questions (&lt;A href="https://answers.sap.com/tags/833755570260738661924709785639136" target="_blank" rel="noopener noreferrer"&gt;https://answers.sap.com/tags/833755570260738661924709785639136&lt;/A&gt;), and read other posts on the topic (&lt;A href="https://blogs.sap.com/tags/833755570260738661924709785639136/" target="_blank" rel="noopener noreferrer"&gt;https://blogs.sap.com/tags/833755570260738661924709785639136/&lt;/A&gt;)&lt;BR /&gt;You can also follow my profile for similar content.&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;(1) &lt;A href="https://www.sap-press.com/abap-restful-application-programming-model_5647/" target="_blank" rel="noopener nofollow noreferrer"&gt;Learn the ABAP RESTful Application Programming Model | - by SAP PRESS (sap-press.com)&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;(2)&amp;nbsp;&lt;A href="https://blogs.sap.com/2022/12/05/the-sap-luw-in-abap-cloud/" target="_blank" rel="noopener noreferrer"&gt;https://blogs.sap.com/2022/12/05/the-sap-luw-in-abap-cloud/&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;(3)&amp;nbsp;&lt;A href="https://blogs.sap.com/2023/08/15/smooth-transition-to-abap-for-cloud-developmentcheat-sheet/comment-page-1/#comment-685200" target="_blank" rel="noopener noreferrer"&gt;https://blogs.sap.com/2023/08/15/smooth-transition-to-abap-for-cloud-developmentcheat-sheet/comment-page-1/#comment-685200&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;(4)&amp;nbsp;&lt;A href="https://raw.githubusercontent.com/SAP/abap-atc-cr-cv-s4hc/main/src/objectReleaseInfo_PCE2022.json" target="_blank" rel="noopener nofollow noreferrer"&gt;https://raw.githubusercontent.com/SAP/abap-atc-cr-cv-s4hc/main/src/objectReleaseInfo_PCE2022.json&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;(5)&amp;nbsp;&lt;A href="https://www.sap.com/documents/2023/05/b0bd8ae6-747e-0010-bca6-c68f7e60039b.html" target="_blank" rel="noopener noreferrer"&gt;https://www.sap.com/documents/2023/05/b0bd8ae6-747e-0010-bca6-c68f7e60039b.html&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;(6)&amp;nbsp;&lt;A href="https://blogs.sap.com/2022/10/25/how-to-use-embedded-steampunk-in-sap-s-4hana-cloud-private-edition-and-in-on-premise-the-new-abap-extensibility-guide/" target="_blank" rel="noopener noreferrer"&gt;https://blogs.sap.com/2022/10/25/how-to-use-embedded-steampunk-in-sap-s-4hana-cloud-private-edition-and-in-on-premise-the-new-abap-extensibility-guide/&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;(7)&amp;nbsp;&lt;A href="https://developers.sap.com/tutorials/abap-s4hanacloud-purchasereq-create-wrapper.html" target="_blank" rel="noopener noreferrer"&gt;https://developers.sap.com/tutorials/abap-s4hanacloud-purchasereq-create-wrapper.html&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;(8)&amp;nbsp;&lt;A href="https://blogs.sap.com/2022/10/31/fiori-development-with-vscode-and-nodejs/" target="_blank" rel="noopener noreferrer"&gt;https://blogs.sap.com/2022/10/31/fiori-development-with-vscode-and-nodejs/&lt;/A&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-members/cloud-ready-rap-object-using-legacy-bapi-clean-core-objective/ba-p/13572339"/>
-    <published>2024-01-04T02:10:06+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-members/criando-danfe-customizada-output-management-s-4-hana-public-cloud-edition/ba-p/13574139</id>
-    <title>Criando DANFE customizada | Output Management | S/4 HANA Public Cloud Edition | release 2308</title>
-    <updated>2024-01-05T15:34:23+01:00</updated>
-    <author>
-      <name>anakarladyna</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/505897</uri>
-    </author>
-    <content>&lt;H3 id="toc-hId-1093035814"&gt;&lt;STRONG&gt;Introdução&lt;/STRONG&gt;&lt;/H3&gt;&lt;BR /&gt;
-Em S/4 HANA Public Cloud trabalhamos exclusivamente com o Adobe Forms para tratarmos formulários, standards ou customizados. Para desenvolver um formulário customizado é necessário fazer a sua customização via Adobe LiveCycle Designer e aplicar algumas configurações no ambiente para que o formulário em questão passe a ser utilizado. Trago um exemplo com um dos formulários mais requisitados pelos clientes: a querida DANFE.&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H3 id="toc-hId-896522309"&gt;&lt;STRONG&gt;Necessidade&lt;/STRONG&gt;&lt;/H3&gt;&lt;BR /&gt;
-Customização e implementação de um formulário DANFE customizado afim de atender às necessidades do usuário final. Ambiente S/4 HANA Public Cloud - release 2308&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;STRONG&gt;OBS: Importante ressaltar que as configurações devem ser realizadas no tenant Customizing.&lt;/STRONG&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/1.jpg" /&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H2 id="toc-hId-570926085"&gt;&lt;STRONG&gt;1. Copiando template standard e criando customizado&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
-Acessar app Output Management Form Template.&lt;BR /&gt;
-&lt;BR /&gt;
-Você o localizará pesquisando por &lt;STRONG&gt;Maintain Form Templates&lt;/STRONG&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/2.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;Pesquise na aba "&lt;SPAN style="font-size: 1rem"&gt;&lt;STRONG&gt;Predelivered Templates&lt;/STRONG&gt;" o form standard que gostaria de customizar.&lt;/SPAN&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;SPAN style="font-size: 1rem"&gt;Nesse exemplo, pesquisaremos por DANFE. Após selecionar, criaremos o customizado via botão de cópia&lt;/SPAN&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/3-3.jpg" height="172" width="660" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Pesquisando form template standard&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/4.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Nomeando novo formulário&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H2 id="toc-hId-374412580"&gt;&lt;STRONG&gt;2. Download do template customizado&lt;BR /&gt;
-&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-O formulário passará a ser tratado na "Custom Templates". Selecione para fazer o download do form&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/5.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="font-style: italic;font-family: SAPRegular, 'Helvetica Neue', Arial, sans-serif;text-align: left"&gt;Formulário customizado criado&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/6.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Download do fomulário para sua máquina local&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H2 id="toc-hId-177899075"&gt;&lt;STRONG&gt;3. Editando template customizado&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
-Abrir o Adobe LiveCycle e importar o arquivo do template&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/7.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/8.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Efetuar as modificações necessárias como: logo, layout ou binding. Salvar atualizações&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/9.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Editando formulário via Adobe Livecycle&lt;/P&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;H2 id="toc-hId--18614430"&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId--215127935"&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId--411641440"&gt;&lt;STRONG&gt;4. Upload do template customizado atualizado&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
-Acessar novamente app Output Management Form Template (Maintain Form Template) e realizar o upload do arquivo template editado&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/upload-1.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Upload do formulário atualizado&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H2 id="toc-hId--608154945"&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId--804668450"&gt;&lt;STRONG&gt;5. Configuração de regras para impressão do formulário&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
-Acessar o ambiente de configuração CBC (&lt;STRONG&gt;Central Business Configuration&lt;/STRONG&gt;)&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/10.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/11.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/13.jpg" height="44" width="640" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Associando formulário para impressão de determinada empresa&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;STRONG&gt;OBS: É importante ressaltar que a coluna "Number" identifica a prioridade dos formulários.&lt;/STRONG&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Adicionar novo modelo de formulário ao ambiente&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/14.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;H2 id="toc-hId--653927598"&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/15.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;H2 id="toc-hId--850441103"&gt;&lt;/H2&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H2 id="toc-hId--1046954608"&gt;&lt;STRONG&gt;6. Determinação do novo template&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;Acessar app Output Parameter Determination&lt;/P&gt;&lt;BR /&gt;
-&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/16.jpg" /&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/17.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;H2 id="toc-hId--1243468113"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/20.jpg" /&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId--1439981618"&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId--1636495123"&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId--1833008628"&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId--2029522133"&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId-2068931658"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/18-1.jpg" /&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId-1872418153"&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId-1844088339"&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId-1647574834"&gt;&lt;STRONG&gt;Evidências do cenário final&lt;/STRONG&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2024/01/21.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;PDF de DANFE customizada em cenário de nota emitida com sucesso&lt;/P&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;H2 id="toc-hId-1451061329"&gt;&lt;/H2&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-members/criando-danfe-customizada-output-management-s-4-hana-public-cloud-edition/ba-p/13574139"/>
-    <published>2024-01-05T15:34:23+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-sap/automated-testing-of-applications-developed-with-abap-cloud/ba-p/13583979</id>
     <title>Automated testing of applications developed with ABAP Cloud</title>
@@ -1689,5 +1033,222 @@ annotate view YC_DUE_MAT_LIST with
 }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-532158107"&gt;2.3 创建Service Definition和Service Binding&lt;/H3&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf3.png" style="width: 394px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98551i9701DCB711321236/image-size/large?v=v2&amp;amp;px=999" role="button" title="shelf3.png" alt="shelf3.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf4.png" style="width: 655px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98552i037C4944C6AF399D/image-size/large?v=v2&amp;amp;px=999" role="button" title="shelf4.png" alt="shelf4.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;我们可以通过预览的方式查看发布的服务：&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf5.png" style="width: 655px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98553i85222EE8D4831E85/image-size/large?v=v2&amp;amp;px=999" role="button" title="shelf5.png" alt="shelf5.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-206561883"&gt;3. 前台应用开发&lt;/H2&gt;&lt;P&gt;首先在BTP创建Destination：&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf6.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98560iA19B05F411314D70/image-size/large?v=v2&amp;amp;px=999" role="button" title="shelf6.png" alt="shelf6.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;然后打开BAS服务，选择SAP Fiori Worklist Application：&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf7.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98561i6C41471EC722AEFA/image-size/large?v=v2&amp;amp;px=999" role="button" title="shelf7.png" alt="shelf7.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;发布完成，部署完权限之后，就可以看到App：&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf8.png" style="width: 664px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98563iC59F054604F5C417/image-size/large?v=v2&amp;amp;px=999" role="button" title="shelf8.png" alt="shelf8.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;以上是该案例——物料临期管理自开发应用的步骤介绍。希望通过此案例的介绍能让您了解到三系统开发能实现的常见功能。&lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/sap-s-4hana-cloud-abap%E5%BC%80%E5%8F%91%E6%A1%88%E4%BE%8B%E4%B9%8B%E5%85%AB-%E7%89%A9%E6%96%99%E4%B8%B4%E6%9C%9F%E7%AE%A1%E7%90%86app/ba-p/13675540"/>
     <published>2024-04-19T09:11:36.318000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/sap-s-4hana-cloud-public-edition-abap-environment-case-8-material-shelf/ba-p/13675904</id>
+    <title>SAP S/4HANA Cloud, public edition, ABAP Environment Case 8: Material Shelf Life Management</title>
+    <updated>2024-04-19T13:16:11.809000+02:00</updated>
+    <author>
+      <name>Vincent_Zhu</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/131883</uri>
+    </author>
+    <content>&lt;P&gt;&lt;SPAN&gt;This is a detailed step-by-step technical guide document to introduce a Developer Extensibility case followed by this&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://blogs.sap.com/2023/04/06/sap-s-4hana-cloud-public-edition-abap-environment-case-introduction/" target="_blank" rel="noopener noreferrer"&gt;blog&lt;/A&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-992619627"&gt;&lt;STRONG&gt;1. Case Background:&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;We frequently hear inquiries from clients who have enabled batch management, asking whether there are reminders for nearing expiry materials and batch query reports for such materials. In standard products, retrieving relevant information often requires searching through multiple reports, such as inventory reports and batch details.&amp;nbsp;&lt;SPAN&gt;To meet this demand, we have developed a Material Shelf Life Management App on S/4HANA public cloud through developer extensibility (also known as cloud ABAP development), aiming to help enterprises intelligently manage material Shelf Life and enhance supply chain management efficiency. Regarding the business value of this use case, you can refer to this &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/boost-scm-efficiency-material-expiry-mgmt-app-empowers-intelligent-decision/ba-p/13657205" target="_self"&gt;blog&lt;/A&gt; for details.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf1.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98725iD322711C2641F69C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="shelf1.png" alt="shelf1.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Due to varying business management needs, each company may define different ranges for nearing expiry reminders. The Customizable Warning Threshold Configuration App allows users to set customized ranges for when to display red, yellow, or green warning lights, meeting the diverse customization needs of different enterprises for expiry management.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf2.png" style="width: 694px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98726iE32116620B580139/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="shelf2.png" alt="shelf2.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-796106122"&gt;&lt;STRONG&gt;2. Backend Service Development:&lt;/STRONG&gt;&lt;/H2&gt;&lt;H3 id="toc-hId-728675336"&gt;&lt;STRONG&gt;2.1 Create CDS Data Model&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Create Data Definition: &lt;SPAN&gt;YCDS_DUE_MAT_LIST&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.sqlViewName: 'YDUEMATMANGE'
+@AbapCatalog.compiler.compareFilter: true
+//@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #CHECK
+@EndUserText.label: 'Material Due Date List'
+define view YCDS_DUE_MAT_LIST as select from I_Batch
+inner join YCDS_SUM_STOCK_01 on YCDS_SUM_STOCK_01.Material = I_Batch.Material
+                                       and YCDS_SUM_STOCK_01.Plant = I_Batch.Plant
+                                       and YCDS_SUM_STOCK_01.Batch = I_Batch.Batch
+association [1..1] to I_Product on I_Product.Product = I_Batch.Material
+association [1..1] to I_ProductDescription on I_ProductDescription.Product = I_Batch.Material
+                                          and I_ProductDescription.Language = $session.system_language
+association [1..1] to I_Plant on I_Plant.Plant = I_Batch.Plant
+                              and I_Plant.Language = $session.system_language
+association [1..1] to I_Supplier on I_Supplier.Supplier = I_Batch.Supplier                           
+{
+  key I_Batch.Material,
+  key I_Batch.Batch,
+  key I_Batch.Plant,
+  key I_Batch.Supplier,
+  key I_Batch.BatchBySupplier,
+//  key YCDS_SUM_STOCK_01.InventoryStockType,
+//  key YCDS_SUM_STOCK_01.MatlDocLatestPostgDate,
+  YCDS_SUM_STOCK_01.StorageLocation,
+  YCDS_SUM_STOCK_01.MatlWrhsStkQtyInMatlBaseUnit,
+  I_Batch.MatlBatchIsInRstrcdUseStock,
+  I_Batch.ShelfLifeExpirationDate,
+  I_Batch.ManufactureDate,
+  I_Product.BaseUnit,
+  I_ProductDescription.ProductDescription,
+  I_Plant.PlantName,
+  I_Supplier.SupplierName,
+  case when I_Batch.MatlBatchIsInRstrcdUseStock = 'X' then 'Restricted' else 'Unrestricted' end as BatchStatus,
+  $session.system_date as curr_date
+}
+where I_Batch.ShelfLifeExpirationDate is not initial
+  and YCDS_SUM_STOCK_01.MatlWrhsStkQtyInMatlBaseUnit &amp;lt;&amp;gt; 0&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Create Data Definition:&amp;nbsp;&lt;SPAN&gt;YCDS_DUE_MAT_LIST2&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.sqlViewName: 'YDUEMATMANGE2'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Material Due Date List'
+define view YCDS_DUE_MAT_LIST2 as select from YCDS_DUE_MAT_LIST
+association [1..1] to I_StorageLocation on I_StorageLocation.StorageLocation = YCDS_DUE_MAT_LIST.StorageLocation
+                                       and I_StorageLocation.Plant           = YCDS_DUE_MAT_LIST.Plant
+{
+  key YCDS_DUE_MAT_LIST.Material,
+  key YCDS_DUE_MAT_LIST.Plant,
+  key YCDS_DUE_MAT_LIST.StorageLocation,
+  key YCDS_DUE_MAT_LIST.Batch,
+  key YCDS_DUE_MAT_LIST.Supplier,
+//  key YCDS_DUE_MAT_LIST.InventoryStockType,
+//  key YCDS_DUE_MAT_LIST.MatlDocLatestPostgDate,
+  YCDS_DUE_MAT_LIST.ProductDescription,
+  YCDS_DUE_MAT_LIST.PlantName,
+  I_StorageLocation.StorageLocationName,
+  YCDS_DUE_MAT_LIST.BatchBySupplier,
+  YCDS_DUE_MAT_LIST.SupplierName,
+  MatlWrhsStkQtyInMatlBaseUnit,
+  YCDS_DUE_MAT_LIST.BaseUnit,
+  YCDS_DUE_MAT_LIST.ShelfLifeExpirationDate,
+  YCDS_DUE_MAT_LIST.ManufactureDate,
+  YCDS_DUE_MAT_LIST.BatchStatus,
+  dats_days_between(YCDS_DUE_MAT_LIST.curr_date,YCDS_DUE_MAT_LIST.ShelfLifeExpirationDate) as remaining_days
+} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Create Data Definition:&amp;nbsp;&lt;SPAN&gt;YCDS_SUM_STOCK_01&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Sum of Stock 01'
+@Metadata.ignorePropagatedAnnotations: true
+@ObjectModel.usageType:{
+  serviceQuality: #X,
+  sizeCategory: #S,
+  dataClass: #MIXED
+}
+define view entity YCDS_SUM_STOCK_01 as select from I_MaterialStock_2
+{
+  key Material,
+  key Plant,
+  key StorageLocation,
+  key Batch,
+  key MaterialBaseUnit,
+  @Semantics.quantity.unitOfMeasure: 'MaterialBaseUnit'
+  @Aggregation.default: #SUM
+  sum( MatlWrhsStkQtyInMatlBaseUnit ) as MatlWrhsStkQtyInMatlBaseUnit
+}
+where InventoryStockType = '01'
+group by Material, Plant, StorageLocation, Batch, MaterialBaseUnit&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-403079112"&gt;2.2 Create Metadata Extensions&lt;/H2&gt;&lt;P&gt;Create new Metadata Extension:&amp;nbsp;&lt;SPAN&gt;YC_DUE_MAT_LIST&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CUSTOMER
+
+@UI.headerInfo.title.type: #STANDARD
+@UI.headerInfo.title.label: 'Material Shelf Life Management'
+@UI.headerInfo.description.type: #STANDARD
+@UI.headerInfo.typeName: 'Material Due List'
+@UI.headerInfo.typeNamePlural: 'Material Shelf Life Management'
+
+annotate view YC_DUE_MAT_LIST with
+{
+
+  @UI.facet: [{ id: 'Material',
+                purpose: #STANDARD,
+                type: #IDENTIFICATION_REFERENCE,
+                label: 'Material',
+                position: 10}
+                 ]
+
+  @UI:{ lineItem: [{ position: 10 }],
+        lineItem: [{label: 'Material'}],
+        identification: [{ position: 10 }],
+        selectionField: [{ position: 20 }]
+        }
+  Material;
+  @UI:{ lineItem: [{ position: 20 }],
+        lineItem: [{label: 'Material Description'} ],
+        identification: [{ position: 20 }]
+        }
+  @UI.lineItem: [{exclude: true}]
+  ProductDescription;
+  @UI:{ lineItem: [{ position: 30 }],
+        lineItem: [{label: 'Plant'}],
+        identification: [{ position: 30 }],
+        selectionField: [{ position: 10 }]
+        }
+  Plant;
+  @UI:{ lineItem: [{ position: 40 }],
+        lineItem: [{label: 'Plant Name'}],
+        identification: [{ position: 40 }]
+        }
+  @UI.lineItem: [{exclude: true}]
+  PlantName;
+  @UI.lineItem: [{ position: 50 }]
+  @UI.lineItem: [{label: 'Storage Location'}]
+  @UI.identification: [{ position: 50 }]
+  @UI.selectionField: [{position: 50}]
+  StorageLocation;
+  @UI.lineItem: [{ position: 60 }]
+  @UI.lineItem: [{label: 'Storage Location Name'}]
+  @UI.identification: [{ position: 60 }]
+  @UI.lineItem: [{exclude: true}]
+  StorageLocationName;
+  @UI.lineItem: [{ position: 70 }]
+  @UI.lineItem: [{label: 'Batch'}]
+  @UI.identification: [{ position: 70 }]
+  @UI.selectionField: [{position: 70}]
+  Batch;
+  @UI.lineItem: [{ position: 80 }]
+  @UI.lineItem: [{label: 'Supplier Batch'}]
+  @UI.identification: [{ position: 80 }]
+  @UI.selectionField: [{position: 80}]
+  BatchBySupplier;
+  @UI.lineItem: [{ position: 90 }]
+  @UI.lineItem: [{label: 'Supplier'}]
+  @UI.identification: [{ position: 90 }]
+  Supplier;
+  @UI.lineItem: [{ position: 100 }]
+  @UI.lineItem: [{label: 'Supplier Name'}]
+  @UI.identification: [{ position: 100 }]
+  @UI.lineItem: [{exclude: true}]
+  SupplierName;
+  @UI.lineItem: [{ position: 110 }]
+  @UI.lineItem: [{label: 'Unrestricted Inventory Qty'}]
+  @UI.identification: [{ position: 110 }]
+  MatlWrhsStkQtyInMatlBaseUnit;
+  @UI.lineItem: [{ position: 120 }]
+  @UI.lineItem: [{label: 'Unit'}]
+  @UI.identification: [{ position: 120 }]
+//  @UI.lineItem: [{exclude: true}]
+  @UI.hidden: true
+  BaseUnit;
+  @UI.lineItem: [{ position: 130 }]
+  @UI.lineItem: [{label: 'Expiration Date'}]
+  @UI.identification: [{ position: 130 }]
+  ShelfLifeExpirationDate;
+  @UI.lineItem: [{ position: 140 }]
+  @UI.lineItem: [{label: 'Manufacture Date'}]
+  @UI.identification: [{ position: 140 }]
+  @UI.lineItem: [{exclude: true}]
+  ManufactureDate;
+  @UI.lineItem: [{ position: 150 }]
+  @UI.lineItem: [{label: 'Batch Status'}]
+  @UI.identification: [{ position: 150 }]
+  @UI.lineItem: [{exclude: true}]
+  BatchStatus;
+  @UI.lineItem: [{ position: 160, importance: #HIGH }]
+  @UI.lineItem: [{label: 'Remaining Days'}]
+  @UI.identification: [{ position: 160 }]
+  remaining_days;
+  @UI.lineItem: [{ position: 170, value: 'due_range', criticality: 'Criticality' }]
+  @UI.lineItem: [{label: 'Due Date Range'}]
+  @UI.identification: [{ position: 170 }]
+  due_range;    
+//  @UI.hidden: true
+//  InventoryStockType;
+//  @UI.hidden: true
+//  MatlDocLatestPostgDate;
+  @UI.hidden: true
+  Criticality;
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-206565607"&gt;2.3 Create Service Definition and Service Binding&lt;/H2&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf3.png" style="width: 394px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98728iCD162A9C956A3C92/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="shelf3.png" alt="shelf3.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf4.png" style="width: 655px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98729i22C9D0493C6324B8/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="shelf4.png" alt="shelf4.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;And then we can preview the published service:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf5.png" style="width: 655px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98731i8B09CCF0DDB516B6/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="shelf5.png" alt="shelf5.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-10052102"&gt;&lt;STRONG&gt;3. Frontend App Development&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;First create destination on BTP:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf6.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98732i100F91375D5B9B6D/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="shelf6.png" alt="shelf6.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Then open BAS service, and choose SAP Fiori Worklist Application:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf7.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98733i037300034A6E42CE/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="shelf7.png" alt="shelf7.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;After publish, and authorization setup, we can see the App like below:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf8.png" style="width: 664px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98734i933550D898707A4E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="shelf8.png" alt="shelf8.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/sap-s-4hana-cloud-public-edition-abap-environment-case-8-material-shelf/ba-p/13675904"/>
+    <published>2024-04-19T13:16:11.809000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-sap/analyze-expensive-abap-workload-in-the-cloud-with-work-process-sampling/ba-p/13675553</id>
+    <title>Analyze Expensive ABAP Workload in the Cloud with  Work Process Sampling</title>
+    <updated>2024-04-19T15:56:01.041000+02:00</updated>
+    <author>
+      <name>sebastian_kusch</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/508815</uri>
+    </author>
+    <content>&lt;P&gt;As an administrator or developer in the ABAP environment in the cloud, you need to keep track of the workload that kept your system busy throughout the day or at specific points in time. You want to check how many of your work processes are or were occupied with what kind of workload, consuming how much ABAP CPU time and main memory. Finally, you want to find out which ABAP coding was responsible for the high consumption of these resources.&amp;nbsp;&lt;/P&gt;&lt;P&gt;In this blog post, I’d like to show you how you can use the &lt;EM&gt;Sampled Work Process Data&lt;/EM&gt; app to analyze concurrent workload and resource consumption and to find the root cause of a performance problem.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-863533218"&gt;&lt;STRONG&gt;Sampled Work Process Data App vs. Other Tools&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;Maybe you are already familiar with the &lt;EM&gt;System Workload&lt;/EM&gt; app that provides an overview of the ABAP workload in your system. The following blog post gives you an insight with examples:&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/analyzing-performance-degradations-in-the-abap-environment-in-the-cloud/ba-p/13557456" target="_blank"&gt;Analyzing Performance Degradations in the ABAP Environment in the Cloud&lt;/A&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;The ABAP system provides two data capturing mechanisms for the ABAP workload: ABAP statistics records and ABAP work process samples. The different strategies for data collection and timing aspects are explained in the following documentation on SAP Help Portal:&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/btp/technical-monitoring-cockpit-cloud-version/monitoring-system-workload-data-provisioning" target="_blank" rel="noopener noreferrer"&gt;Monitoring the System Workload: Data Collection and Focus of Available Apps | SAP Help Portal&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Both data capturing strategies are designed to cover different scenarios. You can read more about the supported monitoring use cases in the following documentation on SAP Help Portal:&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/btp/technical-monitoring-cockpit-cloud-version/monitoring-system-workload-apps-and-their-use-cases" target="_blank" rel="noopener noreferrer"&gt;Monitoring the System Workload: Apps and Their Use Cases | SAP Help Portal&lt;/A&gt;&lt;/P&gt;&lt;P&gt;The ABAP statistics data of the &lt;EM&gt;System Workload&lt;/EM&gt; app is persisted after the respective processing step has finished. In addition, the data on CPU time and main memory consumption is only available for the entire processing step, so you can’t determine if any interesting "hotspot" is hiding somewhere in the ABAP coding, let alone where they’re precisely located in the code.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;You might also have heard about - or already used - the ABAP Profiler, which creates ABAP traces that provide detailed insights into your program, its resource consumption and potential "hotspots" in your coding. However, using the ABAP Profiler requires you to explicitly activate it before running any specific program or application. This means that retrospective analysis is not possible. Furthermore, the results are usually limited to your application only, or at best a subset of the workload in the system. Other software running concurrently, which may cause resource bottlenecks, is not considered.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;For more information about the ABAP Profiler, please refer to the following documentation on SAP Help Portal:&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/abap-cloud/abap-development-tools-user-guide/profiling-abap-code?version=sap_btp" target="_blank" rel="noopener noreferrer"&gt;Profiling ABAP Code | SAP Help Portal&lt;/A&gt;&lt;/P&gt;&lt;P&gt;If you want to detect a large resource consumption immediately &lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;or detect the responsible code location without activating any tracing, you’d rather use the &lt;EM&gt;Sampled Work Process Data&lt;/EM&gt; app.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-667019713"&gt;&lt;STRONG&gt;Get an Overview of the ABAP CPU Time Consumption&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;On the SAP Fiori launchpad of the ABAP environment in SAP BTP, I went to the &lt;EM&gt;Technical Monitoring&lt;/EM&gt; area and chose the &lt;EM&gt;Sampled Work Process Data&lt;/EM&gt; app. This app is available for administrator and developer roles.&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;On the entry screen of the app, I get an overview of the ABAP CPU time consumption for the last 24 hours with a resolution of ten minutes. I can easily adjust the time range and the resolution using the time slider at the top.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Time Slider" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98593i61C63D21ECC77A2F/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-03-04_15-22-58.jpg" alt="Time Slider" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Time Slider&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;I can even change to a granularity of single seconds. Of course, this only makes sense for a total time range of much less than 24 hours, such as 1 minute, for instance.&lt;/P&gt;&lt;P&gt;In the upper part of the screen, there’s a graphical overview drilled down by the &lt;EM&gt;Request Entry Type&lt;/EM&gt; (for example, &lt;EM&gt;OData v4&lt;/EM&gt; or &lt;EM&gt;SQL Service&lt;/EM&gt;). In the lower part of the screen, there’s a table that lists the top 10 consumers with more detailed characteristics, such as the &lt;EM&gt;Request Entry Name&lt;/EM&gt;. Additionally, there’s a metric that indicates the overall ABAP CPU utilization as a percentage over time. This is represented by the black line in the screenshot below, with a scale located on the right side.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ABAP CPU Time Overview" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98611i3BC376181C22D131/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-19_09-48-26.jpg" alt="ABAP CPU Time Overview" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;ABAP CPU Time Overview&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;H1 id="toc-hId-470506208"&gt;&lt;STRONG&gt;A&lt;/STRONG&gt;&lt;STRONG&gt;nalyze Concurrent Workload and Resource Consumption&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;&lt;SPAN&gt;The entry screen provides four different metrics to depict resource consumption. These metrics include ABAP CPU time, main memory, and dialog and background work process utilization. Speaking of filters, you can use the filters for &lt;/SPAN&gt;&lt;EM&gt;Transaction Code&lt;/EM&gt;&lt;SPAN&gt;, &lt;/SPAN&gt;&lt;EM&gt;Request Entry Type&lt;/EM&gt;&lt;SPAN&gt;, &lt;/SPAN&gt;&lt;EM&gt;Request Entry Name&lt;/EM&gt;&lt;SPAN&gt;, &lt;/SPAN&gt;&lt;EM&gt;Tenant ID&lt;/EM&gt;&lt;SPAN&gt; and &lt;/SPAN&gt;&lt;EM&gt;WM Process Class ID&lt;/EM&gt;&lt;SPAN&gt; to focus on what you are really interested in:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Filter and Drilldown" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98618i696D8341DB1B6AA7/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-19_09-53-03.jpg" alt="Filter and Drilldown" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Filter and Drilldown&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Filter values can be precise values or wildcards.&lt;/P&gt;&lt;P&gt;When it comes to drilldown, you might be interested in drilling down according to other characteristics or a more fine-grained resolution of the depicted workload. On the upper right, you can define the set of characteristics that the drilldown is based on:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Adjusting the Drilldown" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98620i8BD9CE528E8DDE15/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-19_09-54-49.jpg" alt="Adjusting the Drilldown" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Adjusting the Drilldown&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;By default, this is only the &lt;EM&gt;Request Entry Type&lt;/EM&gt;. However, you can also select the &lt;EM&gt;Transaction Code&lt;/EM&gt;, &lt;EM&gt;Request Entry Name&lt;/EM&gt;, &lt;EM&gt;Tenant ID&lt;/EM&gt; and &lt;EM&gt;WM Process Class ID&lt;/EM&gt;, either individually or in any combination that is appropriate for your specific use case. This allows you to investigate concurrent resource consumption in different dimensions. In the chart below, the top values of your drilldown characteristics (in this case, just the &lt;EM&gt;Request Entry Name&lt;/EM&gt;) are displayed accordingly:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ABAP CPU Time Drilled Down by the Request Entry Name" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98621i07BE60C68C283905/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-19_09-56-04.jpg" alt="ABAP CPU Time Drilled Down by the Request Entry Name" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;ABAP CPU Time Drilled Down by the Request Entry Name&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In the chart, you can clearly identify which types of workloads are competing &lt;STRONG&gt;concurrently&lt;/STRONG&gt; for resources within the same 10 minutes interval. By adjusting the time slider, you can also choose much finer granularities.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note: &lt;/STRONG&gt;Please be aware that the work process sampling is, as the name suggests, based on samples (snapshots) of the work process data provided by the ABAP kernel that are taken once per second. The ABAP CPU time consumption is then calculated as the delta between consecutive samples. This means that only expensive workloads running for more than a second are displayed as relevant ABAP CPU time consumers.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-273992703"&gt;&lt;STRONG&gt;Reveal the Root Cause of Performance Problems&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;Now let’s assume that we don’t have a uniform distribution of the workload as in the example above. Instead, one of the &lt;EM&gt;Request Entry Name&lt;/EM&gt; values is popping up again and again, for example, around 09:30 a.m.:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ABAP CPU Time with an Expensive Workload" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98622i672C9EB82D7CCC09/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-12_11-35-57.jpg" alt="ABAP CPU Time with an Expensive Workload" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;ABAP CPU Time with an Expensive Workload&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;I click on the bar in the chart as shown in the above screenshot (which filters for the respective &lt;EM&gt;Request Entry Name&lt;/EM&gt; &lt;STRONG&gt;and&lt;/STRONG&gt; time interval) and then on the &lt;EM&gt;Details&lt;/EM&gt; arrow on the right of a table row. This takes me to the &lt;EM&gt;Request Entry Point&lt;/EM&gt; screen for the ABAP CPU time. (If I had switched to the &lt;EM&gt;Main Memory&lt;/EM&gt; or another aspect before, I would arrive at a corresponding detail view for that metric, of course.) Since I have also selected a specific time interval, I get a zoomed-in view with a resolution of single seconds, here for the time range between 09:20 and 09:30:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Request Entry Point Screen with a Resolution of Single Seconds" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98623i70240CC009284DA8/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-12_09-45-22.jpg" alt="Request Entry Point Screen with a Resolution of Single Seconds" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Request Entry Point Screen with a Resolution of Single Seconds&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;This screens also offers a graphical overview over time, along with further details in the table. However, the drilldown characteristic in the chart is the &lt;EM&gt;Current Program Name&lt;/EM&gt;, that is the name of the coding artifact (typically a class name) that was being executed when the sample was created. This chart may already give you a pretty good understanding of which parts of your application (on a technical level in terms of ABAP coding that is run) are expensive and where you may find optimization potential (as shown in the screenshot below). Clicking on the legend or directly on the chart filters the table data accordingly. You can zoom in and zoom out, as on the previous screens. The lower part of the screen shows a list of single work process samples, which include detailed characteristics and metrics describing the work process at specific points in time.&lt;/P&gt;&lt;P&gt;In this case, we can recognize two executions of the same workload that were both running for two and a half minutes. During the execution, the CPU time consumption per second was often close to 1000 milliseconds.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="“Most Prominent” Current Program Name in Our Example" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98624iDB3F06E1F8C3F6CE/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-12_09-45-22-2.jpg" alt="“Most Prominent” Current Program Name in Our Example" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;“Most Prominent” Current Program Name in Our Example&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Now I click on the &lt;EM&gt;Details&lt;/EM&gt; arrow at the end of a row in the table, which leads me to the &lt;EM&gt;Single Work Process Sample&lt;/EM&gt; object page with even more details:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Characteristics on the Object Page" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98625i9C9A33284381D424/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-12_09-51-35.jpg" alt="Characteristics on the Object Page" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Characteristics on the Object Page&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;For a database-intensive scenario, you have the option to navigate further to the ABAP statistics record using the link on the upper right of the screen. On the &lt;EM&gt;ABAP Statistics Record&lt;/EM&gt; screen, you can find – among other things – detailed data about the HANA processing time and the single expensive SQL statements, as explained in the blog post about the &lt;EM&gt;System Workload&lt;/EM&gt; app mentioned at the beginning of this blog post.&lt;/P&gt;&lt;P&gt;Now let’s go back to the &lt;EM&gt;Single Work Process Sample&lt;/EM&gt; object page. Here, I can also switch to the &lt;EM&gt;Work Process: Metrics&lt;/EM&gt; tab page of the object page to learn, for instance, about the number of table entries transferred between the application server and the database within the last second before this sample was taken:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Metrics on the Object Page" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98626i6F6A04893453B078/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-12_09-53-09.jpg" alt="Metrics on the Object Page" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Metrics on the Object Page&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In this ABAP CPU-intensive scenario&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;, work process sampling can help directly identify whether there’s room for improvement. You can recognize that your application is CPU-intensive if many single samples have a CPU time consumption that’s not too far from 1 second, as is the case here.&lt;/P&gt;&lt;P&gt;Typical defects include expensive operations on large internal tables. On the &lt;EM&gt;ABAP Stack Trace&lt;/EM&gt; tab page of the object page, I can check whether this is the reason for poor performance:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ABAP Stack Trace on the Object Page" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98627iFCE8626D00B26DB3/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-12_09-54-02.jpg" alt="ABAP Stack Trace on the Object Page" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;ABAP Stack Trace on the Object Page&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;By navigating from here to ABAP development tools for Eclipse (ADT) or an HTML viewer (by clicking on the &lt;EM&gt;Details&lt;/EM&gt; arrow next to a line in the table), I can easily jump to the respective code where, in our simple example, a LOOP statement is executed on an internal table.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note&lt;/STRONG&gt;: In the case of single expensive statements (typically a READ TABLE or a LOOP statement, as in our example here, or a long-running Open SQL statement), the ABAP kernel – when regaining control and returning a stack trace –usually points to the &lt;STRONG&gt;next&lt;/STRONG&gt; statement (the one directly following the really expensive one). Thus, we shouldn’t be concerned about the IF statement, but rather the LOOP statement.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ABAP Code Behind the Performance Glitch" style="width: 661px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98628iD530ED1AAA016741/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-12_09-56-41.jpg" alt="ABAP Code Behind the Performance Glitch" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;ABAP Code Behind the Performance Glitch&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;H1 id="toc-hId-77479198"&gt;&lt;STRONG&gt;Verify the Impact of Performance Improvements&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;In this simple example, the performance of the statement can be significantly improved by introducing a secondary key. In addition, we slightly adjust the LOOP statement by referring to the secondary key:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Enhancement of the Static Attribute ST_PIERS" style="width: 532px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98629iAA0A542B27049E8D/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-12_10-25-55.jpg" alt="Enhancement of the Static Attribute ST_PIERS" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Enhancement of the Static Attribute ST_PIERS&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Loop Statement Using the Secondary Key" style="width: 421px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98630i10F6857C0301CD62/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-12_11-26-52.jpg" alt="Loop Statement Using the Secondary Key" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Loop Statement Using the Secondary Key&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;We can assess the impact of this tiny change by inspecting the time interval from 10:00 to 10:10 a.m., during which the same workload was run again. This can be done on both the &lt;EM&gt;Sampled Work Process Data&lt;/EM&gt; entry screen ...&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Sampled Work Process Data Screen After Fixing the Issue" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98631iAA7E91B2DAD2FE79/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-12_19-20-29.jpg" alt="Sampled Work Process Data Screen After Fixing the Issue" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Sampled Work Process Data Screen After Fixing the Issue&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;...and the &lt;EM&gt;Request Entry Point&lt;/EM&gt; screen by selecting the respective time interval.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Request Entry Point Screen After Fixing the Issue" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98632i0FA78025CBEF453C/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-12_10-24-24.jpg" alt="Request Entry Point Screen After Fixing the Issue" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Request Entry Point Screen After Fixing the Issue&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;We can clearly recognize that now two executions of the same workload finish within seconds and that the FIND_RELATION_DATA method does not even show up in any of the collected work process samples anymore. Here are both versions of the workload in direct comparison on the &lt;EM&gt;Request Entry Point&lt;/EM&gt; screen:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Non-Optimized and Optimized Workload on the Request Entry Point Screen" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98634i23CFD8A5D605C9AF/image-size/large?v=v2&amp;amp;px=999" role="button" title="2024-04-12_19-52-14.jpg" alt="Non-Optimized and Optimized Workload on the Request Entry Point Screen" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Non-Optimized and Optimized Workload on the Request Entry Point Screen&lt;/span&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;H1 id="toc-hId--119034307"&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;The &lt;EM&gt;Sampled Work Process Data&lt;/EM&gt; app in the &lt;EM&gt;Technical Monitoring&lt;/EM&gt; area of the SAP Fiori launchpad in an ABAP environment in the cloud gives you a lot of insights into concurrent workload in your system and lets you glance under the hood of ABAP CPU or memory intensive applications. It bridges the gap between apps based on ABAP statistics records and tracing tools like the ABAP Profiler.&lt;/P&gt;&lt;P&gt;I’d like to thank everyone who contributed to this blogpost, especially my colleagues anke.griesbaum, christian.cop, steffen.siegmund, ingrid.mautes, karen.kuck and sabine.reich.&lt;/P&gt;&lt;P&gt;For more information, refer to the following documentation on SAP Help Portal:&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/btp/technical-monitoring-cockpit-cloud-version/sampled-work-process-data" target="_blank" rel="noopener noreferrer"&gt;Sampled Work Process Data | SAP Help Portal&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-sap/analyze-expensive-abap-workload-in-the-cloud-with-work-process-sampling/ba-p/13675553"/>
+    <published>2024-04-19T15:56:01.041000+02:00</published>
   </entry>
 </feed>
