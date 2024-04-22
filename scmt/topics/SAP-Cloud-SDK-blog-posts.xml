@@ -2,211 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Cloud-SDK-blog-posts.xml</id>
   <title>SAP Community - SAP Cloud SDK</title>
-  <updated>2024-04-21T23:12:23.524058+00:00</updated>
+  <updated>2024-04-22T11:12:34.393967+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Cloud SDK/pd-p/73555000100800000895" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Cloud SDK blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/rfc-meets-the-web-part-ii-building-the-proxy/ba-p/13566876</id>
-    <title>RFC meets the Web: Part II - Building the proxy</title>
-    <updated>2023-04-04T03:19:14+02:00</updated>
-    <author>
-      <name>Gunter</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/727</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-963096004"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/04/スクリーンショット-2023-04-04-101621.jpg" /&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId-766582499"&gt;&lt;EM&gt;RFC meets Web - Part II: How to build the proxy&lt;/EM&gt;&lt;/H2&gt;&lt;BR /&gt;
-Welcome back to the second blog post where we look into building the REST2RFC proxy! It's a SAP Cloud SDK Java application running on SAP BTP Cloud Foundry runtime.&lt;BR /&gt;
-&lt;H2 id="toc-hId-570068994"&gt;Introduction and BTP services used&lt;/H2&gt;&lt;BR /&gt;
-When I started with the project (which was inspired by customers telling me "we don't have APIs, we are still on S/4HANA 1909") I explored the options to build a proxy to translate between the RFC and the REST world. A few things became clear:&lt;BR /&gt;
-&lt;UL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;That proxy must be agnostic - no function module specific logic should be in it, so it can be universal.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;REST is channeled through SAP Cloud Connector and with that we have a granular way to white-list what should be exposed from the on-premise system.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;SAP BTP offers the RFC-flavor for defining a destination. Great!&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Using BTP RFC destinations only works through Java and the &lt;A href="https://mvnrepository.com/artifact/com.sap.cloud/neo-java-web-api" target="_blank" rel="nofollow noopener noreferrer"&gt;API For SAP BTP (Java Web Tomcat 9)&lt;/A&gt; which is not in the &lt;A href="https://sap.github.io/cloud-sdk/docs/java/getting-started" target="_blank" rel="nofollow noopener noreferrer"&gt;SAP Cloud SDK for Java&lt;/A&gt; (not to be confused with the &lt;A href="https://support.sap.com/en/product/connectors/jco.html" target="_blank" rel="noopener noreferrer"&gt;JCo you can download&lt;/A&gt; as a separate package) and likely coming from Neo but working perfectly fine with CF and latest Cloud SDK, too.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;All existing tutorials were outdated that explained the RFC integration so I hope this blog helps you.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-As for the BTP project building the application needs these services:&lt;BR /&gt;
-&lt;OL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;STRONG&gt;Authorization and Trust Management Service (xsuaa)&lt;/STRONG&gt;: Securing the application from the web entry point with OAuth2 and roles to be assigned to a user which define the scope during authentication as part of the JWT.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;STRONG&gt;Connectivity Service&lt;/STRONG&gt;: To connect between cloud and on-premise through the Cloud Connector (CC).&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;STRONG&gt;Destination Service&lt;/STRONG&gt;: To retrieve the destinations in the Java app for RFC and offer the REST service to the caller.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;STRONG&gt;Application Logging Service&lt;/STRONG&gt;: To allow for a really nice monitoring of the proxy. Not mandatory but I highly recommend it for debugging and day-to-day monitoring.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/OL&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId-373555489"&gt;Proxy project details&lt;/H2&gt;&lt;BR /&gt;
-&lt;H3 id="toc-hId-306124703"&gt;Development IDE&lt;/H3&gt;&lt;BR /&gt;
-I used Eclipse in connection with the SAP Cloud SDK for Java. You want to install Maven with&lt;BR /&gt;
-&lt;PRE class="language-c"&gt;&lt;CODE&gt;$ choco install maven&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-on a Windows device. To create a fresh project I ran&lt;BR /&gt;
-&lt;PRE class="language-c"&gt;&lt;CODE&gt;mvn archetype:generate "-DarchetypeGroupId=com.sap.cloud.sdk.archetypes" "-DarchetypeArtifactId=scp-cf-tomee" "-DarchetypeVersion=RELEASE"&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-since I built on TomcatEE and not Springboot. This create the framework you should open in Eclipse once done.&lt;BR /&gt;
-&lt;BR /&gt;
-I deleted those elements which I didn't need (like junit and integration tests &lt;span class="lia-unicode-emoji" title=":face_with_tears_of_joy:"&gt;😂&lt;/span&gt;) so the build process just considered my code. You also need to define a manifest file and the obligatory xs-security.json.&lt;BR /&gt;
-&lt;PRE class="language-c"&gt;&lt;CODE&gt;---&lt;BR /&gt;
-applications:&lt;BR /&gt;
-&lt;BR /&gt;
-- name: jco-rfc-rest-server&lt;BR /&gt;
-  memory: 1500M&lt;BR /&gt;
-  timeout: 300&lt;BR /&gt;
-  random-route: true&lt;BR /&gt;
-  path: application/target/jco-rfc-rest-server-application.war&lt;BR /&gt;
-  buildpacks:&lt;BR /&gt;
-    - sap_java_buildpack&lt;BR /&gt;
-  env:&lt;BR /&gt;
-    USE_JCO: "true"&lt;BR /&gt;
-    TARGET_RUNTIME: tomee7&lt;BR /&gt;
-    SET_LOGGING_LEVEL: '{ROOT: INFO, com.sap.cloud.sdk: INFO}'&lt;BR /&gt;
-    JBP_CONFIG_SAPJVM_MEMORY_SIZES: 'metaspace:128m..'&lt;BR /&gt;
-    xsuaa_connectivity_instance_name: "jco-rfc-rest-server-xsuaa"&lt;BR /&gt;
-    connectivity_instance_name: "jco_connectivity"&lt;BR /&gt;
-    destination_instance_name: "jco_destination"&lt;BR /&gt;
-    ENABLE_SECURITY_JAVA_API_V2: "true"&lt;BR /&gt;
-    &lt;BR /&gt;
-  services:&lt;BR /&gt;
-    - jco-rfc-rest-server-xsuaa&lt;BR /&gt;
-    - jco_connectivity&lt;BR /&gt;
-    - jco_destination&lt;BR /&gt;
-    - jco-app-logging&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-above is my manifest.yml.&lt;BR /&gt;
-&lt;PRE class="language-javascript"&gt;&lt;CODE&gt;{&lt;BR /&gt;
-  "xsappname": "jco-rfc-rest-server",&lt;BR /&gt;
-  "tenant-mode": "dedicated",&lt;BR /&gt;
-  "scopes": [&lt;BR /&gt;
-    {&lt;BR /&gt;
-      "name": "$XSAPPNAME.Display",&lt;BR /&gt;
-      "description": "GET requests on BAPI"&lt;BR /&gt;
-    },&lt;BR /&gt;
-    {&lt;BR /&gt;
-      "name": "$XSAPPNAME.Modify",&lt;BR /&gt;
-      "description": "POST requests on BAPI"&lt;BR /&gt;
-    }&lt;BR /&gt;
-  ],&lt;BR /&gt;
-  "role-templates": [&lt;BR /&gt;
-    {&lt;BR /&gt;
-      "name": "JCo-REST-RFC-Server-Viewer",&lt;BR /&gt;
-      "description": "Required to run GET requests for RFC BAPI calls.",&lt;BR /&gt;
-      "scope-references"     : [&lt;BR /&gt;
-        "$XSAPPNAME.Display"&lt;BR /&gt;
-      ]&lt;BR /&gt;
-    },&lt;BR /&gt;
-    {&lt;BR /&gt;
-      "name": "JCo-REST-RFC-Server-Administrator",&lt;BR /&gt;
-      "description": "Required to run POST requests for RFC BAPI calls.",&lt;BR /&gt;
-      "scope-references"     : [&lt;BR /&gt;
-        "$XSAPPNAME.Modify"&lt;BR /&gt;
-      ]&lt;BR /&gt;
-    }&lt;BR /&gt;
-  ]&lt;BR /&gt;
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-Above is my xs-security.json. Based on that you can create 2 role collections in BTP later to allow for a display and and admin role for the proxy calls.&lt;BR /&gt;
-&lt;H3 id="toc-hId-109611198"&gt;Java specifics: Authority checks&lt;/H3&gt;&lt;BR /&gt;
-The Java class for the proxy is based on the &lt;EM&gt;HttpServlet&lt;/EM&gt; class. Below I'd like to share the pattern for authority checks.&lt;BR /&gt;
-&lt;PRE class="language-java"&gt;&lt;CODE&gt;@WebServlet("/rfc/*")&lt;BR /&gt;
-@ServletSecurity(@HttpConstraint(rolesAllowed = { "Display", "Modify" }))&lt;BR /&gt;
-public class Rest2RfcProxy extends HttpServlet {&lt;BR /&gt;
-&lt;BR /&gt;
-        // .... some code&lt;BR /&gt;
-&lt;BR /&gt;
-	@Override&lt;BR /&gt;
-	@RolesAllowed({"Modify"})&lt;BR /&gt;
-	protected void doPost(HttpServletRequest request, HttpServletResponse response)&lt;BR /&gt;
-			throws ServletException, IOException {	&lt;BR /&gt;
-               // ...&lt;BR /&gt;
-        }&lt;BR /&gt;
-&lt;BR /&gt;
-	@Override&lt;BR /&gt;
-	@RolesAllowed({"Display", "Modify"})&lt;BR /&gt;
-	protected void doGet(HttpServletRequest request, HttpServletResponse response)&lt;BR /&gt;
-			throws ServletException, IOException {&lt;BR /&gt;
-               // ...&lt;BR /&gt;
-        }&lt;BR /&gt;
-&lt;BR /&gt;
-        // .... some more code&lt;BR /&gt;
-&lt;BR /&gt;
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-So that's how the security scopes defined in &lt;EM&gt;xs-security.json&lt;/EM&gt; are checked in the Java code. You must enable that in the &lt;EM&gt;web.xml&lt;/EM&gt; file of the webapp like so:&lt;BR /&gt;
-&lt;PRE class="language-markup"&gt;&lt;CODE&gt;    &amp;lt;login-config&amp;gt;&lt;BR /&gt;
-        &amp;lt;auth-method&amp;gt;XSUAA&amp;lt;/auth-method&amp;gt;&lt;BR /&gt;
-    &amp;lt;/login-config&amp;gt;&lt;BR /&gt;
-&lt;BR /&gt;
-	&amp;lt;security-constraint&amp;gt;&lt;BR /&gt;
-        &amp;lt;web-resource-collection&amp;gt;&lt;BR /&gt;
-            &amp;lt;web-resource-name&amp;gt;Baseline Security&amp;lt;/web-resource-name&amp;gt;&lt;BR /&gt;
-            &amp;lt;url-pattern&amp;gt;/*&amp;lt;/url-pattern&amp;gt;&lt;BR /&gt;
-        &amp;lt;/web-resource-collection&amp;gt;&lt;BR /&gt;
-        &amp;lt;auth-constraint&amp;gt;&lt;BR /&gt;
-            &amp;lt;role-name&amp;gt;*&amp;lt;/role-name&amp;gt;&lt;BR /&gt;
-        &amp;lt;/auth-constraint&amp;gt;&lt;BR /&gt;
-    &amp;lt;/security-constraint&amp;gt;&lt;BR /&gt;
-&lt;BR /&gt;
-    &amp;lt;security-role&amp;gt;&lt;BR /&gt;
-        &amp;lt;role-name&amp;gt;Display&amp;lt;/role-name&amp;gt;&lt;BR /&gt;
-    &amp;lt;/security-role&amp;gt;&lt;BR /&gt;
-     &amp;lt;security-role&amp;gt;&lt;BR /&gt;
-        &amp;lt;role-name&amp;gt;Modify&amp;lt;/role-name&amp;gt;&lt;BR /&gt;
-    &amp;lt;/security-role&amp;gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-Only then it will work with the data injected by the JWT.&lt;BR /&gt;
-&lt;BR /&gt;
-Info: Per default BTP destination service will work with X-CSRF token. I turned it off for testing - this is also defined in &lt;EM&gt;web.xml&lt;/EM&gt;!&lt;BR /&gt;
-&lt;H3 id="toc-hId--86902307"&gt;Java specifics: JCo REST/RFC&lt;/H3&gt;&lt;BR /&gt;
-The communication through JCo via RFC follows this sequence:&lt;BR /&gt;
-&lt;OL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Get the RFC destination with details that we specified in the SAP BTP (see the &lt;A href="https://blogs.sap.com/2023/04/02/sap-build-apps-and-bapis-rfc-meets-web/" target="_blank" rel="noopener noreferrer"&gt;first blog&lt;/A&gt;).&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Define the function to be called in Java.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Define the import/ export and table parameter list from the function module. These variables hold the according structures.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Load the metadata of the 3 objects from the SAP ECC or S/4HANA data dictionary.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Set the import or tables parameters as needed.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Execute the function module call.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;If it's a POST, also execute a call to BAPI BAPI_TRANSACTION_COMMIT. If you call a Z-function module it depends how your organized your LUW whether this has any impact at all. Certainly it won't hurt but the commit might have been done before that in your ABAP code.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Feed back the data to the caller&lt;/LI&gt;&lt;BR /&gt;
-&lt;/OL&gt;&lt;BR /&gt;
-Example for the IMPORTS:&lt;BR /&gt;
-&lt;PRE class="language-java"&gt;&lt;CODE&gt;if (jImports != null) {&lt;BR /&gt;
-	logger.info("Filling BAPI import: " + jImports.toString());&lt;BR /&gt;
-	bapiImports.getMetaData();&lt;BR /&gt;
-	bapiImports.fromJSON(jImports.toString());&lt;BR /&gt;
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-This uses the &lt;EM&gt;.fromJSON&lt;/EM&gt; method to fill the structure. On the way back to the caller you can then use the &lt;EM&gt;.toJSON&lt;/EM&gt; method to obtain the JSON data for REST.&lt;BR /&gt;
-&lt;H3 id="toc-hId--283415812"&gt;Application logging&lt;/H3&gt;&lt;BR /&gt;
-I recommend to consider using the application logging service on BTP, particularly for this middleware application to facilitate error analysis. It builds on the common org.slf4j framework. You activate it with&lt;BR /&gt;
-&lt;PRE class="language-java"&gt;&lt;CODE&gt;private static final Logger logger = LoggerFactory.getLogger(&amp;lt;your class name&amp;gt;.class);&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-declared on class level to have it available in every method and exception. In the manifest.yml you can then set the logging level:&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;SET_LOGGING_LEVEL: '{ROOT: INFO, com.sap.cloud.sdk: INFO}'&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-here it means everything is logged. You can reduce it to WARN or ERROR.&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/04/スクリーンショット-2023-04-03-090730.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Image 1: Application Logging service on BTP&lt;/P&gt;&lt;BR /&gt;
-The dashboard offers detailed filtering and statistics which are very handy.&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/04/スクリーンショット-2023-04-03-091021.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Image 2: Application logging dashboard overview&lt;/P&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;H2 id="toc-hId--609012036"&gt;Troubleshooting&lt;/H2&gt;&lt;BR /&gt;
-I faced a few issues when developing and building it because the tutorials were outdated or didn't support the use case. Maybe this can help you.&lt;BR /&gt;
-&lt;H3 id="toc-hId--676442822"&gt;java.lang.UnsupportedClassVersionError&lt;/H3&gt;&lt;BR /&gt;
-&lt;EM&gt;"java.lang.UnsupportedClassVersionError: com/sap/demo/jco/ConnectivityRFCExample has been compiled by a more recent version of the Java Runtime (class file version 61.0), this version of the Java Runtime only recognizes class file versions up to 52.0 (unable to load class [com.sap.demo.jco.ConnectivityRFCExample])&lt;/EM&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-This means the bytecode of the WAR file isn't matching the BTP Java Buildpack. First you want to check the buildpack on BTP:&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;$ cf buildpacks&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-E.g. 52.0 = Java 8, 61.0 = Java 17. I had to set my Eclipse JDK to create code for 52.0 by setting it to Java 8 from Java 17. Also this &lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/developing-java-cloud-foundry-environment" target="_blank" rel="noopener noreferrer"&gt;help&lt;/A&gt; is useful (standard is Java 8, if using SAP Machine it's Java 11).&lt;BR /&gt;
-&lt;H3 id="toc-hId--948187696"&gt;POST, PUT, PATCH. DELETE will require X-CSRF-Token&lt;/H3&gt;&lt;BR /&gt;
-If you don't want that, turn it off, out-comment the section for the filter RestCsrfPreventionFilter in web.xml. This can help during testing. For production, better put it back in.&lt;BR /&gt;
-&lt;H3 id="toc-hId--1144701201"&gt;After setting up a fresh project with Maven Eclipse looks "funny"&lt;/H3&gt;&lt;BR /&gt;
-You got to switch the facet in the project properties to Java.&lt;BR /&gt;
-&lt;H3 id="toc-hId--1341214706"&gt;Maven repository not found&lt;/H3&gt;&lt;BR /&gt;
-Add it to the Java Build Path in the project's properties.&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/04/スクリーンショット-2023-04-03-092209.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Image 3: Project properties, Java build path&lt;/P&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;H3 id="toc-hId--1537728211"&gt;"Where is the source code?"&lt;/H3&gt;&lt;BR /&gt;
-Please check my LinkedIn post in that matter.&lt;BR /&gt;
-&lt;H2 id="toc-hId--1440838709"&gt;Conclusion&lt;/H2&gt;&lt;BR /&gt;
-Building a proxy to translate between the RFC and REST world requires an agnostic proxy. It is a universal solution without function module specific logic, and the REST service is channeled through the SAP Cloud Connector. Using the RFC-flavor for defining a destination on the SAP BTP platform with Java Web Tomcat 9 API allowed for easy integration. By following this blog, building an efficient proxy is now possible, and it will be useful for businesses using older SAP S/4HANA or ECC systems.&lt;BR /&gt;
-&lt;BR /&gt;
-Let me know your feedback - I'm eager to learn how you are using the approach for your web use cases!&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/rfc-meets-the-web-part-ii-building-the-proxy/ba-p/13566876"/>
-    <published>2023-04-04T03:19:14+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-sap/sap-cloud-sdk-and-its-relationship-with-sap-cloud-application-programming/ba-p/13570688</id>
     <title>SAP Cloud SDK and its relationship with SAP Cloud Application Programming Model</title>
@@ -2279,5 +2078,17 @@ The SAP Cloud SDK for JavaScript makes it easy to use onpremise destinations wit
     <content>&lt;P&gt;&lt;STRONG&gt;Validation for different Identity Cards via ABSL code in SAP C4C&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In day–to-day life, the need of unique identification cards are common. So verfifications on identity cards in different sectors are also a basic requirement. Suppose we are working for a client from India and the project is about Sales cloud. In this case, the client wants to maintain every customer’s data like Name, Contact, Address, PAN number, Adhaar number, Passport details etc. Out of those fields PAN number, Adhaar number &amp;amp; Passport number are unique IDs provided to each person in India. So we need to put some validations against them, so that wrong values should not be stored.&lt;/P&gt;&lt;P&gt;We have an option to put the validations on these Identity card numbers is via ABSL validation logic through cloud application studio. Here the steps mentioned below to validate different identity cards.&lt;/P&gt;&lt;P&gt;Identity cards mostly required in customer/Employee work centers. So, we can add the below logics in Event- Validation on Save and Event – After Modify of Customer/Employee BO in SDK.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Case1 – PAN Card number should be alphanumeric and should maintain exact pattern. Also PAN card number should have only 10 characters length.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;To validate the length of any field we have the method “.length()”Which we can use for this requirement.&lt;/P&gt;&lt;P&gt;For PAN Card number the format in India as&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;The PAN Card number should be only 10 characters long.&lt;/LI&gt;&lt;LI&gt;First five characters should be alphabeting ranges from [A-Z]&lt;/LI&gt;&lt;LI&gt;From 6th to 9th places should be numeric values ranges from [0-9]&lt;/LI&gt;&lt;LI&gt;Last digit should be alphabetic values within [A-Z]&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Using ABSL we have some logic using substring to implement the validation for any mismatch of the above-mentioned format. Added the code snippet for your reference.&lt;/P&gt;&lt;P&gt;Here we will use FindRegex() : This function &lt;SPAN&gt;Searches from left to right and returns the position of a regular expression pattern in a string. If it doesn’t find same pattern then it &lt;/SPAN&gt;returns the value “-1” and raises a message as we define.&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;First five characters should be alphabeting ranges from [A-Z].&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_0-1713528643323.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98781i2BC49C5D7E096630/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_0-1713528643323.png" alt="tkbisoyi9118_0-1713528643323.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;From 6th to 9th places should be numeric values ranges from [0-9]&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_1-1713528643329.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98780i5A0B7FBFB58CD180/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_1-1713528643329.png" alt="tkbisoyi9118_1-1713528643329.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Last digit should be alphabetic values within [A-Z]&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_2-1713528643334.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98782iEBDF5C23F15258F5/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_2-1713528643334.png" alt="tkbisoyi9118_2-1713528643334.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;The PAN Card number should be only 10 characters long.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_3-1713528643336.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98783iC3F9D53112B88171/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_3-1713528643336.png" alt="tkbisoyi9118_3-1713528643336.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Result: - After implementing the above ABSL code, when user tried to add wrong values of PAN Card or incorrect length, the error displayed and not allowed to SAVE the data.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_4-1713528643339.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98784i18CE92864638DD6C/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_4-1713528643339.png" alt="tkbisoyi9118_4-1713528643339.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_5-1713528643344.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98785i875F96029DCB663C/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_5-1713528643344.png" alt="tkbisoyi9118_5-1713528643344.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_6-1713528643349.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98788i721E1DA3B2D2CA0B/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_6-1713528643349.png" alt="tkbisoyi9118_6-1713528643349.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Case 2 – Adhaar Card number should be 12 characters length &amp;amp; all digits should be numeric values. &lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;To validate the length of any field we have the method “.length()”Which we can use as of the requirement.&lt;/P&gt;&lt;P&gt;For Adhaar card all the digits should be numeric and length should be 12 characters only. The below ABSL code can restrict any mismatch to the Adhaar card format.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_7-1713528643351.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98786iDB8A4BF4EB381ADB/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_7-1713528643351.png" alt="tkbisoyi9118_7-1713528643351.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Result: - After implementing the above ABSL code, when user tried to add wrong values of Adhaar Card or incorrect length, the error displayed and not allowed to SAVE the data.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_8-1713528643357.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98787iA667C465BEC3B62F/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_8-1713528643357.png" alt="tkbisoyi9118_8-1713528643357.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_9-1713528643362.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98789i852777571AB81B2E/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_9-1713528643362.png" alt="tkbisoyi9118_9-1713528643362.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_10-1713528643366.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98790iD8C707077F307965/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_10-1713528643366.png" alt="tkbisoyi9118_10-1713528643366.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Case3 – Indian Passport number should be alphanumeric and should maintain exact pattern. Also Passport card number should have only 8 characters length.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;To validate the length of any field we have the method “.length()”Which we can use as of the requirement.&lt;/P&gt;&lt;P&gt;For Passport number the format in India as&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;The Passport number should be only 8 characters long.&lt;/LI&gt;&lt;LI&gt;First one character should be alphabeting ranges from [A-Z].&lt;/LI&gt;&lt;LI&gt;For 2nd position, it should be numeric value within range 1 to 9.&lt;/LI&gt;&lt;LI&gt;For 3rd position, it should be numeric value within range 0 to 9.&lt;/LI&gt;&lt;LI&gt;From position 4th to 7th position, digits should be numeric value within range 0 to 9.&lt;/LI&gt;&lt;LI&gt;For the last one digit, it should be numeric value within range 1-9.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Using ABSL we have some logic using substring to implement the validation for any mismatch of the above-mentioned format. Added the code snippet for your reference.&lt;/P&gt;&lt;P&gt;Here we will use FindRegex() : This function &lt;SPAN&gt;Searches from left to right and returns the position of a regular expression pattern in a string. If it doesn’t find same pattern then it &lt;/SPAN&gt;returns the value “-1” and raises a message as we define.&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;First one character should be alphabeting ranges from [A-Z].&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_11-1713528643372.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98791i1F8F4A87DFD9790E/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_11-1713528643372.png" alt="tkbisoyi9118_11-1713528643372.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;For 2nd position, it should be numeric value within range 1 to 9.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_12-1713528643376.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98794i7FD15A846EC18C3C/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_12-1713528643376.png" alt="tkbisoyi9118_12-1713528643376.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;For3rd position, it should be numeric value within range 0 to 9.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_13-1713528643380.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98792iC1D70C1171FED582/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_13-1713528643380.png" alt="tkbisoyi9118_13-1713528643380.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;From position 4th to 7th position, digits should be numeric value within range 0 to 9.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_14-1713528643384.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98793i2903687EE940A4BD/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_14-1713528643384.png" alt="tkbisoyi9118_14-1713528643384.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;For the last one digit, it should be numeric value within range 1-9.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_15-1713528643388.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98795iD5A1320DB7FBCFA6/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_15-1713528643388.png" alt="tkbisoyi9118_15-1713528643388.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;The Passport number should be only 8 characters long.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_16-1713528643392.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98797i76763F678260AA8F/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_16-1713528643392.png" alt="tkbisoyi9118_16-1713528643392.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Result: - After implementing the above ABSL code, when user tried to add wrong values of Adhaar Card or incorrect length, the error displayed and not allowed to SAVE the data.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_17-1713528643397.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98796i3FD77F6543724906/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_17-1713528643397.png" alt="tkbisoyi9118_17-1713528643397.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_18-1713528643402.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98798iCAC3EFB2B95EF0C5/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_18-1713528643402.png" alt="tkbisoyi9118_18-1713528643402.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tkbisoyi9118_19-1713528643406.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98799i9D8CAD495D1ADE11/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tkbisoyi9118_19-1713528643406.png" alt="tkbisoyi9118_19-1713528643406.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion: -&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This solution can help customers to restrict unauthorized entry of identity card numbers.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-members/validation-for-different-identity-cards-via-absl-code-in-sap-c4c/ba-p/13674119"/>
     <published>2024-04-18T08:27:04.382000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-members/handle-the-behavior-of-extension-field-by-toggle-button-using-sdk-ui/ba-p/13677684</id>
+    <title>Handle the behavior of extension field by toggle button using SDK UI designer.</title>
+    <updated>2024-04-22T11:07:54.330000+02:00</updated>
+    <author>
+      <name>Sunil5</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/162675</uri>
+    </author>
+    <content>&lt;P style=" text-align: center; "&gt;&lt;STRONG&gt;&lt;U&gt;Handle the behavior of extension field by toggle button using SDK UI designer.&lt;/U&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Suppose there is one such requirement: We should have one toggle button and using that toggle button we can control the field behaviors like “Mandatory”, “Read Only” or “Visible” so, fields will behave the same as mentioned above when toggle button is set to true. To implement this requirement, we have created 3 different extension fields as “Extension field M”, “Extension field V”, “Extension field R” and one indicator field as “Manage Field” (indicator field act as a toggle button in front-end) in Service Request (Ticket) standard BO. We can make the “Extension field M” field as mandatory, the “Extension field V” field as visible, and the “Extension field R” field as read-only by toggle button (“Manage Field”) using UI designer in SDK.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Procedure: -&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Here We have added extension fields in Service Request Extension BO (Ticket).&lt;/P&gt;&lt;P&gt;To add extension field to Extension BO we need to follow below steps:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Open your solution and click on Add New Item and select the “Extension” and from the list select “Business Object Extension” then click on Add. Select required namespace and BO name then click ok.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Sunil5_1-1713769816813.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/99723iC00AFECE7B19DC90/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Sunil5_1-1713769816813.png" alt="Sunil5_1-1713769816813.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Sunil5_2-1713769857108.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/99724i9EAE96BEEB435F52/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Sunil5_2-1713769857108.png" alt="Sunil5_2-1713769857108.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;2. After creation of “Business Object Extension” then add extension fields in this BO as shown below.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Sunil5_3-1713769964246.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/99726iA2812F76701CE990/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Sunil5_3-1713769964246.png" alt="Sunil5_3-1713769964246.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;We now have extension fields created in Service Request Extension BO in Cloud Application Studio. Based on our requirement add these extension fields in the UI screen of Extension BO in Cloud Application Studio. Here We have added these extension fields in the TI screen of Service Request Extension BO. Now you can see these Extension fields in below SS.&lt;/P&gt;&lt;P&gt;To add extension field in UI screen of Extension BO we need to follow below steps:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Right click on BO and select “Enhance Screen” then select the screen as your requirement.&lt;/LI&gt;&lt;LI&gt;In screen, select group section and select “Add Extension field to Section Group” under the “Extensibility explorer” then select field which need to add in the screen then save and activate the UI screen.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Sunil5_4-1713770008184.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/99728i4758431A052D4AA3/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Sunil5_4-1713770008184.png" alt="Sunil5_4-1713770008184.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Extension fields have been added successfully in UI screen as below.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Sunil5_5-1713770045689.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/99730i8C197C9B333DE6B3/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Sunil5_5-1713770045689.png" alt="Sunil5_5-1713770045689.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;As per our requirement, now we will make the "Extension field M" field as mandatory field, the "Extension field R" field as read-only field and the "Extension field V" field as visible field in the UI screen using toggle button ("Manage Field") in cloud application studio. Here you need to follow the below steps:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Open the UI screen in cloud application studio where we have added to the extension fields. Here we have opened the TI screen of Service Request Extension BO. Select the field group where we have added the extension fields and click on “Adjust Properties” under the “Extensibility Explorer” as shown below.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Sunil5_6-1713770101138.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/99732iC5F838F5D9D1BEDF/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Sunil5_6-1713770101138.png" alt="Sunil5_6-1713770101138.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;2. Now we need to bind "Extension field M" field to the indicator field (toggle button) for mandatory, bind "Extension field R" field to the indicator field for ReadOnly and "Extension field V" field to the indicator field for Visible. Then, click on “Apply” as shown below, save and activate to the UI screen to finish this setup.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note&lt;/STRONG&gt;- if we do not bind these fields with indicator field and select the “True” value there, then by default these fields will have same behavior every time.&lt;/P&gt;&lt;P&gt;For an example: if for "Extension field M" field, property “Mandatory” is set to “True” then this field will become mandatory by default.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Sunil5_7-1713770151109.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/99734i55779E28F4EDE0EE/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Sunil5_7-1713770151109.png" alt="Sunil5_7-1713770151109.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Result: -&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;After Completion of all the setup in SDK, now we can preview our changes when we will turn on the toggle button (“Manage Field”), then all the fields will behave as we expected.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Sunil5_8-1713770182573.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/99735i566C5E9FAA303EC4/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Sunil5_8-1713770182573.png" alt="Sunil5_8-1713770182573.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;when we will turn off the toggle button (“Manage Field”), then all the fields will behave as we expected.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Sunil5_9-1713770213324.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/99736i8A9526207D26F4F4/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Sunil5_9-1713770213324.png" alt="Sunil5_9-1713770213324.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion: -&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Now you can change the behavior of these fields based on toggle button (Manage field).&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-members/handle-the-behavior-of-extension-field-by-toggle-button-using-sdk-ui/ba-p/13677684"/>
+    <published>2024-04-22T11:07:54.330000+02:00</published>
   </entry>
 </feed>
