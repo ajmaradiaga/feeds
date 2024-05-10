@@ -2,241 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/NW-ABAP-User-Administration-and-Authorization-blog-posts.xml</id>
   <title>SAP Community - NW ABAP User Administration and Authorization</title>
-  <updated>2024-05-10T11:11:26.351325+00:00</updated>
+  <updated>2024-05-10T23:11:18.470581+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/NW ABAP User Administration and Authorization/pd-p/856729761471794137198600667374174" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>NW ABAP User Administration and Authorization blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/sap-analytics-cloud-replicating-bw-analysis-authorizations-into-dimension/ba-p/13521361</id>
-    <title>SAP Analytics Cloud - Replicating BW Analysis Authorizations into Dimension Read/Write Property</title>
-    <updated>2021-12-02T15:57:13+01:00</updated>
-    <author>
-      <name>mo_ezzat</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/597901</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-830165405"&gt;Introduction&lt;/H1&gt;&lt;BR /&gt;
-When it comes to import models, the first question that comes to anyone's mind is whether they will need to redesign their authorization model again on SAP Analytics Cloud. In my &lt;A href="https://blogs.sap.com/2021/07/08/sap-analytics-cloud-sap-successfactors-import-model-security-use-case/" target="_blank" rel="noopener noreferrer"&gt;previous blog post&lt;/A&gt; I showed a method to automate the authorization replication from SAP SuccessFactors for a certain use case.&lt;BR /&gt;
-&lt;BR /&gt;
-In this blog post, I will be tackling a much more common use case, which is the BW Analysis Authorizations to be replicated into the SAP Analytics Cloud public dimenions' read and write properties using a HANA calculation view.&lt;BR /&gt;
-&lt;H2 id="toc-hId-762734619"&gt;Pre-requisites&lt;/H2&gt;&lt;BR /&gt;
-&lt;UL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;At least SAP HANA 2.0 SPS 1.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;User IDs for each user on SAP Analytics Cloud to be the same as their BW users.&lt;BR /&gt;
-&lt;UL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;If there is a prefix or a suffix included, it can be appended to the code, by concatenating either of them to the final UNAME.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;In case the ids are not the same, a mapping containing the UNAME (BW USER ID), and the SAC USER ID can be loaded to either an attribute of an infoobject or to a new ADSO, the table containing the relevant data will have to be joined through UNAME from "AGR_HIER" and either the infoobject table or the ADSO table. SAC USER ID will replace all the UNAME callings in the presented code, after the selection of the "Main" table.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;An import connection setup between the HANA 2.0 database and SAP Analytics Cloud.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Backend user to have "Read" right to the BW schema.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId-566221114"&gt;Solution Features&lt;/H2&gt;&lt;BR /&gt;
-&lt;UL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Works for BW4HANA as well as BW on HANA&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Code is highly dynamic and can be deployed in any HANA 2.0 database, once it is executed, you will be prompted to enter:&lt;BR /&gt;
-&lt;UL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;The schema name&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Name space&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;InfoObject name&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;No tables, functions, or any object other than the HANA calculation view need to be created, everything is handled temporarily during the execution through the usage of table variables as well as normal variables.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;It works for the Equals, Between, Contains Pattern options specified within an Analysis Authorization Object.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;No redundant or derived member ids are generated, all are retrieved from the InfoObject's master data table.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId-369707609"&gt;Current Limitations&lt;/H2&gt;&lt;BR /&gt;
-This version of the solution does not currently handle the hierarchy based authorizations.&lt;BR /&gt;
-&lt;H2 id="toc-hId-173194104"&gt;Main Idea&lt;/H2&gt;&lt;BR /&gt;
-Before I jump into the technical aspects of the code, I would like to shed some light on the basis of this idea.&lt;BR /&gt;
-&lt;BR /&gt;
-Our main goal in the end is to get a list of specific members for a certain dimension in one column, and the user ids of everyone that has access to that member, whether it is through EQ, BT, or CP options in another column.&lt;BR /&gt;
-&lt;BR /&gt;
-The authorization relevant infoobject values are maintained in an analysis authorization object that is maintained in tcode "RSECADMIN", then a role is created having the authorization "S_RS_AUTH" for that specific object, "BIAUTH" must be set to the authorization object's name that we created at first.&lt;BR /&gt;
-&lt;BR /&gt;
-To be able to get the user id that is assigned to the role, and the value that is assigned to a certain object within the analysis authorization we need to go through 3 tables:&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/tables-1.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Main tables in scope&lt;/P&gt;&lt;BR /&gt;
-From the "AGR_HIER" table we will be getting the linkage between the user ids and role names (AGR_NAME) from the "AGR_1251" table, we will be getting the linkage between the role names and the analysis authorization object name, from "RSECVAL_STRING" we will be getting the values maintained for a certain infoobject for a specific authorization object.&lt;BR /&gt;
-&lt;BR /&gt;
-The letters beside the table names represent their aliases that are used in the code that will be explained below, joins between the 3 tables are maintained as in the diagram, green fields represent the unprocessed expected final outputs, the other fields are not everything in scope, but the most important fields that we have.&lt;BR /&gt;
-&lt;BR /&gt;
-Using dynamic SQL, I will be dynamically selecting the P table of a given infoobject, through the concatenation of schema "SCM", name space "NMSPC", P, infoobject Name "IOBJNM". Ex: for the infoobject "ZE_PLANT", the calculation view will be fetching the values from the "/BIC/PZE_PLANT" table. The main reason for choosing the P table in particular is that it is common and exists for all BW versions.&lt;BR /&gt;
-&lt;H1 id="toc-hId--152402120"&gt;Step by Step Guide&lt;/H1&gt;&lt;BR /&gt;
-Login to the HANA database, in a new or an existing package, right click, select New&amp;gt;Calculation View, specify a name then make sure you set the type to "SQL Script"&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/CV.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Initial Setup&lt;/P&gt;&lt;BR /&gt;
-From the left panel, select "Script_View", from the right window under the Output panel, click on (+) add. We need to create 2 attributes "MID" which will be an NVARCHAR(60), and "READ" which will be NVARCHAR(5000), 1 Measure INTEGER "DUMMY" which is dummy (as having a measure is mandatory in any calculation view).&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/1-74.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Columns&lt;/P&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;Right click Parameters&amp;gt;New&amp;gt;we need to create 3 prompts, SCMA NVARCHAR(40), NMSPC NVARCHAR(10), IOBJNM NVARCHAR(15), all of them will be of Parameter Type "Direct", all of them are mandatory.&lt;/P&gt;&lt;BR /&gt;
-Below is a the SCMA parameter setup and default value, setting it up based on the default value of your application database schema will save the effort of having to enter it each time the view is called.&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/prompt.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Prompts - Schema name default value&lt;/P&gt;&lt;BR /&gt;
-From the left panel, click "Semantics", specify MID, READ as attributes by selecting each of them then from the top left panel click on the blue rectangle, as for the DUMMY column, please set it to a measure by clicking the orange rectangle.&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/Semantics.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Semantics - Column definitions&lt;/P&gt;&lt;BR /&gt;
-This is how your output panel should look like right now:&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/Output.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Output panel&lt;/P&gt;&lt;BR /&gt;
-Now let's get to the code itself:&lt;BR /&gt;
-&lt;PRE class="language-sql"&gt;&lt;CODE&gt; /********* Begin Procedure Script ************/ &lt;BR /&gt;
-BEGIN &lt;BR /&gt;
---Main table from which the user ids per dimension member will be captured&lt;BR /&gt;
-DECLARE MAIN TABLE (id nvarchar(60), tcthigh nvarchar(60), read nvarchar(5000), iobj nvarchar(15), option nvarchar(2), tctauth nvarchar(15));&lt;BR /&gt;
---Final 'EQ' result table, straight forward&lt;BR /&gt;
-DECLARE EQ TABLE (mid nvarchar(60), read nvarchar(5000));&lt;BR /&gt;
---Result set of filtering the Main table based on the option 'BT'&lt;BR /&gt;
-DECLARE BTRES TABLE (id nvarchar(60), tcthigh nvarchar(60), read nvarchar(5000), rnum integer);&lt;BR /&gt;
---Initial loop result table, used as a temp area for supplying the final value in 'BT' table&lt;BR /&gt;
-DECLARE RES TABLE (mid nvarchar(60), read nvarchar(5000));&lt;BR /&gt;
---Final 'BT' result table, containing all the members between each line of range&lt;BR /&gt;
-DECLARE BT TABLE (mid nvarchar(60), read nvarchar(5000));&lt;BR /&gt;
---Count of result lines from the BT query result in BTRES&lt;BR /&gt;
-DECLARE LNBT INTEGER;&lt;BR /&gt;
---Result set of filtering the Main table based on the option 'CP'&lt;BR /&gt;
-DECLARE CPRES TABLE (id nvarchar(60), tcthigh nvarchar(60), read nvarchar(5000), rnum integer);&lt;BR /&gt;
---Final 'CP' result table, containing all the members matching a certain pattern&lt;BR /&gt;
-DECLARE CP TABLE (mid nvarchar(60), read nvarchar(5000));&lt;BR /&gt;
---Count of result lines from the CP query result in CPRES&lt;BR /&gt;
-DECLARE LNCP INTEGER;&lt;BR /&gt;
---'BT' and 'CP' Loop related variables&lt;BR /&gt;
-DECLARE i INTEGER DEFAULT 1;&lt;BR /&gt;
-DECLARE LOW NVARCHAR(60);&lt;BR /&gt;
-DECLARE HIGH NVARCHAR(60);&lt;BR /&gt;
-DECLARE RD nvarchar(5000);&lt;BR /&gt;
-DECLARE PTRN NVARCHAR(60);&lt;BR /&gt;
-&lt;BR /&gt;
-EXEC 	'SELECT DISTINCT tctlow as id, tcthigh, UNAME as read, tctiobjnm as IOBJ, tctoption as option, tctauth&lt;BR /&gt;
-		FROM&lt;BR /&gt;
-		(&lt;BR /&gt;
-		Select &lt;BR /&gt;
-		r.tctlow,&lt;BR /&gt;
-		r.tcthigh,&lt;BR /&gt;
-		u.UNAME,&lt;BR /&gt;
-		r.tctiobjnm,&lt;BR /&gt;
-		r.tctoption,&lt;BR /&gt;
-		r.tctauth,&lt;BR /&gt;
-		a.AGR_NAME,&lt;BR /&gt;
-		a.AUTH&lt;BR /&gt;
-		&lt;BR /&gt;
-		From "'||SCMA||'".AGR_USERS u&lt;BR /&gt;
-		Join "'||SCMA||'".AGR_1251 a&lt;BR /&gt;
-		on u.AGR_NAME = a.AGR_NAME&lt;BR /&gt;
-		join "'||SCMA||'".RSECVAL_STRING r&lt;BR /&gt;
-		on a.low = r.tctauth&lt;BR /&gt;
-		WHERE r.tctlow NOT LIKE''%:%''AND r.objvers =''A'' AND r.tctauth !=''0BI_ALL''AND r.tctiobjnm ='''||IOBJNM||''')' INTO MAIN;&lt;BR /&gt;
-		&lt;BR /&gt;
---Handling the Equals 'EQ' Scenario&lt;BR /&gt;
-EQ = SELECT id as MID, read as READ FROM :MAIN WHERE option = 'EQ';&lt;BR /&gt;
-&lt;BR /&gt;
---Handle the Between 'BT' Scenario&lt;BR /&gt;
-BTRES = SELECT id, tcthigh, read, row_number() over(ORDER BY id asc) as rnum FROM :MAIN WHERE option = 'BT';&lt;BR /&gt;
-SELECT COUNT(*) INTO LNBT FROM :BTRES;&lt;BR /&gt;
-&lt;BR /&gt;
---Handle the Contains Pattern 'CP' Scenario&lt;BR /&gt;
-CPRES = SELECT id, tcthigh, read, row_number() over(ORDER BY id asc) as rnum FROM :MAIN WHERE option = 'CP';&lt;BR /&gt;
-SELECT COUNT(*) INTO LNCP FROM :CPRES;&lt;BR /&gt;
-&lt;BR /&gt;
---Case SAP Delivered InfoObjects having BI0 namespaces&lt;BR /&gt;
-IF NMSPC = 'BI0'&lt;BR /&gt;
-&lt;BR /&gt;
-THEN&lt;BR /&gt;
- &lt;BR /&gt;
---Remove 0 from the infoobject name to perform the selections&lt;BR /&gt;
-SELECT REPLACE(IOBJNM,'0','') INTO IOBJNM FROM DUMMY;&lt;BR /&gt;
-&lt;BR /&gt;
-FOR i in 1..LNBT DO&lt;BR /&gt;
-SELECT id INTO LOW FROM :BTRES WHERE rnum = i;&lt;BR /&gt;
-SELECT tcthigh INTO HIGH FROM :BTRES WHERE rnum = i;&lt;BR /&gt;
-SELECT read INTO rd FROM :BTRES WHERE rnum = i;&lt;BR /&gt;
-EXEC 'SELECT "'||IOBJNM||'" as MID, '''||RD||'''as READ FROM "'||SCMA||'"."/'||NMSPC||'/P'||IOBJNM||'"'||' WHERE "'||IOBJNM||'"'||' BETWEEN '||''''||LOW||''''||' AND '||''''||HIGH||'''' INTO RES;&lt;BR /&gt;
-INSERT INTO :BT (SELECT * FROM :RES);&lt;BR /&gt;
-i = i+1;&lt;BR /&gt;
-END FOR;&lt;BR /&gt;
-&lt;BR /&gt;
-FOR i in 1..LNCP DO&lt;BR /&gt;
-SELECT replace(id,'*','%') INTO PTRN FROM :CPRES WHERE rnum = i;&lt;BR /&gt;
-SELECT read INTO rd FROM :CPRES WHERE rnum = i;&lt;BR /&gt;
-EXEC 'SELECT "'||IOBJNM||'" as mid, '''||rd||'''as read FROM "'||SCMA||'"."/'||NMSPC||'/P'||IOBJNM||'"'||' WHERE "'||IOBJNM||'"'||' LIKE '||''''||PTRN||''''INTO RES;&lt;BR /&gt;
-INSERT INTO :CP (SELECT * FROM :RES);&lt;BR /&gt;
-END FOR;&lt;BR /&gt;
-&lt;BR /&gt;
-ELSE&lt;BR /&gt;
-&lt;BR /&gt;
---Case custom InfoObjects having BIC or other namespaces&lt;BR /&gt;
-FOR i in 1..LNBT DO&lt;BR /&gt;
-SELECT id INTO LOW FROM :BTRES WHERE rnum = i;&lt;BR /&gt;
-SELECT tcthigh INTO HIGH FROM :BTRES WHERE rnum = i;&lt;BR /&gt;
-SELECT read INTO rd FROM :BTRES WHERE rnum = i;&lt;BR /&gt;
-EXEC 'SELECT "/'||NMSPC||'/'||IOBJNM||'" as MID, '''||RD||'''as READ FROM "'||SCMA||'"."/'||NMSPC||'/P'||IOBJNM||'"'||' WHERE "/'||NMSPC||'/'||IOBJNM||'"'||' BETWEEN '||''''||LOW||''''||' AND '||''''||HIGH||'''' INTO RES;&lt;BR /&gt;
-INSERT INTO :BT (SELECT * FROM :RES);&lt;BR /&gt;
-i = i+1;&lt;BR /&gt;
-END FOR;&lt;BR /&gt;
-&lt;BR /&gt;
-FOR i in 1..LNCP DO&lt;BR /&gt;
-SELECT replace(id,'*','%') INTO PTRN FROM :CPRES WHERE rnum = i;&lt;BR /&gt;
-SELECT read INTO rd FROM :CPRES WHERE rnum = i;&lt;BR /&gt;
-EXEC 'SELECT "/'||NMSPC||'/'||IOBJNM||'" as mid, '''||rd||'''as read FROM "'||SCMA||'"."/'||NMSPC||'/P'||IOBJNM||'"'||' WHERE "/'||NMSPC||'/'||IOBJNM||'"'||' LIKE '||''''||PTRN||''''INTO RES;&lt;BR /&gt;
-INSERT INTO :CP (SELECT * FROM :RES);&lt;BR /&gt;
-END FOR;&lt;BR /&gt;
-&lt;BR /&gt;
-END IF;&lt;BR /&gt;
-&lt;BR /&gt;
---Final Result&lt;BR /&gt;
-var_out = SELECT DISTINCT MID, STRING_AGG(READ,';') as READ, 1 as DUMMY from (select * from :EQ  union select * from :BT union select * from :CP) group by MID;&lt;BR /&gt;
-END /********* End Procedure Script ************/&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-What needs to be done is simply copying everything above inside the Script_View, activate the calculation view, then you are good to go, as simple as that.&lt;BR /&gt;
-&lt;BR /&gt;
-Before we see it on SAP Analytics Cloud, let me explain what this code is expected to do, let's assume 3 simple cases.&lt;BR /&gt;
-&lt;BR /&gt;
-Let's start by the dimension members in the infoobject "ZE_PLANT"&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/1-5.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;SPAN style="font-size: 1rem"&gt;Case 1, USER1 has access to plant AA01 only&lt;/SPAN&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/2-5.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-CV Result:&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/3-3.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-Case 2, USER2 has access to plants between AA01 and AA05 only&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/4-3.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-CV Result:&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/5-4.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-Case 3, USER3 has access to all plants that start with A&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/7-4.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;SPAN style="font-size: 1rem"&gt;&lt;BR /&gt;
-CV Result:&lt;/SPAN&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/8-3.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-Finally, combined together if these analysis authorization objects are active and assigend to certain roles that are assigend to certain users, this would be the CV's result:&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/9-3.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-This is what SAP Analytics Cloud exactly needs to supply the property of the "ZE_PLANT" with the appropriate read users.&lt;BR /&gt;
-&lt;H2 id="toc-hId--219832906"&gt;Demo&lt;/H2&gt;&lt;BR /&gt;
-Finally, I will be showing actual screenshots from the calculation view results and the import job on SAP Analytics Cloud.&lt;BR /&gt;
-&lt;BR /&gt;
-We have 3 users:&lt;BR /&gt;
-&lt;OL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;TEST_B1 has access to company code 011118 only.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;TEST_B2 has access to company codes between 000000 and 099999.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;AUTH_USR5 has access to all company codes.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/OL&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/CVRES.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Calculation View Result for Company Code IOBJ&lt;/P&gt;&lt;BR /&gt;
-Now let's create an import job in the "Data Management" tab of the public dimension that I created on SAP Analytics Cloud, "ZCOMPCOD6", once the calculation view is selected, the prompts will show up:&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/prompts.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;SAP Analytics Cloud - HANA Import Job - CV Prompts&lt;/P&gt;&lt;BR /&gt;
-Map the dimension id and the property&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/Mapping-1.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;SAP Analytics Cloud Mapping&lt;/P&gt;&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2021/12/result-1.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Final Result&lt;/P&gt;&lt;BR /&gt;
-And just like that, any changes in the analysis authorization that is done with respect to the company code infoobject will be reflected through the scheduled import job, this will also work for the write property.&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Thank you for your time reading this, I hope you have found this useful and informative. Hopefully the solution provided can solve one of the use cases that you currently have.&lt;BR /&gt;
-&lt;BR /&gt;
-Looking forward to hearing your thoughts!</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/sap-analytics-cloud-replicating-bw-analysis-authorizations-into-dimension/ba-p/13521361"/>
-    <published>2021-12-02T15:57:13+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-members/microsoft-sentinel-and-logic-apps-can-be-the-guardians-of-sap-security/ba-p/13527449</id>
     <title>Microsoft Sentinel and Logic Apps can be the 'Guardians of SAP Security Operations (SecOps)'?</title>
@@ -2275,5 +2044,17 @@ In conclusion, SAP User Access Reviews are critical to safeguard the organizatio
     <content>&lt;P&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;This blog will outline the various user types found in &lt;STRONG&gt;SAP ABAP Stack Systems&lt;BR /&gt;&lt;BR /&gt;&lt;FONT size="6"&gt;User Types&amp;nbsp;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif"&gt;In SAP systems, Users play a pivotal role in accessing and utilizing the various functionalities provided by the system.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif"&gt;In the Transaction SU01- user management system, we primarily categorize users into five distinct types: &lt;/FONT&gt;&lt;BR /&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif"&gt;1.Dialog&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif"&gt;2.System&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif"&gt;3.Communication&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif"&gt;4.Reference&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif"&gt;5. Service&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="ravishankarp_0-1709124721205.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/72681iA14F2D39E6A79B14/image-size/large?v=v2&amp;amp;px=999" role="button" title="ravishankarp_0-1709124721205.png" alt="ravishankarp_0-1709124721205.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;STRONG&gt;Dialog Users (A)&lt;/STRONG&gt;: These are regular users who interact with the SAP system through the graphical user interface (GUI) or web interface ( SAP GUI for HTML). They perform tasks such as entering data, running reports, and executing transactions relevant to their roles assigned to them.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Multiple logon is checked.&lt;BR /&gt;&lt;/STRONG&gt;&amp;nbsp;&lt;BR /&gt;&lt;STRONG&gt;System Users(B)&lt;/STRONG&gt;: System users are typically used for background tasks, such as running batch jobs, executing automated processes, or performing system-to-system communication. They do not require direct interaction with the GUI.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;I&gt;Multiple logon is allowed, Only an administrator user can change the password.&lt;/I&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Communication Users (C )&lt;/STRONG&gt;&amp;nbsp; : Communication users are primarily used to establish connections and facilitate communication between SAP systems or between SAP systems and external applications, services, platforms and integration scenarios such as RFC (Remote Function Call), SOAP (Simple Object Access Protocol), HTTP (Hypertext Transfer Protocol), IDoc (Intermediate Document), ALE (Application Link Enabling), EDI (Electronic Data Interchange), and more .&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Logon with SAPGUI is not possible&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Reference Users (L) &lt;/STRONG&gt;&amp;nbsp;:Reference users are special types of user accounts that serve as templates or blueprints for creating new user accounts with predefined settings, roles, authorizations, and other attributes. They are used to streamline the process of user creation and ensure consistency across user profiles within the SAP system&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;No logon possible.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Service Users (S) : &lt;/STRONG&gt;Service users are considered technical users because they are primarily used for technical tasks rather than human interaction. They are often assigned specific technical roles and authorizations required for performing their designated tasks.&lt;/P&gt;&lt;P&gt;unlike regular dialog users who interact with the SAP system through the graphical user interface (GUI), service users typically do not require direct interaction with the GUI. They may communicate with the system through interfaces, APIs (Application Programming Interfaces), or background processes.however SAP GUI logon is Possible&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Multiple Log on allowed.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="6"&gt;&lt;STRONG&gt;User Master Record&lt;BR /&gt;&lt;/STRONG&gt;&lt;/FONT&gt;User Master Record in SAP is a fundamental component that stores and manages information about individual users who access the SAP system&lt;/P&gt;&lt;P&gt;&amp;nbsp;Creation of user accounts in SAP systems is client-dependent, meaning that&lt;STRONG&gt; user master records&lt;/STRONG&gt; must be established separately in &lt;STRONG&gt;each client &lt;/STRONG&gt;where users need access.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ravishankarp_1-1709125740747.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/72703i5D31B5A19A1F8820/image-size/large?v=v2&amp;amp;px=999" role="button" title="ravishankarp_1-1709125740747.png" alt="ravishankarp_1-1709125740747.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;User Master Record in SAP contains a variety of information pertaining to individual users who access the SAP system. This information is crucial for managing user access, permissions, and preferences within the SAP environment. These are the&amp;nbsp; key components typically found in a user master record:&lt;/P&gt;&lt;P&gt;User Details Like Name, Department, function, responsibilities, user group, user type and License&lt;/P&gt;&lt;P&gt;User Details with Validity ,Lock Status, and authentication properties&lt;/P&gt;&lt;P&gt;User Settings Like parameters, spool requests, time zone.&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;FONT size="4"&gt;&lt;EM&gt;&lt;STRONG&gt;Note : User details, such as user IDs, hashed passwords, authorizations, and related information, are stored in the USR02 table&lt;/STRONG&gt;&lt;/EM&gt;&lt;/FONT&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif" size="5"&gt;User Deletion&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ravishankarp_2-1709126014622.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/72708i0B3CC7FE54287CAB/image-size/large?v=v2&amp;amp;px=999" role="button" title="ravishankarp_2-1709126014622.png" alt="ravishankarp_2-1709126014622.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif"&gt;User deletion is always possible and can be done using the transactions SU01 or SU10. During the deletion, all of the personal data belonging to the user master is deleted&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif"&gt;&lt;STRONG&gt;Deletion Effects:&lt;/STRONG&gt; Deleting a user account in SAP has several effect such as&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif"&gt;The user's access to the SAP system is immediately revoked.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif"&gt;Any active sessions associated with the deleted user account are terminated&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif"&gt;Authorization objects and roles assigned to the user are removed.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif"&gt;User-related data stored in tables such as USR02 (User Master Record) is deleted.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif"&gt;After deleting a user account, administrators may need to perform additional tasks, such as reassigning responsibilities to other users, updating documentation, or communicating the deletion to relevant stakeholders&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;#basis #abapstack #netweaver #ECC &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+S%25252F4HANA/pd-p/73554900100800000266" class="lia-product-mention" data-product="799-1"&gt;SAP S/4HANA&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-members/user-types-in-sap-abap-stack-systems/ba-p/13622465"/>
     <published>2024-02-28T14:30:09.735000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/sap-s-4hana-extracting-user-email-addresses-from-standard-tables/ba-p/13697756</id>
+    <title>SAP S/4HANA - Extracting User Email Addresses from Standard Tables</title>
+    <updated>2024-05-10T15:09:30.362000+02:00</updated>
+    <author>
+      <name>karthikj2</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/148163</uri>
+    </author>
+    <content>&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;What are we discussing here?&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;When working with SAP systems, it is fundamental to need / verify user &lt;FONT size="4"&gt;email&lt;/FONT&gt; addresses for various purposes. Whether it is to send Automated Notifications, facilitating communication between users, or Generating Reports, having accurate and up-to-date email addresses is crucial. However, extracting the email address from SAP system is not as easy as we think. In this blog post, we will explore the simplest method to extract / find email addresses of users from SAP Standard tables.&lt;/P&gt;&lt;P&gt;Note : There is no direct transaction code or program to extract email addresses of users&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;How are we going to achieve it?&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;The primary table that stores user information in SAP is &lt;STRONG&gt;USR21&lt;/STRONG&gt;. This table contains User Master Data, including Personal Numbers (&lt;STRONG&gt;PERSNUMBER&lt;/STRONG&gt;) associated with each user. To retrieve email addresses, we will link this table with the address data table &lt;STRONG&gt;ADR6&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;What is USR21?&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;USR21 is a standard table in SAP ERP system that assigns User Names and Address Keys.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;What is ADR6?&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The ADR6 table in SAP ERP system is a standard table that stores email addresses (Business Address Services) for any address record.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Procedure to Extract Email Address from SAP Tables&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Execute table view transaction code: &lt;STRONG&gt;SE16&lt;/STRONG&gt; -&amp;gt; Enter Table Name : &lt;STRONG&gt;USR21&lt;/STRONG&gt; -&amp;gt; Execute&lt;/P&gt;&lt;P&gt;Provide the list of User ID(s) through Multiple Selection for &lt;STRONG&gt;BNAME &lt;/STRONG&gt;-&amp;gt; Execute&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_5-1715344388432.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/108676iCEC89D0CE48CCB7B/image-size/medium?v=v2&amp;amp;px=400" role="button" title="karthikj2_5-1715344388432.png" alt="karthikj2_5-1715344388432.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Copy the list of Personnel Number &lt;STRONG&gt;(PERSNUMBER)&lt;/STRONG&gt; for the users&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_6-1715344388441.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/108674iCC1979566995EEFE/image-size/medium?v=v2&amp;amp;px=400" role="button" title="karthikj2_6-1715344388441.png" alt="karthikj2_6-1715344388441.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Execute table view transaction code: &lt;STRONG&gt;SE16&lt;/STRONG&gt; -&amp;gt; Enter Table Name: &lt;STRONG&gt;ADR6&lt;/STRONG&gt; -&amp;gt; Execute&lt;/P&gt;&lt;P&gt;Provide the list of Personnel Number(s) through Multiple Selection for &lt;STRONG&gt;PERSNUMBER &lt;/STRONG&gt;-&amp;gt; Execute&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_7-1715344388447.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/108675i7E1876E52EBE5A3D/image-size/medium?v=v2&amp;amp;px=400" role="button" title="karthikj2_7-1715344388447.png" alt="karthikj2_7-1715344388447.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SMTP_ADDR&lt;/STRONG&gt; column of ADR6 table will provide the list of email address for users&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_8-1715344388454.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/108680i9911656A2E120BA1/image-size/medium?v=v2&amp;amp;px=400" role="button" title="karthikj2_8-1715344388454.png" alt="karthikj2_8-1715344388454.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;SAP also offers to extract the list into Spreadsheet from this screen&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;STRONG&gt;Tip :&lt;/STRONG&gt; Ensure to select ALV Grid Display in User Specific Settings at initial screen of ADR6&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_9-1715344388461.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/108681iA9B307175988C370/image-size/medium?v=v2&amp;amp;px=400" role="button" title="karthikj2_9-1715344388461.png" alt="karthikj2_9-1715344388461.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Word of Caution&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Avoid Unintended Disclosure&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;When querying SAP tables, be cautious not to inadvertently disclose email addresses to unauthorized users or external sources.&lt;/P&gt;&lt;P&gt;Limit access to relevant personnel and follow proper authorization procedures.&lt;/P&gt;&lt;P&gt;Remember, accurate and secure email addresses contribute to smooth business processes and effective communication within your organization. Handle them responsibly, and always prioritize data protection.&lt;/P&gt;&lt;P&gt;If you have any further questions or need assistance, do not hesitate to comment on this blog. Happy SAP querying!&lt;/P&gt;&lt;P&gt;Feel free to share this article with your colleagues and peers who work with SAP systems.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/sap-s-4hana-extracting-user-email-addresses-from-standard-tables/ba-p/13697756"/>
+    <published>2024-05-10T15:09:30.362000+02:00</published>
   </entry>
 </feed>
