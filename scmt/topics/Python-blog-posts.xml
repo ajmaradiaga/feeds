@@ -2,139 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/Python-blog-posts.xml</id>
   <title>SAP Community - Python</title>
-  <updated>2024-05-14T11:11:29.807781+00:00</updated>
+  <updated>2024-05-14T23:11:26.658203+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/Python/pd-p/f220d74d-56e2-487e-8e6c-a8cb3def2378" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Python blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/predicting-commissions-with-machine-learning-a-linear-regression-approach/ba-p/13598612</id>
-    <title>Predicting Commissions with Machine Learning: A Linear Regression Approach</title>
-    <updated>2024-02-07T20:56:43.689000+01:00</updated>
-    <author>
-      <name>Deepan</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/14784</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Curious about how different factors influence your commission earnings? We're exploring exactly that! Armed with a dataset detailing past commissions and various influencing factors, we're tapping into linear regression—a straightforward yet powerful machine learning technique—to estimate commissions based on different input values. We'll break down the process, making it easy to understand how we transform these inputs into estimated commissions.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Model Training&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This code trains a machine learning model to predict commissions using linear regression. It starts by loading commission data, then preprocesses it by encoding categorical variables and scaling numerical features. The data is split into training and testing sets. A pipeline integrates preprocessing steps with linear regression for training. After training, the model's performance is evaluated with R-squared scores. Finally, the trained model is saved using `joblib`.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
-import joblib
-
-# Step 2: Load the dataset
-data = pd.read_csv('commission_data.csv')
-
-# Step 3: Preprocess the data
-# Separate features and target variable
-X = data.drop(columns=['commission'])
-y = data['commission']
-
-# Specify categorical columns
-categorical_features = ['policy_type', 'region', 'add_ons']
-
-# Create a ColumnTransformer to encode categorical columns
-# and standard scale the numerical features (if there are any)
-preprocessor = ColumnTransformer(
-    transformers=[
-        ('cat', OneHotEncoder(), categorical_features)
-    ],
-    remainder='passthrough'  # This will leave numerical features untouched
-)
-
-# Step 4: Split the data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Step 5: Define and train the model within a Pipeline
-model = Pipeline([
-    ('preprocessor', preprocessor),
-    ('scaler', StandardScaler(with_mean=False)),  # Use with_mean=False to avoid issues with sparse matrices
-    ('regression', LinearRegression())
-])
-
-model.fit(X_train, y_train)
-
-# Step 6: Evaluate the model
-train_score = model.score(X_train, y_train)
-test_score = model.score(X_test, y_test)
-print("Training R-squared score:", train_score)
-print("Testing R-squared score:", test_score)
-
-# Step 7: Save the trained model
-joblib.dump(model, 'trained_model.pkl')&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Flask app for predictions&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This Flask app securely predicts commissions using a trained model. It authenticates requests via XSUAA before predicting outcomes based on input data. The model, saved with `joblib`, is loaded to handle predictions. Requests require valid JWT tokens, ensuring only authorized users can access the prediction endpoint. This the app that we will be deploying to cloud foundry.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from flask import Flask, request, jsonify, abort
-import joblib
-import pandas as pd
-import os
-from sap import xssec
-from cfenv import AppEnv
-
-app = Flask(__name__)
-cf_port = os.getenv("PORT")
-
-# Initialize environment to get XSUAA service configuration
-app_env = AppEnv()
-xsuaa_service = app_env.get_service(label='xsuaa')
-
-# Authentication decorator
-def require_auth(f):
-    def decorated_function(*args, **kwargs):
-        auth_header = request.headers.get('Authorization')
-        if not auth_header:
-            abort(401)  # Unauthorized if no header
-
-        try:
-            token = auth_header.replace('Bearer ', '', 1)
-            security_context = xssec.create_security_context(token, xsuaa_service.credentials)
-            # Perform additional checks, like security_context.check_scope('&amp;lt;your-scope&amp;gt;')
-        except Exception as e:
-            abort(401)  # Unauthorized if token is invalid
-
-        return f(*args, **kwargs)
-    return decorated_function
-
-# Load the trained model
-model = joblib.load('trained_model.pkl')
-
-@app.route('/predict', methods=['POST'])
-@require_auth  # Protect the /predict endpoint
-def predict():
-    data = request.get_json(force=True)
-    df = pd.DataFrame(data, index=[0])
-    prediction = model.predict(df)
-    return jsonify(prediction.tolist())
-
-if __name__ == '__main__':
-    if cf_port is None:
-        app.run(host='0.0.0.0', port=5000, debug=True)
-    else:
-        app.run(host='0.0.0.0', port=int(cf_port), debug=True)&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Deploying Flask App to Cloud Foundry&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Before you push your application, you need to create an instance of the XSUAA service. This can be done via the Cloud Foundry CLI or the SAP BTP Cockpit. Here’s how you do it with the CLI:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;cf create-service xsuaa application my-xsuaa-service -c xs-security.json&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Make sure you are logged in to Cloud Foundry first.&lt;/P&gt;&lt;P&gt;To deploy the Flask app to Cloud Foundry, ensure you have `app.py` (Flask application), `trained_model.pkl` (your machine learning model), `requirements.txt` (dependencies list), `Procfile` (startup commands), `runtime.txt` (Python version), and `xs-security.json` (XSUAA security configuration). The `xs-security.json` file is crucial for setting up secure authentication via XSUAA, detailing your app's security domain in terms of scopes and roles. Deploy these files with `cf push`, configuring your app for secure operation with Cloud Foundry's environment and the XSUAA service.&amp;nbsp;The `xs-security.json` file should look something like below.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{
-    "xsappname": "my_estimator_app",
-    "tenant-mode": "dedicated",
-    "scopes": [
-      {
-        "name": "$XSAPPNAME.user",
-        "description": "basic user scope"
-      }
-    ],
-    "role-templates": [
-      {
-        "name": "UserRole",
-        "description": "User role",
-        "scope-references": [
-          "$XSAPPNAME.user"
-        ]
-      }
-    ]
-  }
-  &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp; The push the app to cloud foundry using the below command:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;cf push&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Setting Up Postman for Secure Endpoint Access with XSUAA Authentication&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;After deploying your Flask app integrated with XSUAA on Cloud Foundry, accessing the protected endpoint requires a JWT token for authentication. Here’s how to set up Postman to obtain the JWT token and use it for accessing your app’s endpoint:&lt;/P&gt;&lt;P&gt;Step 1: Obtain JWT Token&lt;/P&gt;&lt;P&gt;1. Create a New Request: In Postman, start by creating a new request to get the JWT token from XSUAA.&lt;BR /&gt;2. Configure the Request for Token:&lt;BR /&gt;- Method: Select `POST`.&lt;BR /&gt;- URL: Use the token endpoint URL from your XSUAA service binding (`https://&amp;lt;your-xsuaa-service-url&amp;gt;/oauth/token`).&lt;BR /&gt;- Authorization Type: Choose "Basic Auth". Enter the `clientid` as the username and `clientsecret` as the password, which you can find in your service binding details.&lt;BR /&gt;- Headers: Set `Content-Type` to `application/x-www-form-urlencoded`.&lt;BR /&gt;- Body: Choose `x-www-form-urlencoded` and add a key `grant_type` with value `client_credentials`.&lt;BR /&gt;3. Send the Request: Click “Send”. You should receive a response containing the `access_token` (JWT token).&lt;/P&gt;&lt;P&gt;Step 2: Access Your Protected Endpoint&lt;/P&gt;&lt;P&gt;1. Create Another Request: This time, for accessing the protected endpoint of your Flask app.&lt;BR /&gt;2. Set Request Details:&lt;BR /&gt;- Method: According to your endpoint requirement (e.g., `POST`).&lt;BR /&gt;- URL: The URL of your deployed Flask app’s endpoint.&lt;BR /&gt;3.Authorization:&lt;BR /&gt;- Switch to the "Authorization" tab.&lt;BR /&gt;- Type: Select “Bearer Token”.&lt;BR /&gt;- Token: Paste the `access_token` you obtained earlier.&lt;BR /&gt;4. Configure Body(if your endpoint expects data):&lt;BR /&gt;- Choose “raw” and select JSON (application/json), then input your JSON payload.&lt;/P&gt;&lt;P&gt;A sample payload:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{
-    "policy_value": 18111,
-    "policy_type": "Standard",
-    "region":"West",
-    "add_ons":"Yes"
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;By setting up Postman as described, you're ready to securely interact with your Flask app’s endpoints. The JWT token authenticates your requests, ensuring that only authorized users can access the functionality protected by XSUAA.&lt;/P&gt;&lt;P&gt;Here's a clipping of the commission value estimated by the app, based on the provided input values:&lt;/P&gt;&lt;P&gt;&lt;A title="Commission Estimator Using Machine Learning-Linear Regression" href="https://www.youtube.com/watch?v=Tn4mfylM8LU" target="_self" rel="nofollow noopener noreferrer"&gt;https://www.youtube.com/watch?v=Tn4mfylM8LU&lt;/A&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;I have attached the mock commission dataset that was used for this blog for your reference.&lt;/P&gt;&lt;P&gt;Besides Postman, consider using SAP Build Apps or SAP Fiori for a user-friendly front-end, enhancing how users interact with the model. It’s a great way for readers to dive deeper into creating more engaging applications.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Remarkably, through the power of linear regression, the model successfully predicted the commission values without explicitly knowing the underlying formula that calculates commissions. This highlights the incredible capability of machine learning to uncover insights and make accurate predictions from data.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/predicting-commissions-with-machine-learning-a-linear-regression-approach/ba-p/13598612"/>
-    <published>2024-02-07T20:56:43.689000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/supply-chain-management-blogs-by-sap/sap-ibp-import-purchasing-data-from-excel-files-and-load-into-order-based/ba-p/13606150</id>
     <title>SAP IBP: Import Purchasing Data from Excel Files and Load into Order Based Planning using Python</title>
@@ -1236,5 +1107,414 @@ if __name__ == '__main__':
     <content>&lt;H1 id="toc-hId-864337452"&gt;1. Introduction&lt;/H1&gt;&lt;P style=" text-align : justify; "&gt;In this blog post, we will delve into the concept of Machine Learning (ML) Explainabilityin SAP HANA Predictive Analysis Library (PAL) and showcase how HANA PAL has seamlessly integrated this feature into various classification and regression algorithms, providing an effective tool for understanding predictive modeling.&amp;nbsp;ML explainability are integral to achieving SAP's ethical AI goals, ensuring fairness, transparency, and trustworthiness in AI systems.&lt;/P&gt;&lt;P&gt;Upon completing this article, your key takeaways will be:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;An understanding of the concept of ML Explainability.&lt;/LI&gt;&lt;LI&gt;How to utilize HANA PAL for ML Explainability in classification and regression tasks.&lt;/LI&gt;&lt;LI&gt;Hands-on experience with Python Machine Learning Client for SAP HANA (hana-ml) through an example.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Please note that ML explainability in HANA PAL is not just confined to classification and regression tasks but also extends to time series analysis. We will explore these topics in the following blog post. Stay tuned!&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-667823947"&gt;2. ML Explainability&lt;/H1&gt;&lt;P style=" text-align : justify; "&gt;ML Explainability, often intertwined with the concepts of transparency and interpretability, refers to the ability to understand and explain the predictions and decisions made by ML models. It aims to clarify which key features or patterns in the data contribute to specific outcomes.&lt;/P&gt;&lt;P style=" text-align : justify; "&gt;The necessity for explainability escalates with AI's expanding role in critical sectors of society, where obscure decision-making processes can have significant ramifications. It is essential for fostering trust, advocating fairness, and complying with regulatory standards.&lt;/P&gt;&lt;P style=" text-align : justify; "&gt;The field of ML explainability is rapidly evolving as researchers in both academia and industry strive to make AI smarter and more reliable. Currently, several techniques are widely employed to enhance the comprehensibility of ML models. These methods are generally divided into two categories: &lt;STRONG&gt;global&lt;/STRONG&gt; and &lt;STRONG&gt;local&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Global explainability methods&lt;/STRONG&gt; seek to reveal the average behavior of ML models and the overall impact of features. This category encompasses both:&lt;/P&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;&lt;STRONG&gt;Model-Specific &lt;/STRONG&gt;approaches, utilize inherently interpretable models like linear regression, logistic regression, and decision trees, which are designed to be understandable. For instance, feature importance scores in tree-based models assess how often features are used to make decisions within the tree structure.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Model-Agnostic &lt;/STRONG&gt;approaches&amp;nbsp;that offer flexibility by detaching the explanation from the model itself, utilizing techniques like permutation importance, functional decomposition, and global surrogate models.&lt;/LI&gt;&lt;/UL&gt;&lt;P style=" text-align : justify; "&gt;In contrast, &lt;STRONG&gt;local explainability methods&lt;/STRONG&gt; focus on explaining individual predictions. These methods include Individual Conditional Expectation, Local Surrogate Models (such as LIME, which stands for Local Interpretable Model-agnostic Explanations), SHAP values (SHapley Additive exPlanations), and Counterfactual Explanations.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-471310442"&gt;3.&amp;nbsp;ML Explainability in PAL&lt;/H1&gt;&lt;P style=" text-align : justify; "&gt;PAL, a key component of SAP HANA's Embedded ML, is designed for data scientists and developers to execute out-of-box ML algorithms within HANA SQL Script procedures. This eliminates the need to export data in another environment for processing, thereby reducing data redundancy and enhancing the performance of analytics applications.&lt;/P&gt;&lt;P style=" text-align : justify; "&gt;In terms of explainability, PAL offers a variety of robust methods for both classification and regression tasks through its Unified Classification, Unified Regression, and AutoML functions. The model explainability is made accessible via the standard AFL SQL interface and the Python/R machine learning client for SAP HANA (hana_ml and hana.ml.r).&amp;nbsp;By offering both local and global explainability methods, PAL ensures that users can choose the level of detail that best suits their needs.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Local Explainability Methods&lt;/STRONG&gt;&lt;BR /&gt;&lt;UL class="lia-list-style-type-square"&gt;&lt;LI&gt;SHAP (SHapley Additive exPlanations values), inspired by game theory, serve as a measure to explain the contribution of each feature towards a model's prediction for a specific instance. PAL implements various SHAP computation methods, including linear, kernel, and tree SHAP, tailored for different functions. For example, in tree algorithms such as Decision Tree (DT), RDT, and HGBT, PAL also provides tree SHAP and Saabaas for computation.&amp;nbsp; PAL also implements kernel SHAP in the context of AutoML pipelines to enhance the interpretability of model outputs.&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Global&amp;nbsp;Explainability Methods&lt;/STRONG&gt;&lt;UL class="lia-list-style-type-square"&gt;&lt;LI&gt;Permutation Importance: A global model-agnostic method that involves randomly shuffling the values of each feature and measuring the impact on the model's performance during the model training phase. A significant drop in performance after shuffling indicates the importance of a feature. For more detailed exploration and examples, one can refer to the blog post on &lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/global-explanation-capabilities-in-sap-hana-machine-learning/ba-p/13620594" target="_self"&gt;permutation importance.&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;Global Surrogate: Within AutoML, after identifying the best pipeline, PAL also provides a Global Surrogate model to explain the pipeline's behavior.&lt;/LI&gt;&lt;LI&gt;A native method to tree-based models like RDT and HGBT that quantifies the importance of features based on their frequency of use in splitting nodes within the tree or by the reduction in impurity they achieve.&amp;nbsp;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-274796937"&gt;&amp;nbsp;&lt;/H1&gt;&lt;H1 id="toc-hId-78283432"&gt;4.&amp;nbsp;Explainability Example&lt;/H1&gt;&lt;H2 id="toc-hId-10852646"&gt;4.1&amp;nbsp;Use case and data&lt;/H2&gt;&lt;P style=" text-align : justify; "&gt;In this section, we will use a publicly accessible synthetic recruiting dataset which is derived from an example at the &lt;A href="https://cdeiuk.github.io/bias-mitigation/recruiting/" target="_self" rel="nofollow noopener noreferrer"&gt;[Centre for Data Ethics and Innovation]&lt;/A&gt; as a case study to explore HANA PAL ML explainability. All source code will use Python Machine Learning Client for SAP HANA(hana_ml). Please note that the example code use in this section is only intended to better explain and visualize ML explainability in SAP HANA PAL, not for productive use.&amp;nbsp;&lt;/P&gt;&lt;P style=" text-align : justify; "&gt;This artificial dataset represents individual job applicants, featuring attributes that relate to their experience, qualifications, and demographics. This same dataset is also used in my another blog post on &lt;A href="http://Fairness%20in Machine Learning - A New Feature in SAP HANA Cloud PAL" target="_self" rel="nofollow noopener noreferrer"&gt;PAL ML fairness&lt;/A&gt;. We have identified the following 13 variables (from Column 2 to Column 14) to be potentially relevant in an automated recruitment setting. The first column includes IDs, and the last one is the target variable, 'employed_yes',&amp;nbsp;hence the model shall predict if an applicant will or shall be employed or not.&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;ID: ID column&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;gender : Femail and male,&amp;nbsp;identified as 0 (Female) and 1 (Male)&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;ethical_group : Two ethic groups,&amp;nbsp;identified as 0 (ethical group X) and 1 (ethical group Y)&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;years_experience : Number of career years relevant to the job&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;referred : Did the candidate get referred for this position&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;gcse : GCSE results&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;a_level : A-level results&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;russell_group : Did the candidate attend a Russell Group university&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;honours : Did the candidate graduate with an honours degree&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;years_volunteer : Years of volunteering experience&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;income : Current income&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;it_skills : Level of IT skills&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;years_gaps : Years of gaps in the CV&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;quality_cv : Quality of written CV&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;employed_yes : Whether currently employed or not (&lt;STRONG&gt;target variable)&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P style=" text-align : justify; "&gt;A total of 10,000 instances have been generated and the dataset has been divided into two dataframes: employ_train_df (80%) and employ_test_df (20%). The first 5 rows of &lt;SPAN&gt;employ_train_df is shown in Fig.1.&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId--56578140"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Fig. 1 The first 5 rows of training dataset" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/102863i2E7A0A809FC9DD7C/image-size/large?v=v2&amp;amp;px=999" role="button" title="train_df_sample.png" alt="Fig. 1 The first 5 rows of training dataset" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Fig. 1 The first 5 rows of training dataset&lt;/span&gt;&lt;/span&gt;&lt;/H3&gt;&lt;H2 id="toc-hId--382174364"&gt;4.2 Fitting the Classification ML Model&lt;/H2&gt;&lt;P style=" text-align : justify; "&gt;In the following paragraphs, we will utilize the UnifiedClassification and select the "&lt;STRONG&gt;r&lt;/STRONG&gt;andom&lt;STRONG&gt;d&lt;/STRONG&gt;ecision&lt;STRONG&gt;t&lt;/STRONG&gt;ree" (&lt;STRONG&gt;RDT&lt;/STRONG&gt;) algorithm to showcase the various methods PAL offers for model explainability.&lt;/P&gt;&lt;P style=" text-align : justify; "&gt;Firstly, we instantiate a 'UnifiedClassification' object "&lt;FONT color="#808080"&gt;urdt&lt;/FONT&gt;" and train a random decision trees model using a training dataframe employ_train_df. Following this, we employ the score() function to evaluate the model's performance. As shown in Fig.2, the model's overall performance is satisfactory, as indicated by its AUC, accuracy, and precision-recall rates for both classes 0 and 1 in the model report .&lt;/P&gt;&lt;P&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; from hana_ml.algorithms.pal.unified_classification import UnifiedClassification&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; features = employ_train_df.columns # obtain the name of columns in training dataset&lt;/EM&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; features.remove('ID') # delete key column name&lt;/EM&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; features.remove('employed_yes') # delete label column name&lt;/EM&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; urdt = UnifiedClassification(func='randomdecisiontree', random_state=2024)&lt;/EM&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; urdt.fit(data=employ_train_df, key="ID", label='employed_yes')&lt;/EM&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; score_result = urdt.score(data=employ_test_df, key="ID", top_k_attributions=20, random_state=1)&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; from hana_ml.visualizers.unified_report import UnifiedReport&lt;/EM&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; UnifiedReport(urdt).build().display()&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Fig.2 Model Report" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/103565i40FAD88CACF2DF12/image-size/medium?v=v2&amp;amp;px=400" role="button" title="model_report.png" alt="Fig.2 Model Report" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Fig.2 Model Report&lt;/span&gt;&lt;/span&gt;&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H2 id="toc-hId--578687869"&gt;4.3 Local ML Model Explainability&lt;/H2&gt;&lt;P style=" text-align : justify; "&gt;SHAP values can be easily obtained through the predict() and score() functions. The following code demonstrates the use of the predict() method with 'urdt' to obtain the predictive result "predict_result". Figure 3 displays the first two rows of the results, which include a 'SCORE' column for the predicted outcomes and a 'CONFIDENCE' column representing the probability of the predictions. The 'REASON_CODE' column contains a JSON string that details the specific contribution of each feature value, including "attr" for the attribution name, "val" for the SHAP value, and "pct" for the percentage, which represents the contribution's proportion.&lt;/P&gt;&lt;P style=" text-align : justify; "&gt;When working with tree-based models, the 'attribution_method' parameter offers three options for calculating SHAP values: the default 'tree-shap',&amp;nbsp; 'saabas' designed for large datasets and can provide faster computation, and 'no' to disable explanation calculation to save computation time as needed.&lt;/P&gt;&lt;P&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; predict_result = urdt.predict(data=employ_test_df.deselect("employed_yes"), key="ID",&lt;/EM&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;top_k_attributions=20, attribution_method='tree-shap',&amp;nbsp;&lt;/EM&gt;&lt;EM&gt;random_state=1, verbose=True)&lt;/EM&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; predict_result.head(2).collect()&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H3 id="toc-hId--646118655"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Fig. 3 Predict Result Dataframe" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/102977iB6867C6A9BCA24D7/image-size/medium?v=v2&amp;amp;px=400" role="button" title="reason_code.png" alt="Fig. 3 Predict Result Dataframe" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Fig. 3 Predict Result Dataframe&lt;/span&gt;&lt;/span&gt;&lt;/H3&gt;&lt;P style=" text-align : justify; "&gt;For a more convenient examination of SHAP values, we provide a tool - the force plot, which offers a clear visualization of the impact of individual features on a specific prediction. Taking the first row of the prediction data as an example, we can observe that being female (gender = 0), having 3 years of experience (years_experience = 3), and not being referred (referred = 0), all contribute negatively to the likelihood of being hired. Furthermore, by clicking on the '+' sign in front of each row, you can expand to view the detailed force plot for that particular instance (as shown in Figure 4).&lt;/P&gt;&lt;P&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; from hana_ml.visualizers.shap import ShapleyExplainer&lt;/EM&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; shapley_explainer = ShapleyExplainer(feature_data=employ_test_df.sort('ID').select(features),&lt;/EM&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;reason_code_data=predict_result.filter('SCORE=1').sort('ID').select('REASON_CODE'))&lt;/EM&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; shapley_explainer.force_plot()&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H3 id="toc-hId--917863529"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Fig. 4 Force Plot" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/107789iF9083749B87913F8/image-size/large?v=v2&amp;amp;px=999" role="button" title="expand_force_plot.png" alt="Fig. 4 Force Plot" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Fig. 4 Force Plot&lt;/span&gt;&lt;/span&gt;&lt;/H3&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId--820974027"&gt;4.4 Global ML Model Explainability&lt;/H2&gt;&lt;H3 id="toc-hId--1310890539"&gt;4.4.1 Permutation Importance&amp;nbsp;&lt;STRONG&gt;Explanations&lt;/STRONG&gt;&lt;/H3&gt;&lt;P style=" text-align : justify; "&gt;&lt;SPAN&gt;To compute permutation importance, you need to set the&amp;nbsp;&lt;/SPAN&gt;parameter &lt;EM&gt;&lt;SPAN&gt;permutation_importance&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;=&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;True&lt;/SPAN&gt;&lt;/EM&gt;&lt;SPAN&gt;&amp;nbsp;when fitting the model. &lt;/SPAN&gt;&lt;SPAN&gt;The results of the permutation importance scores can be directly extracted from the&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;importance_&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;attribute of the&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;UnifiedClassification&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;object, with each feature name suffixed by&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;PERMUTATION_IMP in Fig. 5 and the scores are visualized in Fig. 6.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; urdt_per = UnifiedClassification(func='randomdecisiontree', random_state=2024)&lt;/EM&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; urdt_per.fit(data=employ_train_df, key='ID', label='employed_yes', partition_method='stratified',&lt;/EM&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;stratified_column='employed_yes', training_percent=0.8, ntiles=2, permutation_importance=True, permutation_evaluation_metric='accuracy',&amp;nbsp;&lt;/EM&gt;&lt;/FONT&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;permutation_n_repeats=10, permutation_seed=2024)&lt;/EM&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; print(urdt_per.importance_.sort('IMPORTANCE', desc=True).collect())&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Fig. 5 Permutation Importance Scores" style="width: 357px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/103674i6F87EE580443D789/image-size/large?v=v2&amp;amp;px=999" role="button" title="10_permutation_result.png" alt="Fig. 5 Permutation Importance Scores" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Fig. 5 Permutation Importance Scores&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Fig. 6 Bar Plot of Permutation Importance Scores" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/102988i054B7F930FE8BE29/image-size/medium?v=v2&amp;amp;px=400" role="button" title="permutation.png" alt="Fig. 6 Bar Plot of Permutation Importance Scores" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Fig. 6 Bar Plot of Permutation Importance Scores&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align : justify; "&gt;In Fig. 6, we can see the top three features in terms of importance, are 'years_experience', 'referred', and 'gcse'. This indicates that these features have the most significant impact on the model's predictions when their values are randomly shuffled, leading to a measurable decrease in the model's performance metric.&lt;/P&gt;&lt;H3 id="toc-hId--1507404044"&gt;4.4.2 SHAP Summary Report&lt;/H3&gt;&lt;P style=" text-align : justify; "&gt;The ShapleyExplainer also provides a comprehensive summary report that includes a suite of visualizations such as the beeswarm plot, bar plot, dependence plot, and enhanced dependence plot. Specifically, the beeswarm plot and bar plot offer a global perspective, illustrating the impact of different features on the outcome across the entire dataset.&lt;/P&gt;&lt;P style=" text-align : justify; "&gt;&lt;FONT color="#808080"&gt;&lt;EM&gt;&amp;gt;&amp;gt;&amp;gt; shapley_explainer.summary_plot()&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : justify; "&gt;The &lt;STRONG&gt;beeswarm plot &lt;/STRONG&gt;(shownin Fig. 7), which visually illustrate the distribution of SHAP values for features across all instances. Point colors indicate feature value magnitude, with red for larger and blue for smaller values. For instance, the color distribution of 'years_experience' suggests that longer work experience increase hiring chance while the 'years_gaps' spread implies a longer gap negative affects hire likelihood.&lt;/P&gt;&lt;H3 id="toc-hId--1703917549"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Fig. 7 Beeswarm Plot" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/102980i0999147B6E2D687D/image-size/medium?v=v2&amp;amp;px=400" role="button" title="SHAP_Beeswarm.png" alt="Fig. 7 Beeswarm Plot" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Fig. 7 Beeswarm Plot&lt;/span&gt;&lt;/span&gt;&lt;/H3&gt;&lt;P style=" text-align : justify; "&gt;&lt;SPAN&gt;The order of features in the beeswarm plot is often determined by their importance, as can be more explicitly seen in the &lt;/SPAN&gt;&lt;STRONG&gt;bar plot &lt;/STRONG&gt;&lt;SPAN&gt;shown in Fig. 8.&amp;nbsp; which ranks features based on the sum of the absolute values of their SHAP values, providing a clear hierarchy of feature importance. For example, the top 3 influential features are 'years_experience', 'referred', and 'ethical_group'.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Fig. 8 Bar Plot" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/102981i5B3BAA6226C2DD1C/image-size/medium?v=v2&amp;amp;px=400" role="button" title="SHAP_bar.png" alt="Fig. 8 Bar Plot" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Fig. 8 Bar Plot&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align : justify; "&gt;For a more granular understanding of the impact of each feature on the target variable, we can refer to the &lt;STRONG&gt;dependence plot&lt;/STRONG&gt; shown in Fig. 9. This plot illustrates the relationship between a feature and the SHAP values. For instance, a dependence plot for 'years_experience' might show that shorter work experience corresponds to negative SHAP values, with a turning point around 6 years of experience, after which the contribution becomes positive.&amp;nbsp;Additionally, the report includes an &lt;STRONG&gt;enhanced dependence plot&lt;/STRONG&gt; that examines the relationship between pairs of features. This can provide insights into how feature interactions affect the model's predictions.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Fig. 9 Dependence Plot" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/102982i64E36FCD91007F8B/image-size/medium?v=v2&amp;amp;px=400" role="button" title="SAHP_dependent.png" alt="Fig. 9 Dependence Plot" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Fig. 9 Dependence Plot&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId--1900431054"&gt;&amp;nbsp;&lt;SPAN&gt;4.4.3. Tree-Based Feature Important&lt;/SPAN&gt;&lt;/H3&gt;&lt;P style=" text-align : justify; "&gt;The feature important for tree-based models is currently supported by RDT and HGBT in PAL. The feature importance scores can be directly extracted from the importance_ attribute of the 'UnifiedClassification' object "urdt". Below is a code snippet that demonstrates how to obtain and rank these feature importance scores in descending order. The result is shown in Fig. 9 and these scores can then be visualized using a bar plot (as shown in Fig. 10). I&lt;SPAN&gt;t is clear that the top three features in terms of importance are 'years_experience', 'income', and 'gcse'.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;gt;&amp;gt;&amp;gt;&amp;nbsp;urdt.importance_.sort('IMPORTANCE', desc=True).collect()&lt;/P&gt;&lt;H3 id="toc-hId--2096944559"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Fig. 10 Feature Importance Scores" style="width: 200px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/102989iB5E81632CB717BFD/image-size/small?v=v2&amp;amp;px=200" role="button" title="tree_feature_imp.png" alt="Fig. 10 Feature Importance Scores" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Fig. 10 Feature Importance Scores&lt;/span&gt;&lt;/span&gt;&lt;/H3&gt;&lt;H3 id="toc-hId-2001509232"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Fig. 11 Bar Plot of Feature Importance Scores" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/102984iA91C07512EEFF466/image-size/medium?v=v2&amp;amp;px=400" role="button" title="tree_model.png" alt="Fig. 11 Bar Plot of Feature Importance Scores" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Fig. 11 Bar Plot of Feature Importance Scores&lt;/span&gt;&lt;/span&gt;&lt;/H3&gt;&lt;P style=" text-align : justify; "&gt;&lt;SPAN&gt;Figures 6, 8, and 11 present feature importance scores from 3 different methods, consistently identifying 'years_experience' as the most critical factor. However, the ranking of importance of other features varies across methods. This fluctuation stems from each method's unique approach to assessing feature contributions and the dataset's inherent characteristics. SHAP values are based on a game-theoretic approach that assigns each feature an importance score reflecting its average impact on the model output across all possible feature combinations. In contrast, tree-based models' feature importance scores reflect how frequently a feature is used for data splits within the tree, which may not capture the nuanced interactions between features. Permutation importance, on the other hand, can reveal nonlinear relationships and interactions that are not explicitly modeled.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;Thus, interpreting the model requires a multifaceted approach, considering the strengths and limitations of each method to inform decision-making.&lt;/SPAN&gt;&lt;/P&gt;&lt;P style=" text-align : justify; "&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--1903165555"&gt;5. Summary&lt;/H1&gt;&lt;P style=" text-align : justify; "&gt;The blog post introduces ML explainability in SAP HANA PAL, showcasing the use of varous local and global methods like SHAP values, permutation importance, and tree-based feature importance to analyze a synthetic recruiting dataset using Python Client. It emphasizes the necessity for a multifaceted approach to model interpretation, considering the strengths and limitations of each method for informed decision-making.&amp;nbsp;This feature is crucial for SAP's ethical AI objectives, aiming to ensure fairness, transparency, and trustworthiness in AI applications.&lt;/P&gt;&lt;H3 id="toc-hId-1608482222"&gt;&amp;nbsp;&lt;/H3&gt;&lt;H3 id="toc-hId-1580152408"&gt;Other Useful Links:&lt;/H3&gt;&lt;P style=" text-align : justify; "&gt;Install the Python Machine Learning client from the pypi public repository:&amp;nbsp;&lt;A href="https://pypi.org/project/hana-ml/" target="_blank" rel="noopener nofollow noreferrer"&gt;hana-ml&lt;BR /&gt;&lt;/A&gt;&lt;/P&gt;&lt;P style=" text-align : justify; "&gt;&lt;A href="https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-predictive-analysis-library/sap-hana-cloud-sap-hana-database-predictive-analysis-library-pal-sap-hana-cloud-sap-hana-database-predictive-analysis-library-pal-c9eeed7" target="_self" rel="noopener noreferrer"&gt;HANA PAL documentation&lt;/A&gt;&lt;/P&gt;&lt;P style=" text-align : justify; "&gt;For other blog posts on hana-ml:&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/identification-of-seasonality-in-time-series-with-python-machine-learning/ba-p/13472664" target="_self"&gt;Global Explanation Capabilities in SAP HANA Machine Learning&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A class="" href="https://community.sap.com/t5/technology-blogs-by-sap/fairness-in-machine-learning-a-new-feature-in-sap-hana-cloud-pal/ba-p/13580185" target="_self"&gt;Fairness in Machine Learning - A New Feature in SAP HANA Cloud PAL&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/a-multivariate-time-series-modeling-and-forecasting-guide-with-python/ba-p/13517004" target="_blank"&gt;A Multivariate Time Series Modeling and Forecasting Guide with Python Machine Learning Client for SA...&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://blogs.sap.com/2020/12/11/outlier-detection-using-statistical-tests-in-python-machine-learning-client-for-sap-hana/" target="_blank" rel="noopener noreferrer"&gt;Outlier Detection using Statistical Tests in Python Machine Learning Client for SAP HANA&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://blogs.sap.com/2020/12/16/outlier-detection-by-clustering/" target="_blank" rel="noopener noreferrer"&gt;Outlier Detection by Clustering using Python Machine Learning Client for SAP HANA&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://blogs.sap.com/2020/12/21/anomaly-detection-in-time-series-using-seasonal-decomposition-in-python-machine-learning-client-for-sap-hana/" target="_blank" rel="noopener noreferrer"&gt;Anomaly Detection in Time-Series using Seasonal Decomposition in Python Machine Learning Client for ...&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://blogs.sap.com/2020/12/29/outlier-detection-with-one-class-classification-using-python-machine-learning-client-for-sap-hana/" target="_blank" rel="noopener noreferrer"&gt;Outlier Detection with One-class Classification using Python Machine Learning Client for SAP HANA&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://blogs.sap.com/2020/12/31/learning-from-labeled-anomalies-for-efficient-anomaly-detection-using-python-machine-learning-client-for-sap-hana/" target="_blank" rel="noopener noreferrer"&gt;Learning from Labeled Anomalies for Efficient Anomaly Detection using Python Machine Learning Client...&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://blogs.sap.com/2021/01/07/time-series-modeling-and-analysis-using-sap-hana-predictive-analysis-librarypal-through-python-machine-learning-client-for-sap-hana/" target="_blank" rel="noopener noreferrer"&gt;Python Machine Learning Client for SAP HANA&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://blogs.sap.com/2020/12/17/import-multiple-excel-files-into-a-single-sap-hana-table/" target="_blank" rel="noopener noreferrer"&gt;Import multiple excel files into a single SAP HANA table&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://blogs.sap.com/2020/12/16/copd-study-explanation-and-interpretability-with-python-machine-learning-client-for-sap-hana/" target="_blank" rel="noopener noreferrer"&gt;COPD study, explanation and interpretability with Python machine learning client for SAP HANA&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/model-storage-with-python-machine-learning-client-for-sap-hana/ba-p/13483099" target="_blank"&gt;Model Storage with Python Machine Learning Client for SAP HANA&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://blogs.sap.com/2020/12/18/identification-of-seasonality-in-time-series-with-python-machine-learning-client-for-sap-hana/" target="_blank" rel="noopener noreferrer"&gt;Identification of Seasonality in Time Series with Python Machine Learning Client for SAP HANA&lt;/A&gt;&lt;/LI&gt;&lt;/OL&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-sap/exploring-ml-explainability-in-sap-hana-pal-classification-and-regression/ba-p/13681514"/>
     <published>2024-05-10T08:45:44.156000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-members/iot-rfid-integration-with-sap-hana-cloud-via-sap-btp/ba-p/13698597</id>
+    <title>IoT: RFID integration with SAP HANA Cloud via SAP BTP</title>
+    <updated>2024-05-14T13:46:58.943000+02:00</updated>
+    <author>
+      <name>Ihor_Haranichev</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/643343</uri>
+    </author>
+    <content>&lt;P&gt;Hello SAP Community!&lt;/P&gt;&lt;P&gt;Let me share with you an abstract prototype with using RFID reader with power of SAP HANA Cloud platform. Probably this project will bring you a new ideas for using modern SAP landscape.&lt;/P&gt;&lt;P&gt;For instance we have a business case: to register employee’s attendance in the office for further processing such as control reporting, payroll etc.&lt;/P&gt;&lt;H3 id="toc-hId-1123635199"&gt;1. Hardware specification&lt;/H3&gt;&lt;P&gt;For this purposes we use a popular computer Raspberry PI with open platform and data bus. It is British computer for learning and various DIY projects. For example, you can create your own smart house using such computers.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_3-1715529385089.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109164iDA3C39D0D4E66D63/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_3-1715529385089.png" alt="nevigon_3-1715529385089.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Details are by the link&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&lt;A href="https://www.raspberrypi.org" target="_blank" rel="noopener nofollow noreferrer"&gt;https://www.raspberrypi.org&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;I have &lt;STRONG&gt;Raspberry Pi 3 Model B+&lt;/STRONG&gt;. A little bit outdated, but still functional. The computer bus GPIO allows connect a various sensors and devices.&lt;/P&gt;&lt;P&gt;For RFID reader we use &lt;STRONG&gt;SB components RFID HAT&lt;/STRONG&gt;:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_0-1715529046505.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109161i2A086BCAE933B2D2/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_0-1715529046505.png" alt="nevigon_0-1715529046505.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;This device is Raspberry PI compatible; it has GPIO 40 pin header such as Raspberry PI has. Apart of RFID module, there are beeper and little monochrome display on-board.&lt;/P&gt;&lt;P&gt;More details in the link&amp;nbsp;&lt;SPAN&gt;&lt;A href="https://github.com/sbcshop/SB-RFID-HAT" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/sbcshop/SB-RFID-HAT&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Additionally, we have two test RFID tags for test scenarios. These tags have own unique ID.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_1-1715529070409.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109162i676C6951A73BAC6D/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_1-1715529070409.png" alt="nevigon_1-1715529070409.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-927121694"&gt;2. Software specification&lt;/H3&gt;&lt;P&gt;We use SAP BTP Trial as development platform and SAP HANA Cloud as database. We use Python for REST API. And for RFID device’s scripts, we will use Python as well. SAP Business Application Studio will be used to develop Fiori application.&lt;/P&gt;&lt;P&gt;&amp;nbsp;Let's split the task for several parts:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Creating database artifacts;&lt;/LI&gt;&lt;LI&gt;Creating a Rest API in SAP BTP;&lt;/LI&gt;&lt;LI&gt;Creating scripts for RFID device;&lt;/LI&gt;&lt;LI&gt;Creating a Fiori report.&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-730608189"&gt;3. Creating database artifacts&lt;/H3&gt;&lt;P&gt;We create an SAP BTP account + space + SAP HANA Cloud database.&lt;/P&gt;&lt;P&gt;I provide a link for creating an account by SAP Learning Hub (developers.sap.com):&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A href="https://developers.sap.com/tutorials/hcp-create-trial-account.html" target="_blank" rel="noopener noreferrer"&gt;https://developers.sap.com/tutorials/hcp-create-trial-account.html&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;For creating SAP HANA database use next link:&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A href="https://developers.sap.com/group.hana-cloud-get-started-1-trial.html" target="_blank" rel="noopener noreferrer"&gt;https://developers.sap.com/group.hana-cloud-get-started-1-trial.html&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Once development environment is ready, we create database artifacts: a table for users and a attendance log table and view which join two tables.&lt;/P&gt;&lt;P&gt;Here are SQL scripts:&lt;/P&gt;&lt;P&gt;Table RFID_USER, for user maintenance.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;CREATE COLUMN TABLE RFID_USER (
+    RFID NVARCHAR(12) PRIMARY KEY,
+    NAME NVARCHAR(50)
+);&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Table RFID_USER description&lt;/P&gt;&lt;TABLE width="645px"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="214.659px"&gt;&lt;P&gt;&lt;STRONG&gt;Fieldname&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.744px"&gt;&lt;P&gt;&lt;STRONG&gt;Field type&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.688px"&gt;&lt;P&gt;&lt;STRONG&gt;Description&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="214.659px"&gt;&lt;P&gt;RFID&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.744px"&gt;&lt;P&gt;NVARCHAR(12)&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.688px"&gt;&lt;P&gt;RFID unique ID&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="214.659px"&gt;&lt;P&gt;NAME&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.744px"&gt;&lt;P&gt;NVARCHAR(50)&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.688px"&gt;&lt;P&gt;User which assigned to ID&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;Table RFID_LOG, for attendance registration.&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;CREATE COLUMN TABLE RFID_LOG (
+    ID INT PRIMARY KEY,
+    RFID NVARCHAR(12),
+    CHECKIN DATETIME,
+    CHECKOUT DATETIME
+);&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Table RFID_LOG description&lt;/P&gt;&lt;TABLE width="645px"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="214.659px"&gt;&lt;P&gt;&lt;STRONG&gt;Fieldname&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.744px"&gt;&lt;P&gt;&lt;STRONG&gt;Field type&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.688px"&gt;&lt;P&gt;&lt;STRONG&gt;Description&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="214.659px"&gt;&lt;P&gt;ID&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.744px"&gt;&lt;P&gt;INT&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.688px"&gt;&lt;P&gt;Unique key field, counter&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="214.659px"&gt;&lt;P&gt;RFID&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.744px"&gt;&lt;P&gt;NVARCHAR(50)&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.688px"&gt;&lt;P&gt;User which assigned to ID&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="214.659px"&gt;&lt;P&gt;CHECKIN&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.744px"&gt;&lt;P&gt;DATETIME&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.688px"&gt;&lt;P&gt;Timestamp for check in&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="214.659px"&gt;&lt;P&gt;CHECKOUT&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.744px"&gt;&lt;P&gt;DATETIME&lt;/P&gt;&lt;/TD&gt;&lt;TD width="214.688px"&gt;&lt;P&gt;Timestamp for check out&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;View RFID_VIEW, for reporting&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;CREATE VIEW RFID_VIEW AS
+SELECT RU.NAME, RL.RFID, RL.CHECKIN, RL.CHECKOUT
+FROM RFID_LOG RL
+JOIN RFID_USER RU ON RL.RFID = RU.RFID;&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-534094684"&gt;4. Creating a REST API in SAP HANA Cloud&lt;/H3&gt;&lt;P&gt;For REST API development, we use Visual Studio Code. We use a Python as a language for development.&lt;/P&gt;&lt;P&gt;Link for Visual studio code:&amp;nbsp;&lt;SPAN&gt;&lt;A href="https://code.visualstudio.com" target="_blank" rel="noopener nofollow noreferrer"&gt;https://code.visualstudio.com&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Link for Python:&amp;nbsp;&lt;SPAN&gt;&lt;A href="https://www.python.org" target="_blank" rel="noopener nofollow noreferrer"&gt;https://www.python.org&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;The last but not least is Cloud Foundry CLI:&amp;nbsp;&lt;SPAN&gt;&lt;A href="https://docs.cloudfoundry.org/cf-cli/install-go-cli.html" target="_blank" rel="noopener nofollow noreferrer"&gt;https://docs.cloudfoundry.org/cf-cli/install-go-cli.html&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Using Cloud Foundry command line we will deploy our application to SAP BTP.&lt;/P&gt;&lt;P&gt;I recommend to use a comprehensive tutorial, provided by SAP: &lt;SPAN&gt;&lt;A href="https://developers.sap.com/tutorials/btp-cf-buildpacks-python-create.html" target="_blank" rel="noopener noreferrer"&gt;https://developers.sap.com/tutorials/btp-cf-buildpacks-python-create.html&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;First thing first we create a folder for the project -&amp;nbsp; Python_Rfid_Project.&lt;/P&gt;&lt;P&gt;Inside this folder put a file with a name &lt;STRONG&gt;manifest.yml&lt;/STRONG&gt;. This file describes the application and how it will be deployed to Cloud Foundry:&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;---
+applications:
+- name: rfid_app
+  random-route: true
+  path: ./
+  memory: 128M
+  buildpacks: 
+  - python_buildpack
+  command: python server.py
+  services:
+  - pyhana_rfid
+  - pyuaa_rfid
+
+- name: rfid_web
+  random-route: true
+  path: web
+  memory: 128M
+  env:
+    destinations: &amp;gt;
+      [
+        {
+          "name":"rfid_app",
+          "url":"https://rfidapp-chipper-echidna.cfapps.us10-001.hana.ondemand.com",
+          "forwardAuthToken": true
+        }
+      ]
+  services:
+  - pyuaa_rfid&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Name of application is&lt;STRONG&gt; rfid_app&lt;/STRONG&gt;. Command file with the API logic is server.py.&lt;/P&gt;&lt;P&gt;Next, lets create a Python runtime version file, &lt;STRONG&gt;runtime.txt:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;python-3.11.*&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Another file is &lt;STRONG&gt;requirements.txt&lt;/STRONG&gt;, which contains the necessary versions of packages:&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;Flask==2.3.*
+cfenv==0.5.3
+hdbcli==2.17.*
+flask-cors==3.0.10&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Flask&lt;/STRONG&gt; is a framework for building easy and lightweight web applications&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Cfenv&lt;/STRONG&gt; is node.js library for simplify process of accessing environment variables and services provided by cloud platform.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Hdbcli &lt;/STRONG&gt;– is python library for connecting and interacting with SAP HANA Databases&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Flask-CORS&lt;/STRONG&gt; is a Flask extension that simplifies the process of dealing with Cross-Origin Resource Sharing (CORS) in Flask applications. In this project we will simplify this connection to avoid CORS errors. The SAP recommendation is to register and consume Destinations. You may see it in SAP BTP:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_0-1715530932115.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109165i6BDD8A24A50C4D62/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_0-1715530932115.png" alt="nevigon_0-1715530932115.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;However in scope of my project I will simplify this process to use &lt;STRONG&gt;Flask-CORS&lt;/STRONG&gt; extension. Here I'm opened for discussion, possibly someone will propose an another approach.&lt;/P&gt;&lt;P&gt;It is important to install all this packages on local machine:&lt;/P&gt;&lt;P&gt;Commands are:&lt;/P&gt;&lt;P&gt;&lt;EM&gt;pip install Flask&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;pip install cfenv&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;pip install hdbcli&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;pip install flask-cors&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;Next, main file, as I mentioned before is &lt;STRONG&gt;server.py&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import os
+
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from hdbcli import dbapi
+from cfenv import AppEnv
+import json
+
+app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+#CORS(app, resources={r"/*": {"origins": "*"}})
+
+env = AppEnv()
+
+import json
+sap_hana_config_file = "hana_cloud_config.json"
+with open(sap_hana_config_file) as f:
+    sap_hana_config = json.load(f)
+    db_url  = sap_hana_config['url']
+    db_port = sap_hana_config['port']
+    db_user = sap_hana_config['user']
+    db_pwd  = sap_hana_config['pwd']
+    db_database = sap_hana_config['database']
+
+# Get the service bindings
+
+hana_service = 'hana'
+hana = env.get_service(label=hana_service)
+
+port = int(os.environ.get('PORT', 3000))
+
+# SAP HANA database connection configuration
+conn = dbapi.connect(address=db_url,
+            port=db_port,
+            user=db_user,
+            password=db_pwd,
+            database=db_database)        
+
+# routine for database execution
+def execute_query(query, params=None):
+    cursor = conn.cursor()
+    if params:
+        cursor.execute(query, params)
+    else:
+        cursor.execute(query)
+    try:
+        data = cursor.fetchall()
+    except:
+        data = []
+    cursor.close()
+    data_list = []
+    for row in data:
+        data_dict = {}
+        for idx, col in enumerate(cursor.description):
+            data_dict[col[0]] = row[idx]
+        data_list.append(data_dict)
+    return data_list
+
+# endpoints
+
+@app.route('/data', methods=['GET'])
+def get_data():
+    top_count = int(request.args.get('TOP')) if request.args.get('TOP') else 0
+    if top_count &amp;gt; 0:
+        query = "SELECT * FROM RFID_VIEW ORDER BY CHECKIN DESC LIMIT ?"    
+        params = (top_count)
+    else:
+        query = "SELECT * FROM RFID_VIEW ORDER BY CHECKIN DESC"
+        params = None
+
+    data = execute_query(query, params)
+    return jsonify(data)
+
+@app.route('/user/&amp;lt;rfid&amp;gt;', methods=['GET'])
+def get_user_by_rfid(rfid):
+    query = "SELECT * FROM RFID_USER WHERE RFID = ?"
+    data = execute_query(query, (rfid,))
+    return jsonify(data)
+
+@app.route('/rfid/&amp;lt;rfid&amp;gt;', methods=['GET'])
+def get_data_by_rfid(rfid):
+    query = "SELECT RL.ID, RL.RFID, RL.CHECKIN, RL.CHECKOUT,RU.NAME FROM RFID_LOG RL JOIN RFID_USER RU ON RL.RFID = RU.RFID WHERE RL.RFID = ?"
+    data = execute_query(query, (rfid,))
+    return jsonify(data)
+
+@app.route('/lastrfid/&amp;lt;rfid&amp;gt;', methods=['GET'])
+def get_last_data_by_rfid(rfid):
+    query = "SELECT TOP 1 RL.ID, RL.RFID, RL.CHECKIN, RL.CHECKOUT,RU.NAME FROM RFID_LOG RL JOIN RFID_USER RU ON RL.RFID = RU.RFID WHERE RL.RFID = ? AND RL.CHECKIN IS NOT NULL AND RL.CHECKOUT IS NULL ORDER BY RL.CHECKIN DESC"
+    data = execute_query(query, (rfid,))
+    return jsonify(data)
+
+@app.route('/rfid/&amp;lt;rfid&amp;gt;', methods=['POST'])
+def add_data(rfid):
+    # new_data = request.json
+    query = "INSERT INTO RFID_LOG (RFID, CHECKIN, CHECKOUT) VALUES (?,CURRENT_TIMESTAMP, NULL)"
+    # for new_data_line in new_data:
+    #     params = (new_data_line['RFID'])
+    execute_query(query, (rfid,))
+    return jsonify({"message": "Data added successfully"})
+
+@app.route('/id/&amp;lt;int:id&amp;gt;', methods=['PUT'])
+def update_data(id):
+    # updated_data = request.json
+    query = "UPDATE RFID_LOG SET CHECKOUT = CURRENT_TIMESTAMP  WHERE ID = ?"
+updated_data_line['READING1'], updated_data_line['READING2'], updated_data_line['READING3'], updated_data_line['UNIQUEDEVICEID'], id)
+    execute_query(query,(id,))
+    return jsonify({"message": "Data updated successfully"})
+
+# for local testing
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=port)&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;In this script we implement GET, PUT, POST methods with respective endpoints.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;GET&lt;/STRONG&gt;&lt;/P&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;Endpoint &lt;STRONG&gt;/data&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P style=" padding-left : 30px; "&gt;Get all data.&lt;/P&gt;&lt;P style=" padding-left : 30px; "&gt;Example:&lt;/P&gt;&lt;P style=" padding-left : 30px; "&gt;&lt;SPAN&gt;&lt;A href="http://127.0.0.1:3000/" target="_blank" rel="noopener nofollow noreferrer"&gt;http://127.0.0.1:3000/&lt;/A&gt;&lt;/SPAN&gt;/data?TOP=5&lt;/P&gt;&lt;P style=" padding-left : 30px; "&gt;&amp;nbsp;&lt;/P&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;Endpoint &lt;STRONG&gt;/user/&amp;lt;RFID&amp;gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P style=" padding-left : 30px; "&gt;Check user/RFID registration.&lt;/P&gt;&lt;P style=" padding-left : 30px; "&gt;Example:&lt;/P&gt;&lt;P style=" padding-left : 30px; "&gt;&lt;SPAN&gt;&lt;A href="http://127.0.0.1:3000" target="_blank" rel="noopener nofollow noreferrer"&gt;http://127.0.0.1:3000&lt;/A&gt;&lt;/SPAN&gt;/rfid/123456789101&lt;/P&gt;&lt;P style=" padding-left : 30px; "&gt;&amp;nbsp;&lt;/P&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;Endpoint &lt;STRONG&gt;/lastrfid/&amp;lt;RFID&amp;gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P style=" padding-left : 30px; "&gt;Getting last attendance.&lt;/P&gt;&lt;P style=" padding-left : 30px; "&gt;Example:&lt;/P&gt;&lt;P style=" padding-left : 30px; "&gt;&lt;SPAN&gt;&lt;A href="http://127.0.0.1:3000" target="_blank" rel="noopener nofollow noreferrer"&gt;http://127.0.0.1:3000&lt;/A&gt;&lt;/SPAN&gt;/lastrfid/123456789101&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;POST&lt;/STRONG&gt;&lt;/P&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;Endpoint /rfid/&amp;lt;RFID&amp;gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P style=" padding-left : 30px; "&gt;A new attendance registration for check in.&lt;/P&gt;&lt;P style=" padding-left : 30px; "&gt;Example:&lt;/P&gt;&lt;P style=" padding-left : 30px; "&gt;&lt;SPAN&gt;&lt;A href="http://127.0.0.1:3000" target="_blank" rel="noopener nofollow noreferrer"&gt;http://127.0.0.1:3000&lt;/A&gt;&lt;/SPAN&gt;/rfid/123456789101&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;PUT&lt;/STRONG&gt;&lt;/P&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;Endpoint /id/&amp;lt;int:id&amp;gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P style=" padding-left : 30px; "&gt;Check out registration.&lt;/P&gt;&lt;P style=" padding-left : 30px; "&gt;Example:&lt;/P&gt;&lt;P style=" padding-left : 30px; "&gt;&lt;SPAN&gt;&lt;A href="http://127.0.0.1:3000/" target="_blank" rel="noopener nofollow noreferrer"&gt;http://127.0.0.1:3000/&lt;/A&gt;&lt;/SPAN&gt;id/1&lt;/P&gt;&lt;P&gt;For database connection I put the credentials into a json file, &lt;STRONG&gt;hana_cloud_config.json&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;{
+    "user": "DBADMIN",
+    "pwd": "*********",
+    "url": "????????-????-????-????-???????????.hana.trial-us10.hanacloud.ondemand.com",
+    "port": 443,
+    "database": "HANA_Cloud_Trial"
+  }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;We take your database administrator login+password, which you initiated during SAP HANA Database initialization.&lt;/P&gt;&lt;P&gt;The URL we take here in SAP BTP:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_0-1715533079777.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109166iEFA88BDD5E64E6B4/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_0-1715533079777.png" alt="nevigon_0-1715533079777.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;This connection is performed by command:&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;conn = dbapi.connect(address=db_url,
+            port=db_port,
+            user=db_user,
+            password=db_pwd,
+            database=db_database)   &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;We open terminal window Visual Studio code and connect to Cloud Foundry.&lt;/P&gt;&lt;P&gt;Initially it requests API endpoint which you may take from SAP BTP Cockpit:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_1-1715533243902.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109167iDC117A002E1D680F/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_1-1715533243902.png" alt="nevigon_1-1715533243902.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;And provide your name and password:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_3-1715533318430.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109169i2856906338697A95/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_3-1715533318430.png" alt="nevigon_3-1715533318430.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;To deploy the application use command cf push.&lt;/P&gt;&lt;P&gt;After successful deployment and start of your application you may see in the Terminal:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_4-1715533376173.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109170i743A8919DC2DA71A/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_4-1715533376173.png" alt="nevigon_4-1715533376173.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In SAP BTP Cockpit you may see the following:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_5-1715533418675.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109171i80651AD420DA24BF/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_5-1715533418675.png" alt="nevigon_5-1715533418675.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Now we can trigger our REST API with command, like was provided above. For testing the API I used POSTMAN utility - &lt;SPAN&gt;&lt;A href="https://www.postman.com" target="_blank" rel="noopener nofollow noreferrer"&gt;https://www.postman.com&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;For instance, if entries exist in database, you receive next response for the request &lt;A href="http://127.0.0.1:3000/data" target="_blank" rel="noopener nofollow noreferrer"&gt;http://127.0.0.1:3000/data&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_0-1715535254597.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109174iFDE23641DFA1E8A2/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_0-1715535254597.png" alt="nevigon_0-1715535254597.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-337581179"&gt;5. Creating IoT - RFID reader&lt;/H3&gt;&lt;P&gt;After RFID HAT installation the Raspberry PI will look like this:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_0-1715535633466.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109176iBACDCDA12D310B1A/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_0-1715535633466.png" alt="nevigon_0-1715535633466.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In Raspberry PI terminal, in command line we install required libraries:&lt;/P&gt;&lt;P&gt;&lt;EM&gt;sudo apt-get install python-smbus&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;sudo apt-get install i2c-tools&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;A test script is provided for the RFID device out of the box. I modified and implemented communications with the developed REST API.&lt;/P&gt;&lt;P&gt;Rfid_with_oled_project.py&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from oled_091 import SSD1306
+from subprocess import check_output
+from time import sleep
+from datetime import datetime
+from os import path
+import serial
+import RPi.GPIO as GPIO
+import requests
+import json
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+GPIO.setup(17,GPIO.OUT)
+
+DIR_PATH = path.abspath(path.dirname(__file__))
+DefaultFont = path.join(DIR_PATH, "Fonts/GothamLight.ttf")
+url = 'https://rfidapp-chipper-echidna.cfapps.us10-001.hana.ondemand.com'
+Checkin = ""
+Checkout = ""
+Id = ""
+
+class read_rfid:
+    def read_rfid (self):
+        ser = serial.Serial ("/dev/ttyS0")                           #Open named port 
+        ser.baudrate = 9600                                            #Set baud rate to 9600
+        data = ser.read(12)                                            #Read 12 characters from serial port to data
+        if(data != " "):
+            GPIO.output(17,GPIO.HIGH)
+            sleep(.2)
+            GPIO.output(17,GPIO.LOW)
+        ser.close ()                                                   #Close port
+        data=data.decode("utf-8")
+        return data
+
+def info_print():
+    print("Waiting for TAG...")
+    # display.WhiteDisplay()
+    display.DirImage(path.join(DIR_PATH, "Images/SB.png"))
+    display.DrawRect()
+    display.ShowImage()
+    sleep(1)
+    display.PrintText("Place your TAG", FontSize=14)
+    display.ShowImage()
+    
+
+display = SSD1306()
+SB = read_rfid()
+
+if __name__ == "__main__":
+    info_print()
+    while True:
+        id=SB.read_rfid()
+        print (id)
+        #CPU = info.CPU_Info()
+        # display.DirImage("Images/CPU.png", size=(24, 24), cords=(0, 0))
+        #display.PrintText("ID : " +(id), cords=(4, 8), FontSize=11)
+        endpoint_get = '/user/' + id
+        try:
+            r = requests.get(url + endpoint_get)
+            r.raise_for_status()
+            js = r.json()
+            for js_line in js:
+                Name = js_line['NAME']
+                Rfid = js_line['RFID']
+            if js == []:
+                print ("No user found")
+                display.DrawRect()
+                display.PrintText("No user found", cords=(4, 8), FontSize=14)
+                display.ShowImage()
+                sleep(2)
+            else:
+                #print(Name)
+                #display.DrawRect()
+                #display.ShowImage()
+                #display.PrintText("Hello," +(Name), cords=(4, 8), FontSize=14)
+                #display.ShowImage()
+                #sleep(2)
+                #display.ShowImage()
+                
+                endpoint_get = '/lastrfid/' + Rfid
+                try:
+                    r = requests.get(url + endpoint_get)
+                    r.raise_for_status()
+                    js = r.json()
+                    for js_line in js:
+                        Checkin = js_line['CHECKIN']
+                        Checkout = js_line['CHECKOUT']
+                        Id = js_line['ID']
+                    if js == []:
+                        endpoint_post = '/rfid/' + Rfid
+                        response_post = requests.post(url + endpoint_post)
+                        print("Check In-&amp;gt;",Name)
+                        display.DrawRect()
+                        #display.ShowImage()
+                        display.PrintText("Hello, " +(Name) +"!", cords=(4, 8), FontSize=12)
+                        display.ShowImage()
+                        sleep(2)
+                        
+                    elif Checkin != None and Checkout == None:
+                        endpoint_put = '/id/' + str(Id)
+                        response_put = requests.put(url + endpoint_put)
+                        print("Check Out-&amp;gt;",Name)
+                        display.DrawRect()
+                        #display.ShowImage()
+                        display.PrintText("Bye, " +(Name) +"!", cords=(4, 8), FontSize=12)
+                        display.ShowImage()
+                        sleep(2)
+                        
+                    elif Checkin != None and Checkout != None:
+                        endpoint_post = '/rfid/' + Rfid
+                        response_post = requests.post(url + endpoint_post)
+                        print("Check In-&amp;gt;",Name)
+                        display.DrawRect()
+                        #display.ShowImage()
+                        display.PrintText("Hello, " +(Name) +"!", cords=(4, 8), FontSize=12)
+                        display.ShowImage()
+                        sleep(2)
+                        
+                except requests.exceptions.HTTPError as err:
+                    print("Error - 404")
+                
+        except requests.exceptions.HTTPError as err:
+            print("Error - 404")
+        #sleep(2)    
+        display.DrawRect()
+        display.ShowImage()
+        #sleep(2)
+        display.PrintText("Place your TAG", FontSize=14)
+        display.ShowImage()&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The logic is next: initially we are checking if RFID ID exists. If exists, fetching last registered data for the ID. If exists, checking if check in date and time is not initial, if exists – setting check out date and time. If no records in the database – we insert a check in date and time for the particular ID.&lt;/P&gt;&lt;P&gt;Our device and script are ready.&lt;/P&gt;&lt;H3 id="toc-hId-141067674"&gt;6. Creating a SAP Fiori application&lt;/H3&gt;&lt;P&gt;Last stage – we will create a simple Fiori report for data reflection.&lt;/P&gt;&lt;P&gt;Here we create a Dev Space FIORI_RFID in SAP Business application studio and specify it for SAP Fiori:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_0-1715536283838.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109177i167DE3B86B5167BD/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_0-1715536283838.png" alt="nevigon_0-1715536283838.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Once Dev Space will be created, &amp;nbsp;we create a Fiori project from template:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_1-1715536338809.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109178iCCE9AB1513253369/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_1-1715536338809.png" alt="nevigon_1-1715536338809.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;A project will be generated with all necessary files and folders.&lt;/P&gt;&lt;P&gt;In our Fiori application we create one screen for a list report.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_2-1715536338818.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109179iBBDAC6A919445004/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_2-1715536338818.png" alt="nevigon_2-1715536338818.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;All necessary files are generated. We need put changes to view file and controller file.&lt;/P&gt;&lt;P&gt;View.controller.js&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;sap.ui.define([
+    "sap/ui/core/mvc/Controller"
+],
+    /**
+     *  {typeof sap.ui.core.mvc.Controller} Controller
+     */
+    function (Controller) {
+        "use strict";
+
+        return Controller.extend("rfidproject.controller.View", {
+            onInit: function () {
+
+                sap.ui.getCore().HANA = new Object();
+                sap.ui.getCore().HANA.URL = "https://??????-?????? -???????.???????.????-??.hana.ondemand.com/data";
+
+                this.router = sap.ui.core.UIComponent.getRouterFor(this);
+                this.router.attachRoutePatternMatched(this._handleRouteMatched, this);
+                this.url = sap.ui.getCore().HANA.URL;
+                var oModelData =  this.loadModel(this.url);
+                this.getView().setModel(oModelData, "viewModel");
+
+                
+                // Set up automatic refresh every 5 minutes (300,000 milliseconds)
+                setInterval(this.refreshData.bind(this), 1000);                         
+                },
+        
+                _handleRouteMatched: function(evt) {
+            //      this.empIndex = evt.getParameter("arguments").data;
+            //
+            //      var context = sap.ui.getCore().byId("App").getModel().getContext('/entityname/' + this.empIndex);
+            //
+            //      this.getView().setBindingContext(context);
+                },
+                backToHome: function(){
+                    this.router.navTo("default");        
+            },
+
+            handleLiveChange: function(evt) {
+
+                // create model filter
+                var filters = [];
+                var sQuery = evt.getParameters().newValue;
+                if (sQuery &amp;amp;&amp;amp; sQuery.length &amp;gt; 0) {
+                    var filter = new sap.ui.model.Filter("NAME", sap.ui.model.FilterOperator.Contains, sQuery);
+                    filters.push(filter);
+                }
+                // update list binding
+                var list = this.getView().byId("Table");
+                var binding = list.getBinding("items");
+                binding.filter(filters);
+            },
+        
+                // Event handler for live change in search field
+        
+            loadModel: function(url) {
+                var url = url;
+                var oModel = new sap.ui.model.json.JSONModel();
+                oModel.loadData(url, null, false);
+                return oModel;
+            },
+            refreshData: function() {
+                var oModelData = this.loadModel(this.url);
+                this.getView().setModel(oModelData, "viewModel");
+            }
+                                         
+
+        });
+    });&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;For&amp;nbsp;&lt;STRONG&gt;OnInit&lt;/STRONG&gt; event we maintain connection to REST API and viewModel.&lt;/P&gt;&lt;P&gt;We consume&amp;nbsp;viewModel in View.view.xml&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;mvc:View controllerName="rfidproject.controller.View"
+    xmlns:mvc="sap.ui.core.mvc" displayBlock="true"
+    xmlns="sap.m"&amp;gt;
+    &amp;lt;Page id="page" title="{i18n&amp;gt;title}"&amp;gt;
+        &amp;lt;content&amp;gt;
+
+    &amp;lt;Table id="Table" growing = "true" busyIndicatorDelay="400" growingThreshold="20" mode="{device&amp;gt;/listMode}" inset="false" selectionChange="onItemSelection" updateFinished="onItemsUpdateFinished"
+                updateStarted="onItemsUpdateStarted" width="auto" items="{viewModel&amp;gt;/}"&amp;gt;
+                &amp;lt;headerToolbar&amp;gt;
+                    &amp;lt;Toolbar id="TB"&amp;gt;
+                        &amp;lt;Label id="LB" text="All entries"/&amp;gt;
+                        &amp;lt;ToolbarSpacer id="TS"/&amp;gt;
+                      &amp;lt;SearchField id="SF" search="handleSearch" liveChange="handleLiveChange" width="10rem" /&amp;gt;
+                      &amp;lt;!-- &amp;lt;CheckBox id="automaticRefreshCheckBox" text="Automatic Refresh" select="toggleRefreshMode"/&amp;gt;
+                      &amp;lt;Button id="BTN" text="Refresh" press="refreshData" enabled="{= !viewModel&amp;gt;/autoRefresh}"/&amp;gt;                      --&amp;gt;
+                      &amp;lt;Button id="BTN" text="Refresh" press="refreshData"/&amp;gt;
+                    &amp;lt;/Toolbar&amp;gt;
+                &amp;lt;/headerToolbar&amp;gt;
+                &amp;lt;columns&amp;gt;
+                    &amp;lt;Column demandPopin="true"  id="NAME" minScreenWidth="Small" visible="true"&amp;gt;
+                        &amp;lt;Text id="NM" text="NAME"/&amp;gt;
+                    &amp;lt;/Column&amp;gt;
+                    &amp;lt;Column demandPopin="true" hAlign="Center"  id="CHECKIN" minScreenWidth="Medium" visible="true"&amp;gt;
+                        &amp;lt;Text id="CI" text="CHECK IN"/&amp;gt;
+                    &amp;lt;/Column&amp;gt;
+                    &amp;lt;Column demandPopin="true"  id="CHECKOUT" minScreenWidth="Small" visible="true"&amp;gt;
+                        &amp;lt;Text id="CO" text="CHECK OUT"/&amp;gt;
+                    &amp;lt;/Column&amp;gt;
+                &amp;lt;/columns&amp;gt;
+                &amp;lt;items&amp;gt;
+                    &amp;lt;ColumnListItem id="CLI"&amp;gt;
+                        &amp;lt;cells&amp;gt;
+                            &amp;lt;Text id="VNM" text="{viewModel&amp;gt;NAME}"/&amp;gt;
+                            &amp;lt;Text id="VCI" text="{viewModel&amp;gt;CHECKIN}"/&amp;gt;
+                            &amp;lt;Text id="VCO" text="{viewModel&amp;gt;CHECKOUT}"/&amp;gt;
+                        &amp;lt;/cells&amp;gt;
+                    &amp;lt;/ColumnListItem&amp;gt;
+                &amp;lt;/items&amp;gt;
+            &amp;lt;/Table&amp;gt;
+        &amp;lt;/content&amp;gt;
+    &amp;lt;/Page&amp;gt;
+&amp;lt;/mvc:View&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;In the view we will use control Table. For the Table we maintain necessary fields: Name, Check in, Check out.&lt;/P&gt;&lt;P&gt;The result will look like this:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_0-1715536898094.png" style="width: 688px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109181i2C4E60CB12C7D0A7/image-dimensions/688x160?v=v2" width="688" height="160" role="button" title="nevigon_0-1715536898094.png" alt="nevigon_0-1715536898094.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId--55445831"&gt;7. Testing&lt;/H3&gt;&lt;P&gt;Now we can test our project!&lt;/P&gt;&lt;P&gt;Initially, let’s maintain users and RFID IDs:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_1-1715536926807.png" style="width: 574px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109182iA3536E6756ED3CB1/image-dimensions/574x114?v=v2" width="574" height="114" role="button" title="nevigon_1-1715536926807.png" alt="nevigon_1-1715536926807.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;On Raspberry PI – execute the script – rfid_with_oled_project.py&lt;/P&gt;&lt;P&gt;Now we can test our project!&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_2-1715536969472.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109184iEC21D3024FCCCAE3/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_2-1715536969472.png" alt="nevigon_2-1715536969472.png" /&gt;&lt;/span&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_3-1715536969632.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109185i46015A558BC65B02/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_3-1715536969632.png" alt="nevigon_3-1715536969632.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_4-1715536969754.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109183i0A6D1178D58FF601/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_4-1715536969754.png" alt="nevigon_4-1715536969754.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;On PC – execute the Fiori application:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_5-1715537005177.png" style="width: 701px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109186i2FD1300B11A5D7C7/image-dimensions/701x163?v=v2" width="701" height="163" role="button" title="nevigon_5-1715537005177.png" alt="nevigon_5-1715537005177.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Let’s place one tag on RFID reader:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_6-1715537033256.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109188i6712CBEA3AAA5E0E/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_6-1715537033256.png" alt="nevigon_6-1715537033256.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_7-1715537033355.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109187i1123FFE93AE89909/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_7-1715537033355.png" alt="nevigon_7-1715537033355.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;RFID reader registers an user, who came to the office (for instance).&lt;/P&gt;&lt;P&gt;In the Fiori report we may see the entry:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_8-1715537085170.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109189i3A5A25C62E9591ED/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_8-1715537085170.png" alt="nevigon_8-1715537085170.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Let’s place the tag again:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_9-1715537105699.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109192iDD5BBD029CE0EBCA/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_9-1715537105699.png" alt="nevigon_9-1715537105699.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_10-1715537105833.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109191i30A22399EA0451EF/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nevigon_10-1715537105833.png" alt="nevigon_10-1715537105833.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The user was unregistered, he has left the office.&lt;/P&gt;&lt;P&gt;Respective entry appeared in the Fiori application:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nevigon_11-1715537105838.png" style="width: 515px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/109190iA5470C52E7A6C936/image-dimensions/515x128?v=v2" width="515" height="128" role="button" title="nevigon_11-1715537105838.png" alt="nevigon_11-1715537105838.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId--251959336"&gt;&lt;STRONG&gt;8. Conclusion&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Our project is ready. RFID device successfully interacts with SAP HANA Database via API.&lt;/P&gt;&lt;P&gt;I'm looking forward to your feedback. Hope this blog will inspire you to create new projects and allow to discover new capabilities of SAP platform.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-members/iot-rfid-integration-with-sap-hana-cloud-via-sap-btp/ba-p/13698597"/>
+    <published>2024-05-14T13:46:58.943000+02:00</published>
   </entry>
 </feed>
