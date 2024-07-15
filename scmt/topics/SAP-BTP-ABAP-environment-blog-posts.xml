@@ -2,262 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-BTP-ABAP-environment-blog-posts.xml</id>
   <title>SAP Community - SAP BTP, ABAP environment</title>
-  <updated>2024-07-05T14:00:29.193928+00:00</updated>
+  <updated>2024-07-15T14:00:24.542866+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP BTP, ABAP environment/pd-p/73555000100800001164" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP BTP, ABAP environment blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/upload-and-modify-openxml-documents-via-rap-app-in-sap-btp-abap-environment/ba-p/13725740</id>
-    <title>Upload and modify OpenXML documents via RAP App in SAP BTP ABAP Environment</title>
-    <updated>2024-06-12T21:50:36.096000+02:00</updated>
-    <author>
-      <name>ReinertM</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/175444</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-887546652"&gt;Introduction&lt;/H1&gt;&lt;P&gt;In this blog post, I would like to share some insights for generating OpenXML documents by use of the RESTful Application Programming Model with Cloud-released development objects. With this app, you will be able to upload .docx templates and fill them with information from you CDS view (could be used for generating invoices, business documents and so on...).&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-691033147"&gt;Prerequesites&lt;/H1&gt;&lt;UL&gt;&lt;LI&gt;SAP BTP ABAP environment or an S/4 system to your disposal.&amp;nbsp; &amp;nbsp;&lt;/LI&gt;&lt;LI&gt;Eclipse IDE installed on your local machine with the ABAP Development Tools.&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-494519642"&gt;Shortcut with abapGit:&lt;/H1&gt;&lt;P&gt;For those who are using abapGit, feel free to check out the code from my &lt;A href="https://github.com/cnbscorp/InvoiceGenerator.git" target="_self" rel="nofollow noopener noreferrer"&gt;GitHub repo&lt;/A&gt;!&lt;/P&gt;&lt;H1 id="toc-hId-298006137"&gt;Step 1:&lt;/H1&gt;&lt;P&gt;Create a database table with the following config (hint: do not forget to generate custom domains for mime type and attachment type, information on how to do this can be found &lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/streams-in-rap-uploading-pdf-excel-and-other-files-in-rap-application/ba-p/13526891" target="_self"&gt;here&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Invoice for document generation'
-@AbapCatalog.enhancement.category : #EXTENSIBLE_ANY
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #RESTRICTED
-define table zmri_invoice {
-
-  key client            : abap.clnt not null;
-  key invoice           : ebeln not null;
-  comments              : abap.char(30);
-  attachment            : zmriattachment;
-  mimetype              : zmimetype;
-  filename              : zfilename;
-  purchaseorder         : abap.char(30);
-  price                 : abap.dec(8,2);
-  local_created_by      : abp_creation_user;
-  local_created_at      : abp_creation_tstmpl;
-  local_last_changed_by : abp_locinst_lastchange_user;
-  local_last_changed_at : abp_locinst_lastchange_tstmpl;
-  last_changed_at       : abp_lastchange_tstmpl;
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-101492632"&gt;Step 2:&amp;nbsp;&lt;/H1&gt;&lt;P&gt;Generate ABAP repository objects by right-clicking on the previously created database table.&amp;nbsp;&lt;BR /&gt;Choose the ABAP RESTful Application Programming Model (OData UI Service) variant.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ABAP repository objects.PNG" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/121410i26541C33D447E274/image-size/medium?v=v2&amp;amp;px=400" role="button" title="ABAP repository objects.PNG" alt="ABAP repository objects.PNG" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H1 id="toc-hId--95020873"&gt;Step 3&lt;/H1&gt;&lt;P&gt;Create a custom action in your Behavior Definition:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed implementation in class ZBP_R_MRI_INVOICE unique;
-strict ( 2 );
-with draft;
-define behavior for ZR_MRI_INVOICE alias ZrMriInvoice
-persistent table ZMRI_INVOICE
-draft table ZMRI_INVOIC000_D
-etag master LocalLastChangedAt
-lock master total etag LastChangedAt
-authorization master( global )
-
-{
-  field ( mandatory : create )
-   Invoice;
-
-  field ( readonly )
-   LocalCreatedBy,
-   LocalCreatedAt,
-   LocalLastChangedBy,
-   LocalLastChangedAt,
-   LastChangedAt;
-
-  field ( readonly : update )
-   Invoice;
-
-
-  create;
-  update;
-  delete;
-
-  action ( features : global ) createMSWordInvoice ;
-
-  draft action Activate optimized;
-  draft action Discard;
-  draft action Edit;
-  draft action Resume;
-  draft determine action Prepare;
-
-
-
-  mapping for ZMRI_INVOICE
-  {
-    Invoice = invoice;
-    Comments = comments;
-    Attachment = attachment;
-    Mimetype = mimetype;
-    Filename = filename;
-    PurchaseOrder = purchaseOrder;
-    Price = price;
-    LocalCreatedBy = local_created_by;
-    LocalCreatedAt = local_created_at;
-    LocalLastChangedBy = local_last_changed_by;
-    LocalLastChangedAt = local_last_changed_at;
-    LastChangedAt = last_changed_at;
-  }
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--291534378"&gt;Step 4:&lt;/H1&gt;&lt;P&gt;Implement the custom action in your behaviour implementation class:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_zr_mri_invoice DEFINITION INHERITING FROM cl_abap_behavior_handler.
-  PRIVATE SECTION.
-
-    CLASS-DATA: mt_data TYPE zmri_invoice.
-
-    DATA:
-          lv_content   TYPE xstring,
-          lo_zip       TYPE REF TO cl_abap_zip.
-
-    METHODS:
-      get_global_authorizations FOR GLOBAL AUTHORIZATION
-        IMPORTING
-        REQUEST requested_authorizations FOR ZrMriInvoice
-        RESULT result,
-
-      get_global_features FOR GLOBAL FEATURES
-        IMPORTING
-        REQUEST requested_features FOR ZrMriInvoice
-        RESULT result,
-
-      createMSWordInvoice FOR MODIFY
-        IMPORTING keys FOR ACTION ZrMriInvoice~createMSWordInvoice.
-
-ENDCLASS.
-
-CLASS lhc_zr_mri_invoice IMPLEMENTATION.
-
-  METHOD get_global_authorizations.
-*  This method does not need an implementation
-  ENDMETHOD.
-
-  METHOD createMSWordInvoice.
-
-*     Select document to be filled
-    SELECT * FROM zc_mri_invoice
-     FOR ALL ENTRIES IN @keys
-     WHERE invoice      = @keys-invoice
-     INTO CORRESPONDING FIELDS OF &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2891"&gt;@MT&lt;/a&gt;_data.
-    ENDSELECT.
-
-*     Create zip class instance
-    lo_zip = NEW cl_abap_zip( ).
-
-*     Search for main document part
-    DATA lv_index TYPE string VALUE 'word/document.xml'.
-
-*     Load attachment into zip class object
-    lo_zip-&amp;gt;load( zip = mt_data-attachment check_header = abap_false ).
-
-*     Fetch the binaries of the XML part in the attachment
-    lo_zip-&amp;gt;get(
-    EXPORTING
-      name   = lv_index
-    IMPORTING
-      content = lv_content
-    ).
-
-
-* Convert the binaries of the xml into a string
-    DATA(lv_string) = xco_cp=&amp;gt;xstring( lv_content
-      )-&amp;gt;as_string( xco_cp_character=&amp;gt;code_page-&amp;gt;utf_8
-      )-&amp;gt;value.
-
-* Search for the text to be replaced and fill with the information in your data set
-    REPLACE FIRST OCCURRENCE OF '&amp;amp;lt;InvoiceNumber&amp;amp;gt;' IN lv_string
-    WITH mt_data-Invoice.
-
-    REPLACE FIRST OCCURRENCE OF '&amp;amp;lt;Purchase Order&amp;amp;gt;' IN lv_string
-    WITH mt_data-PurchaseOrder.
-
-    REPLACE FIRST OCCURRENCE OF '&amp;amp;lt;Comments&amp;amp;gt;' IN lv_string
-    WITH mt_data-Comments.
-
-    DATA lv_price TYPE string.
-    lv_price = mt_data-Price.
-
-    REPLACE FIRST OCCURRENCE OF '&amp;amp;lt;Price&amp;amp;gt;' IN lv_string
-    WITH lv_price.
-
-* Convert the changed XML string into binaries
-    DATA(lv_new_content) = xco_cp=&amp;gt;string( lv_string )-&amp;gt;as_xstring( xco_cp_character=&amp;gt;code_page-&amp;gt;utf_8
-    )-&amp;gt;value.
-
-* Delete "old" main document part from the zip file
-    lo_zip-&amp;gt;delete(
-    EXPORTING
-      name   = lv_index
-    ).
-
-* Add "new" main document part to the zip file
-    lo_zip-&amp;gt;add(
-    EXPORTING
-      name   = lv_index
-      content = lv_new_content
-    ).
-
-* Save the new zip file
-    DATA(lv_new_file) = lo_zip-&amp;gt;save( ).
-
-* Upload changed docx file
-    MODIFY ENTITIES OF zr_mri_invoice IN LOCAL MODE ENTITY ZrMriInvoice
-      UPDATE SET FIELDS WITH
-      VALUE #( (
-          Invoice = mt_data-Invoice
-          Attachment = lv_new_file
-      )  )
-    FAILED failed.
-
-    APPEND VALUE #( %msg = new_message_with_text( severity = if_abap_behv_message=&amp;gt;severity-success text = 'Template successfully filled...' ) ) TO reported-ZrMriInvoice.
-  ENDMETHOD.
-
-  METHOD get_global_features.
-* This method does not need to be implemented
-  ENDMETHOD.
-
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Explanation: In this implementation class, the cl_abap_zip class (which is released for cloud development) is used to load the .docx template. If you didn't already know, a .docx file is basically a ZIP-file. In order to get the main document part, we need to fetch the "word/document.xml" file within the zip object by applying the lo_zip-&amp;gt;get() method. This method returns an XSTRING which has to be converted into an UTF-8 encoded string, for us to modify the content of the main document part. For the binary-to-string conversions the&amp;nbsp;xco_cp class is used, which is part of the XCO library (I can only recommend using this library as it has some great features). Afterwards the converted XML-string has to be modified with the invoice details from your CDS view. The modified XML-string has to be converted back into binaries, by use of the same class. The last step is to delete the "old" main document part from the zip object and add the new document content to the zip object. Now update the attachment field in your CDS entity and that's it. Your app should now be able to populate a .docx-file with information from your CDS view.&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--488047883"&gt;Step 5:&lt;/H1&gt;&lt;P&gt;Create a metadata extension and a service binding for your Fiori Frontend and test the application:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CORE
-@UI: { headerInfo: {
-typeName: 'Invoice',
-typeNamePlural: 'Invoices',
-title: { type: #STANDARD, value: 'Invoice' },
-         description: { type: #STANDARD, value: 'Invoice' } },
-         presentationVariant: [{
-         sortOrder: [{ by: 'Invoice', direction: #ASC }],
-         visualizations: [{type: #AS_LINEITEM}] }] }
-annotate view ZC_MRI_INVOICE with
-{
-  .facet: [    {
-                label: 'General Information',
-                id: 'GeneralInfo',
-                type: #COLLECTION,
-                position: 10
-                },
-                     { id:            'Invoicedet',
-                    purpose:       #STANDARD,
-                    type:          #IDENTIFICATION_REFERENCE,
-                    label:         'Invoice Details',
-                    parentId: 'GeneralInfo',
-                    position:      10 } ]
-
-  : { lineItem:       [ { position: 10, importance: #HIGH , label: 'Invoice Number'} ] ,
-          identification: [ { position: 10 , label: 'Invoice Number' } ] }
-  Invoice;
-  : { lineItem:       [ { position: 20, importance: #HIGH , label: 'Purchase Order'} ] ,
-           identification: [ { position: 20 , label: 'Purchase Order Number' } ] }
-  PurchaseOrder;
-  : { lineItem:       [ { position: 20, importance: #HIGH , label: 'Price'} ] ,
-           identification: [ { position: 20 , label: 'Price' } ] }
-  Price;
-  : { lineItem:       [ { position: 20, importance: #HIGH , label: 'Comments'} ] ,
-           identification: [ { position: 20 , label: 'Comments' } ] }
-  Comments;
-  :
-  { lineItem:       [ { position: 30, importance: #HIGH , label: 'Attachment'}, { type: #FOR_ACTION, dataAction: 'createMSWordInvoice' , label: 'Create Invoice' } ], 
-    identification: [ { position: 20 , label: 'Attachment' }] 
-  }
-  Attachment;
-
-  .hidden: true
-  MimeType;
-
-  .hidden: true
-  Filename;
-
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Test the application by creating an entry and uploading a docx-template.&lt;/P&gt;&lt;P&gt;The template could look something like this:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="invoice_before.PNG" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/121747i9DE59A7A02E3BC27/image-size/medium?v=v2&amp;amp;px=400" role="button" title="invoice_before.PNG" alt="invoice_before.PNG" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Now select the entry and use the custom action to fill the template with your data:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="RAP_FIORI_APP_Success.PNG" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/121746i3F85D766EB96E3DB/image-size/medium?v=v2&amp;amp;px=400" role="button" title="RAP_FIORI_APP_Success.PNG" alt="RAP_FIORI_APP_Success.PNG" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;After the success message, click on the attachment (template.docx) and verify that the placeholders have been filled:&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="invoice_after.PNG" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/121749iF743B070524AACAE/image-size/medium?v=v2&amp;amp;px=400" role="button" title="invoice_after.PNG" alt="invoice_after.PNG" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H1 id="toc-hId--684561388"&gt;Addition:&amp;nbsp;&lt;/H1&gt;&lt;P&gt;For those of you who want to populate tables in MS word, you can have a look at &lt;A href="https://community.sap.com/t5/application-development-blog-posts/best-way-to-generate-microsoft-word-docx-from-abap/ba-p/13430350" target="_self"&gt;this blog post&lt;/A&gt;, which uses text and row fragments for placeholders in the docx-template.&lt;/P&gt;&lt;H1 id="toc-hId--881074893"&gt;Conclusion:&lt;/H1&gt;&lt;P&gt;In this blog post, you learned how to upload and modify OpenXML documents by use of the&amp;nbsp;&lt;SPAN&gt;cl_abap_zip class and the XCO library. This code is consists of cloud-released code only and should give you a good starting point to start handling your documents with a clean core approach.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/upload-and-modify-openxml-documents-via-rap-app-in-sap-btp-abap-environment/ba-p/13725740"/>
-    <published>2024-06-12T21:50:36.096000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/application-development-blog-posts/how-to-get-tables-used-inside-a-t-code/ba-p/13729418</id>
     <title>How to get Tables used inside a t-code?</title>
@@ -786,7 +534,7 @@ DATA : lv_tid    TYPE arfctid,
       <name>chrwe</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/41329</uri>
     </author>
-    <content>&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":glowing_star:"&gt;🌟&lt;/span&gt;Exciting Business Update: SAP Task Center Introduces Cutting-Edge Third-Party Integration Capability! &lt;span class="lia-unicode-emoji" title=":glowing_star:"&gt;🌟&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Businesses and partners, take note – SAP Task Center has just unveiled a groundbreaking new capability that has the potential to redefine task management for third-party applications. This highly anticipated feature empowers customers and partners to seamlessly build and connect task providers for non-SAP and legacy applications within the Task Center, ushering in a centralized platform for streamlined task management. &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In a strategic move towards offering enhanced flexibility and integration options, SAP Task Center now supports the much-coveted Third-Party scenario. This pivotal integration allows businesses to seamlessly connect other systems with their core business processes, creating a seamless workflow where tasks generated by third-party services are automatically synchronized with the SAP Task Center. With a unified task view, businesses can optimize resource allocation and boost productivity across multiple platforms, all while ensuring the security and reliability of sensitive business data through SAP's robust APIs. &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;For those keen to delve deeper, our published adoption guide provides a comprehensive resource for interface and API implementation, as well as security and authentication set-up:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A href="https://help.sap.com/doc/sap-task-center-third-party-adoption-guide/Cloud/en-US/SAP%20Task%20Center%20Third-Party%20Adoption%20Guide%20v1.pdf" target="_self" rel="noopener noreferrer"&gt;SAP Task Center Adoption Guide&lt;/A&gt; &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/task-center?locale=en-US" target="_self" rel="noopener noreferrer"&gt;&lt;SPAN&gt;SAP Task Center Documentation &lt;/SPAN&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Furthermore, while SAP Task Center's free standard plan already offers integration with supported SAP cloud solutions, our on-premise and third-party service plans open up a world of untapped potential. Explore the full range of options at SAP Discovery Center.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In a synergistic collaboration announced at SAP TechEd 2023, SAP has proudly partnered with SAP Partner ITCE, a leading Bulgarian consulting and training company operating across the Central and Eastern European (CEE) region. Our joint endeavor has yielded TaskConnect, a revolutionary solution developed in collaboration with SAP architects and technical consultants. TaskConnect serves as the essential bridge, offering seamless integration support for non-SAP service management systems and allowing businesses to effortlessly bring in IT service management tasks, such as incidents and approvals, directly into SAP Task Center. &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;Are you ready to take your task management to the next level? Join us as we continue to redefine the boundaries of task management and integration, and unlock a world of unparalleled efficiency&lt;/SPAN&gt;&lt;SPAN&gt;. &lt;/SPAN&gt;&lt;SPAN&gt;Let's make it happen – together! #SAPTaskCenter #TaskConnect #InnovationAtAboveLimits #ThirdPartyIntegration #BusinessInnovation &lt;/SPAN&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":rocket:"&gt;🚀&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <content>&lt;P&gt;&lt;SPAN&gt;Exciting Business Update: SAP Task Center Introduces Cutting-Edge Third-Party Integration Capability! &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Businesses and partners, take note – SAP Task Center has just unveiled a groundbreaking new capability that has the potential to redefine task management for third-party applications. This highly anticipated feature empowers customers and partners to seamlessly build and connect task providers for non-SAP and legacy applications within the Task Center, ushering in a centralized platform for streamlined task management. &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In a strategic move towards offering enhanced flexibility and integration options, SAP Task Center now supports the much-coveted Third-Party scenario. This pivotal integration allows businesses to seamlessly connect other systems with their core business processes, creating a seamless workflow where tasks generated by third-party services are automatically synchronized with the SAP Task Center. With a unified task view, businesses can optimize resource allocation and boost productivity across multiple platforms, all while ensuring the security and reliability of sensitive business data through SAP's robust APIs. &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;For those keen to delve deeper, our published adoption guide provides a comprehensive resource for interface and API implementation, as well as security and authentication set-up:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A href="https://help.sap.com/doc/sap-task-center-third-party-adoption-guide/Cloud/en-US/SAP%20Task%20Center%20Third-Party%20Adoption%20Guide%20v1.pdf" target="_self" rel="noopener noreferrer"&gt;SAP Task Center Adoption Guide&lt;/A&gt; &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/task-center?locale=en-US" target="_self" rel="noopener noreferrer"&gt;&lt;SPAN&gt;SAP Task Center Documentation &lt;/SPAN&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Furthermore, while SAP Task Center's free standard plan already offers integration with supported SAP cloud solutions, our on-premise and third-party service plans open up a world of untapped potential. Explore the full range of options at SAP Discovery Center.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In a synergistic collaboration announced at SAP TechEd 2023, SAP has proudly partnered with SAP Partner ITCE, a leading Bulgarian consulting and training company operating across the Central and Eastern European (CEE) region. Our joint endeavor has yielded TaskConnect, a revolutionary solution developed in collaboration with SAP architects and technical consultants. TaskConnect serves as the essential bridge, offering seamless integration support for non-SAP service management systems and allowing businesses to effortlessly bring in IT service management tasks, such as incidents and approvals, directly into SAP Task Center. &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;Are you ready to take your task management to the next level? Join us as we continue to redefine the boundaries of task management and integration, and unlock a world of unparalleled efficiency&lt;/SPAN&gt;&lt;SPAN&gt;. &lt;/SPAN&gt;&lt;SPAN&gt;Let's make it happen – together!&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Get more information at:&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A title="https://discovery-center.cloud.sap/serviceCatalog/sap-task-center?region=all&amp;amp;tab=service_plan" href="https://discovery-center.cloud.sap/serviceCatalog/sap-task-center?region=all&amp;amp;tab=service_plan" target="_blank" rel="noopener nofollow noreferrer"&gt;SAP Discovery center&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A title="https://www.itce.com/" href="https://www.itce.com/" target="_blank" rel="noopener nofollow noreferrer"&gt;ITCE &lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A title="https://www.itce.com/integrate-your-sap-task-center-with-servicenow/" href="https://www.itce.com/integrate-your-sap-task-center-with-servicenow/" target="_blank" rel="noopener nofollow noreferrer"&gt;TaskConnect&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/sap-builders-blog-posts/sap-task-center-s-new-3rd-party-integration/ba-p/13738769"/>
     <published>2024-07-01T15:18:26.437000+02:00</published>
   </entry>
@@ -825,5 +573,17 @@ DATA : lv_tid    TYPE arfctid,
     <content>&lt;P&gt;SAP RAP (ABAP RESTful Application Programming Model) has two main flavors: managed and unmanaged. Let's focus on the unmanaged version.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Unmanaged SAP RAP&lt;/STRONG&gt; refers to a development approach where developers have more control over the data persistence and business logic compared to the managed approach. Here are some key aspects:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Custom Logic&lt;/STRONG&gt;: In unmanaged RAP, developers write their own custom logic for handling data retrieval, manipulation, and persistence. This gives more flexibility in how data is processed and stored.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Direct Database Access&lt;/STRONG&gt;: Developers can directly access the database tables and define their own data models using Core Data Services (CDS) views or ABAP classes.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Explicit Service Definition&lt;/STRONG&gt;: Unlike managed RAP, where service definitions are automatically generated based on annotations, unmanaged RAP requires developers to explicitly define service implementations and behaviors.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Manual CRUD Operations&lt;/STRONG&gt;: CRUD (Create, Read, Update, Delete) operations need to be implemented explicitly in unmanaged RAP, giving full control over how data is managed.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Integration with Existing Systems&lt;/STRONG&gt;: Unmanaged RAP is often used when integrating with existing systems or when there is a need for complex business logic that cannot be easily handled by the managed approach.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Flexibility&lt;/STRONG&gt;: Developers have more freedom to implement complex validation rules, authorization checks, and other custom requirements directly in the application logic.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Overall, unmanaged SAP RAP provides a more hands-on approach to application development compared to the managed approach, allowing developers to leverage their expertise in ABAP programming and database handling while building modern RESTful APIs.&lt;/P&gt;&lt;P&gt;Top of Form&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_0-1720068224622.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132111iAE2F232B2E3806F1/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_0-1720068224622.png" alt="anjan_paul_0-1720068224622.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In this example, we will show a simple application for Employee build with RAP Unmanaged flavors.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Development steps.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;To be summarized below object will be created for Unmanaged scenario.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_1-1720068224631.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132113i3B10364063FA0353/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_1-1720068224631.png" alt="anjan_paul_1-1720068224631.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Table ZT01_EMPLOYEE&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_2-1720068224632.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132112i7265BD4DA2C5AE8A/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_2-1720068224632.png" alt="anjan_paul_2-1720068224632.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Base CDS View Z_I_EMPLOYEES_U&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_3-1720068224633.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132114iE7477DA8A7679A37/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_3-1720068224633.png" alt="anjan_paul_3-1720068224633.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Consumption CDS view&amp;nbsp; Z_C_EMPLOYEES_U&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_4-1720068224639.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132116i1B730225181C4DA0/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_4-1720068224639.png" alt="anjan_paul_4-1720068224639.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Behavior Definition&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_5-1720068224640.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132115i8D2CCE6B378E2B7B/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_5-1720068224640.png" alt="anjan_paul_5-1720068224640.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Bottom of Form&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Behavior &amp;nbsp;definition&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_6-1720068224641.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132117i88DF6633A7BD9646/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_6-1720068224641.png" alt="anjan_paul_6-1720068224641.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Implement the Create &amp;nbsp;method&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_7-1720068224644.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132118i496873D110842915/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_7-1720068224644.png" alt="anjan_paul_7-1720068224644.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Implement Update Method&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_8-1720068224646.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132119iCFB1D0ED90CC7D2D/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_8-1720068224646.png" alt="anjan_paul_8-1720068224646.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Implement Delete Method&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_9-1720068224649.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132120iB198EFC7938AC0CB/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_9-1720068224649.png" alt="anjan_paul_9-1720068224649.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Implement Adjust_Numbers method.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_10-1720068224652.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132121i02C0D5C73644F02B/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_10-1720068224652.png" alt="anjan_paul_10-1720068224652.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Implement Save method.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_11-1720068224652.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132122i5F986B13096A60EB/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_11-1720068224652.png" alt="anjan_paul_11-1720068224652.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Test&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Open the Application.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_12-1720068224655.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132123iF959FD76C9F0B9AB/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_12-1720068224655.png" alt="anjan_paul_12-1720068224655.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;2. Click on Create. Give Input value and Create.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_13-1720068224657.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132124iEB7481CFE521F5F6/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_13-1720068224657.png" alt="anjan_paul_13-1720068224657.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;3. New Record got created.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_14-1720068224660.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132125iBFB1122B7011EAAA/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_14-1720068224660.png" alt="anjan_paul_14-1720068224660.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;4. Select any Row , click on Edit.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_15-1720068224662.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132128i65B2C34F772678D5/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_15-1720068224662.png" alt="anjan_paul_15-1720068224662.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;5. Change the value and Save.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_16-1720068224664.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132126i20DD29BF54520B47/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_16-1720068224664.png" alt="anjan_paul_16-1720068224664.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;6. Record will be updated.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_17-1720068224666.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132127iAF6ACD49F54239EC/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_17-1720068224666.png" alt="anjan_paul_17-1720068224666.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;7. Select the Rows and click on Delete.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_18-1720068224668.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132132iE847FEB87E344172/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_18-1720068224668.png" alt="anjan_paul_18-1720068224668.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;8. Records will be deleted.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_19-1720068224670.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132129i50FCD9C2243ABA95/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_19-1720068224670.png" alt="anjan_paul_19-1720068224670.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;9. In the Database table also you can see the records.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="anjan_paul_20-1720068224671.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/132131i29BF3E51ED338C70/image-size/medium?v=v2&amp;amp;px=400" role="button" title="anjan_paul_20-1720068224671.png" alt="anjan_paul_20-1720068224671.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;So, all the &amp;nbsp;CRUD operation is successful using RAP Unmanaged flavors.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-members/sap-rap-unmanaged-scenario-example-simplified/ba-p/13750851"/>
     <published>2024-07-04T06:47:06.640000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-members/the-forbidden-error-when-opening-an-on-premise-fiori-application-on-sap-btp/ba-p/13759686</id>
+    <title>The “Forbidden” Error When Opening an On-Premise Fiori Application on SAP BTP with Cloud Connector</title>
+    <updated>2024-07-12T23:39:20.212000+02:00</updated>
+    <author>
+      <name>alexandr_razinkin</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/756342</uri>
+    </author>
+    <content>&lt;P&gt;One day, I was trying to set up a Fiori Application from an on-premise instance on the SAP BTP Launchpad (SAP Build Work Zone) using the Cloud Connector. You may refer to &lt;A href="https://blogs.sap.com/2021/09/05/installation-and-configuration-of-sap-cloud-connector/" target="_blank" rel="noopener noreferrer"&gt;this&lt;/A&gt;&amp;nbsp;blog&amp;nbsp;for more information about the setup process. There are other blogs on this topic as well like &lt;A href="https://community.sap.com/t5/technology-blogs-by-members/access-fiori-apps-via-sap-build-work-zone-site-with-federated-sap-s-4hana/ba-p/13558780" target="_blank"&gt;this&lt;/A&gt;&amp;nbsp;one.&lt;/P&gt;&lt;P&gt;After completing all the settings, I encountered the following error:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Forbidden_screenshot.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/136152iFF646FAD704F4B2E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Forbidden_screenshot.png" alt="Forbidden_screenshot.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The error text “Forbidden” was misleading because, in my case, the root cause was a typo in the additional properties of my runtime destination. Look at the picture and try to find the typo:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="runtime_dest_with_typo.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/136153i76852B033F0FB1CC/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="runtime_dest_with_typo.png" alt="runtime_dest_with_typo.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In my case, “sap-plaform” was typed instead of “sap-plaTform” (without the letter ‘t’).&lt;/P&gt;&lt;P&gt;It took me quite a while to find the issue, especially because I was searching for a security misconfiguration. As soon as I didn't find the same error on the internet, I decided to write this short blog post and share the info.&lt;/P&gt;&lt;P&gt;Additionally, let me share a brief list of other known issues when connecting on-premise SAP with SAP BTP using the Cloud Connector that may help in troubleshooting:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;You need to add your SAP Build Work Zone site address to "Security\Settings" to avoid CORS errors.&lt;/LI&gt;&lt;LI&gt;The name of the runtime destination should contain only lowercase letters and numbers.&lt;/LI&gt;&lt;LI&gt;If HTTPS is not set up properly in your on-premise system (as is often the case in development environments), you shouldn’t choose HTTPS connection in SAP Cloud Connector. After choosing HTTP, you will also need to switch off the automatic redirect from HTTP to HTTPS address for service /sap/bc/ui2/flp or you will get an error when running the app in your Launchpad.&lt;/LI&gt;&lt;LI&gt;Sometimes I encountered strange issues in my Cloud Connector instance that prevented me from connecting to my SAP BTP login. Occasionally, these issues were resolved by reinstalling the SAP Cloud Connector and deleting its folder before the new installation. I suppose there is a way to clean or re-initialize something, but reinstalling was quite easy and applicable for me at that moment.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;I wish you good luck working with SAP BTP and Cloud Connector products and hope you find this short article useful.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-members/the-forbidden-error-when-opening-an-on-premise-fiori-application-on-sap-btp/ba-p/13759686"/>
+    <published>2024-07-12T23:39:20.212000+02:00</published>
   </entry>
 </feed>
