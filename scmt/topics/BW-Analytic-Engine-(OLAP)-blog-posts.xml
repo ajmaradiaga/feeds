@@ -2,428 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/BW-Analytic-Engine-(OLAP)-blog-posts.xml</id>
   <title>SAP Community - BW Analytic Engine (OLAP)</title>
-  <updated>2024-07-17T11:10:12.255338+00:00</updated>
+  <updated>2024-07-17T23:10:09.697357+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/BW Analytic Engine (OLAP)/pd-p/761831932935929195409379977340781" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>BW Analytic Engine (OLAP) blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/error-message-quot-unkeep-attribute-could-not-be-removed-quot-for-sql/ba-p/13405989</id>
-    <title>Error Message "Unkeep Attribute could not be removed"  for SQL Queries against External SAP HANA Views  with Non-Cumulatives</title>
-    <updated>2019-04-10T13:57:01+02:00</updated>
-    <author>
-      <name>Dominik_Graus</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/40140</uri>
-    </author>
-    <content>Have you ever tried to expose a BW query with non-cumulative key figures as External SAP HANA View? Then, you probably bumped into the error message "Unkeep Attribute could not be removed". This blog explains why the error message is raised and how it can be avoided under certain conditions.&lt;BR /&gt;
-&lt;H2 id="toc-hId-928896931"&gt;Acknowledgement&lt;/H2&gt;&lt;BR /&gt;
-Special credits go to Dr. Markus Sinnwell, SAP BW/4HANA development. He co-invented the concepts of non-cumulatives in SAP BW and SAP BW/4HANA, transformed them into code and wrote the initial version of this blog.&lt;BR /&gt;
-&lt;H2 id="toc-hId-732383426"&gt;When is the error raised?&lt;/H2&gt;&lt;BR /&gt;
-The error message "Unkeep Attribute could not be removed" is thrown when a time characteristic is used in the WHERE condition of a SELECT statement against an External SAP HANA View with non-cumulative key figures and this time characteristic is not in the field list of the SELECT and GROUP BY clause. This limitation is documented in &lt;A href="https://launchpad.support.sap.com/#/notes/2032830" target="_blank" rel="noopener noreferrer"&gt;SAP Note 2032830&lt;/A&gt;.&lt;BR /&gt;
-&lt;H2 id="toc-hId-535869921"&gt;Why is the error raised?&lt;/H2&gt;&lt;BR /&gt;
-&lt;OL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Non-cumulative key figures are not persisted but calculated at query runtime based on delta movements and reference points. Therefore, it is not possible to evaluate filter conditions on time characteristics before the non-cumulative key figures are calculated by the L node of the calculation scenario.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Because of (1) a filter on a time characteristic must be applied after the computation of the non-cumulative key figures.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Because of (2) the time characteristic on which a filter is defined must be processed by the L&amp;nbsp;node of the calculation scenario as if it had been selected (as part of the field list in the SELECT and GROUP BY clauses).&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;All records which match the filter condition are then passed to the standard SQL/calculation scenario processing and there, the specified aggregation is used to aggregate records with the same "key" (according to the user specified SELECT and GROUP BY clause).&lt;/LI&gt;&lt;BR /&gt;
-&lt;/OL&gt;&lt;BR /&gt;
-This would, in many cases, result in wrong query results because the special handling for aggregation of non-cumulative key figures over time is not considered in (4).&lt;BR /&gt;
-&lt;BR /&gt;
-To avoid such issues, the generated External SAP HANA View uses the modeling property 'Transparent Filter' on all time characteristics. This in turn leads to the error message "Unkeep Attribute could not be removed" when a time characteristic is not part of the SELECT and GROUP BY clause but filtered and the Calculation Engine fails removing that time characteristic from the internal drilldown.&lt;BR /&gt;
-&lt;H2 id="toc-hId-339356416"&gt;When can the error message be suppressed?&lt;/H2&gt;&lt;BR /&gt;
-Under specific conditions the error message "Unkeep Attribute could not be removed" can be suppressed:&lt;BR /&gt;
-&lt;H4 id="toc-hId-401008349"&gt;&lt;STRONG&gt;Queries with filter on time characteristic and 'finer' time characteristic added to GROUP BY&lt;/STRONG&gt;&lt;/H4&gt;&lt;BR /&gt;
-Assumed a query uses a time characteristic in the SELECT and GROUP BY clause which is 'finer' than the time characteristic on which the filter is defined. In this special scenario, there is no need for an aggregation over time after the application of the filter and therefore, the result of the query is correct.&lt;BR /&gt;
-&lt;BR /&gt;
-A time characteristic A is 'finer' than a time characteristic B if for each value of A, it is possible to uniquely determine a single value of the characteristic B, e.g. 0CALMONTH is finer than 0CALYEAR, but 0CALWEEK is NOT finer than 0CALMONTH.&lt;BR /&gt;
-&lt;BR /&gt;
-In the query execution we do not recognize this special scenario and therefore, even in this case, the query ends up in the above-mentioned error message. It is possible, however, to suppress the error by setting a parameter via the placeholder syntax as shown below in the sample queries.&lt;BR /&gt;
-&lt;H4 id="toc-hId-204494844"&gt;&lt;STRONG&gt;Queries with filter representing a single value equal condition&lt;/STRONG&gt;&lt;/H4&gt;&lt;BR /&gt;
-Queries with a filter representing a single value equal condition might cause the error "Unkeep Attribute could not be removed" although the requirement is considered in the query i.e. the query uses a filter on a time characteristic and that time characteristic is in the SELECT and GROUP BY clause. In that scenario, the SQL optimizer may transform the GROUP BY clause internally and remove the characteristic from the internal GROUP BY. Thus, the error message is triggered.&lt;BR /&gt;
-&lt;BR /&gt;
-As a workaround, in this scenario, the error message can be suppressed, either by adding a parameter via the placeholder syntax as shown below in the sample queries – or by adding the hint NO_GROUPING_SIMPLIFICATION to the query.&lt;BR /&gt;
-&lt;H3 id="toc-hId--121101380"&gt;&lt;STRONG&gt;Disclaimer&lt;/STRONG&gt;&lt;/H3&gt;&lt;BR /&gt;
-The SAP HANA placeholder parameter ('PLACEHOLDER' = ('ce_settings','{"disabled_patterns": "39"}')) is an internal parameter and may only be used in the context described here. Using such a parameter requires that&lt;BR /&gt;
-&lt;OL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;the described error situation has occurred and&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;you have verified that the query returns the expected result and&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;the parameter is not used as system-wide configuration but only in SELECT statements for specific queries. Using internal parameters outside of this given scope is not supported.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/OL&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId--446697604"&gt;Sample Queries&lt;/H2&gt;&lt;BR /&gt;
-The InfoProvider contains a non-cumulative key figure 'STOCK' (with aggregation LAST) and a delta key figure 'DELTA' is assigned to 'STOCK'.&lt;BR /&gt;
-&lt;BR /&gt;
-The InfoProvider contains the records shown below in the inbound queue table. The requests in the InfoProvider have not been activated yet.&lt;BR /&gt;
-&lt;DIV class="scn-scrollable-area"&gt;&lt;BR /&gt;
-&lt;TABLE&gt;&lt;BR /&gt;
-&lt;TBODY&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="170"&gt;&lt;STRONG&gt;0CALDAY&lt;BR /&gt;
-(YYYY-MM-DD)&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="170"&gt;&lt;STRONG&gt;0CALMONTH&lt;BR /&gt;
-(YYYY-MM)&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="123"&gt;&lt;STRONG&gt;0MATERIAL&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="141"&gt;&lt;STRONG&gt;DELTA&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="170"&gt;2019-01-01&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="170"&gt;2019-01&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="123"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="141"&gt;100&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="170"&gt;2019-01-05&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="170"&gt;2019-01&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="123"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="141"&gt;10&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="170"&gt;2019-02-03&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="170"&gt;2019-02&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="123"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="141"&gt;30&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="170"&gt;2019-04-05&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="170"&gt;2019-04&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="123"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="141"&gt;-20&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;/TBODY&gt;&lt;BR /&gt;
-&lt;/TABLE&gt;&lt;BR /&gt;
-&lt;/DIV&gt;&lt;BR /&gt;
-&lt;H3 id="toc-hId--514128390"&gt;Query without Filter on Time Characteristic&lt;/H3&gt;&lt;BR /&gt;
-A query without filter on a time characteristic shows the expected result.&lt;BR /&gt;
-&lt;PRE&gt;&lt;CODE&gt;SELECT&lt;BR /&gt;
-     "0CALMONTH",&lt;BR /&gt;
-     "0MATERIAL",&lt;BR /&gt;
-     sum("DELTA"),&lt;BR /&gt;
-     sum("STOCK")&lt;BR /&gt;
-FROM &lt;EM&gt;&amp;lt;External SAP HANA View&amp;gt;&lt;/EM&gt;&lt;BR /&gt;
-GROUP BY&lt;BR /&gt;
-     "0CALMONTH",&lt;BR /&gt;
-     "0MATERIAL"&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;STRONG&gt;Result:&lt;BR /&gt;
-&lt;/STRONG&gt;&lt;BR /&gt;
-&lt;DIV class="scn-scrollable-area"&gt;&lt;BR /&gt;
-&lt;TABLE&gt;&lt;BR /&gt;
-&lt;TBODY&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;&lt;STRONG&gt;0CALMONTH&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;&lt;STRONG&gt;0MATERIAL&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;&lt;STRONG&gt;DELTA&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;&lt;STRONG&gt;STOCK&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;2019-01&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;110&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;110&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;2019-02&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;30&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;140&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;2019-03&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;0&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;140&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;2019-04&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;-20&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;120&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;/TBODY&gt;&lt;BR /&gt;
-&lt;/TABLE&gt;&lt;BR /&gt;
-&lt;/DIV&gt;&lt;BR /&gt;
-&lt;H3 id="toc-hId--710641895"&gt;Query with Filter on Time Characteristic and Characteristic not added to GROUP BY&lt;/H3&gt;&lt;BR /&gt;
-Assumed we would allow to add a filter on 0CALMONTH without adding 0CALMONTH to the field list in the SELECT and GROUP BY clause, the query result would be calculated like this:&lt;BR /&gt;
-&lt;PRE&gt;&lt;CODE&gt;SELECT&lt;BR /&gt;
-     "0MATERIAL",&lt;BR /&gt;
-     sum("DELTA"),&lt;BR /&gt;
-     sum("STOCK")&lt;BR /&gt;
-FROM &lt;EM&gt;&amp;lt;External SAP HANA View&amp;gt;&lt;/EM&gt;&lt;BR /&gt;
-WHERE &lt;BR /&gt;
-     "0CALMONTH" BETWEEN '201902' AND '201903'&lt;BR /&gt;
-GROUP BY&lt;BR /&gt;
-     "0MATERIAL"&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-If we pushed down the filter through the L node of the calculation scenario which computes the non-cumulative key figures, then only the records matching the filter condition would be considered, in this example the record with date 2019-02-03. This would lead to wrong query results because also delta movements in 2019-01 must be considered to calculate the stock value. Therefore, it is not possible to push down the filter. We must apply the filter after the computation of the non-cumulative key figures.&lt;BR /&gt;
-&lt;BR /&gt;
-To be able to filter after the computation of the non-cumulative key figures, we must add the filter characteristic to the internal drilldown of the intermediate result set.&lt;BR /&gt;
-&lt;BR /&gt;
-Therefore, the first intermediate result after calculating the non-cumulative key figures is the same result that we have seen above, when selecting 0CALMONTH in the query:&lt;BR /&gt;
-&lt;DIV class="scn-scrollable-area"&gt;&lt;BR /&gt;
-&lt;TABLE&gt;&lt;BR /&gt;
-&lt;TBODY&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;&lt;STRONG&gt;0CALMONTH&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;&lt;STRONG&gt;0MATERIAL&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;&lt;STRONG&gt;DELTA&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;&lt;STRONG&gt;STOCK&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;2019-01&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;110&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;110&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;2019-02&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;30&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;140&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;2019-03&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;0&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;140&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;2019-04&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;-20&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;120&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;/TBODY&gt;&lt;BR /&gt;
-&lt;/TABLE&gt;&lt;BR /&gt;
-&lt;/DIV&gt;&lt;BR /&gt;
-Then, we remove all records that do not match the filter condition. This step leads to:&lt;BR /&gt;
-&lt;DIV class="scn-scrollable-area"&gt;&lt;BR /&gt;
-&lt;TABLE&gt;&lt;BR /&gt;
-&lt;TBODY&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="156"&gt;&lt;STRONG&gt;0CALMONTH&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;&lt;STRONG&gt;0MATERIAL&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;&lt;STRONG&gt;DELTA&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;&lt;STRONG&gt;STOCK&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="156"&gt;2019-02&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;30&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;140&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="156"&gt;2019-03&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;0&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;140&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;/TBODY&gt;&lt;BR /&gt;
-&lt;/TABLE&gt;&lt;BR /&gt;
-&lt;/DIV&gt;&lt;BR /&gt;
-Now, as the filter has been applied, we would remove the column 0CALMONTH as it is not in the field list of the SELECT and GROUP BY clause:&lt;BR /&gt;
-&lt;DIV class="scn-scrollable-area"&gt;&lt;BR /&gt;
-&lt;TABLE&gt;&lt;BR /&gt;
-&lt;TBODY&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="201"&gt;&lt;STRONG&gt;0MATERIAL&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="201"&gt;&lt;STRONG&gt;DELTA&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="201"&gt;&lt;STRONG&gt;STOCK&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="201"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="201"&gt;30&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="201"&gt;140&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="201"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="201"&gt;0&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="201"&gt;140&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;/TBODY&gt;&lt;BR /&gt;
-&lt;/TABLE&gt;&lt;BR /&gt;
-&lt;/DIV&gt;&lt;BR /&gt;
-And finally, we would get the result of the query by aggregating all records with the same values for the GROUP BY characteristics using the given aggregation (&lt;STRONG&gt;sum&lt;/STRONG&gt;("STOCK")):&lt;BR /&gt;
-&lt;DIV class="scn-scrollable-area"&gt;&lt;BR /&gt;
-&lt;TABLE&gt;&lt;BR /&gt;
-&lt;TBODY&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="201"&gt;&lt;STRONG&gt;0MATERIAL&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="201"&gt;&lt;STRONG&gt;DELTA&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="201"&gt;&lt;STRONG&gt;STOCK&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="201"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="201"&gt;30&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="201"&gt;280&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;/TBODY&gt;&lt;BR /&gt;
-&lt;/TABLE&gt;&lt;BR /&gt;
-&lt;/DIV&gt;&lt;BR /&gt;
-Thus, the query would return a wrong result: STOCK= 280&lt;BR /&gt;
-&lt;BR /&gt;
-The correct result for STOCK with aggregation LAST in the interval (2019-02,2019-03) is: 140&lt;BR /&gt;
-&lt;H3 id="toc-hId--982386769"&gt;Query with Filter on Time Characteristic and Characteristic added to GROUP BY&lt;/H3&gt;&lt;BR /&gt;
-By adding 0CALMONTH to the field list of the SELECT and GROUP BY clause, the query result is calculated like this:&lt;BR /&gt;
-&lt;PRE&gt;&lt;CODE&gt;SELECT&lt;BR /&gt;
-     "0CALMONTH",&lt;BR /&gt;
-     "0MATERIAL",&lt;BR /&gt;
-     sum("DELTA"),&lt;BR /&gt;
-     sum("STOCK")&lt;BR /&gt;
-FROM &lt;EM&gt;&amp;lt;External SAP HANA View&amp;gt;&lt;/EM&gt;&lt;BR /&gt;
-WHERE &lt;BR /&gt;
-     "0CALMONTH" BETWEEN '201902' AND '201903'&lt;BR /&gt;
-GROUP BY&lt;BR /&gt;
-     "0CALMONTH",&lt;BR /&gt;
-     "0MATERIAL"&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-As explained for the previous sample query, it is not possible to push down the filter through the L&amp;nbsp;node of the calculation scenario which computes the non-cumulative key figures. And to be able to filter after the computation of the non-cumulative key figures, we must add the filter characteristic to the internal drilldown of the calculation scenario.&lt;BR /&gt;
-&lt;BR /&gt;
-Therefore, the first intermediate result after calculating the non-cumulative key figures is the same result that we have seen above, when selecting 0CALMONTH in the query:&lt;BR /&gt;
-&lt;DIV class="scn-scrollable-area"&gt;&lt;BR /&gt;
-&lt;TABLE&gt;&lt;BR /&gt;
-&lt;TBODY&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;&lt;STRONG&gt;0CALMONTH&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;&lt;STRONG&gt;0MATERIAL&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;&lt;STRONG&gt;DELTA&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;&lt;STRONG&gt;STOCK&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;2019-01&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;110&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;110&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;2019-02&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;30&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;140&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;2019-03&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;0&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;140&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;2019-04&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;-20&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="151"&gt;120&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;/TBODY&gt;&lt;BR /&gt;
-&lt;/TABLE&gt;&lt;BR /&gt;
-&lt;/DIV&gt;&lt;BR /&gt;
-The second intermediate result after applying the filter is the final result. No additional aggregation is needed for this sample query:&lt;BR /&gt;
-&lt;DIV class="scn-scrollable-area"&gt;&lt;BR /&gt;
-&lt;TABLE&gt;&lt;BR /&gt;
-&lt;TBODY&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="156"&gt;&lt;STRONG&gt;0CALMONTH&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;&lt;STRONG&gt;0MATERIAL&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;&lt;STRONG&gt;DELTA&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;&lt;STRONG&gt;STOCK&lt;/STRONG&gt;&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="156"&gt;2019-02&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;30&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;140&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;TR&gt;&lt;BR /&gt;
-&lt;TD width="156"&gt;2019-03&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;A&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;0&lt;/TD&gt;&lt;BR /&gt;
-&lt;TD width="150"&gt;140&lt;/TD&gt;&lt;BR /&gt;
-&lt;/TR&gt;&lt;BR /&gt;
-&lt;/TBODY&gt;&lt;BR /&gt;
-&lt;/TABLE&gt;&lt;BR /&gt;
-&lt;/DIV&gt;&lt;BR /&gt;
-This is the expected result for the key figure STOCK.&lt;BR /&gt;
-&lt;H3 id="toc-hId--1178900274"&gt;Query with Filter on Time Characteristic and 'finer' Time Characteristic added to GROUP BY&lt;/H3&gt;&lt;BR /&gt;
-The query below does not fulfill the requirement as documented in &lt;A href="https://launchpad.support.sap.com/#/notes/2032830" target="_blank" rel="noopener noreferrer"&gt;SAP Note 2032830&lt;/A&gt; about filters on time characteristics: the characteristic 0CALYEAR on which the filter is defined is not part of the SELECT and GROUP BY clause.&lt;BR /&gt;
-&lt;BR /&gt;
-Therefore, the query would fail with error message "Unkeep Attribute could not be removed".&lt;BR /&gt;
-&lt;PRE&gt;&lt;CODE&gt;SELECT&lt;BR /&gt;
-     "0CALMONTH",&lt;BR /&gt;
-     "0MATERIAL",&lt;BR /&gt;
-     sum("DELTA"),&lt;BR /&gt;
-     sum("STOCK")&lt;BR /&gt;
-FROM &lt;EM&gt;&amp;lt;External SAP HANA View&amp;gt;&lt;/EM&gt;&lt;BR /&gt;
-WHERE &lt;BR /&gt;
-     "0CALYEAR" BETWEEN '2019' AND '2020'&lt;BR /&gt;
-GROUP BY&lt;BR /&gt;
-     "0CALMONTH",&lt;BR /&gt;
-     "0MATERIAL"&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-However, as 0CALMONTH is finer than 0CALYEAR and 0CALMONTH is selected in the query, it is possible to use the following parameter to switch off the error. Note that &lt;STRONG&gt;the disclaimer above must be considered&lt;/STRONG&gt;. In this special scenario, there is no need for an aggregation over time after the application of the filter and therefore, the result of the query is correct.&lt;BR /&gt;
-&lt;PRE&gt;&lt;CODE&gt;SELECT&lt;BR /&gt;
-     "0CALMONTH",&lt;BR /&gt;
-     "0MATERIAL",&lt;BR /&gt;
-     sum("DELTA"),&lt;BR /&gt;
-     sum("STOCK")&lt;BR /&gt;
-FROM &lt;EM&gt;&amp;lt;External SAP HANA View&amp;gt;&lt;/EM&gt;&lt;BR /&gt;
-('PLACEHOLDER' = ('ce_settings','{"disabled_patterns": "39"}') )&lt;BR /&gt;
-WHERE &lt;BR /&gt;
-     "0CALYEAR" BETWEEN '2019' AND '2020'&lt;BR /&gt;
-GROUP BY&lt;BR /&gt;
-     "0CALMONTH",&lt;BR /&gt;
-     "0MATERIAL"&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H3 id="toc-hId--1375413779"&gt;Query with Single Value Equal Condition&lt;/H3&gt;&lt;BR /&gt;
-Queries with a filter representing a single value equal condition might cause the error "Unkeep Attribute could not be removed" although the query uses a filter on a time characteristic and that time characteristic is in the SELECT and GROUP BY clause. In that scenario, the SQL optimizer may transform the GROUP BY clause internally and remove the characteristic from the internal GROUP BY. Thus, the error message is triggered.&lt;BR /&gt;
-&lt;BR /&gt;
-As a workaround, in this scenario, either a parameter via the placeholder syntax can be used – or the hint NO_GROUPING_SIMPLIFICATION can be added to the query. Note that &lt;STRONG&gt;the disclaimer above must be considered&lt;/STRONG&gt; when using the parameter.&lt;BR /&gt;
-&lt;PRE&gt;&lt;CODE&gt;SELECT&lt;BR /&gt;
-     "0CALMONTH",&lt;BR /&gt;
-     "0MATERIAL",&lt;BR /&gt;
-     sum("DELTA"),&lt;BR /&gt;
-     sum("STOCK")&lt;BR /&gt;
-FROM &lt;EM&gt;&amp;lt;External SAP HANA View&amp;gt;&lt;/EM&gt;&lt;BR /&gt;
-WHERE &lt;BR /&gt;
-     "0CALMONTH" = '201902'&lt;BR /&gt;
-GROUP BY&lt;BR /&gt;
-     "0CALMONTH",&lt;BR /&gt;
-     "0MATERIAL"&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Workaround via placeholder syntax:&lt;BR /&gt;
-&lt;PRE&gt;&lt;CODE&gt;SELECT&lt;BR /&gt;
-     "0CALMONTH",&lt;BR /&gt;
-     "0MATERIAL",&lt;BR /&gt;
-     sum("DELTA"),&lt;BR /&gt;
-     sum("STOCK")&lt;BR /&gt;
-FROM &lt;EM&gt;&amp;lt;External SAP HANA View&amp;gt;&lt;BR /&gt;
-&lt;/EM&gt;('PLACEHOLDER' = ('ce_settings','{"disabled_patterns": "39"}') )&lt;BR /&gt;
-WHERE &lt;BR /&gt;
-     "0CALMONTH" = '201902'&lt;BR /&gt;
-GROUP BY&lt;BR /&gt;
-     "0CALMONTH",&lt;BR /&gt;
-     "0MATERIAL"&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;BR /&gt;
-Workaround via database hint:&lt;BR /&gt;
-&lt;PRE&gt;&lt;CODE&gt;SELECT &lt;BR /&gt;
-     "0CALMONTH", &lt;BR /&gt;
-     "0MATERIAL", &lt;BR /&gt;
-     sum("DELTA"),&lt;BR /&gt;
-     sum("STOCK") &lt;BR /&gt;
-FROM &lt;EM&gt;&amp;lt;External SAP HANA View&amp;gt;&lt;/EM&gt; &lt;BR /&gt;
-WHERE &lt;BR /&gt;
-     "0CALMONTH" = '201902' &lt;BR /&gt;
-GROUP BY &lt;BR /&gt;
-     "0CALMONTH", &lt;BR /&gt;
-     "0MATERIAL" &lt;BR /&gt;
-WITH HINT( NO_GROUPING_SIMPLIFICATION )&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-&amp;nbsp;&lt;BR /&gt;
-&lt;H3 id="toc-hId--1571927284"&gt;Wrap-up&lt;/H3&gt;&lt;BR /&gt;
-The error message "Unkeep Attribute could not be removed" is thrown for good reasons in most scenarios. However, there are a few exceptions to that rule and you know now how to suppress the error message if appropriate. Make sure though to observe the disclaimer above.</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/error-message-quot-unkeep-attribute-could-not-be-removed-quot-for-sql/ba-p/13405989"/>
-    <published>2019-04-10T13:57:01+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-sap/experience-applied-intelligence-at-sap-teched-2019-hana-analytics/ba-p/13388511</id>
     <title>Experience Applied Intelligence at SAP TechEd 2019 - HANA, Analytics &amp; Intelligent Technologies</title>
@@ -2878,5 +2460,220 @@ define transient view entity ZLR_SIGN_REV_FLIGHT_1
 }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#0000FF"&gt;&lt;STRONG&gt;Result:&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#0000FF"&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="result.png" style="width: 761px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/95125iE96DEC39C036AD90/image-size/large?v=v2&amp;amp;px=999" role="button" title="result.png" alt="result.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In this example for Hierarchy ZOQ_CONNECTION_HIERARCHY (which is defined in the &lt;/SPAN&gt;&lt;SPAN&gt;ZOQ_FLIGHT)&lt;/SPAN&gt;&lt;SPAN&gt;, &lt;/SPAN&gt;&lt;SPAN&gt;signReversalFlag is set for Carried id 'A', 'JL', 'UA'. Therefore, in result of analytical query HierSignRev field is showing the –ve result of the booking total.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#0000FF"&gt;&lt;STRONG&gt;&lt;SPAN&gt;SAP Delivered Hierarchies:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;There are few SAP delivered hierarchies which have this feature.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Following fields name:&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;FinancialStatementItem, &lt;/SPAN&gt;&lt;SPAN&gt;CnsldtnFinancialStatementItem, FinancialStatementLeafItem, GLAccount, etc.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Can have this feature because they have foreign key association with dimension view which has hierarchy association to hierarchy view supporting this feature.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;For example:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;Field with name ‘&lt;/SPAN&gt;&lt;SPAN&gt;FinancialStatementItem&lt;/SPAN&gt;&lt;SPAN&gt;’ typically have a foreign key association to dimension view &lt;/SPAN&gt;&lt;SPAN&gt;I_CnsldtnFinStmntItem and corresponding hierarchy view &lt;/SPAN&gt;&lt;SPAN&gt;I_FinStmntItmHier will support this feature.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#0000FF"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Constraints:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Only one element in a view of data category HIERARCHY can be marked with semantics signReversal. The data type of the element should be CHAR of length 1.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Allowed values are X or space.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#0000FF"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Related Note:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;1385580 - How does a formula variable with a replacement path work?&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#0000FF"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Availability:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;This feature is available from &lt;/SPAN&gt;&lt;SPAN&gt;S/4HANA 1909 (ABAP Platform 7.54).&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-sap/cds-view-hierarchy-node-sign-reversal/ba-p/13599337"/>
     <published>2024-04-15T13:30:04.285000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-sap/cds-how-to-define-hierarchy-view/ba-p/13758059</id>
+    <title>CDS : How to define Hierarchy View</title>
+    <updated>2024-07-17T14:18:20.286000+02:00</updated>
+    <author>
+      <name>LinaRaut</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/179963</uri>
+    </author>
+    <content>&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;This blog is about how to define Hierarchy View&lt;/SPAN&gt;&lt;SPAN&gt; in CDS&lt;/SPAN&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;There are two types of &lt;/SPAN&gt;&lt;SPAN&gt;hierarch&lt;/SPAN&gt;&lt;SPAN&gt;ies – '&lt;/SPAN&gt;&lt;SPAN&gt;Leveled&lt;/SPAN&gt;&lt;SPAN&gt; Hierarchy' and '&lt;/SPAN&gt;&lt;SPAN&gt;Parent-Chil&lt;/SPAN&gt;&lt;SPAN&gt;d Hierarchy'&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;In Analytics, only a Parent-Child hierarchy is supported.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;In CDS, Hierarchy can be defined in two ways:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;Inline Hierarchy: where the hierarchy definition is modelled in the dimension view.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;External Hierarchy: where there is a separate CDS view to model the definition of the hierarchy.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;In the past, External hierarchy was defined using the annotation '&lt;/SPAN&gt;&lt;SPAN&gt;@ObjectModel.dataCategory:&lt;/SPAN&gt; &lt;SPAN&gt;#HIERARCHY'.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;Now, in CDS it is allowed to define new type of CDS view called as Hierarchy CDS, which is defined using&lt;/SPAN&gt; &lt;SPAN&gt;syntax &lt;/SPAN&gt;&lt;SPAN&gt;define hierarchy&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;, &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;which create a hierarchical view.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;A CDS hierarchy represents a HANA hierarchy, created when the CDS hierarchy is activated.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;Normally the hierarchy contains headers and nodes. The header data of the hierarchy is coming from the directory view and the nodes data is coming from the hierarchy view itself.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4" color="#0000FF"&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Hierarchy Directory&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;The directory of the &lt;/SPAN&gt;&lt;SPAN&gt;h&lt;/SPAN&gt;&lt;SPAN&gt;ierarchy provides the header information of the &lt;/SPAN&gt;&lt;SPAN&gt;h&lt;/SPAN&gt;&lt;SPAN&gt;ierarchy&lt;/SPAN&gt;&lt;SPAN&gt;.&lt;/SPAN&gt; &lt;SPAN&gt;A hierarchy view might &lt;/SPAN&gt;&lt;SPAN&gt;contain&lt;/SPAN&gt;&lt;SPAN&gt; more than one hierarchy. Information about each hierarchy (&lt;/SPAN&gt;&lt;SPAN&gt;e.g.&lt;/SPAN&gt;&lt;SPAN&gt; text&lt;/SPAN&gt;&lt;SPAN&gt;)&lt;/SPAN&gt; &lt;SPAN&gt;is&lt;/SPAN&gt;&lt;SPAN&gt; provided by a hierarchy directory&lt;/SPAN&gt;&lt;SPAN&gt;. More&lt;/SPAN&gt;&lt;SPAN&gt; information can be found in &lt;/SPAN&gt;&lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/cds-hierarchy-directory-how-to-use-notassignednode-annotation-to-suppress/ba-p/13576317" target="_blank"&gt;&lt;SPAN&gt;blog&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;Typically, the directory view is defined as follows:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Connection Hierarchy Directory View'
+@Analytics : { dataCategory: #DIMENSION, dataExtraction.enabled: true }
+@ObjectModel.representativeKey: 'hieid'
+
+define view entity ZLR_CONNECTION_HIERARCHY_DIR
+  as select from zoq_connid_hd
+{
+      @ObjectModel.text.element: [ 'hiertxt' ]
+  key hieid,
+      @Semantics.text: true
+      hiertxt,
+      @Semantics.systemDate.lastChangedAt: true
+      last_changed,
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4" color="#0000FF"&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Output&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="LinaRaut_0-1720985264075.png" style="width: 457px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/136485i2087A99928F26B22/image-dimensions/457x361?v=v2" width="457" height="361" role="button" title="LinaRaut_0-1720985264075.png" alt="LinaRaut_0-1720985264075.png" /&gt;&lt;/span&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5" color="#0000FF"&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Hierarchy View &lt;/SPAN&gt;&lt;SPAN class=""&gt;using&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;d&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;efine&lt;/SPAN&gt;&lt;SPAN class=""&gt; hierarchy &amp;lt;NAME&amp;gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;This is the new way of defining hierarchy and it is available &lt;/SPAN&gt;&lt;SPAN&gt;from 2023 on Prem and 2308 Cloud&lt;/SPAN&gt;&lt;SPAN&gt;. &lt;/SPAN&gt;&lt;SPAN&gt;For defining hierarchy, prerequisite is having a source view, which is mentioned in the definition as parent child hierarchy source.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4" color="#0000FF"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Source View&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;In view definition parent child association is define along with that following associations:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;Association to hierarchy view itself- It defines parent child relationship&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;Association to hierarchy directory - It contains all the header information- hierarchy ids.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;A&lt;/SPAN&gt;&lt;SPAN&gt;ssociation to different dimension/text views –&lt;/SPAN&gt;&lt;SPAN&gt; I&lt;/SPAN&gt;&lt;SPAN&gt;t is a relation from the nodes and leaves to dimension and text views&lt;/SPAN&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt; Via this &lt;/SPAN&gt;&lt;SPAN&gt;association the&lt;/SPAN&gt;&lt;SPAN&gt; text of a node/leaf is derived. In the foll&lt;/SPAN&gt;&lt;SPAN&gt;owing e&lt;/SPAN&gt;&lt;SPAN&gt;xample '_&lt;/SPAN&gt;&lt;SPAN&gt;node' is&lt;/SPAN&gt;&lt;SPAN&gt; first level node. '_airline' acts as se&lt;/SPAN&gt;&lt;SPAN&gt;cond &lt;/SPAN&gt;&lt;SPAN&gt;level node &lt;/SPAN&gt;&lt;SPAN&gt;and '&lt;/SPAN&gt;&lt;SPAN&gt;_connection' is leaf and pointing to dimension&lt;/SPAN&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="4"&gt;Extra conditions like 'carrid = "" '&amp;nbsp; are not necessary and the order of the associations is not relevant. Instead in this case a separate field is needed, which returns the fieldname of the records, which should be used. In the example it is field 'nodetype'&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Base for : New Way of defining Hierarchy'
+
+define view entity ZLR_CONN_HIERARCHY_BASE
+  as select from zoq_connid_h
+
+
+  //association to itself.
+  association [0..1] to ZLR_CONN_HIERARCHY_BASE      as _parent     on  $projection.hieid    = _parent.hieid
+                                                                    and $projection.parentid = _parent.nodeid
+
+  // association with hierarchy directory
+  association [1]    to ZLR_CONNECTION_HIERARCHY_DIR as _dir        on  $projection.hieid = _dir.hieid
+
+
+  // associations to the different node types
+  // evalulated at runtime for each record in the order given here
+  // first hit of ON-condition is followed
+  // Differnce to old way of Hierarchy ZLR_CONNECTION_HIERARCHY - here no $projection.carrid   = ''  and $projection.connid   = '0000'
+  association [1]    to ZOQ_CONNECTION_NODENAME      as _node       on  $projection.hieid    = _node.hieid
+                                                                    and $projection.nodename = _node.nodeName
+ 
+
+  // "nodatetype" Airline
+  // Differnce to old way of Hierarchy ZLR_CONNECTION_HIERARCHY - here no  and $projection.connid = '0000'
+  association [1]    to ZOQ_AIRLINE                  as _airline    on  $projection.carrid = _airline.carrid
+ 
+
+  // association to dimension view
+  association [1]    to ZLR_CONN                     as _connection on  $projection.carrid = _connection.carrid
+                                                                    and $projection.connid = _connection.connid
+
+{
+
+      @Consumption.filter: { mandatory : true, selectionType : #SINGLE, multipleSelections : false }
+      @ObjectModel.foreignKey.association: '_dir'
+  key hieid,
+  key nodeid,
+      parentid,
+
+      seqno,
+
+      // three different node types possible in this example
+      // here CONNID is leaf (can not be derived from this view)
+      
+      @ObjectModel.foreignKey.association: '_airline'
+      carrid,
+      @ObjectModel.foreignKey.association: '_connection'
+      connid,
+      @ObjectModel.foreignKey.association: '_node'
+      nodename,
+
+      cast(
+      case when carrid is initial and connid is initial then 'NODENAME'
+           when connid is initial                       then 'CARRID'
+           else 'CONNID' end as fieldname ) as nodetype,
+  
+
+
+      // associations defined above have to be exposed here
+      // otherwise they will not be available
+      _parent,
+      _dir,
+      _node,
+      _airline,
+      _connection
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4" color="#0000FF"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Hierarchy View&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;Hierarchy view can be defined using the following syntax.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Syntax:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;... &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;[DEFINE] HIERARCHY hierarchy &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;         [parameter_list] &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;         AS PARENT CHILD HIERARCHY( &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;           SOURCE cds_view&amp;nbsp; &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;           CHILD TO PARENT ASSOCIATION _hierarchy_assoc &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;           [PERIOD FROM field1 TO field2 VALID FROM from TO to] &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;           [DIRECTORY _directory_assoc FILTER BY cds_cond] &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;           [START WHERE cds_cond] &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;           SIBLINGS ORDER BY field1 [ASCENDING|DESCENDING][, &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;                             field2 [ASCENDING|DESCENDING], ...] &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;           [DEPTH depth] &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;           [NODETYPE node_type] &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;           [LOAD BULK|INCREMENTAL|load_option] &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;           [MULTIPLE PARENTS {NOT ALLOWED}|LEAVES|ALLOWED] &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;           [ORPHANS IGNORE|ERROR|ROOT] &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;           [CYCLES ERROR|BREAKUP] &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;           [GENERATE SPANTREE] &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;           [CACHE ON|OFF|FORCE]) &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;     { element_list }&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;&lt;SPAN&gt;In Syntax&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;&lt;SPAN&gt;SOURCE&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; – Name of Source view. The mandatory addition SOURCE specifies a CDS view entity. This source must expose the hierarchy association specified after CHILD TO PARENT ASSOCIATION in its SELECT list.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp; &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;source&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/SPAN&gt;&lt;SPAN&gt;ZLR_CONN_HIERARCHY_BASE&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;&lt;SPAN&gt;CHILD TO PARENT ASSOCIATION&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;: The mandatory addition CHILD TO PARENT ASSOCIATION specifies the hierarchy association who’s ON condition selects the descendant nodes of the root node set.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp; &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;child&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;to&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;parent&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;association&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt; _parent&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;&lt;SPAN&gt;PERIOD FROM&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; field1 &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;TO&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; field2 &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;VALID FROM&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; from &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;TO&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; to: The optional addition PERIOD defines the hierarchy as a temporal SQL hierarchy in which the hierarchy nodes are limited by an adjustment of time intervals.&lt;/SPAN&gt;&lt;SPAN&gt; In case&lt;/SPAN&gt;&lt;SPAN&gt; of &lt;/SPAN&gt;&lt;SPAN&gt;parameter, they &lt;/SPAN&gt;&lt;SPAN&gt;can be &lt;/SPAN&gt;&lt;SPAN&gt;different but value must be same when used in a query.&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp; &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;period&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;from&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; datefrom &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;to&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; dateto &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;valid&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;from&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;$parameters.&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;p_date &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;to&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;$parameters.&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;p_date&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;OR&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;&lt;SPAN&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;period&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;from&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; datefrom &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;to&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; dateto &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;valid&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;from&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;SPAN&gt;'20230425'&lt;/SPAN&gt; &lt;STRONG&gt;&lt;SPAN&gt;to&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;SPAN&gt;'20230425'&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;&lt;SPAN&gt;DIRECTORY&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;: Hierarchy directory name. The optional addition DIRECTORY defines a filter condition cds_cond for the rows of the source of the hierarchy specified after SOURCE. It defines association to the header/ directory view. Filter can be defined on hierarchy directory, based on parameter. In case of time dependent hierarchy date parameters can be used to filter out the hierarchy.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;_dir &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;filter&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;by&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp; hienm &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;=&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;$parameters.&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;p_hienm1&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;&lt;SPAN&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;STRONG&gt;&lt;SPAN&gt;and&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; keydate &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;=&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;$parameters.&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;p_keydate&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;&lt;SPAN&gt;START WHERE&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;: The optional addition START WHERE specifies the start condition for creating the hierarchy. START WHERE can be followed by a logical expression cds_cond that selects rows from the source cds_view.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;start&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;where&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;parentid &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;is&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;initial&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;&lt;SPAN&gt;SIBLINGS ORDER BY&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; field1 [ASCENDING|DESCENDING]: The mandatory addition SIBLINGS ORDER BY sorts sibling nodes in the hierarchy. Default is Ascending.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&amp;nbsp;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;siblings&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;order&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;by&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;seqno&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;&lt;SPAN&gt;NODETYPE &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;node_type: The&amp;nbsp; NODETYPE identifies an element of the CDS hierarchy that can be used to determine the type of the hierarchy node. The values of this element must be element names, which must &lt;/SPAN&gt;&lt;SPAN&gt;also&lt;/SPAN&gt;&lt;SPAN&gt; be contained in the element list of the CDS hierarchy.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;In context of Analytics, it is mandatory to define the nodetype field in the source view of the hierarchy and also in the hierarchy view using key word '&lt;/SPAN&gt;&lt;SPAN&gt;nodetype'&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;For example, in the Source view&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp; &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;cast(&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt; &lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;case&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;when&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;SPAN&gt;carrid&lt;/SPAN&gt; &lt;STRONG&gt;&lt;SPAN&gt;is&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;initial&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;and&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; connid &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;is&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;initial&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;then&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;SPAN&gt;'NODENAME'&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;when&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; connid &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;is&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;initial&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;then&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;SPAN&gt;'CARRID'&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;else&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;SPAN&gt;'CONNID'&lt;/SPAN&gt; &lt;STRONG&gt;&lt;SPAN&gt;end&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;as&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;I&gt;&lt;SPAN&gt;fieldname&lt;/SPAN&gt;&lt;/I&gt; &lt;STRONG&gt;&lt;SPAN&gt;)&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;STRONG&gt;&lt;SPAN&gt;as&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; nodetype&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;,&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;In the Hierarchy view&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;nodetype&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp; &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;nodetype&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;More detailed information can be found here &lt;/SPAN&gt;&lt;A href="https://help.sap.com/doc/abapdocu_latest_index_htm/latest/en-US/index.htm?file=abencds_f1_define_hierarchy.htm" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;ABAP Keyword Documentation (sap.com)&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4" color="#0000FF"&gt;&lt;STRONG&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;Example of &lt;/SPAN&gt;&lt;SPAN class=""&gt;Hierarchy View&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;define hierarchy ZLR_CONN_HIERARCHY
+  with parameters
+    @Consumption.defaultValue: 'CNTRY'
+    p_hieid : zoq_conhieid
+  as parent child hierarchy(
+    source ZLR_CONN_HIERARCHY_BASE
+    child to parent association _parent
+    directory _dir filter by
+      hieid = $parameters.p_hieid
+    start where
+      parentid is initial
+    siblings order by
+      seqno
+    nodetype nodetype
+  )
+{
+
+      @ObjectModel.foreignKey.association: '_dir'
+  key hieid,
+  key nodeid,
+      parentid,
+      seqno,
+
+      @ObjectModel.foreignKey.association: '_airline'
+      carrid,
+      @ObjectModel.foreignKey.association: '_connection'
+      connid,
+      @ObjectModel.foreignKey.association: '_node'
+      nodename,
+
+      nodetype, 
+     
+      // associations defined above have to be exposed here
+      // otherwise they will not be available
+      _parent,
+      _dir,
+      _node,
+      _airline,
+      _connection
+
+
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4" color="#0000FF"&gt;&lt;STRONG&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;Out&lt;/SPAN&gt;&lt;SPAN class=""&gt;put&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="LinaRaut_0-1720989908770.png" style="width: 607px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/136487iB83682D5BB21AF35/image-dimensions/607x432?v=v2" width="607" height="432" role="button" title="LinaRaut_0-1720989908770.png" alt="LinaRaut_0-1720989908770.png" /&gt;&lt;/span&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;FONT color="#FF0000"&gt;&lt;SPAN&gt;Red:&lt;/SPAN&gt;&lt;/FONT&gt;&lt;SPAN&gt; association _node&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;FONT color="#339966"&gt;&lt;SPAN&gt;Green&lt;/SPAN&gt;&lt;/FONT&gt;&lt;SPAN&gt;&lt;FONT color="#339966"&gt;:&lt;/FONT&gt; association _airline&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;FONT color="#0000FF"&gt;&lt;SPAN&gt;Blue&lt;/SPAN&gt;&lt;/FONT&gt;&lt;SPAN&gt;&lt;FONT color="#0000FF"&gt;:&lt;/FONT&gt; association _connection,&lt;/SPAN&gt; &lt;SPAN&gt;the blue marked records are leaves&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;&lt;FONT color="#0000FF"&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Example o&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;f Query using Hierarchy&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_ALLOWED
+@EndUserText.label: 'ZLR_CONN - query'
+@Metadata.ignorePropagatedAnnotations: true
+
+define transient view entity ZLR_CONN_QUERY
+provider contract analytical_query
+as projection on ZLR_CONN
+{
+@AnalyticsDetails.query:{
+axis:#ROWS,
+displayHierarchy: #ON ,
+hierarchyBinding: [{ type: #CONSTANT, value: 'CNTRY'  }]
+
+}
+  connid
+    
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4" color="#0000FF"&gt;&lt;STRONG&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Output&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="LinaRaut_1-1720990617543.png" style="width: 462px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/136488iDCC79DDE37ADBC00/image-dimensions/462x488?v=v2" width="462" height="488" role="button" title="LinaRaut_1-1720990617543.png" alt="LinaRaut_1-1720990617543.png" /&gt;&lt;/span&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5" color="#0000FF"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Hierarchy View Using @ObjectModel.dataCategory: #HIERARCHY Annotation &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;(OLD way)&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;In View &lt;/SPAN&gt;&lt;SPAN&gt;definition the annotation&amp;nbsp;&lt;/SPAN&gt;&lt;A href="mailto:%E2%80%98@Hierarchy.parentChild%E2%80%99" target="_blank" rel="noopener nofollow noreferrer"&gt;&lt;SPAN&gt;@Hierarchy.parentChild &lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;provides the information about the parent child hierarchy. It has hierarchy name, &lt;/SPAN&gt;&lt;SPAN&gt;multiple parents, recursion by, ordering of siblings, root node visibility, orphaned node handling, etc. along with &lt;/SPAN&gt;&lt;SPAN&gt;that, following association&lt;/SPAN&gt;&lt;SPAN&gt;s need to be defined.&amp;nbsp; &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;Association to hierarchy view itself&lt;/SPAN&gt; &lt;SPAN&gt;- &lt;/SPAN&gt;&lt;SPAN&gt;I&lt;/SPAN&gt;&lt;SPAN&gt;t defines parent child relationship.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&amp;nbsp;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;Association to hierarchy directory&lt;/SPAN&gt;&lt;SPAN&gt; view&lt;/SPAN&gt; &lt;SPAN&gt;-&lt;/SPAN&gt;&lt;SPAN&gt; I&lt;/SPAN&gt;&lt;SPAN&gt;t &lt;/SPAN&gt;&lt;SPAN&gt;contains&lt;/SPAN&gt;&lt;SPAN&gt; all the header information&lt;/SPAN&gt;&lt;SPAN&gt;, &lt;/SPAN&gt;&lt;SPAN&gt;hierarchy&lt;/SPAN&gt;&lt;SPAN&gt; Ids and the &lt;/SPAN&gt;&lt;SPAN&gt;descriptions&lt;/SPAN&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;Association to different&lt;/SPAN&gt;&lt;SPAN&gt; dimension/text views&lt;/SPAN&gt; &lt;SPAN&gt;–&lt;/SPAN&gt; &lt;SPAN&gt;I&lt;/SPAN&gt;&lt;SPAN&gt;t is a relation from the nodes and leaves to dimension and text views&lt;/SPAN&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt; Via this association &lt;/SPAN&gt;&lt;SPAN&gt;the text of a node/leaf is derived.&lt;/SPAN&gt;&lt;SPAN&gt; In the following example '&lt;/SPAN&gt;&lt;SPAN&gt;_&lt;/SPAN&gt;&lt;SPAN&gt;node'&lt;/SPAN&gt;&amp;nbsp;&lt;SPAN&gt;is&lt;/SPAN&gt; &lt;SPAN&gt;first&lt;/SPAN&gt;&lt;SPAN&gt; level node&lt;/SPAN&gt;&lt;SPAN&gt;,&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;'_airline' acts as &lt;/SPAN&gt;&lt;SPAN&gt;second&lt;/SPAN&gt;&lt;SPAN&gt; level node &lt;/SPAN&gt;&lt;SPAN&gt;and '&lt;/SPAN&gt;&lt;SPAN&gt;_connection'&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;is leaf and pointing to dimension.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="4"&gt;Important is the order of the associations listed in the element-list and the '&lt;SPAN&gt;extra-condition'&lt;/SPAN&gt;&lt;SPAN&gt; in the ON-clause. For each record of the hierarchy the ON condition of the associations is checked - the first association which meets the ON condition is used to get text and attributes for the hierarchy node/leaf&lt;/SPAN&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;One association is mandatory - its target must be the dimension view which has a &lt;/SPAN&gt;&lt;SPAN&gt;ObjectModel.hierarchy.association&lt;/SPAN&gt;&lt;SPAN&gt; to the hierarchy view. These objects in the hierarchy represent the &lt;/SPAN&gt;&lt;SPAN&gt;leave&lt;/SPAN&gt;&lt;SPAN&gt;s&lt;/SPAN&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4" color="#0000FF"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Example&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Connection Hierarchy View'
+@ObjectModel.dataCategory: #HIERARCHY
+@Hierarchy.parentChild: [{  
+name : 'ConnectionHierarchy',
+  label : 'Connection',
+  siblingsOrder: [{ by: 'seqno' }] ,
+  recurseBy : '_parent',
+  directory: '_dir'
+  }] 
+  
+define view entity ZLR_CONNECTION_HIERARCHY
+  as select from zoq_connid_h
+
+  // basic parent child relation inside one hierarchy
+  // hierarchy uniquely selected (see @Filter for field HIEID
+  association [0..1] to ZLR_CONNECTION_HIERARCHY     as _parent     on  $projection.parentid = _parent.nodeid
+
+  // necessary if view represents several hierarchies
+  // association to the hierarchy directory
+  association [1]    to ZLR_CONNECTION_HIERARCHY_DIR as _dir        on  $projection.hieid = _dir.hieid
+
+
+  // associations to the different node types
+  // evalulated at runtime for each record in the order given here
+  // first hit of ON-condition is followed
+  association [1]    to ZOQ_CONNECTION_NODENAME as _node       on       $projection.hieid   = _node.hieid
+                                                                    and $projection.nodename = _node.nodeName
+                                                                    and $projection.carrid   = ''
+                                                                    and $projection.connid   = '0000'
+
+  // "nodatetype" Airline
+  association [1]    to ZOQ_AIRLINE                  as _airline    on  $projection.carrid = _airline.carrid
+                                                                    and $projection.connid = '0000'
+
+  // For which dimension this hierarchy belongs
+  association [1]    to ZLR_CONNECTION               as _connection on  $projection.carrid = _connection.carrid
+                                                                 and $projection.connid = _connection.connid
+
+{
+      @Consumption.filter: { mandatory : true, selectionType : #SINGLE, multipleSelections : false }
+      @ObjectModel.foreignKey.association: '_dir'
+  key hieid,
+  key nodeid,
+      parentid,
+
+      seqno,
+
+      // three different node types possible in this example
+      // here CONNID is leaf (can not be derived from this view)
+      
+      @ObjectModel.foreignKey.association: '_airline'
+      carrid,
+      @ObjectModel.foreignKey.association: '_connection'
+      connid,
+      @ObjectModel.foreignKey.association: '_node'
+      nodename,
+      
+      // associations defined above have to be exposed here
+      // otherwise they will not be available
+      _parent,
+      _dir,
+      _node,
+      _airline,
+      _connection
+
+}   &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4" color="#0000FF"&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Output&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="LinaRaut_1-1720985929330.png" style="width: 613px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/136486iE4D5634C7709FE25/image-dimensions/613x544?v=v2" width="613" height="544" role="button" title="LinaRaut_1-1720985929330.png" alt="LinaRaut_1-1720985929330.png" /&gt;&lt;/span&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;FONT color="#FF0000"&gt;&lt;SPAN&gt;Red:&lt;/SPAN&gt;&lt;/FONT&gt;&lt;SPAN&gt; association _node&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;FONT color="#008080"&gt;&lt;SPAN&gt;Green&lt;/SPAN&gt;&lt;/FONT&gt;&lt;SPAN&gt;&lt;FONT color="#008080"&gt;: &lt;/FONT&gt;association _airline&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;FONT color="#0000FF"&gt;&lt;SPAN&gt;Blue&lt;/SPAN&gt;&lt;/FONT&gt;&lt;SPAN&gt;&lt;FONT color="#0000FF"&gt;:&lt;/FONT&gt; association _connection, the blue marked records are leaves&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;FONT color="#0000FF"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Reference&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;More information on @Semantics.signReversalIndicator&amp;nbsp;can be found in the &lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/cds-view-hierarchy-node-sign-reversal/ba-p/13599337" target="_blank"&gt;blog.&lt;/A&gt;&amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-sap/cds-how-to-define-hierarchy-view/ba-p/13758059"/>
+    <published>2024-07-17T14:18:20.286000+02:00</published>
   </entry>
 </feed>
