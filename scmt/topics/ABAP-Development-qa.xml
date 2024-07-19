@@ -2,277 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-qa.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2024-07-19T17:00:05.107080+00:00</updated>
+  <updated>2024-07-19T20:00:04.683183+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/send-email-to-partners-based-on-selection-parameters/qaq-p/13759651</id>
-    <title>Send email to partners based on selection parameters</title>
-    <updated>2024-07-12T22:36:01.949000+02:00</updated>
-    <author>
-      <name>mia_ellis</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1487821</uri>
-    </author>
-    <content>&lt;P&gt;Hello Experts,&lt;/P&gt;&lt;P&gt;as a beginner I'm working on writing a program that has the following selection parameters:&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;• VBELN number&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;• Creation date from/to&lt;/P&gt;&lt;P&gt;The program should send an email to the partners of the respective selected offers. The email should have the subject “Offer Cancellation” and a standard text SO10 text called ZRH_ANGEBOTSMAIL as the email content.&amp;nbsp;&lt;/P&gt;&lt;P&gt;My code so far looks like this, and when I run the test modules '&lt;STRONG&gt;data_selection'&lt;/STRONG&gt; is successful but &lt;STRONG&gt;send_email&lt;/STRONG&gt; isn't. I used l&lt;STRONG&gt;t_results_test&lt;/STRONG&gt; with mock data just to see if &lt;STRONG&gt;'send_email'&lt;/STRONG&gt; works in this case, and yes it did. Both tests ended successfully. So I'm confused here a bit and would appreciate your tipps/suggestions. I have also read that it's recommended to use &lt;STRONG&gt;cl_document_bcs class&lt;/STRONG&gt; for creating and sending emails instead of the function, but I wanted to try it with the function too. &amp;nbsp;zex04email is a view of the needed tables.&lt;/P&gt;&lt;P&gt;Thanks in advance!&lt;/P&gt;&lt;P&gt;Ellis&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;*&amp;amp;---------------------------------------------------------------------*
-*&amp;amp; Report ZEX_TEST
-*&amp;amp;---------------------------------------------------------------------*
-*&amp;amp;
-*&amp;amp;---------------------------------------------------------------------*
-REPORT ZEX_TEST.
- 
-PARAMETERS:
-   p_vbeln TYPE vbak-vbeln OBLIGATORY,   
-   p_dt_fr TYPE vbak-erdat,              
-   p_dt_to TYPE vbak-erdat.              
- 
- 
-DATA:gt_results       TYPE TABLE OF zex04email,
-     gs_results       LIKE LINE OF gt_results,  " Result line
-     gt_lines         LIKE STANDARD TABLE OF tline WITH HEADER LINE,
-     gt_contents_txt  TYPE TABLE OF solisti1,
-     gs_contents_txt  LIKE LINE OF gt_contents_txt,
-     gv_betreff       TYPE so_obj_des,
-     gv_sent_to_all   TYPE os_boolean,
-     gt_receivers     TYPE TABLE OF somlreci1,
-     gs_receivers     LIKE LINE OF gt_receivers,
-     doc_chng         LIKE  sodocchgi1,
-     gt_packing_list  TYPE TABLE OF sopcklsti1,
-     gs_packing_list  LIKE LINE OF gt_packing_list.
- 
-TYPES: tt_results TYPE STANDARD TABLE OF zex04email.
- 
-START-OF-SELECTION.
- 
-PERFORM data_selection USING p_vbeln
-                             p_dt_fr
-                             p_dt_to.
- 
-IF gt_results[] IS NOT INITIAL.
-  PERFORM send_email USING gt_results.
-ELSE.
-  WRITE: / 'No data found for VBELN:', p_vbeln.
-ENDIF.
- 
-FORM data_selection USING value(iv_vbeln) TYPE vbak-vbeln
-                          value(iv_dt_fr) TYPE vbak-erdat
-                          value(iv_dt_to) TYPE vbak-erdat.
- 
-  SELECT  vbak~vbeln
-          vbpa~kunnr
-          vbak~ernam
-          kna1~adrnr
-          adr6~smtp_addr
-          vbpa~parvw
-   INTO CORRESPONDING FIELDS OF TABLE gt_results
-   FROM vbak
-   INNER JOIN vbpa ON vbak~vbeln = vbpa~vbeln
-   INNER JOIN kna1 ON vbpa~kunnr = kna1~kunnr
-   INNER JOIN adr6 ON kna1~adrnr = adr6~addrnumber
-   WHERE vbak~vbeln = iv_vbeln
-   AND vbak~erdat BETWEEN iv_dt_fr AND iv_dt_to
-   AND vbak~vbtyp = 'B'
-   AND vbpa~parvw = 'AG'.
-ENDFORM.
- 
- 
-FORM send_email USING gtres TYPE tt_results.
- 
-*email content
-CALL FUNCTION 'READ_TEXT'
-   EXPORTING
-     id       = 'ST'
-     language = sy-langu
-     name     = 'ZRH_ANGEBOTSMAIL'
-     object   = 'TEXT'
-   TABLES
-     lines    = gt_lines
-   EXCEPTIONS
-     id       = 1
-     language = 2
-     name     = 3
-     not_found = 4
-     object   = 5
-     OTHERS   = 8.
- 
-    LOOP AT gt_lines INTO DATA(ls_lines).
-      gs_contents_txt-line = ls_lines-tdline.
-      APPEND gs_contents_txt TO gt_contents_txt.
-    ENDLOOP.
- 
-   LOOP AT gtres INTO gs_results.
-    CLEAR gs_receivers.
-    gs_receivers-receiver = gs_results-smtp_addr.
-    APPEND gs_receivers TO gt_receivers.
- 
-   gv_betreff = 'Offer Cancellation'.
- 
-   doc_chng-obj_name = 'Betreff'.
-   doc_chng-obj_descr = gv_betreff.
- 
-   " Fill the packing list for the email body
-    CLEAR gs_packing_list.
-    gs_packing_list-transf_bin = ' '.
-    gs_packing_list-head_start = 1.
-    gs_packing_list-head_num = 0.
-    gs_packing_list-body_start = 1.
-    gs_packing_list-body_num = LINES( gt_contents_txt ).
-    gs_packing_list-doc_type = 'RAW'.
-    APPEND gs_packing_list TO gt_packing_list.
- 
-   " send email
-   CALL FUNCTION 'SO_NEW_DOCUMENT_ATT_SEND_API1'
-     EXPORTING
-       document_data                = doc_chng
-       put_in_outbox                = 'X'
-       commit_work                  = 'X'
-     TABLES
-       packing_list                 = gt_packing_list
-       contents_txt                 = gt_contents_txt
-       receivers                    = gt_receivers
-     EXCEPTIONS
-       too_many_receivers           = 1
-       document_not_sent            = 2
-       document_type_not_exist      = 3
-       operation_no_authorization   = 4
-       parameter_error              = 5
-       x_error                      = 6
-       enqueue_error                = 7
-       OTHERS                       = 8.
-*   IF sy-subrc = 0.
-*     WRITE: / 'Email sent to:', gs_results-smtp_addr.
-*   ELSE.
-*     WRITE: / 'Failed to send to:', gs_results-smtp_addr.
-*   ENDIF.
-  ENDLOOP.
-ENDFORM.
- 
-*************************************UNIT TESTING********************************************
- 
-CLASS ltcl_test DEFINITION FOR TESTING DURATION SHORT RISK LEVEL HARMLESS.
- 
-PRIVATE SECTION.
- 
-CLASS-DATA: environment TYPE REF TO if_osql_test_environment.
- 
-CLASS-METHODS: class_setup,
-               class_teardown.
- 
-METHODS: setup,
-         teardown,
-         test_data_selection FOR TESTING,
-         test_email_sending  FOR TESTING.
- 
-DATA: lt_results_test TYPE STANDARD TABLE OF zex04email,
-      ls_results_test LIKE LINE OF lt_results_test,
-      lt_vbak TYPE STANDARD TABLE OF vbak,
-      lt_vbpa TYPE STANDARD TABLE OF vbpa,
-      lt_kna1 TYPE STANDARD TABLE OF kna1,
-      lt_adr6 TYPE STANDARD TABLE OF adr6.
- 
-ENDCLASS.
- 
-CLASS ltcl_test IMPLEMENTATION.
- 
-  METHOD class_setup.
-    environment = cl_osql_test_environment=&amp;gt;create( i_dependency_list = VALUE #(
-                    ( 'VBAK' ) ( 'VBPA' ) ( 'KNA1' ) ( 'ADR6' ) ( 'ZEX04EMAIL' ) ) ).
-  ENDMETHOD.
- 
-  METHOD setup.
-    "MOCK-DATA
- 
-    lt_vbak = VALUE #(
-                      ( vbeln = '20000020' erdat = '01.01.2020' vbtyp = 'B' ernam = 'USER' )
-                      ( vbeln = '20000022' erdat = '01.01.2022' vbtyp = 'B' ernam = 'USER' )
-                     ).
- 
-    lt_vbpa = VALUE #( ( vbeln = '20000020' kunnr = '1010001' parvw = 'AG' ) ).
-    lt_kna1 = VALUE #( ( kunnr = '1010001' adrnr = '23577' ) ).
-    lt_adr6 = VALUE #( ( addrnumber = '23577' smtp_addr =  'test@example.com' ) ).
- 
-    lt_results_test = VALUE #( ( vbeln = '20000020' erdat = '01.01.2020' kunnr = '1010001'
-                                 ernam = 'USER' adrnr = '23577' smtp_addr = 'test@example.com'
-                                 parvw = 'AG' ) ).
- 
-    environment-&amp;gt;insert_test_data( lt_vbak ).
-    environment-&amp;gt;insert_test_data( lt_vbpa ).
-    environment-&amp;gt;insert_test_data( lt_kna1 ).
-    environment-&amp;gt;insert_test_data( lt_adr6 ).
-    environment-&amp;gt;insert_test_data( lt_results_test ).
- 
-  ENDMETHOD.
- 
-  METHOD test_data_selection.
- 
-     p_vbeln = '20000020'.
-     p_dt_fr = '01.01.2020'.
-     p_dt_to = '01.01.2022'.
- 
-    PERFORM data_selection USING p_vbeln p_dt_fr p_dt_to.
- 
-    LOOP AT gt_results INTO gs_results.
-      cl_abap_unit_assert=&amp;gt;assert_equals(
-           act = gs_results-vbeln
-           exp = '20000020'
-           msg = 'VBELN mismatch'
-      ).
-      cl_abap_unit_assert=&amp;gt;assert_equals(
-          act = gs_results-kunnr
-          exp = '1010001'
-          msg = 'KUNNR mismatch'
-      ).
-      cl_abap_unit_assert=&amp;gt;assert_equals(
-         act = gs_results-smtp_addr
-         exp = 'test@example.com'
-         msg = 'Email mismatch'
-      ).
-    ENDLOOP.
-  ENDMETHOD.
- 
-METHOD test_email_sending.
-   PERFORM send_email USING gt_results.
-   " Ergebnis überprüfen
-   cl_abap_unit_assert=&amp;gt;assert_equals( act = sy-subrc exp = 0 msg = 'email not sent' ).
-ENDMETHOD.
- 
-METHOD teardown.
-  CLEAR gt_results.
-  environment-&amp;gt;clear_doubles( ).
-ENDMETHOD.
- 
-METHOD class_teardown.
-   environment-&amp;gt;destroy( ).
-ENDMETHOD.
- 
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/send-email-to-partners-based-on-selection-parameters/qaq-p/13759651"/>
-    <published>2024-07-12T22:36:01.949000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/activation-of-creditmanagementaccountbyidqu1-web-service/qaq-p/13759703</id>
-    <title>Activation of CREDITMANAGEMENTACCOUNTBYIDQU1 web service</title>
-    <updated>2024-07-13T02:46:08.528000+02:00</updated>
-    <author>
-      <name>Red2</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1411758</uri>
-    </author>
-    <content>&lt;P&gt;Hello,&lt;/P&gt;&lt;P&gt;I have the standard web service CREDITMANAGEMENTACCOUNTBYIDQU1 which&amp;nbsp;doesn't work on the production environment, I would like to activate it, can you please tell me how?&lt;/P&gt;&lt;P&gt;THANKS&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/activation-of-creditmanagementaccountbyidqu1-web-service/qaq-p/13759703"/>
-    <published>2024-07-13T02:46:08.528000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/sapscript-variable-name-not-present-in-program/qaq-p/13759705</id>
-    <title>SAPScript Variable Name Not Present in Program</title>
-    <updated>2024-07-13T04:54:26.310000+02:00</updated>
-    <author>
-      <name>Naveenkumarboopathirajan08</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/875142</uri>
-    </author>
-    <content>&lt;P&gt;Hi experts,&lt;/P&gt;&lt;P&gt;I am experiencing an issue with SAP scripts. I need to identify the variable in the driver program that corresponds to a field being updated in the script. While I can see the variable name in the script, it is not present in the program.&lt;/P&gt;&lt;P&gt;I can also see the variable in the spool under the text element, but it is not available in debug mode under that particular text element.&lt;/P&gt;&lt;P&gt;I need to change the value of the variable in the document.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Can someone please assist.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Thanks in advance.&lt;/SPAN&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/sapscript-variable-name-not-present-in-program/qaq-p/13759705"/>
-    <published>2024-07-13T04:54:26.310000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/how-to-hide-sub-screen-elements-select-options-in-module-pool-based-on-the/qaq-p/13759791</id>
     <title>How to Hide sub screen elements (select-options) in module pool based on the value in a list box</title>
@@ -524,5 +257,41 @@ define table zaccounts {
     <content>&lt;P&gt;MODULE USER_COMMAND_0110 INPUT. DATA : FCT_CREATE TYPE SY-UCOMM. IF SY-UCOMM = FCT_CREATE. CALL TRANSACTION 'T-CODE'. ENDIF. ENDMODULE.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Not going to that T-CODE please Guide me.&lt;BR /&gt;Thank You.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/assign-tcode-to-the-push-button/qaq-p/13766195"/>
     <published>2024-07-19T14:23:32.138000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/how-to-see-which-function-module-is-responsible-for-filling-the-outbound/qaq-p/13766443</id>
+    <title>How to see which function module is responsible for filling the outbound idoc during BCM?</title>
+    <updated>2024-07-19T19:26:29.661000+02:00</updated>
+    <author>
+      <name>sharonphilip</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/879865</uri>
+    </author>
+    <content>&lt;P&gt;Hello...&lt;BR /&gt;There is an issue with the outbound idoc that is created from the BCM process(Bank communication management)...&lt;BR /&gt;The segments are being filled with some incorrect values after the BCM approval and I want to debug and see how these segments are being filled.&lt;/P&gt;&lt;P&gt;I have checked the FM associated with the message type in WE20, WE57, and I haven't had any luck...&lt;BR /&gt;The issue is that the below highlighted segment is being filled with the wrong qualifier and I just want to know how these segments are filled:&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="sharonphilip_0-1721409481285.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/139248i96CB5B10A3EB5A32/image-size/medium?v=v2&amp;amp;px=400" role="button" title="sharonphilip_0-1721409481285.png" alt="sharonphilip_0-1721409481285.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;This is the tech info wrt to this idoc:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="sharonphilip_2-1721409935197.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/139250i889601942CFEFA76/image-size/medium?v=v2&amp;amp;px=400" role="button" title="sharonphilip_2-1721409935197.png" alt="sharonphilip_2-1721409935197.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;I did find this FM online 'ISU_COMEV_REMADV_OUT' and maybe this has something to do with it but I just can't figure out how to debug this outbound idoc. So, can someone pls tell me how I can debug this idoc that is created through BCM?&lt;/P&gt;&lt;P&gt;Thanks in advance &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&amp;nbsp;&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/how-to-see-which-function-module-is-responsible-for-filling-the-outbound/qaq-p/13766443"/>
+    <published>2024-07-19T19:26:29.661000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/insert-data-using-table-control-abap/qaq-p/13766448</id>
+    <title>Insert data using table control ( ABAP )</title>
+    <updated>2024-07-19T19:39:43.395000+02:00</updated>
+    <author>
+      <name>JohnHeinder</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1490831</uri>
+    </author>
+    <content>&lt;P&gt;Guys I desperately need your help.&amp;nbsp; I have a table control ( Using wizard) to input data to a custom table and some functions similar to vba1.&amp;nbsp;&lt;/P&gt;&lt;P&gt;The thing is I execute the module pool enter data but It wont work&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="JohnHeinder_0-1721410125519.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/139252iFE186B860EEE5E05/image-size/medium?v=v2&amp;amp;px=400" role="button" title="JohnHeinder_0-1721410125519.png" alt="JohnHeinder_0-1721410125519.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;I have to click on the insert row button&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="JohnHeinder_1-1721410435148.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/139253i1E8BD0297D2071C8/image-size/medium?v=v2&amp;amp;px=400" role="button" title="JohnHeinder_1-1721410435148.png" alt="JohnHeinder_1-1721410435148.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;But I want to be able to enter data directly. I want it to be like similar to table control in vba1. it is for scrap sale. I am new to abap. so help guys.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Development/pd-p/833755570260738661924709785639136" class="lia-product-mention" data-product="314-1"&gt;ABAP Development&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Community/pd-p/486157991894093153608181816584982" class="lia-product-mention" data-product="1161-1"&gt;SAP Community&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/insert-data-using-table-control-abap/qaq-p/13766448"/>
+    <published>2024-07-19T19:39:43.395000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/sap-sd-vofm-pricing-requirement-routine-not-working-correctly/qaq-p/13766479</id>
+    <title>SAP SD VOFM Pricing Requirement routine not working correctly</title>
+    <updated>2024-07-19T21:30:11.413000+02:00</updated>
+    <author>
+      <name>k_sood</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/630456</uri>
+    </author>
+    <content>&lt;P&gt;Hi All,&amp;nbsp;&lt;/P&gt;&lt;P&gt;I have a reqiurement to set one Price Calculation Condition at the Position level active on the basis of currency.&amp;nbsp;i.e. If the Currency in the sales order header is same as the Condition type currency only then this condition type should be displayed in pricing else not.&lt;/P&gt;&lt;P&gt;I have created a new Pricing Requirement routine, the logic in this routine is working fine but still the condition is being displayed always.&amp;nbsp;&lt;/P&gt;&lt;P&gt;In the Pricing Analysis, I can see that the Condition type is first set as not considered and then again its being found.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="k_sood_0-1721416689157.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/139260iE7926180EFC14DD6/image-size/medium?v=v2&amp;amp;px=400" role="button" title="k_sood_0-1721416689157.png" alt="k_sood_0-1721416689157.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Any help why is it behaving like this or How to achive this Requirement&lt;/P&gt;&lt;P&gt;BR,&amp;nbsp;&lt;/P&gt;&lt;P&gt;Ketan&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/sap-sd-vofm-pricing-requirement-routine-not-working-correctly/qaq-p/13766479"/>
+    <published>2024-07-19T21:30:11.413000+02:00</published>
   </entry>
 </feed>
