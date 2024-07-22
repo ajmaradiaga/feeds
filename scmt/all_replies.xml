@@ -2,255 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2024-07-22T12:59:01.796856+00:00</updated>
+  <updated>2024-07-22T13:14:03.696278+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/how-to-call-a-function-of-one-cap-java-application-from-a-different-cap/qaq-p/13767586</id>
-    <title>How to call a function of one CAP Java application from a different CAP Java application locally?</title>
-    <updated>2024-07-22T11:50:15.547000+02:00</updated>
-    <author>
-      <name>abhinavsingh04</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/906761</uri>
-    </author>
-    <content>&lt;P&gt;I have created a two SAP CAP Java App. Now i want to call a function&amp;nbsp;of 2nd CAP Java application from&amp;nbsp; the 1st CAP Java application locally to check whether the Correlation IDs are same or not.&lt;BR /&gt;Currently I am using RestTemplate to call the function but i have to manually pass the Correlation Id in the header otherwise the Correlation Ids are not same.&lt;BR /&gt;&lt;BR /&gt;1st App (running on port 8080):&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;package customer.bookstore.handlers;
-
-import java.util.Collections;
-import java.util.UUID;
-
-import org.apache.commons.codec.binary.Base64;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
-
-import com.sap.cds.Result;
-import com.sap.cds.ql.Select;
-import com.sap.cds.ql.cqn.CqnSelect;
-import com.sap.cds.services.handler.EventHandler;
-import com.sap.cds.services.handler.annotations.On;
-import com.sap.cds.services.handler.annotations.ServiceName;
-import com.sap.cds.services.persistence.PersistenceService;
-import com.sap.hcp.cf.logging.common.LogContext;
-
-import cds.gen.booksservice.Authors;
-import cds.gen.booksservice.Authors_;
-import cds.gen.booksservice.GetAuthorContext;
-
-@Component
-@ServiceName("BooksService")
-public class BooksService implements EventHandler {
-
-    private Logger LOG = LoggerFactory.getLogger(BooksService.class);
-    private static final String CORRELATION_ID_HEADER_NAME = "X-CorrelationID";
-    
-    @Autowired
-    PersistenceService db;
-
-    @Autowired
-    OrdersService ordersService;
-
-    @Autowired
-    RestTemplate restTemplate;
-
-    (event = GetAuthorContext.CDS_NAME)
-    private void getAuthor(GetAuthorContext context) {
-        LOG.info("***Inside getAuthor()***");
-
-        String correlationId = LogContext.getCorrelationId();
-        LOG.info("***Correlation ID***: {}", correlationId);
-        if (correlationId == null) {
-            correlationId = UUID.randomUUID().toString();
-        }
-        LOG.info("Using Correlation ID: {}", correlationId);
-
-        CqnSelect selectDynamic = Select.from(Authors_.class).columns("firstname")
-                .byId("286ae4b1-b845-4af8-9827-4eb04fe5f380");
-
-        Result getAuthorResult = db.run(selectDynamic);
-        LOG.info("***getBookResult***: {}", getAuthorResult);
-
-        Authors author = getAuthorResult.single(Authors.class);
-        LOG.info("***book-info***: {}", author);
-        LOG.error("***book-error***: {}", author);
-        LOG.debug("***book-debug***: {}", author);
-
-        String plainCreds = "authenticated:";
-        byte[] plainCredsBytes = plainCreds.getBytes();
-        byte[] base64CredsBytes = Base64.encodeBase64(plainCredsBytes);
-        String base64Creds = new String(base64CredsBytes);
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.add("Authorization", "Basic " + base64Creds);
-        headers.add(CORRELATION_ID_HEADER_NAME, correlationId);
-        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-
-        // // Call the external CAP Java app using RestTemplate
-        String url = "http://localhost:8081/odata/v4/BookService/getBook()";
-        HttpEntity&amp;lt;String&amp;gt; request = new HttpEntity&amp;lt;&amp;gt;(headers);
-
-        try {   
-            ResponseEntity&amp;lt;String&amp;gt; response = restTemplate.exchange(url, HttpMethod.GET, request, String.class);
-            if (response.getStatusCode().is2xxSuccessful()) {
-                LOG.info("***External API Response - author***: {}", response.getBody());
-            } else {
-                LOG.error("***Failed to call external API*** Status: {}", response.getStatusCode());
-            }
-        } catch (Exception e) {
-            LOG.error("***Error calling external API***: {}", e);
-        }
-
-        context.setResult(author);
-    }
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;2nd App (running on port 8081):&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;package customer.books.handlers;
-
-import java.util.UUID;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
-import com.sap.cds.Result;
-import com.sap.cds.ql.Select;
-import com.sap.cds.ql.cqn.CqnSelect;
-import com.sap.cds.services.handler.EventHandler;
-import com.sap.cds.services.handler.annotations.On;
-import com.sap.cds.services.handler.annotations.ServiceName;
-import com.sap.cds.services.persistence.PersistenceService;
-import com.sap.cds.services.request.ParameterInfo;
-import com.sap.hcp.cf.logging.common.LogContext;
-
-import cds.gen.bookservice.Books;
-import cds.gen.bookservice.Books_;
-import cds.gen.bookservice.GetBookContext;
-
-@Component
-@ServiceName("BookService")
-public class BookServiceHandler implements EventHandler {
-    
-    private Logger LOG = LoggerFactory.getLogger(BookServiceHandler.class);
-
-    @Autowired
-    PersistenceService db;
-
-    @Autowired
-    ParameterInfo parameterInfo;
-
-    (event = GetBookContext.CDS_NAME)
-    private void getBook(GetBookContext context){
-        ParameterInfo parameterInfo = context.getParameterInfo();
-        LOG.info("***REST - Inside getBook()*** : {}", parameterInfo.getHeaders());
-        
-        CqnSelect selectDynamic = Select.from(Books_.class).columns("name").byId(1);
-        
-        Result getBookResult = db.run(selectDynamic);
-        LOG.info("***REST - getBookResult***: {}", getBookResult);
-
-        Books book = getBookResult.single(Books.class);
-        LOG.info("***REST - book-info***: {}", book);
-        LOG.error("***REST - book-error***: {}", book);
-        LOG.debug("***REST - book-debug***: {}", book);
-
-        context.setResult(book);
-    }
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp; I don't want to use Rest Template&lt;/STRONG&gt; instead i want to use the &lt;STRONG&gt;SAP CAP suggested Remote Services&lt;BR /&gt;&lt;/STRONG&gt;to basically test whether the Correlation Ids are same or not.&lt;BR /&gt;Reference:&amp;nbsp;&lt;A href="https://cap.cloud.sap/docs/java/operating-applications/observability#correlation-ids" target="_self" rel="nofollow noopener noreferrer"&gt;https://cap.cloud.sap/docs/java/operating-applications/observability#correlation-ids&lt;/A&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;Please guide me to achieve it?&amp;nbsp;&lt;BR /&gt;It would be of great help.&lt;BR /&gt;&lt;BR /&gt;Thanks,&lt;BR /&gt;Abhinav.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/how-to-call-a-function-of-one-cap-java-application-from-a-different-cap/qaq-p/13767586"/>
-    <published>2024-07-22T11:50:15.547000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-approval-procedure-using-query-for-2-conditions-udf-a/qaq-p/13767587/comment-id/4191467#M4191467</id>
-    <title>Re: Approval procedure using Query for 2 conditions UDF a...</title>
-    <updated>2024-07-22T11:53:46.411000+02:00</updated>
-    <author>
-      <name>SonTran</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/9604</uri>
-    </author>
-    <content>Please turn-off your notification and try again.</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-approval-procedure-using-query-for-2-conditions-udf-a/qaq-p/13767587/comment-id/4191467#M4191467"/>
-    <published>2024-07-22T11:53:46.411000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/automate-with-an-api-integration/qaq-p/13767588</id>
-    <title>Automate with an API Integration.</title>
-    <updated>2024-07-22T11:54:20.444000+02:00</updated>
-    <author>
-      <name>SAPSupport</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/121003</uri>
-    </author>
-    <content>&lt;P&gt;Hi Team,&lt;/P&gt;&lt;P&gt;How to check the PD API capabilities which can be accomplished, as example extracting the DDL from the Physical Model and used. Automate with an API Integration.&lt;/P&gt;&lt;P&gt;What's steps using which this automation can be accomplished.&lt;BR /&gt;.&lt;BR /&gt;Regards&lt;/P&gt;&lt;BR /&gt;------------------------------------------------------------------------------------------------------------------------------------------------&lt;BR /&gt;&lt;B&gt;Learn more about the SAP Support user and program &lt;A target="_blank" href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/maximizing-the-power-of-sap-community-at-product-support/ba-p/13501276"&gt;here&lt;/A&gt;.&lt;/B&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/automate-with-an-api-integration/qaq-p/13767588"/>
-    <published>2024-07-22T11:54:20.444000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/re-automate-with-an-api-integration/qaq-p/13767589/comment-id/4837803#M4837803</id>
-    <title>Re: Automate with an API Integration.</title>
-    <updated>2024-07-22T11:54:27.129000+02:00</updated>
-    <author>
-      <name>SAPSupport</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/121003</uri>
-    </author>
-    <content>&lt;P&gt;Please refer to the following documents for the information you need.&lt;BR /&gt;How-to request, see Customizing and Extending PowerDesigner &amp;gt; Scripting PowerDesigner&amp;nbsp;&lt;BR /&gt;&lt;A href="https://help.sap.com/docs/SAP_POWERDESIGNER/31c48596e34446a68956e0aa7e700a2e/c7d647336e1b1014b0a0bce93c2ce2a8.html?&amp;amp;version=16.7.01" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/SAP_POWERDESIGNER/31c48596e34446a68956e0aa7e700a2e/c7d647336e1b1014b0a0bce93c2ce2a8.html?&amp;amp;version=16.7.01&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;KBA 3357952 - Where to find PowerDesigner API info&lt;BR /&gt;&lt;A href="https://me.sap.com/notes/0003357952" target="_blank" rel="noopener noreferrer"&gt;https://me.sap.com/notes/0003357952&lt;/A&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/re-automate-with-an-api-integration/qaq-p/13767589/comment-id/4837803#M4837803"/>
-    <published>2024-07-22T11:54:27.129000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/re-edocument-romania-supplier-invoice-soap-1033-oper/qaq-p/13767592/comment-id/4837804#M4837804</id>
-    <title>Re: eDocument Romania - Supplier Invoice - SOAP:1033 Oper...</title>
-    <updated>2024-07-22T11:57:20.655000+02:00</updated>
-    <author>
-      <name>giulia-felappi</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/129994</uri>
-    </author>
-    <content>&lt;P&gt;Hi&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/731197"&gt;@melinamon&lt;/a&gt;&amp;nbsp;,&amp;nbsp;check the solution below.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Regards&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/re-edocument-romania-supplier-invoice-soap-1033-oper/qaq-p/13767592/comment-id/4837804#M4837804"/>
-    <published>2024-07-22T11:57:20.655000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-formula-for-value-on-a-component-in-a-bom-or-sugge/qaq-p/13767594/comment-id/4191468#M4191468</id>
-    <title>Re: Formula for value on a component in a BOM... or sugge...</title>
-    <updated>2024-07-22T11:59:55.928000+02:00</updated>
-    <author>
-      <name>arjuna_bandara</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/808158</uri>
-    </author>
-    <content>&lt;P&gt;Hi,&lt;/P&gt;&lt;P&gt;This could be achieved via SAP variant configuration functionality.&lt;/P&gt;&lt;P&gt;Please refer the below for details on the concept. You can also research more on SAP variant configuration functionality in the community.&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/a73402f511734e6eac56063e631bf24e/c162b6531de6b64ce10000000a174cb4.html" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/a73402f511734e6eac56063e631bf24e/c162b6531de6b64ce10000000a174cb4.html&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Also refer below for using dependency formula with rounding up, similar to your case.&lt;/P&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/crm-and-cx-questions/round-up-of-value-output-coming-through-dependency-formula-in-variant/qaq-p/12362962" target="_blank"&gt;https://community.sap.com/t5/crm-and-cx-questions/round-up-of-value-output-coming-through-dependency-formula-in-variant/qaq-p/12362962&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Hope this will assist you.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-formula-for-value-on-a-component-in-a-bom-or-sugge/qaq-p/13767594/comment-id/4191468#M4191468"/>
-    <published>2024-07-22T11:59:55.928000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/re-edocument-romania-supplier-invoice-soap-1033-oper/qaq-p/13767596/comment-id/4837805#M4837805</id>
-    <title>Re: eDocument Romania - Supplier Invoice - SOAP:1033 Oper...</title>
-    <updated>2024-07-22T12:01:35.630000+02:00</updated>
-    <author>
-      <name>giulia-felappi</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/129994</uri>
-    </author>
-    <content>Hi &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/842088"&gt;@afakhrul&lt;/a&gt;, maybe you are missing some of the required customizing. I suggest you to refer to the overview note 3262931 and the official Help Guide here: &lt;A href="https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/bb30b322546c446ab74a1ba659cecdf2/e21fd8c6bdc640a2baf2ceea6fb88cfb.html" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/bb30b322546c446ab74a1ba659cecdf2/e21fd8c6bdc640a2baf2ceea6fb88cfb.html&lt;/A&gt; Regards</content>
-    <link href="https://community.sap.com/t5/technology-q-a/re-edocument-romania-supplier-invoice-soap-1033-oper/qaq-p/13767596/comment-id/4837805#M4837805"/>
-    <published>2024-07-22T12:01:35.630000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/human-capital-management-blogs-by-members/triggering-a-cpi-process-from-successfactors-intelligent-services/bc-p/13767597#M5936</id>
-    <title>Re: Triggering a CPI process from SuccessFactors Intelligent Services</title>
-    <updated>2024-07-22T12:02:07.144000+02:00</updated>
-    <author>
-      <name>stianbl</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/72212</uri>
-    </author>
-    <content>&lt;P&gt;Edit: Might have found the correct documentation for the SOAP adapter. Working on a test now to verify.&lt;BR /&gt;&lt;BR /&gt;Hi! Thanks for this great blog post.&lt;BR /&gt;I'm trying to replicate this process, to be able to trigger CPI from ISC, but I face some issues.&lt;BR /&gt;&lt;BR /&gt;How do you set up the SOAP sender to listen for the ISC? I guess it should be obvious, but I cant figure it out. In the iFlow, I have the SOAP 1.x connection. It asks for an address (relative endpoint), service, endpoint and more. And I cant find it documented well enough to be able to set it up correctly.&lt;/P&gt;&lt;P&gt;Thanks for any further information on how to actually set up my first connection between ISC and CPI!&lt;BR /&gt;&lt;BR /&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/40735"&gt;@NabarunKundu&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/human-capital-management-blogs-by-members/triggering-a-cpi-process-from-successfactors-intelligent-services/bc-p/13767597#M5936"/>
-    <published>2024-07-22T12:02:07.144000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-new-pa-is-not-visible-v-001p-n/qaq-p/13767598/comment-id/4191469#M4191469</id>
     <title>Re: New PA is not visible V_001P_N</title>
@@ -1571,7 +1326,7 @@ const parent = context.getParent();&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&
       <name>RaminS</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/14716</uri>
     </author>
-    <content>Hi Jocelyn, Thanks for your reply. We are doing key-user adaptations and have removed unwanted buttons and fields. However the "Action Links" in the popup cannot be controlled by key-user adaptations.&amp;nbsp; What we found out is that the Action Links are determined by the target-mappings that are available in the user's BC. Since we copied SAP's Internal Sales BC to our Z BC, it copied over all kinds of target mappings for display, create and change of Sales Orders. Once we removed the create and change target mappings from our Z BC, the action links disappeared. &amp;nbsp;&amp;nbsp;</content>
+    <content>&lt;P&gt;What we found out is that the "Action Links" (ie. app-to-app navigations) are determined by the target-mappings that are available in the user's BC. Since we copied SAP's Internal Sales BC to our Z BC, it copied over all kinds of target mappings for display, create and change of Sales Orders. Even though we had removed the Create and Change tiles, the create/change target mappings still remained in the BC. It's sometimes not clear which target mappings are related to which tiles, some functions have multiple target mappings like "create", "createSingle", "createFromQuote", etc.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Once we removed all the related create and change target mappings from our Z BC, the action links disappeared in the popup.&amp;nbsp; &amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/re-how-to-you-remove-action-links-in-adapt-ui/qaq-p/13767847/comment-id/4837837#M4837837"/>
     <published>2024-07-22T14:58:35.349000+02:00</published>
   </entry>
@@ -1598,5 +1353,101 @@ const parent = context.getParent();&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&
     <content>&lt;P&gt;If you have control over the table content before you display it, at initialization you could pre-fill it with empty lines. At the time of saving, you just save those lines where the user input data, and discard the empty ones.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/re-insert-data-using-table-control-abap/qaq-p/13767849/comment-id/4837838#M4837838"/>
     <published>2024-07-22T14:58:56.015000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/questions-about-sap-websites/re-sap-community-not-accessible/qaq-p/13767850/comment-id/55889#M55889</id>
+    <title>Re: SAP Community not accessible</title>
+    <updated>2024-07-22T14:59:19.394000+02:00</updated>
+    <author>
+      <name>craigcmehil</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/10</uri>
+    </author>
+    <content>&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/121804"&gt;@MarkW&lt;/a&gt; those domains no longer exist so I can only assume there is some caching issues with the permanent redirects that were put into place. We will check on it.,</content>
+    <link href="https://community.sap.com/t5/questions-about-sap-websites/re-sap-community-not-accessible/qaq-p/13767850/comment-id/55889#M55889"/>
+    <published>2024-07-22T14:59:19.394000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sap-learning-blog-posts/where-can-i-find-learning-materials-on-sap-convergent-invoicing/ba-p/13767851</id>
+    <title>Where can I find learning materials on SAP Convergent Invoicing?</title>
+    <updated>2024-07-22T14:59:24.234000+02:00</updated>
+    <author>
+      <name>Margit_Wagner</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/491</uri>
+    </author>
+    <content>&lt;P&gt;I recommend to access our&amp;nbsp;&lt;A title="Implementing SAP Convergent Invoicing" href="https://learning.sap.com/learning-journeys/implementing-sap-convergent-invoicing" target="_blank" rel="noopener noreferrer"&gt;Implementing SAP Convergent Invoicing&lt;/A&gt;&amp;nbsp;learning journey&lt;/P&gt;&lt;DIV class=""&gt;&lt;P&gt;&lt;STRONG&gt;Overview&lt;BR /&gt;&lt;/STRONG&gt;&lt;SPAN&gt;You will learn about the relevant master data objects, billable item management, billing/invoicing process and invoicing functions. Other topics, such as integration, will also be covered.&lt;/SPAN&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;P&gt;&lt;STRONG&gt;Learning objectives&lt;BR /&gt;&lt;/STRONG&gt;After completing this learning journey, you will be able to describe the processes in SAP Convergent Invoicing in context of SAP Billing and Revenue Innovation Management (BRIM), especially in an integrated scenario with Contract Accounts Receivable and Payable and Convergent Charging.&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;Please ask a question related&amp;nbsp;to the digital learning Journey in the&amp;nbsp;&lt;/STRONG&gt;&lt;A href="https://groups.community.sap.com/t5/sap-learning-q-a/qa-p/learningqanda-board" target="_blank" rel="noopener noreferrer"&gt;&lt;STRONG&gt;Q&amp;amp;A area&lt;/STRONG&gt;&lt;/A&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;P&gt;Our SAP Learning Experts will get back to you as soon as possible!&amp;nbsp;We are here to support you.&lt;/P&gt;&lt;P&gt;I appreciate your feedback and we will make sure to continue sharing interesting topics.&lt;BR /&gt;&lt;BR /&gt;Kind regards&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;</content>
+    <link href="https://community.sap.com/t5/sap-learning-blog-posts/where-can-i-find-learning-materials-on-sap-convergent-invoicing/ba-p/13767851"/>
+    <published>2024-07-22T14:59:24.234000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/s-4hana-cloud-flexible-workflow-for-purchase-order-approval/bc-p/13767852#M57095</id>
+    <title>Re: S/4HANA Cloud - Flexible Workflow for Purchase Order Approval</title>
+    <updated>2024-07-22T15:00:34.550000+02:00</updated>
+    <author>
+      <name>sumitkakkar12</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/769019</uri>
+    </author>
+    <content>&lt;P&gt;Hello&lt;/P&gt;&lt;P&gt;Currently I have configured the Workflow for purchase order in the DEV system ,now I need to do the same in the test system however it is a bit tedious to create again the workflows in TEST &amp;amp; PRD system.&lt;/P&gt;&lt;P&gt;Is there a way where we can transport the workflows &amp;amp; then manually edit them directly TEST system ?&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/s-4hana-cloud-flexible-workflow-for-purchase-order-approval/bc-p/13767852#M57095"/>
+    <published>2024-07-22T15:00:34.550000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/re-radiobutton-event-onselect-does-not-work-in-sap-gui-for-windows/qaq-p/13767855/comment-id/4837839#M4837839</id>
+    <title>Re: Radiobutton Event OnSelect does not work in SAP GUI for Windows</title>
+    <updated>2024-07-22T15:04:48.589000+02:00</updated>
+    <author>
+      <name>vananko</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1464861</uri>
+    </author>
+    <content>&lt;P&gt;The easiest way to identify newly selected radio button is to use "source" event parameter inside of onSelect event attached script.&lt;/P&gt;&lt;P&gt;Create one script and attach it to onSelect event of all radios.&lt;BR /&gt;Then use &lt;FONT face="courier new,courier"&gt;source.id&lt;/FONT&gt; &amp;nbsp;to identify what was selected and do some logic based on this id.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/re-radiobutton-event-onselect-does-not-work-in-sap-gui-for-windows/qaq-p/13767855/comment-id/4837839#M4837839"/>
+    <published>2024-07-22T15:04:48.589000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/application-development-discussions/how-to-upload-tan-exemption-data-in-bp/m-p/13767856#M2029259</id>
+    <title>Re: How to upload TAN exemption data in BP</title>
+    <updated>2024-07-22T15:04:56.333000+02:00</updated>
+    <author>
+      <name>Soumabha_ARO</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1488300</uri>
+    </author>
+    <content>&lt;P&gt;It is uploading successfully but when we go for the change in any data for that vendor bp it gives error. As this function module directly updating the master table the problem occurs due to memory objects. Is there any other way to do this?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/application-development-discussions/how-to-upload-tan-exemption-data-in-bp/m-p/13767856#M2029259"/>
+    <published>2024-07-22T15:04:56.333000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-amc-and-pm-order/qaq-p/13767857/comment-id/4191485#M4191485</id>
+    <title>Re: AMC and PM order</title>
+    <updated>2024-07-22T15:05:16.578000+02:00</updated>
+    <author>
+      <name>alizamani</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/74</uri>
+    </author>
+    <content>&lt;P&gt;HI .&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Do you mean this?&lt;BR /&gt;ABAP messaging channels (AMC)?&lt;BR /&gt;&lt;A href="https://help.sap.com/doc/abapdocu_752_index_htm/7.52/en-us/abenamc.htm" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/doc/abapdocu_752_index_htm/7.52/en-us/abenamc.htm&lt;/A&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-amc-and-pm-order/qaq-p/13767857/comment-id/4191485#M4191485"/>
+    <published>2024-07-22T15:05:16.578000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/welcome-corner-discussions/pm-como-a%C3%B1adir-objetivos-de-un-plan-anterior/td-p/13767859</id>
+    <title>PM - Como añadir objetivos de un plan anterior?</title>
+    <updated>2024-07-22T15:13:11.257000+02:00</updated>
+    <author>
+      <name>MarinaDB</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/66212</uri>
+    </author>
+    <content>&lt;P&gt;Hola,&amp;nbsp;buen dia!!..Necesito ayuda para configurar la opción de Añadir Objetivos de un plan anterior de desempeño.&lt;/P&gt;&lt;P&gt;Muchas Gracias,&lt;/P&gt;&lt;P&gt;Marina.-&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/welcome-corner-discussions/pm-como-a%C3%B1adir-objetivos-de-un-plan-anterior/td-p/13767859"/>
+    <published>2024-07-22T15:13:11.257000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/blogs-about-sap-websites/outage-communication-subscription-on-bundles-in-sap-for-me/bc-p/13767860#M288</id>
+    <title>Re: Outage Communication Subscription on Bundles in SAP for Me</title>
+    <updated>2024-07-22T15:13:58.551000+02:00</updated>
+    <author>
+      <name>Koji_Y</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/173684</uri>
+    </author>
+    <content>&lt;P&gt;Hi,&lt;BR /&gt;Thanks for the great blog.&lt;BR /&gt;I have a question about Outage Communication Subscription on Bundles. Which timing will the emails be sent out as a result of&amp;nbsp;&lt;SPAN&gt;unplanned&amp;nbsp;&lt;/SPAN&gt;system outage?&lt;BR /&gt;Are they automatically sent out immediately after a system outage, or are they sent out after a human check or something is made after a system outage?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/blogs-about-sap-websites/outage-communication-subscription-on-bundles-in-sap-for-me/bc-p/13767860#M288"/>
+    <published>2024-07-22T15:13:58.551000+02:00</published>
   </entry>
 </feed>
