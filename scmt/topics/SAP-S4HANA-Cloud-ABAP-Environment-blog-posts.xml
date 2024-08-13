@@ -2,215 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-S4HANA-Cloud-ABAP-Environment-blog-posts.xml</id>
   <title>SAP Community - SAP S/4HANA Cloud ABAP Environment</title>
-  <updated>2024-08-13T14:01:40.748831+00:00</updated>
+  <updated>2024-08-13T17:01:27.171494+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP S/4HANA Cloud ABAP Environment/pd-p/60907aa9-99e9-4d5d-9103-8b970e9bc0a4" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP S/4HANA Cloud ABAP Environment blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/sap-s-4hana-cloud-public-edition-abap-environment-case-8-material-shelf/ba-p/13675904</id>
-    <title>SAP S/4HANA Cloud, public edition, ABAP Environment Case 8: Material Shelf Life Management</title>
-    <updated>2024-04-19T13:16:11.809000+02:00</updated>
-    <author>
-      <name>Vincent_Zhu</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/131883</uri>
-    </author>
-    <content>&lt;P&gt;&lt;SPAN&gt;This is a detailed step-by-step technical guide document to introduce a Developer Extensibility case followed by this&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://blogs.sap.com/2023/04/06/sap-s-4hana-cloud-public-edition-abap-environment-case-introduction/" target="_blank" rel="noopener noreferrer"&gt;blog&lt;/A&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-992619627"&gt;&lt;STRONG&gt;1. Case Background:&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;We frequently hear inquiries from clients who have enabled batch management, asking whether there are reminders for nearing expiry materials and batch query reports for such materials. In standard products, retrieving relevant information often requires searching through multiple reports, such as inventory reports and batch details.&amp;nbsp;&lt;SPAN&gt;To meet this demand, we have developed a Material Shelf Life Management App on S/4HANA public cloud through developer extensibility (also known as cloud ABAP development), aiming to help enterprises intelligently manage material Shelf Life and enhance supply chain management efficiency. Regarding the business value of this use case, you can refer to this &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/boost-scm-efficiency-material-expiry-mgmt-app-empowers-intelligent-decision/ba-p/13657205" target="_self"&gt;blog&lt;/A&gt; for details.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf1.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98725iD322711C2641F69C/image-size/large?v=v2&amp;amp;px=999" role="button" title="shelf1.png" alt="shelf1.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Due to varying business management needs, each company may define different ranges for nearing expiry reminders. The Customizable Warning Threshold Configuration App allows users to set customized ranges for when to display red, yellow, or green warning lights, meeting the diverse customization needs of different enterprises for expiry management.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf2.png" style="width: 694px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98726iE32116620B580139/image-size/large?v=v2&amp;amp;px=999" role="button" title="shelf2.png" alt="shelf2.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-796106122"&gt;&lt;STRONG&gt;2. Backend Service Development:&lt;/STRONG&gt;&lt;/H2&gt;&lt;H3 id="toc-hId-728675336"&gt;&lt;STRONG&gt;2.1 Create CDS Data Model&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Create Data Definition: &lt;SPAN&gt;YCDS_DUE_MAT_LIST&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.sqlViewName: 'YDUEMATMANGE'
-@AbapCatalog.compiler.compareFilter: true
-//@AbapCatalog.preserveKey: true
-@AccessControl.authorizationCheck: #CHECK
-@EndUserText.label: 'Material Due Date List'
-define view YCDS_DUE_MAT_LIST as select from I_Batch
-inner join YCDS_SUM_STOCK_01 on YCDS_SUM_STOCK_01.Material = I_Batch.Material
-                                       and YCDS_SUM_STOCK_01.Plant = I_Batch.Plant
-                                       and YCDS_SUM_STOCK_01.Batch = I_Batch.Batch
-association [1..1] to I_Product on I_Product.Product = I_Batch.Material
-association [1..1] to I_ProductDescription on I_ProductDescription.Product = I_Batch.Material
-                                          and I_ProductDescription.Language = $session.system_language
-association [1..1] to I_Plant on I_Plant.Plant = I_Batch.Plant
-                              and I_Plant.Language = $session.system_language
-association [1..1] to I_Supplier on I_Supplier.Supplier = I_Batch.Supplier                           
-{
-  key I_Batch.Material,
-  key I_Batch.Batch,
-  key I_Batch.Plant,
-  key I_Batch.Supplier,
-  key I_Batch.BatchBySupplier,
-//  key YCDS_SUM_STOCK_01.InventoryStockType,
-//  key YCDS_SUM_STOCK_01.MatlDocLatestPostgDate,
-  YCDS_SUM_STOCK_01.StorageLocation,
-  YCDS_SUM_STOCK_01.MatlWrhsStkQtyInMatlBaseUnit,
-  I_Batch.MatlBatchIsInRstrcdUseStock,
-  I_Batch.ShelfLifeExpirationDate,
-  I_Batch.ManufactureDate,
-  I_Product.BaseUnit,
-  I_ProductDescription.ProductDescription,
-  I_Plant.PlantName,
-  I_Supplier.SupplierName,
-  case when I_Batch.MatlBatchIsInRstrcdUseStock = 'X' then 'Restricted' else 'Unrestricted' end as BatchStatus,
-  $session.system_date as curr_date
-}
-where I_Batch.ShelfLifeExpirationDate is not initial
-  and YCDS_SUM_STOCK_01.MatlWrhsStkQtyInMatlBaseUnit &amp;lt;&amp;gt; 0&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Create Data Definition:&amp;nbsp;&lt;SPAN&gt;YCDS_DUE_MAT_LIST2&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.sqlViewName: 'YDUEMATMANGE2'
-@AbapCatalog.compiler.compareFilter: true
-@AbapCatalog.preserveKey: true
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Material Due Date List'
-define view YCDS_DUE_MAT_LIST2 as select from YCDS_DUE_MAT_LIST
-association [1..1] to I_StorageLocation on I_StorageLocation.StorageLocation = YCDS_DUE_MAT_LIST.StorageLocation
-                                       and I_StorageLocation.Plant           = YCDS_DUE_MAT_LIST.Plant
-{
-  key YCDS_DUE_MAT_LIST.Material,
-  key YCDS_DUE_MAT_LIST.Plant,
-  key YCDS_DUE_MAT_LIST.StorageLocation,
-  key YCDS_DUE_MAT_LIST.Batch,
-  key YCDS_DUE_MAT_LIST.Supplier,
-//  key YCDS_DUE_MAT_LIST.InventoryStockType,
-//  key YCDS_DUE_MAT_LIST.MatlDocLatestPostgDate,
-  YCDS_DUE_MAT_LIST.ProductDescription,
-  YCDS_DUE_MAT_LIST.PlantName,
-  I_StorageLocation.StorageLocationName,
-  YCDS_DUE_MAT_LIST.BatchBySupplier,
-  YCDS_DUE_MAT_LIST.SupplierName,
-  MatlWrhsStkQtyInMatlBaseUnit,
-  YCDS_DUE_MAT_LIST.BaseUnit,
-  YCDS_DUE_MAT_LIST.ShelfLifeExpirationDate,
-  YCDS_DUE_MAT_LIST.ManufactureDate,
-  YCDS_DUE_MAT_LIST.BatchStatus,
-  dats_days_between(YCDS_DUE_MAT_LIST.curr_date,YCDS_DUE_MAT_LIST.ShelfLifeExpirationDate) as remaining_days
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Create Data Definition:&amp;nbsp;&lt;SPAN&gt;YCDS_SUM_STOCK_01&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Sum of Stock 01'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-  serviceQuality: #X,
-  sizeCategory: #S,
-  dataClass: #MIXED
-}
-define view entity YCDS_SUM_STOCK_01 as select from I_MaterialStock_2
-{
-  key Material,
-  key Plant,
-  key StorageLocation,
-  key Batch,
-  key MaterialBaseUnit,
-  @Semantics.quantity.unitOfMeasure: 'MaterialBaseUnit'
-  @Aggregation.default: #SUM
-  sum( MatlWrhsStkQtyInMatlBaseUnit ) as MatlWrhsStkQtyInMatlBaseUnit
-}
-where InventoryStockType = '01'
-group by Material, Plant, StorageLocation, Batch, MaterialBaseUnit&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-403079112"&gt;2.2 Create Metadata Extensions&lt;/H2&gt;&lt;P&gt;Create new Metadata Extension:&amp;nbsp;&lt;SPAN&gt;YC_DUE_MAT_LIST&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CUSTOMER
-
-@UI.headerInfo.title.type: #STANDARD
-@UI.headerInfo.title.label: 'Material Shelf Life Management'
-@UI.headerInfo.description.type: #STANDARD
-@UI.headerInfo.typeName: 'Material Due List'
-@UI.headerInfo.typeNamePlural: 'Material Shelf Life Management'
-
-annotate view YC_DUE_MAT_LIST with
-{
-
-  @UI.facet: [{ id: 'Material',
-                purpose: #STANDARD,
-                type: #IDENTIFICATION_REFERENCE,
-                label: 'Material',
-                position: 10}
-                 ]
-
-  @UI:{ lineItem: [{ position: 10 }],
-        lineItem: [{label: 'Material'}],
-        identification: [{ position: 10 }],
-        selectionField: [{ position: 20 }]
-        }
-  Material;
-  @UI:{ lineItem: [{ position: 20 }],
-        lineItem: [{label: 'Material Description'} ],
-        identification: [{ position: 20 }]
-        }
-  @UI.lineItem: [{exclude: true}]
-  ProductDescription;
-  @UI:{ lineItem: [{ position: 30 }],
-        lineItem: [{label: 'Plant'}],
-        identification: [{ position: 30 }],
-        selectionField: [{ position: 10 }]
-        }
-  Plant;
-  @UI:{ lineItem: [{ position: 40 }],
-        lineItem: [{label: 'Plant Name'}],
-        identification: [{ position: 40 }]
-        }
-  @UI.lineItem: [{exclude: true}]
-  PlantName;
-  @UI.lineItem: [{ position: 50 }]
-  @UI.lineItem: [{label: 'Storage Location'}]
-  @UI.identification: [{ position: 50 }]
-  @UI.selectionField: [{position: 50}]
-  StorageLocation;
-  @UI.lineItem: [{ position: 60 }]
-  @UI.lineItem: [{label: 'Storage Location Name'}]
-  @UI.identification: [{ position: 60 }]
-  @UI.lineItem: [{exclude: true}]
-  StorageLocationName;
-  @UI.lineItem: [{ position: 70 }]
-  @UI.lineItem: [{label: 'Batch'}]
-  @UI.identification: [{ position: 70 }]
-  @UI.selectionField: [{position: 70}]
-  Batch;
-  @UI.lineItem: [{ position: 80 }]
-  @UI.lineItem: [{label: 'Supplier Batch'}]
-  @UI.identification: [{ position: 80 }]
-  @UI.selectionField: [{position: 80}]
-  BatchBySupplier;
-  @UI.lineItem: [{ position: 90 }]
-  @UI.lineItem: [{label: 'Supplier'}]
-  @UI.identification: [{ position: 90 }]
-  Supplier;
-  @UI.lineItem: [{ position: 100 }]
-  @UI.lineItem: [{label: 'Supplier Name'}]
-  @UI.identification: [{ position: 100 }]
-  @UI.lineItem: [{exclude: true}]
-  SupplierName;
-  @UI.lineItem: [{ position: 110 }]
-  @UI.lineItem: [{label: 'Unrestricted Inventory Qty'}]
-  @UI.identification: [{ position: 110 }]
-  MatlWrhsStkQtyInMatlBaseUnit;
-  @UI.lineItem: [{ position: 120 }]
-  @UI.lineItem: [{label: 'Unit'}]
-  @UI.identification: [{ position: 120 }]
-//  @UI.lineItem: [{exclude: true}]
-  @UI.hidden: true
-  BaseUnit;
-  @UI.lineItem: [{ position: 130 }]
-  @UI.lineItem: [{label: 'Expiration Date'}]
-  @UI.identification: [{ position: 130 }]
-  ShelfLifeExpirationDate;
-  @UI.lineItem: [{ position: 140 }]
-  @UI.lineItem: [{label: 'Manufacture Date'}]
-  @UI.identification: [{ position: 140 }]
-  @UI.lineItem: [{exclude: true}]
-  ManufactureDate;
-  @UI.lineItem: [{ position: 150 }]
-  @UI.lineItem: [{label: 'Batch Status'}]
-  @UI.identification: [{ position: 150 }]
-  @UI.lineItem: [{exclude: true}]
-  BatchStatus;
-  @UI.lineItem: [{ position: 160, importance: #HIGH }]
-  @UI.lineItem: [{label: 'Remaining Days'}]
-  @UI.identification: [{ position: 160 }]
-  remaining_days;
-  @UI.lineItem: [{ position: 170, value: 'due_range', criticality: 'Criticality' }]
-  @UI.lineItem: [{label: 'Due Date Range'}]
-  @UI.identification: [{ position: 170 }]
-  due_range;    
-//  @UI.hidden: true
-//  InventoryStockType;
-//  @UI.hidden: true
-//  MatlDocLatestPostgDate;
-  @UI.hidden: true
-  Criticality;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-206565607"&gt;2.3 Create Service Definition and Service Binding&lt;/H2&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf3.png" style="width: 394px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98728iCD162A9C956A3C92/image-size/large?v=v2&amp;amp;px=999" role="button" title="shelf3.png" alt="shelf3.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf4.png" style="width: 655px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98729i22C9D0493C6324B8/image-size/large?v=v2&amp;amp;px=999" role="button" title="shelf4.png" alt="shelf4.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;And then we can preview the published service:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf5.png" style="width: 655px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98731i8B09CCF0DDB516B6/image-size/large?v=v2&amp;amp;px=999" role="button" title="shelf5.png" alt="shelf5.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-10052102"&gt;&lt;STRONG&gt;3. Frontend App Development&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;First create destination on BTP:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf6.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98732i100F91375D5B9B6D/image-size/large?v=v2&amp;amp;px=999" role="button" title="shelf6.png" alt="shelf6.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Then open BAS service, and choose SAP Fiori Worklist Application:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf7.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98733i037300034A6E42CE/image-size/large?v=v2&amp;amp;px=999" role="button" title="shelf7.png" alt="shelf7.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;After publish, and authorization setup, we can see the App like below:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="shelf8.png" style="width: 664px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/98734i933550D898707A4E/image-size/large?v=v2&amp;amp;px=999" role="button" title="shelf8.png" alt="shelf8.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/sap-s-4hana-cloud-public-edition-abap-environment-case-8-material-shelf/ba-p/13675904"/>
-    <published>2024-04-19T13:16:11.809000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-sap/analyze-expensive-abap-workload-in-the-cloud-with-work-process-sampling/ba-p/13675553</id>
     <title>Analyze Expensive ABAP Workload in the Cloud with  Work Process Sampling</title>
@@ -1014,5 +809,17 @@ as select from vbak
   &lt;SPAN class=""&gt;)-&amp;gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;worksheet&lt;/SPAN&gt;&lt;SPAN class=""&gt;-&amp;gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;for_name&lt;/SPAN&gt;&lt;SPAN class=""&gt;(&lt;/SPAN&gt; &lt;SPAN class=""&gt;'INVOICES'&lt;/SPAN&gt; &lt;SPAN class=""&gt;).&lt;/SPAN&gt;&lt;/PRE&gt;&lt;P&gt;Hence, if your excel contains multiple sheets, the same can also be read and uploaded at one go. For example, both the header and the item records, maintained in two different sheets can be uploaded using this option.&lt;/P&gt;&lt;P&gt;3. Use the pattern builder to define a pattern based on the file template defined. Within the XCO XLSX module, a worksheet is represented as a space with two dimensions, with the first dimension being the column and the second dimension being the row. &lt;SPAN&gt;&amp;nbsp;So, a cell in a worksheet is identified by its column and row values. A coordinate (an object of type CL_XCO_XLSX_COORDINATE) fixes a value for a given dimension, either for a row or column. In Microsoft Excel, alphabetic values are used to identify columns and numeric values are used to identify rows. The XCO XLSX module provides support for both variants so that alphabetic as well as numeric values can be used freely to determine a cell in a worksheet.&lt;/SPAN&gt;&lt;/P&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;P class=""&gt;Alphabetic coordinates: A, B, C, … Z, AA, AB, ...ZZ, AAA, AAB, ...&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;Numeric coordinates: 1, 2, 3, ...&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Hence, if your template contains 7 columns, the first column becomes A and the last column becomes G. This is represented using the below code section.&lt;/P&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;from_column&lt;/SPAN&gt;&lt;SPAN&gt;( &lt;/SPAN&gt;&lt;SPAN&gt;xco_cp_xlsx&lt;/SPAN&gt;&lt;SPAN&gt;=&amp;gt;&lt;/SPAN&gt;&lt;SPAN&gt;coordinate&lt;/SPAN&gt;&lt;SPAN&gt;-&amp;gt;&lt;/SPAN&gt;&lt;SPAN&gt;for_alphabetic_value&lt;/SPAN&gt;&lt;SPAN&gt;( &lt;/SPAN&gt;&lt;SPAN&gt;'A'&lt;/SPAN&gt;&lt;SPAN&gt; )&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;to_column&lt;/SPAN&gt;&lt;SPAN&gt;( &lt;/SPAN&gt;&lt;SPAN&gt;xco_cp_xlsx&lt;/SPAN&gt;&lt;SPAN&gt;=&amp;gt;&lt;/SPAN&gt;&lt;SPAN&gt;coordinate&lt;/SPAN&gt;&lt;SPAN&gt;-&amp;gt;&lt;/SPAN&gt;&lt;SPAN&gt;for_alphabetic_value&lt;/SPAN&gt;&lt;SPAN&gt;( &lt;/SPAN&gt;&lt;SPAN&gt;'G'&lt;/SPAN&gt;&lt;SPAN&gt; )&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;Also, as you would like to read the records from the second row onwards, skipping the header row, you need to define it using the following code section.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;from_row( xco_cp_xlsx=&amp;gt;coordinate-&amp;gt;for_numeric_value( 2 ).&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Note, to_row( ) method is not used as the number of rows is not known. Hence, we would like to read all the records present in the excel sheet.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;4. There are two ways of accessing data. First via a stream and second via a cursor. We read the data using stream approach as we have a structured data statically known to read. So, row stream approach is best suitable for this scenario. You may refer to SAP official documentation to explore more. Reference link is already given.&lt;/P&gt;&lt;P&gt;So, finally using the row stream approach and with a defined pattern you can read the data and populate it an internal table.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;lo_worksheet-&amp;gt;select( lo_selection_pattern )-&amp;gt;row_stream( )-&amp;gt;operation-&amp;gt;write_to( REF #( lt_vendor_email ) )-&amp;gt;if_xco_xlsx_ra_operation~execute( ).&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Note&lt;/STRONG&gt;: the structure of the internal table needs to be defined explicitly when using row stream approach. For dynamic reading scenarios, use the cell stream approach to process each cell individually.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Once the data is read we can use ABAP logic to validate each record and display error messages. Otherwise, value transformation is also possible while writing the records in an internal table in row stream approach or reading individual cell in cell stream approach.&lt;/P&gt;&lt;P&gt;Default value transformation is 'best effort' which can be changed to other types like 'string value' and 'identity' using&amp;nbsp;&lt;SPAN&gt;SET_VALUE_TRANSFORMATION method of IF_XCO_XLSX_RA_RS_OP_WRITE_TO when row values are read and written to an internal table as part of the write to row stream operation.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;But, none of the approach performs validation and display an error message when the value is wrong, example supplier number.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Finally, when the validation done, you can use EML statement MODIFY ENTITIES to create or update records. So, using this approach you can perform both mass create and update.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;To create:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="manndb_87_3-1723120812146.png" style="width: 515px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/148731iFBE4D0695DB15BB8/image-dimensions/515x102?v=v2" width="515" height="102" role="button" title="manndb_87_3-1723120812146.png" alt="manndb_87_3-1723120812146.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;To update:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="manndb_87_4-1723120884552.png" style="width: 467px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/148733i8067CA586FF8C04D/image-dimensions/467x95?v=v2" width="467" height="95" role="button" title="manndb_87_4-1723120884552.png" alt="manndb_87_4-1723120884552.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Stay tuned, for the next blog post..&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-sap/how-to-perform-mass-upload-from-an-excel-file-in-a-fiori-app-in-sap-btp/ba-p/13785946"/>
     <published>2024-08-08T16:12:39.606000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sap-learning-blog-posts/unlock-the-expertise-of-top-sap-professionals-through-live-sessions/ba-p/13793354</id>
+    <title>Unlock the expertise of top SAP professionals through live sessions - Register now!</title>
+    <updated>2024-08-13T17:41:00.458000+02:00</updated>
+    <author>
+      <name>Margit_Wagner</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/491</uri>
+    </author>
+    <content>&lt;P&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;SPAN&gt;Unlock the expertise of top SAP professionals through live sessions.&lt;BR /&gt;Elevate your knowledge with specialized SAP courses and build valuable connections with peers and industry professionals.&lt;BR /&gt;&lt;SPAN&gt;Don't miss the opportunity and join our live sessions&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;&lt;SPAN&gt;SAP Business Technology Platform&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;A title="Getting Started With Development Using SAP BTP ABAP Environment" href="https://learning.sap.com/live-sessions/getting-started-with-development-using-sap-btp-abap-environment?sap-outbound-id=34D0D05AB1DC9D7491F8057568D19785D3376B7E" target="_blank" rel="noopener noreferrer"&gt;Getting Started With Development Using SAP BTP ABAP Environment&lt;/A&gt;&lt;BR /&gt;(Europe time-friendly): August 30, 6:00 p.m.– &amp;nbsp;7:00 p.m. (CET)&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;A title="Extension &amp;amp; Customization of SAP PM through SAP BTP: Taking Asset Maintenance one step further" href="https://learning.sap.com/live-sessions/extension-customization-of-sap-pm-through-sap-btp-taking-asset-maintenance-one-step-further?sap-outbound-id=34D0D05AB1DC9D7491F8057568D19785D3376B7E" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Extension &amp;amp; Customization of SAP PM through SAP BTP: Taking Asset Maintenance one step further&lt;/SPAN&gt;&lt;/A&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;Europe time-friendly): September 5, 10:00 a.m.– 12:00 p.m. (CET)&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;SAP ABAP Cloud&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;A title="Getting Started With ABAP Cloud Development" href="https://learning.sap.com/live-sessions/getting-started-with-abap-cloud-development?sap-outbound-id=34D0D05AB1DC9D7491F8057568D19785D3376B7E" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Getting Started With ABAP Cloud Development&lt;/SPAN&gt;&lt;/A&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;(America time-friendly): August 23, 12:00 p.m.– 1:00 a.m. (EST)&lt;/SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;A title="Stay certified - Back-End Developer - ABAP Cloud" href="https://learning.sap.com/live-sessions/stay-certified-back-end-developer-abap-cloud?sap-outbound-id=34D0D05AB1DC9D7491F8057568D19785D3376B7E" target="_blank" rel="noopener noreferrer"&gt;Stay certified - Back-End Developer - ABAP Cloud&lt;/A&gt;&lt;BR /&gt;(Recording)&lt;/SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;SAP S/4HANA&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;A title="Business Partner Master Data in SAP S/4HANA from the Purchasing Perspective" href="https://learning.sap.com/live-sessions/business-partner-master-data-in-sap-s-4hana-from-the-purchasing-perspective?sap-outbound-id=34D0D05AB1DC9D7491F8057568D19785D3376B7E" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Business Partner Master Data in SAP S/4HANA from the Purchasing Perspective&lt;/SPAN&gt;&lt;/A&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;(Asian-Pacific-Japan time-friendly): August 13, 11:00 p.m.–1:00 a.m. (SGT)&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;A title="Financial Document Clearing in SAP S/4HANA Cloud Public Edition" href="https://learning.sap.com/live-sessions/financial-document-clearing-in-sap-s-4hana-cloud-public-edition?sap-outbound-id=34D0D05AB1DC9D7491F8057568D19785D3376B7E" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Financial Document Clearing in SAP S/4HANA Cloud Public Edition&lt;/SPAN&gt;&lt;/A&gt;&lt;/SPAN&gt;&lt;SPAN&gt;&lt;BR /&gt;(Asian-Pacific-Japan time-friendly): August 28, 4:00 p.m.–6:00 p.m. (SGT&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;New Live Session for Data Integration for Incentive Management&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;As an SAP Learning Hub subscriber, you can join this live session to explore the various methods of data integration, with a focus on the best options for different scenarios. You will learn how to implement various data integration environments, ranging from a simple file import to an enterprise level data load. If you are involved in an incentive management implementation of any size, you don’t want to miss this session.&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;A title="Read more" href="https://learning.sap.com/live-sessions/data-integration-basics-for-sap-successfactors-incentive-management?sap-outbound-id=34D0D05AB1DC9D7491F8057568D19785D3376B7E" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Read more&lt;/SPAN&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Please note&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;You can find the latest live sessions &lt;A title="here " href="https://learning.sap.com/live-sessions?page=1?source=email-global-lhubnewsletter-prdteng-LSC&amp;amp;sap-outbound-id=EE2D0AF106FD51877BE880ECADDA1C928CD42DC3" target="_blank" rel="noopener noreferrer"&gt;here &lt;/A&gt;to engage and learn with SAP experts and peers.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Kind regards&lt;BR /&gt;Margit&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/sap-learning-blog-posts/unlock-the-expertise-of-top-sap-professionals-through-live-sessions/ba-p/13793354"/>
+    <published>2024-08-13T17:41:00.458000+02:00</published>
   </entry>
 </feed>
