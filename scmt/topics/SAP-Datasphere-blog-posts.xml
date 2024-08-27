@@ -2,250 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Datasphere-blog-posts.xml</id>
   <title>SAP Community - SAP Datasphere</title>
-  <updated>2024-08-26T11:12:41.762519+00:00</updated>
+  <updated>2024-08-27T11:12:35.511762+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Datasphere/pd-p/73555000100800002141" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Datasphere blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/connect-sap-sales-cloud-v2-to-sap-datasphere/ba-p/13781246</id>
-    <title>Connect SAP Sales Cloud V2 to SAP Datasphere</title>
-    <updated>2024-08-07T22:29:07.449000+02:00</updated>
-    <author>
-      <name>JoelleS</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1431336</uri>
-    </author>
-    <content>&lt;P&gt;&lt;SPAN&gt;How to connect SAP Sales Cloud V2 to SAP Datasphere.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;SAP Sales Cloud V2 provides Rest APIs only. You can find them here in the Business Accelerator Hub:&amp;nbsp;&lt;/SPAN&gt;&lt;A title="Business Accelerator Hub" href="https://api.sap.com/package/SAPSalesServiceCloudV2/rest&amp;nbsp;" target="_self" rel="noopener noreferrer"&gt;&lt;U&gt;https://api.sap.com/package/SAPSalesServiceCloudV2/rest&amp;nbsp;&lt;/U&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;You can use these Rest APIs and generate output with your own environment within Business Accelerator Hub. You have to user Business User Credentials and the user name has to&amp;nbsp;have at least six characters.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;For the following example, I did that with the Opportunities. The output is a nested JSON.&amp;nbsp;Why is that an issue?&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;You have one opportunity with 4 Business Partners (each take a different role). Another Opportunity only has 2. This issue goes on with involved parties and items and many more attributes. Back with Sales Cloud V1 (C4C/Cloud for Customers) you were able to extract the collections. Now you will have issues with extracting the information needed. Therefore, you have to recreate those collections,&amp;nbsp;you used to have.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;You will have several options to do that, for example with SAP Integration Suite. You can select the JDBC scenario. I still recommend doing that, but if you don’t have the option&amp;nbsp;to use SAP Integration Suite, you can launch a python script.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In my example I did run it locally, but if I would do it for a customer, I would just launch it on Cloud Foundry (within SAP BTP). I will provide a blog on how to do&amp;nbsp;that very soon.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;This code calls the Rest API, flattens it, extracts the collections needed for this case and writes the tables back into the HANA under SAP Datasphere. I will use those tables to build views upon them. The tables will update once the code is being executed again. Adjust the code to call for Leads, Accounts etc. This is a workaround until SAP provides the APIs, we used to have in Sales Cloud V1 or if the customer does not have SAP Integration Suite. There are still a lot of other options&amp;nbsp;to work around.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import requests 
-
-from requests.auth import HTTPBasicAuth 
-
-import pandas as pd 
-
-from pandas import json_normalize 
-
-from hana_ml.dataframe import create_dataframe_from_pandas 
-
-from hana_ml.dataframe import ConnectionContext 
-
-  
-
-def fetch_data_from_api(url, username, password): 
-
-    try: 
-
-        # Define headers for the request, including additional config headers 
-
-        headers = { 
-
-            'config_authType': 'Basic', 
-
-            'config_packageName': 'SAPSalesServiceCloudV2', 
-
-            'config_actualUrl': 'https://myxxxx.de1.test.crm.cloud.sap', 
-
-            'config_urlPattern': 'https://{hostname}', 
-
-            'config_apiName': 'SalesSvcCloudV2_xxxxxx', 
-
-            'Accept': 'application/json' 
-
-        } 
-
-         
-
-        # Send a GET request to the API endpoint with Basic Auth and headers 
-
-        response = requests.get(url, headers=headers, auth=HTTPBasicAuth(username, password)) 
-
-         
-
-        # Raise an HTTPError if the HTTP request returned an unsuccessful status code 
-
-        response.raise_for_status() 
-
-         
-
-        # Parse the JSON response 
-
-        data = response.json() 
-
-         
-
-        return data 
-
-    except requests.exceptions.HTTPError as http_err: 
-
-        print(f"HTTP error occurred: {http_err}") 
-
-    except Exception as err: 
-
-        print(f"Other error occurred: {err}") 
-
-  
-
-def extract_main_opportunity_data(data): 
-
-    # Extract the main opportunity data and convert it to a DataFrame 
-
-    opportunities = data.get('value', []) 
-
-    df_opportunities = json_normalize(opportunities) 
-
-    return df_opportunities 
-
-  
-
-def extract_involved_parties(data): 
-
-    # Extract involved parties from each opportunity 
-
-    opportunities = data.get('value', []) 
-
-    involved_parties_list = [] 
-
-  
-
-    for opportunity in opportunities: 
-
-        involved_parties = opportunity.get('involvedParties', []) 
-
-        for party in involved_parties: 
-
-            party['opportunity_id'] = opportunity.get('id')  # Link party to opportunity 
-
-            involved_parties_list.append(party) 
-
-     
-
-    df_involved_parties = pd.DataFrame(involved_parties_list) 
-
-    return df_involved_parties 
-
-  
-
-def extract_items(data): 
-
-    # Placeholder for extracting items if they exist in the JSON structure 
-
-    # Similar to extracting involved parties 
-
-    items_list = [] 
-
-  
-
-    for opportunity in data.get('value', []): 
-
-        items = opportunity.get('items', [])  # Adjust the key as per actual data 
-
-        for item in items: 
-
-            item['opportunity_id'] = opportunity.get('id')  # Link item to opportunity 
-
-            items_list.append(item) 
-
-     
-
-    df_items = pd.DataFrame(items_list) 
-
-    return df_items 
-
-  
-
-def clean_dataframe(df): 
-
-    # Convert all columns to strings to avoid type issues 
-
-    df = df.astype(str) 
-
-    # Replace problematic characters or values if necessary 
-
-    df = df.replace({r'\r\n': ' ', r'\r': ' ', r'\n': ' '}, regex=True) 
-
-    return df 
-
-  
-
-def write_dataframe_to_hana(dataframe, table_name, conn_context): 
-
-    # Clean the dataframe to ensure compatibility 
-
-    dataframe = clean_dataframe(dataframe) 
-
-    hana_df = create_dataframe_from_pandas(conn_context, dataframe, table_name, force=True) 
-
-    return hana_df 
-
-  
-
-# URL of the REST API endpoint 
-
-api_url = 'https://myXXXXXXXX.de1.test.crm.cloud.sap/sap/c4c/api/v1/opportunity-service/opportunities' 
-
-  
-
-# Your credentials for Basic Auth 
-
-username = 'xxxxxxxx' 
-
-password = 'xxxxxxxx' 
-
-  
-
-# Fetch data from the API 
-
-data = fetch_data_from_api(api_url, username, password) 
-
-  
-
-# Extract and convert JSON data to DataFrames 
-
-if data is not None: 
-
-    df_opportunities = extract_main_opportunity_data(data) 
-
-    df_involved_parties = extract_involved_parties(data) 
-
-    df_items = extract_items(data)  # If items exist 
-
-     
-
-    # SAP HANA Cloud connection details 
-
-    host = xxxxxxxxxxxx.hana.prod-eu10.hanacloud.ondemand.com' 
-
-    port = '443' 
-
-    user = 'XXXXXXX’ 
-
-    password = 'xxxxxxxxxxxxx' 
-
-     
-
-    # Establish connection 
-
-    conn_context = ConnectionContext(address=host, port=port, user=user, password=password) 
-
-     
-
-    # Write dataframes to SAP HANA Cloud 
-
-    write_dataframe_to_hana(df_opportunities, 'OPPORTUNITIES', conn_context) 
-
-    write_dataframe_to_hana(df_involved_parties, 'INVOLVED_PARTIES', conn_context) 
-
-    write_dataframe_to_hana(df_items, 'ITEMS', conn_context) 
-
-     
-
-    # Close the connection 
-
-    conn_context.close() 
-
-else: 
-
-    print("No data retrieved from the API.") &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/connect-sap-sales-cloud-v2-to-sap-datasphere/ba-p/13781246"/>
-    <published>2024-08-07T22:29:07.449000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-sap/data-is-the-fuel-for-ai-modernizing-your-bw-landscape-is-preparing-a-data/ba-p/13781299</id>
     <title>Data is the fuel for AI - Modernizing your BW landscape is preparing a data ready enterprise</title>
@@ -497,5 +257,17 @@ def Message processData(Message message) {
     <content>&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;As organizations continue to leverage data to drive business decisions, the ability to efficiently share insights and reports becomes increasingly crucial. SAP Analytics Cloud (SAC) offers a powerful feature known as &lt;STRONG&gt;Publications&lt;/STRONG&gt;, which allows users to automate the distribution of stories and dashboards to a broad audience. In this blog, we’ll dive into the SAC Publication feature, explore key areas of scheduling, and highlight its pivotal role in streamlining operations.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;What is SAC Publication?&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The SAC Publication feature enables users to schedule and distribute stories and dashboards to designated recipients automatically. Whether you need to share daily sales reports, monthly performance metrics, or ad-hoc analyses, SAC Publications ensures that the right people receive the right information at the right time.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The Role of Publications in Embedded Analytics (EA)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The Publication feature plays a pivotal role within Embedded Analytics (EA), particularly for Compensation Administrators. It allows them to schedule the generation and delivery of both &lt;STRONG&gt;Published Reports&lt;/STRONG&gt; and &lt;STRONG&gt;Personalized Reports&lt;/STRONG&gt; to end users.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Published Reports&lt;/STRONG&gt;: These are standardized reports generated by EA that provide consistent insights across the organization.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Personalized Reports&lt;/STRONG&gt;: These reports are customized to cater to individual preferences, needs, or specific requirements of users.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The system enables Compensation Administrators to automate the report generation process, ensuring timely and tailored delivery of crucial information directly to users' inboxes. This capability streamlines operations, granting administrators precise control over report distribution and enhancing the overall efficiency of the reporting process.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Key Features of SAC Publication&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Automated Scheduling:&lt;/STRONG&gt;&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Time-Saving Automation&lt;/STRONG&gt;: Instead of manually exporting and sending reports, SAC allows you to automate this process. Reports can be scheduled to run at specific times, ensuring timely delivery.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Frequency Options&lt;/STRONG&gt;: Users can choose from a variety of scheduling options, such as daily, weekly, monthly, or even custom intervals, depending on the needs of the organization.&lt;/LI&gt;&lt;/UL&gt;&lt;LI&gt;&lt;STRONG&gt;Format Flexibility:&lt;/STRONG&gt;&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Multiple Formats&lt;/STRONG&gt;: SAC supports various output formats, including PDF, Microsoft Excel, and PowerPoint. This flexibility allows users to tailor the report format to the preferences of the recipients.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Personalized Content&lt;/STRONG&gt;: SAC Publications can be customized to include specific filters or views, ensuring that each recipient receives relevant data.&lt;/LI&gt;&lt;/UL&gt;&lt;LI&gt;&lt;STRONG&gt;Secure Distribution:&lt;/STRONG&gt;&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Access Control&lt;/STRONG&gt;: Publications are distributed securely, respecting the data access rights and permissions of each recipient. This ensures that sensitive information is only shared with authorized users.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Recipient Management&lt;/STRONG&gt;: You can easily manage and update the list of recipients, including individuals and groups, within SAC.&lt;/LI&gt;&lt;/UL&gt;&lt;LI&gt;&lt;STRONG&gt;Error Handling and Notifications:&lt;/STRONG&gt;&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Error Alerts&lt;/STRONG&gt;: If a scheduled publication encounters issues, SAC can notify administrators or designated users, allowing for quick resolution.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Success Notifications&lt;/STRONG&gt;: Recipients can also receive notifications when a new report is available, ensuring they are aware of the latest insights.&lt;/LI&gt;&lt;/UL&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;Key Areas of Scheduling in SAC&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Scheduling plays a critical role in the effective use of SAC Publications. Here are some key areas to consider:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Defining the Schedule:&lt;/STRONG&gt;&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Timing&lt;/STRONG&gt;: Consider the optimal time for report distribution. For example, scheduling a report to be sent at the start of the business day ensures that decision-makers have the latest data available when they begin work.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Frequency&lt;/STRONG&gt;: Determine how often the data needs to be refreshed and reported. High-frequency scheduling (e.g., daily) may be necessary for dynamic, fast-paced environments, while less frequent updates may suffice for static or long-term analyses.&lt;/LI&gt;&lt;/UL&gt;&lt;LI&gt;&lt;STRONG&gt;Selecting the Right Audience:&lt;/STRONG&gt;&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Targeted Distribution&lt;/STRONG&gt;: Identify the key stakeholders who need access to the reports. By segmenting your audience, you can ensure that each group receives information that is most relevant to their roles.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Role-Based Access&lt;/STRONG&gt;: Use SAC’s role-based access controls to ensure that only authorized users receive sensitive data, maintaining compliance with data governance policies.&lt;/LI&gt;&lt;/UL&gt;&lt;LI&gt;&lt;STRONG&gt;Managing Report Formats:&lt;/STRONG&gt;&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Standardization&lt;/STRONG&gt;: Standardizing the report format across the organization can help in maintaining consistency and ease of interpretation. Decide on the most suitable format (PDF, Excel, etc.) based on the needs of your audience.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Customization&lt;/STRONG&gt;: While standardization is important, consider offering customized views or filtered data for specific recipients, especially if they require a focused analysis.&lt;/LI&gt;&lt;/UL&gt;&lt;LI&gt;&lt;STRONG&gt;Monitoring and Optimization:&lt;/STRONG&gt;&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Reviewing Schedules&lt;/STRONG&gt;: Regularly review and adjust publication schedules to align with changing business needs or recipient feedback.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Performance Monitoring&lt;/STRONG&gt;: Monitor the performance of scheduled publications to ensure they are delivered without delays or errors. SAC’s built-in monitoring tools can help identify bottlenecks or issues.&lt;/LI&gt;&lt;/UL&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;Step-by-Step Guide: How to Schedule a Publication in SAC&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Automating the report generation process involves scheduling jobs to run at predefined intervals, ensuring regular and systematic generation of reports without manual intervention. Here’s how you can schedule a publication:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Login to Embedded Analytics.&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Navigate to the Public folder.&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Select a Story and open it.&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Click on File -&amp;gt; Schedule Publication.&lt;/STRONG&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Vasavi_Rongali_3-1724427398956.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/156810iDF6EFBAC6831E73C/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Vasavi_Rongali_3-1724427398956.png" alt="Vasavi_Rongali_3-1724427398956.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;OL&gt;&lt;UL&gt;&lt;LI&gt;The &lt;STRONG&gt;Schedule Publication&lt;/STRONG&gt; window will open. Enter the details&amp;nbsp;&lt;STRONG&gt;Event Name&lt;/STRONG&gt;, &lt;STRONG&gt;Start Date&lt;/STRONG&gt;, &lt;STRONG&gt;Destination&lt;/STRONG&gt;, &lt;STRONG&gt;Email Subject&lt;/STRONG&gt;,&amp;nbsp;&lt;STRONG&gt;Internal Users &lt;/STRONG&gt;and Select &lt;STRONG&gt;File Type&lt;/STRONG&gt; and click &lt;STRONG&gt;Create&lt;/STRONG&gt;.&lt;/LI&gt;&lt;/UL&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Vasavi_Rongali_4-1724427668008.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/156815iA1B7443B595B966D/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Vasavi_Rongali_4-1724427668008.png" alt="Vasavi_Rongali_4-1724427668008.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Vasavi_Rongali_6-1724428190347.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/156819i4427B8654FDD1132/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Vasavi_Rongali_6-1724428190347.png" alt="Vasavi_Rongali_6-1724428190347.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;UL&gt;&lt;LI&gt;Upon successful creation, navigate to &lt;STRONG&gt;Calendar&lt;/STRONG&gt; to view the scheduled publication.&lt;/LI&gt;&lt;/UL&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Vasavi_Rongali_7-1724428421526.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/156822iCADC162F58E82BE8/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Vasavi_Rongali_7-1724428421526.png" alt="Vasavi_Rongali_7-1724428421526.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;OL&gt;&lt;UL&gt;&lt;LI&gt;Open the publication to review details and settings.&lt;/LI&gt;&lt;/UL&gt;&lt;LI&gt;&lt;STRONG&gt;Verify the Publication:&lt;/STRONG&gt;&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;Once the publication is successful, verify that the generated PDF report is delivered to the user’s inbox.&lt;/LI&gt;&lt;/UL&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Vasavi_Rongali_8-1724428879267.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/156823iE81684C641A27FC3/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Vasavi_Rongali_8-1724428879267.png" alt="Vasavi_Rongali_8-1724428879267.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;OL&gt;&lt;UL&gt;&lt;LI&gt;Open the user folder and check the generated report to ensure accuracy and completeness.&lt;/LI&gt;&lt;/UL&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Vasavi_Rongali_9-1724428998723.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/156824i7C5B64DCD585EEF0/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Vasavi_Rongali_9-1724428998723.png" alt="Vasavi_Rongali_9-1724428998723.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Best Practices for SAC Publications&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Test Before Deploying&lt;/STRONG&gt;: Always test your publication settings with a small group before rolling them out organization-wide. This helps identify any potential issues with format, content, or timing.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Document Your Schedule&lt;/STRONG&gt;: Maintain documentation of your publication schedules and configurations. This will be useful for troubleshooting and ensuring continuity in case of staff changes.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Regularly Update Recipients&lt;/STRONG&gt;: Keep your recipient lists up-to-date to ensure that reports are sent to the correct individuals. This is especially important in large organizations with frequent personnel changes.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The SAC Publication feature is a powerful tool for automating the distribution of reports and dashboards, saving time and ensuring consistency across the organization. By understanding the key areas of scheduling and following best practices, you can maximize the efficiency and effectiveness of your reporting processes in SAP Analytics Cloud.&lt;/P&gt;&lt;P&gt;Explore SAC Publications today, and take your reporting strategy to the next level!&lt;/P&gt;&lt;P&gt;This blog provides a comprehensive overview of the SAC Publication feature, emphasizing its importance in Embedded Analytics and offering actionable insights for effective scheduling and automation.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/human-capital-management-blogs-by-sap/spm-embedded-analytics-insights-with-sac-publications/ba-p/13802747"/>
     <published>2024-08-26T09:28:00.746000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/spend-management-blogs-by-sap/data-templates-for-concur-data-delivery-service-dds-credit-card-program/ba-p/13807631</id>
+    <title>Data Templates for Concur Data Delivery Service (DDS) : CREDIT CARD PROGRAM MANAGEMENT SAC Story</title>
+    <updated>2024-08-26T20:44:36.720000+02:00</updated>
+    <author>
+      <name>JJ_Waldher</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/887538</uri>
+    </author>
+    <content>&lt;H2 id="toc-hId-1043470071"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Overview&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;FONT size="2"&gt;The Concur Expense Data Templates for the Concur Data Delivery Service (DDS) Expense content package offers a powerful solution for visualizing and analyzing data captured in SAP Concur. Seamlessly integrated with SAP Data Delivery Services and utilizing the SAP Analytics Cloud for data visualization, this solution provides administrators with comprehensive insights into organizational expenses, system administration, and user distributions. Its advanced analytics capabilities include robust auditing and control features essential for fraud detection and compliance assurance.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="2"&gt;Built upon Analytical Models in SAP Datasphere and visualized in SAP Analytics Cloud, this content package encompasses a suite of detailed stories that deliver in-depth perspectives on expense management. These insights empower administrators to make informed decisions, optimize expense workflows, and enhance overall financial governance.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="2"&gt;One standout feature is the Credit Card Program Management SAC Story. Designed to streamline and oversee credit card programs, it integrates and visualizes card usage data to provide a holistic view of cardholder activity and program efficiency. Additionally, it offers detailed insights into credit card transactions, highlighting spending patterns, transaction volumes, and potential anomalies, thereby significantly enhancing financial oversight and fraud detection.&lt;/FONT&gt;&lt;/P&gt;&lt;H2 id="toc-hId-846956566"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Credit Card Program Management&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;&lt;FONT size="2"&gt;This dashboard offers a comprehensive overview of your company's financial landscape by presenting key metrics related to credit card spend. It serves as a centralized hub for monitoring and analyzing credit card related financial performance, aiding in strategic decision-making and budget management. &lt;FONT size="2"&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="2"&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Adoption Rate&lt;SPAN&gt;&lt;EM&gt;: &lt;/EM&gt;&lt;/SPAN&gt;&lt;/EM&gt;Presenting the proportion of credit card usage in total transactions (entries) &lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="2"&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Adoption Rate by Employee Location&lt;SPAN&gt;&lt;EM&gt;: &lt;/EM&gt;&lt;/SPAN&gt;&lt;/EM&gt;Analysis of the geographic spread of credit card adoption among employees &lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="2"&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Top Spenders by Payment Type&lt;SPAN&gt;&lt;EM&gt;: &lt;/EM&gt;&lt;/SPAN&gt;&lt;/EM&gt;Shows a breakdown of highest credit card spend across Payment Types &lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="2"&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Top Spenders by Payment Type&lt;SPAN&gt;&lt;EM&gt;: &lt;/EM&gt;&lt;/SPAN&gt;&lt;/EM&gt;Provides key insights into highest credit card spenders and their payment preferences. &lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="2"&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Top Credit Card Spend by Vendor&lt;SPAN&gt;&lt;EM&gt;: &lt;/EM&gt;&lt;/SPAN&gt;&lt;/EM&gt;Displays the vendors with the highest credit card expenditure.  &lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-650443061"&gt;&lt;STRONG&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="CC 1.png" style="width: 613px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/157810iE4C6894E990866BA/image-size/large?v=v2&amp;amp;px=999" role="button" title="CC 1.png" alt="CC 1.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-453929556"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Credit Card Transaction Analysis&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;FONT size="2"&gt;&lt;SPAN&gt;This dashboard offers an analytical view of credit card spend across your organization. It provides key metrics related to credit card expenses yet to be processed, allowing to monitor and manage unprocessed spend. By highlighting the distribution of transactions across age brackets or per approval status this dashboard aids tracking credit card spend across time or also allows a view via the regional distribution, thus allowing a complete overview for making decisions. &lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="2"&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Aging Card Transactions:&lt;/EM&gt; This chart shows the distribution of Card Transactions across different age brackets. &amp;nbsp;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="2"&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Spend by Country:&lt;/EM&gt; Provides a breakdown of credit card expenditure across countries. &amp;nbsp;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="2"&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Credit Card Transaction per Approval Status:&lt;/EM&gt; Displays an analysis of transactions by approval status. &amp;nbsp;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="2"&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Top Employees with Unprocessed CC Transactions:&lt;/EM&gt; Presents key employees with outstanding credit card transactions. &amp;nbsp;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="2"&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Credit Card Transaction Details:&lt;/EM&gt; Displays a detailed list of employee credit card spend. &amp;nbsp;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="2"&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="CC 2.png" style="width: 618px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/157811iF25DA9D7D72379A3/image-size/large?v=v2&amp;amp;px=999" role="button" title="CC 2.png" alt="CC 2.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H3 id="toc-hId-386498770"&gt;Resources:&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/spend-management-blogs-by-sap/data-templates-for-dds-expense-administration-sac-story/ba-p/13805542" target="_blank"&gt;https://community.sap.com/t5/spend-management-blogs-by-sap/data-templates-for-dds-expense-administration-sac-story/ba-p/13805542&lt;/A&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/spend-management-blogs-by-sap/data-templates-for-concur-data-delivery-expense/ba-p/13799924" target="_blank"&gt;https://community.sap.com/t5/spend-management-blogs-by-sap/data-templates-for-concur-data-delivery-expense/ba-p/13799924&lt;/A&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;A href="https://www.concur.com/data-delivery-service" target="_blank" rel="nofollow noopener noreferrer"&gt;https://www.concur.com/data-delivery-service&lt;/A&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;A href="https://api.sap.com/package/SAPConcurExpenseDDSIntegrationwithSAPDatasphere/overview" target="_blank" rel="noopener noreferrer"&gt;https://api.sap.com/package/SAPConcurExpenseDDSIntegrationwithSAPDatasphere/overview&lt;/A&gt;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="2"&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H2 id="toc-hId-60902546"&gt;&lt;FONT size="2"&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H2&gt;</content>
+    <link href="https://community.sap.com/t5/spend-management-blogs-by-sap/data-templates-for-concur-data-delivery-service-dds-credit-card-program/ba-p/13807631"/>
+    <published>2024-08-26T20:44:36.720000+02:00</published>
   </entry>
 </feed>
