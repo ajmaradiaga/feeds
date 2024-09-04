@@ -2,203 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-ERP-qa.xml</id>
   <title>SAP Community - SAP ERP</title>
-  <updated>2024-09-04T20:00:59.529251+00:00</updated>
+  <updated>2024-09-04T23:00:59.549738+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP ERP/pd-p/01200615320800000659" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP ERP Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/quot-executing-a-batch-input-session-gt-error-leave-to-transaction-is-not/qaq-p/13807989</id>
-    <title>"Executing a Batch Input Session --&gt; Error: 'LEAVE TO TRANSACTION' is not allowed in Batch Input."</title>
-    <updated>2024-08-27T08:15:29.172000+02:00</updated>
-    <author>
-      <name>alexgiedt</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/855261</uri>
-    </author>
-    <content>&lt;P&gt;Hello everyone,&lt;/P&gt;&lt;P&gt;I have the following problem: I created a recording of my report using the SHDB transaction. Based on this, I created a report that, simply put, saves the corresponding records when changes are made (e.g., the description is changed), clicks the back button, and processes the next record that was entered in the selection screen.&lt;/P&gt;&lt;P&gt;Now, the report works quite well, but when the first record is processed and it moves to the next record by clicking the back button, I receive the error: "Error: 'LEAVE TO TRANSACTION' is not allowed in Batch Input." I have tried many things, but nothing has brought the desired success. My goal is to be able to run the report, which creates a batch input session, in the background. Unfortunately, this is currently failing.&lt;/P&gt;&lt;P&gt;Here is the code of my report:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;REPORT z_autosave.
-
-TABLES: /opl09/anl_sts, /opl09/fa_vorrat.
-
-CONSTANTS: lc_transaction TYPE tstc-tcode VALUE '/OPL09/INVENTUR'.
-
-DATA: BEGIN OF bdcdata OCCURS 1000.
-        INCLUDE STRUCTURE bdcdata.
-DATA: END OF bdcdata.
-DATA: ls_bdcdata TYPE bdcdata.
-
-SELECT-OPTIONS: s_melnr FOR /opl09/fa_vorrat-melnr,
-                s_satza FOR /opl09/fa_vorrat-satza,
-                s_datum FOR /opl09/fa_vorrat-datum,
-                s_bukrs FOR /opl09/fa_vorrat-bukrs OBLIGATORY,
-                s_anln1 FOR /opl09/fa_vorrat-anln1,
-                s_anln2 FOR /opl09/fa_vorrat-anln2,
-                s_icon FOR /opl09/fa_vorrat-icon OBLIGATORY DEFAULT '@09@',   "@08@ = green, @ = yellow, @0A@ = red
-                s_frgsts FOR /opl09/anl_sts-frg_sts OBLIGATORY DEFAULT 'NRE'. "NRE = not relevant (for workflow)
-
-PARAMETERS: p_group TYPE apqi-groupid DEFAULT 'OPAL_AUTO'.
-
-
-
-
-START-OF-SELECTION.
-
-  AUTHORITY-CHECK OBJECT 'F_BKPF_BUK'
-    ID 'BUKRS' DUMMY "FIELD p_bukrs    &amp;lt;----- TO BE CHANGED LATER
-    ID 'ACTVT' FIELD '01'.
-  IF sy-subrc NE 0.
-    MESSAGE e112(fg). "WITH p_bukrs.    &amp;lt;----- TO BE CHANGED LATER
-  ENDIF.
-
-  SELECT v~melnr, v~anln1, v~anln2 FROM /opl09/fa_vorrat AS v JOIN /opl09/anl_sts AS s
-    ON v~melnr = s~melnr
-    AND s~frg_step IS INITIAL
-    AND s~frg_def IS INITIAL
-
-    WHERE v~melnr IN @s_melnr
-    AND v~satza IN @s_satza
-    AND v~datum IN @s_datum
-    AND v~bukrs IN @s_bukrs
-    AND v~anln1 IN @s_anln1
-    AND v~anln2 IN @s_anln2
-    AND v~icon IN @s_icon
-    AND s~frg_sts IN @s_frgsts
-
-    INTO TABLE (lt_items).
-
-  DATA: lv_count TYPE i VALUE 0.
-
-
-** Öffnen der Arbeitsmappe
-  CALL FUNCTION 'BDC_OPEN_GROUP'
-    EXPORTING
-      client = sy-mandt
-      group  = p_group
-      user   = sy-uname
-      keep   = 'X'.
-
-  LOOP AT lt_items ASSIGNING FIELD-SYMBOL(&amp;lt;fs_item&amp;gt;).
-
-    " Zähler erhöhen
-    lv_count = lv_count + 1.
-
-    "Choose Process work list on main screen
-    PERFORM bdc_dynpro USING '/OPL09/FA_INVENTUR' '1000'.
-    PERFORM bdc_field       USING 'BDC_OKCODE'
-                                     '=ARBVO'.
-
-    " fill selection screen for process work list
-    PERFORM bdc_dynpro USING '/OPL09/FA_ANLAGEN_ARBVOR' '1000'.
-    PERFORM bdc_field       USING 'S_MELNR-LOW'
-                                     &amp;lt;fs_item&amp;gt;-melnr.      " Registration number
-    PERFORM bdc_field       USING 'BDC_OKCODE' '=ONLI'.
-
-    " click on save
-    PERFORM bdc_dynpro USING '/OPL09/FA_ANLAGEN_ARBVOR' '0100'.
-*    PERFORM bdc_field  USING 'S_ANLN1' &amp;lt;fs_item&amp;gt;-anln1.
-*    PERFORM bdc_field  USING 'S_ANLN2' &amp;lt;fs_item&amp;gt;-anln2.
-    PERFORM bdc_field       USING 'BDC_OKCODE' '=SAVE'.
-
-    " confirm popup
-    PERFORM bdc_dynpro USING 'SAPLSPO1' '0500'.
-    PERFORM bdc_field       USING 'BDC_OKCODE' '=YES'.
-    PERFORM bdc_field       USING 'BDC_SUBSCR'
-                                     'SAPLSPO1                                0501SUBSCREEN'.
-
-*    " Additional pop-up confirmations can be added here
-*    " Example for another pop-up
-*    PERFORM bdc_dynpro USING 'SAPLSPO1' '0500'.
-*    PERFORM bdc_field       USING 'BDC_OKCODE' '=YES'.
-
-*    PERFORM bdc_dynpro USING '/OPL09/FA_ANLAGEN_ARBVOR' '0100'.
-*    PERFORM bdc_field       USING 'BDC_OKCODE'
-*                                     '=/EBACK'.
-
-
-
-
-
-
-
-    CALL FUNCTION 'BDC_INSERT'
-      EXPORTING
-        tcode     = lc_transaction
-      TABLES
-        dynprotab = bdcdata.
-
-    CLEAR bdcdata[].
-
-  ENDLOOP.
-
-
-
-** Schließen der Arbeitsmappe
-  CALL FUNCTION 'BDC_CLOSE_GROUP'
-    EXCEPTIONS
-      not_open    = 1
-      queue_error = 2
-      OTHERS      = 3.
-  IF sy-subrc &amp;lt;&amp;gt; 0.
-    MESSAGE 'closing batch input session failed' TYPE 'E'.
-  ENDIF.
-
-  CLEAR bdcdata[].
-
-  " Ausgabe der Anzahl der verarbeiteten Datensätze
-  WRITE: / 'Number of processed records:', lv_count.
-  WRITE: / 'Batch input session successfully created.'.
-
-
-*--------------------------------------------------------------------*
-*                              FORMS                                 *
-*                              -----                                 *
-*--------------------------------------------------------------------*
-*&amp;amp;--------------------------------------------------------------------*
-*&amp;amp; Form BDC_DYNPRO                                                    *
-*&amp;amp;--------------------------------------------------------------------*
-*&amp;amp; Hilfsroutine zum Anlegen der Dynprobefehle                         *
-*&amp;amp;--------------------------------------------------------------------*
-*&amp;amp;  --&amp;gt;  program = Programmanme des Dynpro                            *
-*&amp;amp;  --&amp;gt;  dynpro  = Dynpronummer                                       *
-*&amp;amp;--------------------------------------------------------------------*
-FORM bdc_dynpro USING program dynpro.
-
-  CLEAR ls_bdcdata.
-  ls_bdcdata-program  = program.
-  ls_bdcdata-dynpro   = dynpro.
-  ls_bdcdata-dynbegin = 'X'.
-  APPEND ls_bdcdata TO bdcdata.
-
-ENDFORM.                    "bdc_dynpro
-*&amp;amp;--------------------------------------------------------------------*
-*&amp;amp; Form BDC_FIELD                                                     *
-*&amp;amp;--------------------------------------------------------------------*
-*&amp;amp; Hilfsroutine zum Anlegen der Dynprobefehle                         *
-*&amp;amp;--------------------------------------------------------------------*
-*&amp;amp;  --&amp;gt;  fnam = Feldname                                              *
-*&amp;amp;  --&amp;gt;  fval = Feldwert                                              *
-*&amp;amp;--------------------------------------------------------------------*
-FORM bdc_field USING fnam fval.
-
-  CLEAR ls_bdcdata.
-  ls_bdcdata-fnam     = fnam.
-  ls_bdcdata-fval     = fval.
-  APPEND ls_bdcdata TO bdcdata.
-
-ENDFORM.       &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Here is the recording of my report.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="alexgiedt_0-1724738550707.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/157912i20154670C8BEA738/image-size/medium?v=v2&amp;amp;px=400" role="button" title="alexgiedt_0-1724738550707.png" alt="alexgiedt_0-1724738550707.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;I would really appreciate your help, as I am getting a bit frustrated.&lt;/P&gt;&lt;P&gt;Best regards,&lt;BR /&gt;Alex&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/quot-executing-a-batch-input-session-gt-error-leave-to-transaction-is-not/qaq-p/13807989"/>
-    <published>2024-08-27T08:15:29.172000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/financial-management-q-a/e-invoice-malaysia-cancelled-invoice-in-lhdn-portal/qaq-p/13808222</id>
-    <title>E-Invoice Malaysia: Cancelled invoice in LHDN portal.</title>
-    <updated>2024-08-27T10:28:32.065000+02:00</updated>
-    <author>
-      <name>kunalmehra1701</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/794945</uri>
-    </author>
-    <content>&lt;P&gt;Hi,&lt;/P&gt;&lt;P&gt;In regards to getting the updated status in EDOC_COCKPIT, I want to know if an invoice is cancelled in the LHDN portal, can we get the status updated in the cockpit.&amp;nbsp;&lt;/P&gt;&lt;P&gt;So far, I do not see this happening even though technically speaking it could be a possibility with "Get Status" functionality.&lt;/P&gt;&lt;P&gt;Any answers or insights on this are appreciated.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/financial-management-q-a/e-invoice-malaysia-cancelled-invoice-in-lhdn-portal/qaq-p/13808222"/>
-    <published>2024-08-27T10:28:32.065000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/details-of-pr-not-showing-on-my-fiori-inbox-sap-s4-hana/qaq-p/13808651</id>
     <title>Details of PR not showing on MY Fiori Inbox SAP S4/HANA</title>
@@ -550,5 +357,29 @@ INITIALIZATION.
     <content>&lt;P&gt;Hello everybody.&lt;/P&gt;&lt;P&gt;I am getting the following message everytime I try to confirm a warehouse task on RFUI but only with this SKU&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="JBASTIAS_0-1725468774680.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/162531i3C9ECA74F5FDFD92/image-size/medium?v=v2&amp;amp;px=400" role="button" title="JBASTIAS_0-1725468774680.png" alt="JBASTIAS_0-1725468774680.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="JBASTIAS_1-1725468799164.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/162532i3A28F696F4123FE9/image-size/medium?v=v2&amp;amp;px=400" role="button" title="JBASTIAS_1-1725468799164.png" alt="JBASTIAS_1-1725468799164.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Picking and Putaway get the same message&lt;BR /&gt;I suspect that it could be something related to the conversion Unit. Maybe someone modified MM02 or MAT1 of this material and messed something up. All my conversion units are in Spanish, not english.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/supply-chain-management-q-a/sap-ewm-error-message-scwm-ui-rf021/qaq-p/13854764"/>
     <published>2024-09-04T19:01:20.080000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/financial-management-q-a/payment-proposal-f110-swbp-stop-event-raised/qaq-p/13854903</id>
+    <title>Payment Proposal F110 - SWBP Stop Event Raised</title>
+    <updated>2024-09-04T23:28:52.086000+02:00</updated>
+    <author>
+      <name>DIding</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1683763</uri>
+    </author>
+    <content>&lt;P&gt;Dear All,&lt;/P&gt;&lt;P&gt;I have issue with Custom Workflow for Payment Proposal.&lt;/P&gt;&lt;P&gt;I have a Custom Table for Approval. The Approval mechanism is sequence process, i.e 4 step.&lt;/P&gt;&lt;P&gt;In every step can have 1 or more approval.&amp;nbsp;&lt;/P&gt;&lt;P&gt;step approval&lt;BR /&gt;1 ==&amp;gt; Approval A or B&lt;BR /&gt;2 ==&amp;gt; Approval A or C&lt;BR /&gt;3 ==&amp;gt; Approval D&lt;BR /&gt;4 ==&amp;gt; Approval E&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;when proposal created, user A and B will receive wf in their inbox.&lt;/P&gt;&lt;P&gt;we use zprogram to approve/reject the payment proposal through inbox (sbwp).&lt;/P&gt;&lt;P&gt;The issue come when user A or B open payment proposal through inbox/swbp (just open, no click approve), then the payment proposal disappear in another user inbox (sbwp) but it is still there for user A. This happened in every step which have more than one approval.&lt;BR /&gt;Does anyone here have the same experience? or any constructive suggestion to help me solve my issue.&lt;/P&gt;&lt;P&gt;Thanks in advance.&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Business+Workflow/pd-p/271076705480744283548543960420215" class="lia-product-mention" data-product="1046-1"&gt;SAP Business Workflow&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/financial-management-q-a/payment-proposal-f110-swbp-stop-event-raised/qaq-p/13854903"/>
+    <published>2024-09-04T23:28:52.086000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-q-a/how-to-make-a-cfl-based-field-non-editable-in-sap-gui-transaction/qaq-p/13854929</id>
+    <title>How to make a CFL based field non-editable in SAP GUI transaction ?</title>
+    <updated>2024-09-05T00:51:35.611000+02:00</updated>
+    <author>
+      <name>tejas_deshpande24</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/329281</uri>
+    </author>
+    <content>&lt;P&gt;I am trying to add a field to Business Context PS_PROJECT using Custom Fields App.&lt;/P&gt;&lt;P&gt;I am able to add the field and enable it on Project Definition tcodes ( CJ01/02/03 )&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tejas_deshpande24_0-1725489908937.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/162590iBB665BDC70DF9463/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tejas_deshpande24_0-1725489908937.png" alt="tejas_deshpande24_0-1725489908937.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Having said that the field is editable by default. Now i have a required to make this field non-editable. Key point here is this field is on a SAP-GUI transaction and not out of the box Fiori app&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tejas_deshpande24_1-1725490119890.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/162591i20D06B1FBDDFBAEA/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tejas_deshpande24_1-1725490119890.png" alt="tejas_deshpande24_1-1725490119890.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;How can this be achieved ?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-q-a/how-to-make-a-cfl-based-field-non-editable-in-sap-gui-transaction/qaq-p/13854929"/>
+    <published>2024-09-05T00:51:35.611000+02:00</published>
   </entry>
 </feed>
