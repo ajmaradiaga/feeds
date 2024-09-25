@@ -2,181 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2024-09-25T06:29:01.915975+00:00</updated>
+  <updated>2024-09-25T06:44:01.439436+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/re-groovy-or-xslt-to-remove-xml-tag-not-values-in-sap-c/qaq-p/13876564/comment-id/4885374#M4885374</id>
-    <title>Re: Groovy or XSLT to remove XML Tag(not values) in sap c...</title>
-    <updated>2024-09-25T03:27:25.499000+02:00</updated>
-    <author>
-      <name>nageshrao</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/752846</uri>
-    </author>
-    <content>&lt;P&gt;Hello Nidhi,&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;As Ryan mentioned, the provided sample XML payload is invalid. If the source XML contains unescaped special characters like '@', '&amp;lt;', or '&amp;gt;', XSLT processing will fail. A Groovy script is a better option for handling invalid XML and generating valid output. The script is more robust than XSLT as it can handle XML validity issues. However, it assumes a specific structure, so you may need to modify it based on changes in your payload. Use the script below as a reference starting point to build/ customise as per your requirement.&lt;BR /&gt;&lt;BR /&gt;Groovy Script -&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;import com.sap.gateway.ip.core.customdev.util.Message
-import groovy.xml.*
-
-// Function to process the incoming message
-def Message processData(Message message) {
-    // Get the body of the message as a String
-    def body = message.getBody(String)
-    def result
-
-    try {
-        // Parse the XML body using XmlParser
-        def xmlParser = new XmlParser(false, false)
-        def rootNode = xmlParser.parseText(body)
-
-        // Prepare to build the new XML output
-        def writer = new StringWriter()
-        def xmlBuilder = new MarkupBuilder(writer)
-
-        // Create the Root element
-        xmlBuilder.Root {
-            // Traverse all nodes in the XML
-            rootNode.depthFirst().each { node -&amp;gt;
-                // Check for the Root1 element
-                if (node.name() == 'Root1') {
-                    Root1 {
-                        // Process each child node of Root1
-                        node.children().each { childNode -&amp;gt;
-                            // If the child is AssignedTo, extract the email
-                            if (childNode.name() == 'AssignedTo') {
-                                def emailMatch = (childNode.text() =~ /([^&amp;lt;\s]+@[^&amp;gt;]+)/)
-                                if (emailMatch) {
-                                    // Add only the email to the output
-                                    AssignedTo(emailMatch[0][0])
-                                }
-                            } else if (childNode.name() == 'AdditionalComments') {
-                                // Extract comments from the div tag
-                                AdditionalComments(childNode.div.text())
-                            } else {
-                                // Add other child nodes as they are
-                                "${childNode.name()}"(childNode.text())
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Convert the writer output to string
-        result = writer.toString()
-    } catch (Exception e) {
-        // If parsing fails, handle it with a more lenient approach
-        def lines = body.readLines()
-        // Initialize the output with the XML declaration and Root tag
-        def output = new StringBuilder("&amp;lt;?xml version=\"1.0\" encoding=\"UTF-8\"?&amp;gt;\n&amp;lt;Root&amp;gt;\n")
-
-        boolean inRoot1 = false
-        // Process each line of the original XML
-        lines.each { line -&amp;gt;
-            // Skip XML declaration and Root tags
-            if (line.contains('&amp;lt;?xml') || line.contains('&amp;lt;Root&amp;gt;') || line.contains('&amp;lt;/Root&amp;gt;')) {
-                return
-            }
-            // Detect the start of Root1 and set the flag
-            if (line.contains('&amp;lt;Root1&amp;gt;')) {
-                inRoot1 = true
-                output &amp;lt;&amp;lt; "  &amp;lt;Root1&amp;gt;\n"
-                return
-            }
-            // Detect the end of Root1 and reset the flag
-            if (line.contains('&amp;lt;/Root1&amp;gt;')) {
-                inRoot1 = false
-                output &amp;lt;&amp;lt; "  &amp;lt;/Root1&amp;gt;\n"
-                return
-            }
-            // If we are inside Root1, process its children
-            if (inRoot1) {
-                if (line.contains('&amp;lt;AssignedTo&amp;gt;')) {
-                    // Extract email from AssignedTo using regex
-                    def emailMatch = (line =~ /([^&amp;lt;\s]+@[^&amp;gt;]+)/)
-                    if (emailMatch) {
-                        output &amp;lt;&amp;lt; "    &amp;lt;AssignedTo&amp;gt;${emailMatch[0][0]}&amp;lt;/AssignedTo&amp;gt;\n"
-                    }
-                } else if (line.contains('&amp;lt;AdditionalComments&amp;gt;')) {
-                    // Extract comments from the div tag
-                    def comment = line.findAll(/&amp;lt;div&amp;gt;(.*?)&amp;lt;\/div&amp;gt;/)
-                    if (comment) {
-                        output &amp;lt;&amp;lt; "    &amp;lt;AdditionalComments&amp;gt;${comment[0][1]}&amp;lt;/AdditionalComments&amp;gt;\n"
-                    }
-                } else if (line.trim().startsWith('&amp;lt;') &amp;amp;&amp;amp; line.trim().endsWith('&amp;gt;')) {
-                    // Add other tags as they are
-                    output &amp;lt;&amp;lt; "    ${line.trim()}\n"
-                }
-            }
-        }
-
-        // Close the Root tag
-        output &amp;lt;&amp;lt; '&amp;lt;/Root&amp;gt;'
-        result = output.toString()
-    }
-
-    // Set the transformed XML as the body of the message
-    message.setBody(result)
-    return message
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;Source Invalid XML -&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;?xml version='1.0' encoding='UTF-8'?&amp;gt;
-&amp;lt;Root&amp;gt;
-&amp;lt;Root1&amp;gt;
-&amp;lt;ADONumber&amp;gt;12345&amp;lt;/ADONumber&amp;gt;
-&amp;lt;State&amp;gt;&amp;lt;/State&amp;gt;
-&amp;lt;AssignedTo&amp;gt;SRIVASTAVA Nidhi (External) &amp;lt;nidhi.srivastava.ext@XXXXX.eu&amp;gt; &amp;lt;/AssignedTo&amp;gt;
-&amp;lt;Priority&amp;gt;&amp;lt;/Priority&amp;gt;
-&amp;lt;AdditionalComments&amp;gt;
-&amp;lt;div&amp;gt;Comment 5&amp;lt;/div&amp;gt;
-&amp;lt;/AdditionalComments&amp;gt;
-&amp;lt;/Root1&amp;gt;
-&amp;lt;/Root&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Output Valid XML -&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;?xml version="1.0" encoding="UTF-8"?&amp;gt;
-&amp;lt;Root&amp;gt;
-&amp;lt;Root1&amp;gt;
-&amp;lt;ADONumber&amp;gt;12345&amp;lt;/ADONumber&amp;gt;
-&amp;lt;State&amp;gt;&amp;lt;/State&amp;gt;
-&amp;lt;AssignedTo&amp;gt;nidhi.srivastava.ext@XXXXX.eu&amp;lt;/AssignedTo&amp;gt;
-&amp;lt;Priority&amp;gt;&amp;lt;/Priority&amp;gt;
-&amp;lt;AdditionalComments&amp;gt;d&amp;lt;/AdditionalComments&amp;gt;
-&amp;lt;/Root1&amp;gt;
-&amp;lt;/Root&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/re-groovy-or-xslt-to-remove-xml-tag-not-values-in-sap-c/qaq-p/13876564/comment-id/4885374#M4885374"/>
-    <published>2024-09-25T03:27:25.499000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/re-405-method-not-allowed-when-trying-http-method-post-i/qaq-p/13876577/comment-id/4885375#M4885375</id>
-    <title>Re: 405 Method Not Allowed when trying HTTP method POST i...</title>
-    <updated>2024-09-25T03:51:19.455000+02:00</updated>
-    <author>
-      <name>junwu</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/126031</uri>
-    </author>
-    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1573653"&gt;@YS1990&lt;/a&gt;&amp;nbsp; are you sure you have tried like this?&lt;/P&gt;&lt;P&gt;/sap/opu/odata/sap/Z_ODTSLSORDCRT_SRV/SalesOrderSet&lt;/P&gt;&lt;P&gt;request body&amp;nbsp;&lt;/P&gt;&lt;P&gt;{ "DocType" : "TA", "SalesOrg" : "8900", "DistrChan" : "10", "Division" : "11", "TextLine" : "coba text", "ItmNumber" : "000010", "ReqQty" : "15.000", "PartnRole" : "AG", "PartnNumb" : "0001000000", "Material" : "000000000030000032", "Plant" : "8921", "TargetQty" : "15.000", "CondType" : "", "CondValue" : "0.000000000" }&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/re-405-method-not-allowed-when-trying-http-method-post-i/qaq-p/13876577/comment-id/4885375#M4885375"/>
-    <published>2024-09-25T03:51:19.455000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/re-405-method-not-allowed-when-trying-http-method-post-i/qaq-p/13876578/comment-id/4885376#M4885376</id>
-    <title>Re: 405 Method Not Allowed when trying HTTP method POST i...</title>
-    <updated>2024-09-25T03:52:52.677000+02:00</updated>
-    <author>
-      <name>junwu</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/126031</uri>
-    </author>
-    <content>I don't see any screenshot like that.</content>
-    <link href="https://community.sap.com/t5/technology-q-a/re-405-method-not-allowed-when-trying-http-method-post-i/qaq-p/13876578/comment-id/4885376#M4885376"/>
-    <published>2024-09-25T03:52:52.677000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/unlock-the-power-of-sap-signavio-process-intelligence-to-elevate-your/ba-p/13876303</id>
-    <title>Unlock the Power of SAP Signavio Process Intelligence to Elevate Your UiPath Automations</title>
-    <updated>2024-09-25T03:55:43.493000+02:00</updated>
-    <author>
-      <name>konstantina-dimaki</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1701301</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;Turn process mining findings in SAP Signavio Process Intelligence into automation improvements for non-SAP scenarios with UiPath.&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Are you interested in having a seamless handover from insights to action for your non-SAP processes? Then this blog is for you!&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In this post, we will dive deeper into integrating SAP Signavio Process Intelligence with a non-SAP system that supports webhooks, via the “Integrate Using Webhooks” Action task.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Now, let’s walk through the steps of integrating SAP Signavio Process Intelligence with UiPath, through UiPath’s Integration Service HTTP Webhook Connector.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;First, we need to create a connection. A connection is the identifier for the external URL that will be generated. If you want others to build workflows, consider creating the connection in a shared folder.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="add_connection1.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170713iCFE6E7B1A4DF3690/image-size/large?v=v2&amp;amp;px=999" role="button" title="add_connection1.png" alt="add_connection1.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Find the HTTP Webhook connector in the Integration Service catalog.&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="add_connection2.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170807i193BA1C55AA38D7A/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="add_connection2.png" alt="add_connection2.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;Select Connect to HTTP Webhook.&lt;/LI&gt;&lt;LI&gt;In the connection screen, you must provide a name for the application you’re connecting to, for example, “signavio”.&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="add_connection3.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170808iA69E0D86403AA485/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="add_connection3.png" alt="add_connection3.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="add_connection4.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170809i3400D84FA96BA349/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="add_connection4.png" alt="add_connection4.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;In UiPath Studio, start your workflow with the HTTP Webhook: Webhook Event Happened event.&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="create_process1.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170811iECC4C11E3250BD08/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="create_process1.png" alt="create_process1.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;Start New Project.&lt;/LI&gt;&lt;LI&gt;Add “HTTP Webhook: Webhook Event Happened” event in Main Sequence:&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="create_process2.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170812i229B752BBF53AE7B/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="create_process2.png" alt="create_process2.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="create_process3.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170813i7158AA0CF41CAD4B/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="create_process3.png" alt="create_process3.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;Once you select the connection “signavio” you created earlier from the drop down menu, the activity will present you with a URL. This URL is accessible from outside UiPath and does not change during the lifespan of the connection. It will be needed to set up the Integrate Using Webhooks Action task in SAP Signavio Process Intelligence.&lt;/LI&gt;&lt;LI&gt;Using the activity, define filters on the body or headers for the incoming events. If no filtering is provided within the activity, your robot will be triggered for every incoming event.&lt;/LI&gt;&lt;LI&gt;Add an “Assign/Set Variable Value” activity:&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="create_process4.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170816iC952552369001346/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="create_process4.png" alt="create_process4.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;Assign parsed JSON to a variable (named “result” in demo):&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="create_process5.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170817i33749891F3D2B15C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="create_process5.png" alt="create_process5.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;Add “Write Storage Text” activity:&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="create_process6.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170818i18C43E81387176AC/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="create_process6.png" alt="create_process6.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;Designate absolute Path to destination file, Storage Bucket Name, and data to be sent, result.ToString (variable assigned earlier, ‘.ToString’ converts to string and displays as such):&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="create_process7.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170838iB6210CC4C88229B3/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="create_process7.png" alt="create_process7.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;Save workflow.&lt;/LI&gt;&lt;LI&gt;Publish workflow:&lt;OL&gt;&lt;LI&gt;Publishing an automation project means archiving the project folder so that it can be sent to Robots and then executed.&lt;/LI&gt;&lt;LI&gt;When you publish an automation process to the Orchestrator Workspace, a process is created automatically if one does not already exist, and existing processes are updated to the latest published version. Please note that you need to manually choose “Upgrade to latest version” to update an existing process.&lt;/LI&gt;&lt;LI&gt;Select publish in the Studio Design tab ribbon.&lt;/LI&gt;&lt;LI&gt;Follow steps, without configuring additional options.&lt;/LI&gt;&lt;/OL&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;H3 id="toc-hId-1178984672"&gt;&lt;STRONG&gt;Navigate to SAP Signavio Process Intelligence Actions:&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Sign in to Process Intelligence and on the left side panel navigate to Action tab:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="actions1.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170822iC11E224AC15BDAAB/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="actions1.png" alt="actions1.png" /&gt;&lt;/span&gt;&lt;SPAN&gt;For each action, you specify a&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN class=""&gt;SIGNAL&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;query and one or more tasks. The&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN class=""&gt;SIGNAL&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;query produces results when the action is run. These results are then used in the defined tasks.&lt;/SPAN&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Create a new Action or edit an existing one:&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="actions2.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170823iF4D2D890C92A72D8/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="actions2.png" alt="actions2.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;Add a new Action Task of type Webhook.&lt;/LI&gt;&lt;LI&gt;Paste the URL generated earlier, in the “Webhook Endpoint” field.&lt;/LI&gt;&lt;LI&gt;Select ‘None’ for “Authentication Type”.&lt;/LI&gt;&lt;LI&gt;Select Attributes to be included, for example, ‘case_id’.&lt;/LI&gt;&lt;LI&gt;Your newly created action task should look like this:&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2024-09-03 at 5.56.22 PM.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170821iE5A7CFCC4C51BA5D/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2024-09-03 at 5.56.22 PM.png" alt="Screenshot 2024-09-03 at 5.56.22 PM.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;Save Action.&lt;/LI&gt;&lt;LI&gt;Run Action associated with the UiPath integration.&lt;/LI&gt;&lt;LI&gt;The moment the action runs, the “HTTP Webhook: Webhook Event Happened” event of our published process is triggered, and therefore initiates the process to produce a job.&lt;/LI&gt;&lt;/OL&gt;&lt;H3 id="toc-hId-982471167"&gt;Navigate to Orchestrator:&lt;/H3&gt;&lt;OL&gt;&lt;LI&gt;Select Tenant and Workspace. In this tutorial, we use the default tenant and the workspace ‘SomeUnattendedRobot’. Enterprise users might have multiple tenants/workspaces.&lt;/LI&gt;&lt;LI&gt;Select ‘Automations’ tab from the navigation bar.&lt;/LI&gt;&lt;LI&gt;You’re directed to ‘Processes’ tab by default where existing already published processes are displayed.&lt;/LI&gt;&lt;LI&gt;By refreshing the table, you notice the updated process, that was published earlier.&lt;/LI&gt;&lt;LI&gt;Click the ellipsis (3 dots) next to the process and select “Upgrade to latest version” to update the process, follow prompts.&lt;/LI&gt;&lt;/OL&gt;&lt;H3 id="toc-hId-785957662"&gt;&lt;STRONG&gt;In Orchestrator Automations:&lt;/STRONG&gt;&lt;/H3&gt;&lt;OL&gt;&lt;LI&gt;You see the new job being posted with a "Pending" / "Running" status:&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="uipath1.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170828i412092E4606BFE2E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="uipath1.png" alt="uipath1.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="uipath2.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170829i4DAD89EAD62D69FC/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="uipath2.png" alt="uipath2.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;Click on details to review Job details and Logs:&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="uipath3.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170830iBC5BD60A4A811FB7/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="uipath3.png" alt="uipath3.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;Job has completed successfully:&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="job_details.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170831i3702E59ECD6CC57F/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="job_details.png" alt="job_details.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;H3 id="toc-hId-589444157"&gt;&lt;STRONG&gt;Browse Storage Buckets in the same workspace and select ‘TestBucket’:&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="storage_buckets1.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170832iAD3B1840BF5F0CB5/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="storage_buckets1.png" alt="storage_buckets1.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="storagebucket2.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170833iC8D2C19822B96017/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="storagebucket2.png" alt="storagebucket2.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/H3&gt;&lt;OL&gt;&lt;LI&gt;Refresh list of files.&lt;/LI&gt;&lt;LI&gt;Download ‘test2.txt’ and review content:&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="save text file.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170835iCDAF2BB9C0C16DB9/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="save text file.png" alt="save text file.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;Content matches the Action’s results:&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="text_result.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/170836i8E800DF4BAF30207/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="text_result.png" alt="text_result.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;That is it, you've made it! Feel free to reach out to us with any questions.&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-392930652"&gt;&lt;STRONG&gt;Prerequisites:&lt;/STRONG&gt;&lt;/H3&gt;&lt;OL&gt;&lt;LI&gt;UiPath&amp;nbsp; &lt;A href="https://docs.uipath.com/studio/standalone/2023.10/user-guide/introduction" target="_blank" rel="noopener nofollow noreferrer"&gt;Studio&lt;/A&gt;&lt;OL&gt;&lt;LI&gt;&amp;nbsp;For Studio Desktop: install the HTTP Webhook Activity Pack through Manage Packages. This package is supported as of Studio Desktop 23.4 and beyond.&lt;/LI&gt;&lt;LI&gt;For Studio Web, the package will automatically be installed.&lt;/LI&gt;&lt;/OL&gt;&lt;/LI&gt;&lt;LI&gt;UiPath &lt;A href="https://docs.uipath.com/orchestrator/automation-cloud/latest/user-guide/introduction" target="_blank" rel="noopener nofollow noreferrer"&gt;Orchestrator&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;An Orchestrator Bucket named ‘TestBucket’, containing an empty file ‘test2.txt’.&lt;/LI&gt;&lt;/OL&gt;&lt;H3 id="toc-hId-196417147"&gt;&lt;STRONG&gt;Additional resources for UiPath Studio:&lt;/STRONG&gt;&lt;/H3&gt;&lt;OL&gt;&lt;LI&gt;Creating a basic process: &lt;A href="https://docs.uipath.com/studio/standalone/2023.10/user-guide/creating-basic-process" target="_blank" rel="noopener nofollow noreferrer"&gt;tutorial&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;Publishing a project: &lt;A href="https://docs.uipath.com/studio/standalone/2023.10/user-guide/about-publishing-automation-projects" target="_blank" rel="noopener nofollow noreferrer"&gt;tutorial&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;Workflow &lt;A href="https://docs.uipath.com/activities/other/latest/workflow/system-activities" target="_blank" rel="noopener nofollow noreferrer"&gt;activities&lt;/A&gt; used:&lt;OL&gt;&lt;LI&gt;&lt;A href="https://docs.uipath.com/activities/other/latest/integration-service/uipath-http-webhook-create-webhook" target="_self" rel="nofollow noopener noreferrer"&gt;Webhook Event Happened&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://docs.uipath.com/activities/other/latest/workflow/write-storage-text" target="_blank" rel="noopener nofollow noreferrer"&gt;Write Storage Text&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://docs.uipath.com/studio/standalone/2023.10/user-guide/the-assign-activity" target="_self" rel="nofollow noopener noreferrer"&gt;Assign&lt;/A&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;/LI&gt;&lt;/OL&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/unlock-the-power-of-sap-signavio-process-intelligence-to-elevate-your/ba-p/13876303"/>
-    <published>2024-09-25T03:55:43.493000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/re-ca-introscope/qaq-p/13876584/comment-id/4885377#M4885377</id>
     <title>Re: CA Introscope</title>
@@ -1931,5 +1760,53 @@ export default async function VoiceInput(context) {
     <content>&lt;P&gt;Hello &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/809"&gt;@Sijin_Chandran&lt;/a&gt;&amp;nbsp;,&lt;/P&gt;&lt;P&gt;how do you know which correct CDS needs to be extended regarding adding standard fields in API_Purchase_Order, which in this case you enhance the 'E_PurchasingDocumentItem'.&lt;/P&gt;&lt;P&gt;In my case, I would like to add standard field in API API_CUSTOMER_RETURN_SRV, in item level; field MatlAccountAssignmentGroup (VBAP-KTGRM) to work in POST method. I tried with extending CDS View A_CustomerReturnItem, however only GET operations works like as you mention earlier. Any advice?&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/re-unable-to-update-manually-added-standard-fields-to-st/qaq-p/13876773/comment-id/4885411#M4885411"/>
     <published>2024-09-25T08:26:32.073000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sap-learning-q-a/user-defined-fields-order/qaq-p/13876776</id>
+    <title>User-defined fields order</title>
+    <updated>2024-09-25T08:29:56.522000+02:00</updated>
+    <author>
+      <name>SZIT</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1757886</uri>
+    </author>
+    <content>&lt;P&gt;We use SAP Business One 10.0.&lt;/P&gt;&lt;P&gt;How can I specify the display order of the user-defined fields for all users in a form?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/sap-learning-q-a/user-defined-fields-order/qaq-p/13876776"/>
+    <published>2024-09-25T08:29:56.522000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/re-how-to-search-within-this-managed-tag-sap-sql-anywhere/qaq-p/13876777/comment-id/4885412#M4885412</id>
+    <title>Re: How to search within this managed tag (SAP SQL Anywhere)?</title>
+    <updated>2024-09-25T08:34:02.595000+02:00</updated>
+    <author>
+      <name>VolkerBarth</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/352</uri>
+    </author>
+    <content>&lt;P&gt;According to that general question, basically you don't search within the SAP sites. I can't believe SAP cannot do better.&lt;/P&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/questions-about-sap-websites/how-to-seach-in-sap-community/qaq-p/13662086" target="_blank"&gt;https://community.sap.com/t5/questions-about-sap-websites/how-to-seach-in-sap-community/qaq-p/13662086&lt;/A&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/re-how-to-search-within-this-managed-tag-sap-sql-anywhere/qaq-p/13876777/comment-id/4885412#M4885412"/>
+    <published>2024-09-25T08:34:02.595000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/re-two-colons-in-path/qaq-p/13876778/comment-id/4885413#M4885413</id>
+    <title>Re: Two colons in PATH</title>
+    <updated>2024-09-25T08:34:44.714000+02:00</updated>
+    <author>
+      <name>bart_van_kuijk</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/194944</uri>
+    </author>
+    <content>&lt;P&gt;Hi Mark&lt;/P&gt;&lt;P&gt;You were right (by chance it looks) about SP03 PL07. That indeed happened to be the release where the WLA environment variable was introduced and it has been wrong from the start.&lt;/P&gt;&lt;P&gt;The KBA has been updated with following:&lt;/P&gt;&lt;P&gt;A fix for the issue from CR 829765 will be released in:&lt;/P&gt;&lt;P&gt;ASE 16.0 SP04 PL07&lt;BR /&gt;ASE 16.1&lt;/P&gt;&lt;P&gt;Workaround:&lt;BR /&gt;Manually modify the environment file and remove the extra character.&lt;/P&gt;&lt;P&gt;As there will be no further PLs for SP03, for this release the workaround needs to be applied.&lt;/P&gt;&lt;P&gt;Rgds&lt;/P&gt;&lt;P&gt;Bart&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/re-two-colons-in-path/qaq-p/13876778/comment-id/4885413#M4885413"/>
+    <published>2024-09-25T08:34:44.714000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/how-can-we-change-the-setting-at-our-end-to-make-sure-the-invoices-always/qaq-p/13876780</id>
+    <title>“how can we change the setting at our end to make sure The Invoices always reference the POs current</title>
+    <updated>2024-09-25T08:36:49.896000+02:00</updated>
+    <author>
+      <name>Vaibhav8764</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1513283</uri>
+    </author>
+    <content>&lt;P&gt;Can you please confirm we understand “how can we change the setting at our end to make sure &lt;EM&gt;The Invoices always reference the POs current version after the update.&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;setting we need to update at our end for “Carbon Copy document transfer”.&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;This is for Ariba solution&lt;/EM&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/how-can-we-change-the-setting-at-our-end-to-make-sure-the-invoices-always/qaq-p/13876780"/>
+    <published>2024-09-25T08:36:49.896000+02:00</published>
   </entry>
 </feed>
