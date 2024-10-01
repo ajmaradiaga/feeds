@@ -2,69 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Cloud-Application-Programming-Model-qa.xml</id>
   <title>SAP Community - SAP Cloud Application Programming Model</title>
-  <updated>2024-10-01T17:00:50.088154+00:00</updated>
+  <updated>2024-10-01T20:00:47.324302+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Cloud Application Programming Model/pd-p/9f13aee1-834c-4105-8e43-ee442775e5ce" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Cloud Application Programming Model Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/lack-of-understanding-or-missing-documentation-in-the-area-of-sap-cap-amp/qaq-p/13875563</id>
-    <title>Lack of understanding or missing documentation in the area of SAP CAP &amp;amp; Fiori Elements</title>
-    <updated>2024-09-24T10:55:44.012000+02:00</updated>
-    <author>
-      <name>ceedee666</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/10851</uri>
-    </author>
-    <content>&lt;P&gt;Hi all,&lt;/P&gt;&lt;P&gt;I'm currently struggling with a simple application I'm building using CAP and Fiori Elements. However, I'm unsure if this is due to my lack of understanding or missing documentation in the area.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;What I'm trying to do is to build a simple app for creating orders. The orders consist of a header and items. Here is the excerpt of the schema.cds:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;entity Orders : cuid, managed {
-    orderID     : Integer @readonly default 0;
-    customer    : Association to one Customers not null;
-    orderDate   : Date not null;
-    orderAmount : Decimal(10, 2);
-    currency    : Currency;
-    orderStatus : Association to OrderStatus default 10;
-    items       : Composition of many OrderItems
-                      on items.order = $self;
-}
-
-entity OrderItems : cuid, managed {
-    itemID     : Integer @readonly default 0;
-    order      : Association to Orders;
-    product    : Association to one Products;
-    quantity   : Integer;
-    itemAmount : Decimal(10, 2);
-    currency   : Currency;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The idea is to have a semantic key (orderID and itemID) in the orders and the items. On the basis of the schema.cds I created the following service.cds. The main point is the annotation with &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1599241"&gt;@odata&lt;/a&gt;.draft.enabled to enable the creation of the entities in the Fiori elements app.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;service SimpleERPService {
-    entity Products as projection on erp.Products;
-    entity Customers as projection on erp.Customers;
-    entity Orders as projection on erp.Orders;
-    entity OrderItems as projection on erp.OrderItems
-}
-
-annotate erp.Products with &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1599241"&gt;@odata&lt;/a&gt;.draft.enabled;
-annotate erp.Customers with &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1599241"&gt;@odata&lt;/a&gt;.draft.enabled;
-annotate erp.Orders with &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1599241"&gt;@odata&lt;/a&gt;.draft.enabled;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;What I tried to implement first was an automatic generation of the itemID. What I came up with after:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;lots of debugging&lt;/LI&gt;&lt;LI&gt;lots of trial and error&lt;/LI&gt;&lt;LI&gt;looking at these samples:&lt;UL&gt;&lt;LI&gt;&lt;A href="https://github.com/SAP-samples/cloud-cap-samples" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/SAP-samples/cloud-cap-samples&lt;/A&gt;&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://github.com/SAP-samples/fiori-elements-v4-cap-advanced/" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/SAP-samples/fiori-elements-v4-cap-advanced/&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://github.com/SAP-samples/cap-sflight" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/SAP-samples/cap-sflight&amp;nbsp;&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;is this code in service.js:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;class SimpleERPService extends cds.ApplicationService {
-  init() {
-    const { Orders, OrderItems, Products } = this.entities;
-...
-    this.before("UPDATE", "OrderItems.drafts", async (req) =&amp;gt; {
-      const itemDraft = await SELECT.one
-        .from(req.query.target)
-        .where({ ID: req.data.ID });
-
-      if (!itemDraft.itemID) {
-        const { maxID } = await SELECT.one("max(itemID) as maxID")
-          .from(req.query.target)
-          .where({ order_ID: itemDraft.order_ID });
-        req.data.itemID = maxID + 10;
-      }
-      //additional code to calculate itemAmount
-      ...
-    });&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;While the code above works, there are a few things I don't quite understand. Or that in my opinion contradict the documentation at &lt;A href="https://cap.cloud.sap/docs/node.js/" target="_blank" rel="noopener nofollow noreferrer"&gt;https://cap.cloud.sap/docs/node.js/&lt;/A&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;OrderItems.draft&lt;/STRONG&gt; is always undefinded.&lt;BR /&gt;In contrast to the documentation here (&lt;A href="https://cap.cloud.sap/docs/advanced/fiori#query-drafts-programmatically" target="_blank" rel="noopener nofollow noreferrer"&gt;https://cap.cloud.sap/docs/advanced/fiori#query-drafts-programmatically&lt;/A&gt;) OrderItems.draft is always undefinded. I have to use the String "OrderItems.draft" to register the handler. What is the reason for this?&lt;/LI&gt;&lt;LI&gt;Selection from &lt;STRONG&gt;draft tables&lt;/STRONG&gt;.&lt;BR /&gt;As the *.draft is allways undefined (see above) the approach to read data from drafts shown in the samples (e.g. &lt;A href="https://github.com/SAP-samples/cap-sflight/blob/4fc76dc0ae7ad2d0dd6c97afd5c143c62fc93c4d/srv/travel-service.js#L28" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/SAP-samples/cap-sflight/blob/4fc76dc0ae7ad2d0dd6c97afd5c143c62fc93c4d/srv/travel-service.js#L28&lt;/A&gt;) does not work. Instead I can use req.query.target. However, req.data.target does not&amp;nbsp; work in all cases. For example, if&amp;nbsp; I need to update the draft of an other entity I have to use the full name of the draft table as shown below. This does not seem quite right. Is there a better way to do this?&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;return UPDATE("SimpleERPService_Orders_drafts", ID).with({
-        orderAmount,
-        currency_code,
-      });​&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;PATCH&lt;/STRONG&gt; event can't be registered.&lt;BR /&gt;The PATCH event mention in the docu (&lt;A href="https://cap.cloud.sap/docs/node.js/core-services#srv-on-before-after" target="_blank" rel="noopener nofollow noreferrer"&gt;https://cap.cloud.sap/docs/node.js/core-services#srv-on-before-after&lt;/A&gt;) and in the samples (&lt;A href="https://github.com/SAP-samples/fiori-elements-v4-cap-advanced/blob/89e073020b208ac2121718cfb8aac5586999bab6/srv/travel-service.js#L50" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/SAP-samples/fiori-elements-v4-cap-advanced/blob/89e073020b208ac2121718cfb8aac5586999bab6/srv/travel-service.js#L50&lt;/A&gt;) is never raised in my case. I have to use UPDATE. What is the reason for this?&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Thanks in advance for the help!&lt;BR /&gt;Christian&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/lack-of-understanding-or-missing-documentation-in-the-area-of-sap-cap-amp/qaq-p/13875563"/>
-    <published>2024-09-24T10:55:44.012000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/issue-when-exposing-succesfactor-api-through-capm/qaq-p/13876368</id>
     <title>Issue when exposing Succesfactor API through CAPM</title>
@@ -516,5 +457,25 @@ home: /workspaces/cap-local-dev-issue/node_modules/@sap/cds&lt;/code&gt;&lt;/pre
     <content>&lt;P&gt;Hello all,&lt;/P&gt;&lt;P&gt;Can you please help me to deploy the &lt;STRONG&gt;CAPM&lt;/STRONG&gt; to &lt;STRONG&gt;BTP&lt;/STRONG&gt; cockpit which is consuming the &lt;STRONG&gt;on-premise&lt;/STRONG&gt; system? Here I'm not getting the data after deployment&amp;nbsp;&lt;STRONG&gt;meta data is failing&lt;/STRONG&gt; to load, even i have maintained destination and all. if you have an idea please let me know where we have to maintain the &lt;STRONG&gt;destination in the project correctly&lt;/STRONG&gt; ?&lt;BR /&gt;I'm providing my package.json and xs-app.json&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="xsapp.png" style="width: 463px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/173667i4428AAF413C74B90/image-size/large?v=v2&amp;amp;px=999" role="button" title="xsapp.png" alt="xsapp.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="packagejson.jpg" style="width: 836px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/173666i732D5EF8F87DAFF8/image-size/large?v=v2&amp;amp;px=999" role="button" title="packagejson.jpg" alt="packagejson.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/capm-deployment-on-premise/qaq-p/13883962"/>
     <published>2024-10-01T08:48:08.885000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/issue-with-deep-entity-request-in-cap-cds-validate-issue-cds-v-8-3-0/qaq-p/13884902</id>
+    <title>Issue with Deep Entity Request in CAP (cds.validate issue - cds v 8.3.0)</title>
+    <updated>2024-10-01T21:42:14.119000+02:00</updated>
+    <author>
+      <name>cbsmerveguel</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/129269</uri>
+    </author>
+    <content>&lt;P&gt;Hi all,&lt;/P&gt;&lt;P&gt;I’ve established a basic parent-child association in my SAP on-premise backend and am consuming this OData service in my CAP application. However, while attempting to send a deep entity request to the backend, I consistently encountered the following error message:&lt;/P&gt;&lt;P&gt;'Property "0" does not exist in XXXItemSet'.&lt;/P&gt;&lt;P&gt;At first, I suspected an issue with our backend design, but after reviewing it thoroughly, we turned our attention to CAP since nothing seemed amiss with the backend.&lt;/P&gt;&lt;P&gt;The error message originated from the file /node_modules/@sap/cds/lib/linked/validate.js, and after some debugging, we identified the problematic check at line 202 (@sap/cds version 8.3.0):&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;else if (d['@cds.validate'] !== false) d.validate(data[each], path_, ctx)&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;At this point, the system loops through the metadata elements and their properties (those from the CSN file) for the parent entity set (&lt;/SPAN&gt;XXXSet&lt;SPAN&gt;), which works fine. However, when it reaches the association and attempts to validate its elements, it fails. The system assumes that there is&amp;nbsp;a &lt;/SPAN&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1434188"&gt;@CDS&lt;/a&gt;.validate&lt;SPAN&gt; property in the association, but when it can't find it, it misinterprets the element list, and misunderstands the first element in the child item set as the property &lt;/SPAN&gt;"0"&amp;nbsp;(basically the first array count)&lt;SPAN&gt;, causing the error.&lt;/SPAN&gt;&lt;/DIV&gt;&lt;P&gt;To test this, I modified the CSN file by manually appending the &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1434188"&gt;@CDS&lt;/a&gt;.validateas false property to the generated association element. This allowed me to bypass the check and proceed with the process, eventually reaching the backend method successfully. Here’s the updated part of the CSN file:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;    "XXXItemSet": {
+     "@cds.validate": false,
+     "type": "cds.Association",
+     "target": "Dummy_SRV.XXXItemSet",
+     "cardinality": {
+      "max": "*"
+     },
+     "keys": []
+    },&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;DIV class=""&gt;According to the &lt;A href="https://cap.cloud.sap/docs/releases/jun24#new-input-validation" target="_self" rel="nofollow noopener noreferrer"&gt;&lt;U&gt;Capire documentation&lt;/U&gt;&amp;nbsp;&lt;/A&gt;the &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1434188"&gt;@CDS&lt;/a&gt;.validate functionality was introduced in the &lt;STRONG&gt;June 2024 (cds 8.0.3)&lt;/STRONG&gt; release. If we downgrade to cds version 7.9.4, the issue does not occur, which leads me to believe that this might either be a bug related to deep entity creation or there’s an additional step we’ve missed with this new validation process.&lt;/DIV&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;We would greatly appreciate any explanation or solution that avoids downgrading to the previous release or manually editing the CSN file.&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;BR /&gt;Any guidance or insights would be greatly appreciated!&lt;/DIV&gt;&lt;P&gt;Thanks!&lt;BR /&gt;Merve&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/issue-with-deep-entity-request-in-cap-cds-validate-issue-cds-v-8-3-0/qaq-p/13884902"/>
+    <published>2024-10-01T21:42:14.119000+02:00</published>
   </entry>
 </feed>
