@@ -2,289 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2024-10-04T08:29:01.716946+00:00</updated>
+  <updated>2024-10-04T08:44:01.587978+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/create-inbound-deliveries-in-ewm-using-an-abap-program-save-inbound/ba-p/13888099</id>
-    <title>Create Inbound Deliveries in EWM Using an ABAP Program (Save Inbound Delivery Replica)</title>
-    <updated>2024-10-04T08:12:32.254000+02:00</updated>
-    <author>
-      <name>dhawal_patil</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/5796</uri>
-    </author>
-    <content>&lt;P&gt;Recently, I encountered a requirement where Purchase Order data was being sourced from a non-SAP ERP system. This data was stored in our custom Z tables within the EWM system. The goal was to enable warehouse users to create inbound delivery replicas using RF devices or a front-end transaction in a decentralized EWM environment.&lt;/P&gt;&lt;P&gt;As a novice in EWM system development, I was unsure about the most efficient way to accomplish this task. Therefore, I will begin by outlining my approach and the solution I discovered.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;There are two standard ways I could create Inbound Delivery in EWM:&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Transaction: /SCWM/PRDI&lt;/LI&gt;&lt;LI&gt;Standard Inbound IDoc:&amp;nbsp;SHP_IBDLV_SAVE_REPLICA&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Creating the delivery using the transaction was not feasible, as it didn’t align with the user’s needs. An IDoc was the only option for automating the delivery creation process. However, using an IDoc would require either triggering it via a file or establishing outbound and inbound partner profiles for my system, followed by externally triggering the outbound IDoc from my ABAP program.&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Debugging /SCWM/PRDI transaction&lt;/STRONG&gt;: Debugging this transaction felt too complex and time-consuming, so I skipped this and went ahead with debugging IDoc function module&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Testing and debugging IDoc (SHP_IBDLV_SAVE_REPLICA)&lt;/STRONG&gt;: The delivery was successfully created using the WE19 IDoc test transaction. I further proceeded to debug the IDoc function module. During this process, I identified a class that was utilized for creating inbound&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Class: /scwm/cl_mapin_id_savereplica&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;While analyzing the function group for the IDoc function module, I discovered another function module within the same group.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;/SCWM/INB_DLV_SAVEREPLICA:&amp;nbsp;&lt;/STRONG&gt;This function module, also creates EWM Inbound Deliveries using the same class and methods as the IDoc. Therefore, I decided to investigate whether I could utilize this function module in my ABAP program to create inbound deliveries. As an additional note, this function module is also used to replicate Inbound Deliveries from SAP ERP systems using RFCs.&lt;/P&gt;&lt;P&gt;After a few trials and resolving quite a few errors, I discovered that this function module required qRFC to successfully create inbound deliveries. Invoking it without qRFC would result in an ABAP runtime error or dump.&lt;/P&gt;&lt;P&gt;Following this, I have included an example program that demonstrates the use of the function module for creating inbound deliveries.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;U&gt;Create EWM inbound delivery replica using FM: /SCWM/INB_DLV_SAVEREPLICA&lt;/U&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The following demo program illustrates how to create outbound and inbound queues using ABAP qRFC APIs and invoke the function as an RFC in a separate task.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; You must have an SM59 ABAP destination configured for your EWM system.&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;Program:&lt;/STRONG&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;*&amp;amp;---------------------------------------------------------------------*
-*&amp;amp; Report ZTEST_INBOUND_DELIVERY
-*&amp;amp;---------------------------------------------------------------------*
-*&amp;amp;
-*&amp;amp;---------------------------------------------------------------------*
-REPORT ZTEST_INBOUND_DELIVERY.
-
-DATA: lt_header_partner          TYPE /scwm/tt_header_partner,
-      lt_header_deadlines        TYPE /scwm/tt_header_deadlines,
-      lt_item_data               TYPE /scwm/tt_inb_item_data,
-      lt_item_org                TYPE /scwm/tt_inb_item_org,
-      lt_item_ref_purchase_order TYPE /scwm/tt_item_ref_prchse_order.
-
-
-*Creating work areas.
-DATA: ls_header_data   TYPE /scwm/bapiibdlvhdr,
-      ls_header_org    TYPE /scwm/bapiibdlvhdrorg,
-      lv_sender_system TYPE tbdls-logsys,
-      ls_techn_control TYPE /scwm/bapidlvcontrol.
-
-DATA: lv_matnr TYPE matnr VALUE '1'.
-
-
-
-DATA: lv_idoc_status TYPE bdidocstat-status,
-      lv_deliv_numb  TYPE vbeln_vl VALUE '4630900042'.
-
-
-"Set Data into Import Parameters
-ls_header_data = VALUE #( deliv_numb   = lv_deliv_numb
-                          billoflading = 'TESTBOL'
-                          extdelv_no   = |DEL_{ sy-datum }_{ sy-timlo }UTC|
-                          dlv_type     = 'EL'
-                          sd_doc_cat   = '7' ).
-
-ls_header_org = VALUE #( ship_point = '0001'
-                         whse_no    = 'W01' ).
-
-lv_sender_system = 'NONSAP_ERP'.        "Define as Non-SAP ERP in SPRO configs
-
-ls_techn_control = VALUE #( upd_ind        = 'I'
-                            recv_whs_no    = 'W01'
-                            recv_sys       = 'EWDCLNT100'
-                            dlv_type       = 'EL'
-                            internal_queue = abap_true ).
-
-lt_header_partner = VALUE #( ( deliv_numb = lv_deliv_numb
-                               itm_number = '000010'
-                               partner_no = 'WH01VEN' ) ).
-
-lt_header_deadlines = VALUE #( ( deliv_numb    = lv_deliv_numb
-                                 timetype      = 'WSHDRLFDAT'
-                                 timestamp_utc = '20240920150000'
-                                 timezone      = 'UTC' ) ).
-
-lt_item_data = VALUE #( ( deliv_numb        = lv_deliv_numb
-                          itm_number        = '000010'
-                          material          = |{ lv_matnr ALPHA = IN }|
-                          dlv_qty           = '5.000'
-                          sales_unit_iso    = 'EA'
-                          sales_unit        = 'EA'
-                          dlv_qty_stock     = '5.000'
-                          base_uom          = 'EA'
-                          base_uom_iso      = 'EA'
-                          conv_unit_nom     = '1'
-                          conv_unit_denom   = '1'
-                          rec_point         = '0001'
-                          item_categ        = 'ELN'
-                          whse_mvmt         = '101'
-                          move_type         = '101'
-                          move_type_wm      = '101'
-                          material_external = '1'
-                          prod_date         = sy-datum ) ).
-
-lt_item_org = VALUE #( ( deliv_numb = lv_deliv_numb
-                         itm_number = '000010'
-                         plant      = 'WH01'
-                         stge_loc   = 'WH01' ) ).
-
-lt_item_ref_purchase_order = VALUE #( ( deliv_numb     = lv_deliv_numb
-                                        itm_number     = '000010'
-                                        doc_number     = '4500000001'
-                                        itm_number_ref = '00010'
-                                        sd_doc_cat     = 'V'
-                                        doc_cat        = 'F'
-                                        doc_type       = 'NB'
-                                        status         = '9'
-                                        pur_group      = '001'
-                                        doc_date       = '20240911'
-                                        gr_ind         = 'X'
-                                        gr_basediv     = 'X' ) ).
-
-DATA: lv_deliv TYPE vbeln.
-
-CONSTANTS: lc_queue_name      TYPE trfcqout-qname VALUE 'TEST_QUEUE_EWM_1',
-           lc_queue_name_in   TYPE trfcqout-qname VALUE 'TEST_QUEUE_EWM_2',
-           lc_ewd_destination TYPE rfcdes-rfcdest VALUE 'EWD'.
-
-
-"Set Queue Name for the next qRFC-call
-CALL FUNCTION 'TRFC_SET_QUEUE_NAME'
-  EXPORTING
-    qname              = lc_queue_name
-  EXCEPTIONS
-    invalid_queue_name = 1
-    OTHERS             = 2.
-IF sy-subrc = 0.
-
-  CALL FUNCTION 'TRFC_SET_QIN_PROPERTIES'
-    EXPORTING
-      qin_name           = lc_queue_name_in
-      qout_name          = lc_queue_name
-    EXCEPTIONS
-      invalid_queue_name = 1
-      error_message      = 2
-      OTHERS             = 3.
-  IF sy-subrc = 0.
-
-    CALL FUNCTION '/SCWM/INB_DLV_SAVEREPLICA'
-      IN BACKGROUND TASK
-      AS SEPARATE UNIT
-      DESTINATION lc_ewd_destination
-      EXPORTING
-        techn_control           = ls_techn_control
-        header_data             = ls_header_data
-        header_org              = ls_header_org
-        sender_system           = lv_sender_system
-      TABLES
-        header_partner          = lt_header_partner
-        header_deadlines        = lt_header_deadlines
-        item_data               = lt_item_data
-        item_org                = lt_item_org
-        item_ref_purchase_order = lt_item_ref_purchase_order.
-    IF sy-subrc &amp;lt;&amp;gt; 0.
-      ROLLBACK WORK.
-    ELSE.
-      COMMIT WORK.
-    ENDIF.
-  ENDIF.
-ENDIF.
-
-WRITE: |Execution complete for queue|.
-
-"As the FM does not return Delivery Number,
-" we can wait and fetch the delivery from table
-"  using PO number as refernce
-WAIT UP TO 5 SECONDS.
-SELECT docno AS delivery
-      FROM /scdl/db_proch_i AS a
-      INNER JOIN /scdl/db_refdoc AS b
-      ON a~docid = b~docid
-      WHERE b~refdoccat = 'IDR'
-        AND b~doccat = 'PDI'
-        AND b~refbskey = 'NONSAP_ERP'
-        AND b~refdocno = _deliv_numb
-        INTO TABLE (lt_inb_deliv).
-IF sy-subrc = 0.
-  WRITE: |Delivery created Successfully|.
-  cl_demo_output=&amp;gt;display( lt_inb_deliv ).
-ENDIF.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/create-inbound-deliveries-in-ewm-using-an-abap-program-save-inbound/ba-p/13888099"/>
-    <published>2024-10-04T08:12:32.254000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-how-to-get-list-all-data-in-tcode-ckmlqs/qaq-p/13888102/comment-id/4198496#M4198496</id>
-    <title>Re: How to get list all data in Tcode CKMLQS</title>
-    <updated>2024-10-04T08:14:49.843000+02:00</updated>
-    <author>
-      <name>dang_thanhdung</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/588425</uri>
-    </author>
-    <content>&lt;P&gt;Edited. Thankyou so much !!!&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-how-to-get-list-all-data-in-tcode-ckmlqs/qaq-p/13888102/comment-id/4198496#M4198496"/>
-    <published>2024-10-04T08:14:49.843000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/re-smart-forms-not-printing-on-zebra-zt231-printer/qaq-p/13888103/comment-id/4886753#M4886753</id>
-    <title>Re: Smart Forms not printing on Zebra ZT231 Printer</title>
-    <updated>2024-10-04T08:18:06.739000+02:00</updated>
-    <author>
-      <name>Sandra_Rossi</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/145194</uri>
-    </author>
-    <content>If your question is about why not getting any spool (nothing in SP01?) while printing to YZB300U, did you debug YCL_PDL_IMP_ZB_YZB1 (I guess it's the PDL driver behind YZB300U), what happens?</content>
-    <link href="https://community.sap.com/t5/technology-q-a/re-smart-forms-not-printing-on-zebra-zt231-printer/qaq-p/13888103/comment-id/4886753#M4886753"/>
-    <published>2024-10-04T08:18:06.739000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-need-to-create-pysm-story-but-with-selection-on-month/qaq-p/13888104/comment-id/4198497#M4198497</id>
-    <title>Re: Need to create PYSM story but with selection on month</title>
-    <updated>2024-10-04T08:19:14.193000+02:00</updated>
-    <author>
-      <name>William_Yu</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/62666</uri>
-    </author>
-    <content>Have you tried to create a restricted measure with navigation to previous year?</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-need-to-create-pysm-story-but-with-selection-on-month/qaq-p/13888104/comment-id/4198497#M4198497"/>
-    <published>2024-10-04T08:19:14.193000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/flexibility-services-lrepconnector-doesn-t-seem-to-work/qaq-p/13888109</id>
-    <title>Flexibility Services LrepConnector doesn't seem to work</title>
-    <updated>2024-10-04T08:22:51.059000+02:00</updated>
-    <author>
-      <name>robmamba25</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/866133</uri>
-    </author>
-    <content>&lt;P&gt;Hello everyone, I am trying to deploy a Fiori Elements application in SAP BTP in the Fiori Launchpad or Work Zone, however I am unable to obtain the Flexibility Changes from the LrepConnector. I have already configured it in the index.html, added FlexEnabled = true and in the libraries I incorporated the sap.ui.fl, added a route in the xs-app.json, however I am unable to consume the flexibility changes even though the sap/bc/lrep service is active in the backend.&lt;/P&gt;&lt;P&gt;Thank you very much for your support&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;   &lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/flexibility-services-lrepconnector-doesn-t-seem-to-work/qaq-p/13888109"/>
-    <published>2024-10-04T08:22:51.059000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-need-to-copy-pr-nr-after-creation/qaq-p/13888112/comment-id/4198501#M4198501</id>
-    <title>Re: Need to copy PR nr after creation</title>
-    <updated>2024-10-04T08:23:51.914000+02:00</updated>
-    <author>
-      <name>DominikTylczyn</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/141029</uri>
-    </author>
-    <content>&lt;P&gt;Hello&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1783244"&gt;@AKoleva&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Go to SAP GUI settings:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="DominikTylczyn_0-1728022917185.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/175160i96ACFF0B1665D5A6/image-size/medium?v=v2&amp;amp;px=400" role="button" title="DominikTylczyn_0-1728022917185.png" alt="DominikTylczyn_0-1728022917185.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;then go to&amp;nbsp;&lt;EM&gt;Notifications&lt;/EM&gt; node and mark the message types that should be displayed in a dialog box:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="DominikTylczyn_1-1728022982455.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/175161iD47F198D7AB29E4C/image-size/medium?v=v2&amp;amp;px=400" role="button" title="DominikTylczyn_1-1728022982455.png" alt="DominikTylczyn_1-1728022982455.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;That will display messages as dialog boxes giving you ample time to copy.&lt;/P&gt;&lt;P&gt;Best regards&lt;/P&gt;&lt;P&gt;Dominik Tylczynski&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-need-to-copy-pr-nr-after-creation/qaq-p/13888112/comment-id/4198501#M4198501"/>
-    <published>2024-10-04T08:23:51.914000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/application-development-discussions/merge-feature-branch-to-main-branch-in-gcts-fiori-app/m-p/13888113#M2031238</id>
-    <title>Re: Merge feature branch to MAIN branch in gCTS fiori app</title>
-    <updated>2024-10-04T08:24:42.100000+02:00</updated>
-    <author>
-      <name>sunil_sap18</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/592524</uri>
-    </author>
-    <content>&lt;P&gt;Hi&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/6469"&gt;@Karin&lt;/a&gt;&amp;nbsp;,&lt;/P&gt;&lt;P&gt;Thank you very much for your reply.&lt;/P&gt;&lt;P&gt;Developer 1 and Developer 2 are working&lt;STRONG&gt; in the same development system&lt;/STRONG&gt; on a single Z object. In classical approach, as both developers simultaneously can have their own tasks in the main transport request number on the same object, how to map the same scenario using gCTS? So only MAIN branch to remain active in Developer 1's and Developer 2's gCTS apps? Branching is not applicable for this case?&amp;nbsp; Kindly advise&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Regards,&lt;/P&gt;&lt;P&gt;Sunil&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/application-development-discussions/merge-feature-branch-to-main-branch-in-gcts-fiori-app/m-p/13888113#M2031238"/>
-    <published>2024-10-04T08:24:42.100000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/re-seeking-clarification-on-clean-core-strategy-for-new-abap-custom-code-on/qaq-p/13888115/comment-id/4886755#M4886755</id>
-    <title>Re: Seeking Clarification on Clean Core Strategy for New ABAP Custom Code on BTP ABAP vs ECC</title>
-    <updated>2024-10-04T08:25:03.807000+02:00</updated>
-    <author>
-      <name>Sandra_Rossi</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/145194</uri>
-    </author>
-    <content>Side note: S/4HANA Private Cloud alone doesn't imply a clean core strategy. You might still adopt the old "dirty" approach.</content>
-    <link href="https://community.sap.com/t5/technology-q-a/re-seeking-clarification-on-clean-core-strategy-for-new-abap-custom-code-on/qaq-p/13888115/comment-id/4886755#M4886755"/>
-    <published>2024-10-04T08:25:03.807000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/re-sac-planning-bpc-live-model-publish-data-from-the-s/qaq-p/13888116/comment-id/4886756#M4886756</id>
-    <title>Re: SAC Planning BPC live model - Publish data from the s...</title>
-    <updated>2024-10-04T08:25:16.669000+02:00</updated>
-    <author>
-      <name>Michealj</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1783193</uri>
-    </author>
-    <content>&lt;DIV class=""&gt;&lt;DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;"Great observation&lt;A href="https://bases-coc.com/" target="_self" rel="nofollow noopener noreferrer"&gt;,&lt;/A&gt; Rubén! I've encountered similar issues when working with SAC and BPC models. Adding a refresh step definitely helps sync the data correctly before publishing. Another option could be to check the processing times between sequences and data saves to ensure everything aligns. Would love to hear if others have found alternative solutions!"&lt;/SPAN&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/re-sac-planning-bpc-live-model-publish-data-from-the-s/qaq-p/13888116/comment-id/4886756#M4886756"/>
-    <published>2024-10-04T08:25:16.669000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-how-to-get-list-all-data-in-tcode-ckmlqs/qaq-p/13888117/comment-id/4198498#M4198498</id>
-    <title>Re: How to get list all data in Tcode CKMLQS</title>
-    <updated>2024-10-04T08:26:29.081000+02:00</updated>
-    <author>
-      <name>Sandra_Rossi</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/145194</uri>
-    </author>
-    <content>&lt;P&gt;People usually run the SQL trace (ST05) to identify the tables and deduce the logic (reverse engineer) how to join the data all together (possibly, an ABAP developer may look at the code if needed).&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-how-to-get-list-all-data-in-tcode-ckmlqs/qaq-p/13888117/comment-id/4198498#M4198498"/>
-    <published>2024-10-04T08:26:29.081000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-members/create-inbound-deliveries-in-ewm-using-an-abap-program-save-inbound/bc-p/13888118#M169580</id>
     <title>Re: Create Inbound Deliveries in EWM Using an ABAP Program (Save Inbound Delivery Replica)</title>
@@ -1384,5 +1105,125 @@ ENDIF.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <content>Hi Becca, We have the same issue. Customizing and master data is set correctly, but in app QA32 it works as intended but in the app F1685A (Record Inspection Results) the pop-up does not appear. Did you find the solution?</content>
     <link href="https://community.sap.com/t5/supply-chain-management-q-a/re-missing-automated-defect-recording-pop-up-for-qm-quality-notification/qaq-p/13888298/comment-id/200520#M200520"/>
     <published>2024-10-04T10:27:20.329000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-members/microsoft-outlook-and-teams-integration-for-interview-scheduling/bc-p/13888301#M169584</id>
+    <title>Re: Microsoft Outlook and Teams Integration for Interview Scheduling</title>
+    <updated>2024-10-04T10:33:29.015000+02:00</updated>
+    <author>
+      <name>Jekaterina</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1695409</uri>
+    </author>
+    <content>&lt;P&gt;Hi Anant034, do you have any suggestions how to track new time proposals by intived attendees or if the decline? How recruiters would be able to track that without having a personal contact?&lt;/P&gt;&lt;P&gt;Is there also a way to automatically generate meeting link for virtual meetings?&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Best regards,&lt;/P&gt;&lt;P&gt;Jekaterina&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-members/microsoft-outlook-and-teams-integration-for-interview-scheduling/bc-p/13888301#M169584"/>
+    <published>2024-10-04T10:33:29.015000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-q-a/curricula-without-due-date-does-not-show-in-learning-plan-in-new-learning/qaq-p/13888302</id>
+    <title>Curricula without due date does not show in learning plan in new learning experience.</title>
+    <updated>2024-10-04T10:33:57.472000+02:00</updated>
+    <author>
+      <name>lavanya2</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/170386</uri>
+    </author>
+    <content>&lt;P&gt;Curricula without due date does not show in learning plan in new learning experience.&lt;/P&gt;&lt;P&gt;If we assign a curriculum to a learner without due date, learner will get a notification that learning plan has been updated with link to learning plan.&lt;BR /&gt;However, in case user has new learning experience, this will not show in learning plan (in legacy view it will show).&lt;BR /&gt;User needs to be creative and should use the drop down to find curricula and only there learner will notice there are items assigned.&lt;BR /&gt;Is it possible to update the new learning experience page so that it is clear that there is a curriculum assigned to complet (without due date) ?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-q-a/curricula-without-due-date-does-not-show-in-learning-plan-in-new-learning/qaq-p/13888302"/>
+    <published>2024-10-04T10:33:57.472000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/supply-chain-management-q-a/re-scwm-adgi-posting-date-in-inventory-management-for-migration/qaq-p/13888303/comment-id/200521#M200521</id>
+    <title>Re: /scwm/adgi - Posting Date in Inventory Management for Migration</title>
+    <updated>2024-10-04T10:34:03.967000+02:00</updated>
+    <author>
+      <name>edwin_bijlsma</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/296775</uri>
+    </author>
+    <content>Hi Luka, This is related to the GI process CNCM- an exception , the field Posting date is available for Entry.</content>
+    <link href="https://community.sap.com/t5/supply-chain-management-q-a/re-scwm-adgi-posting-date-in-inventory-management-for-migration/qaq-p/13888303/comment-id/200521#M200521"/>
+    <published>2024-10-04T10:34:03.967000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-for-sto-poin-s4-in-me21n-not-possible-to-determine-s/qaq-p/13888304/comment-id/4198528#M4198528</id>
+    <title>Re: For STO POin S4, in Me21n,Not possible to determine s...</title>
+    <updated>2024-10-04T10:34:30.197000+02:00</updated>
+    <author>
+      <name>DominikTylczyn</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/141029</uri>
+    </author>
+    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1783081"&gt;@Sandy8&lt;/a&gt;&amp;nbsp;Make sure that the customers are created in the sales area NESO N1 NZ&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-for-sto-poin-s4-in-me21n-not-possible-to-determine-s/qaq-p/13888304/comment-id/4198528#M4198528"/>
+    <published>2024-10-04T10:34:30.197000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-q-a/re-1h-2024-product-release-how-to-copy-a-role-with-the-latest-rbp/qaq-p/13888305/comment-id/37675#M37675</id>
+    <title>Re: 1H 2024 Product Release - How to copy a role with the latest RBP experience?</title>
+    <updated>2024-10-04T10:36:41.444000+02:00</updated>
+    <author>
+      <name>MartinPosinger</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1396624</uri>
+    </author>
+    <content>Hi, SAP wrote it would be available in the 2H2024 release.</content>
+    <link href="https://community.sap.com/t5/human-capital-management-q-a/re-1h-2024-product-release-how-to-copy-a-role-with-the-latest-rbp/qaq-p/13888305/comment-id/37675#M37675"/>
+    <published>2024-10-04T10:36:41.444000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/product-lifecycle-management-q-a/re-which-sap-activate-roadmap-is-for-papm-cloud-implemen/qaq-p/13888309/comment-id/81666#M81666</id>
+    <title>Re: Which SAP Activate Roadmap is for PaPM Cloud implemen...</title>
+    <updated>2024-10-04T10:40:47.043000+02:00</updated>
+    <author>
+      <name>Gene_Herrera</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1455186</uri>
+    </author>
+    <content>&lt;P&gt;Hello YI,&lt;/P&gt;&lt;P&gt;We have no experience with SAP Activate but looking into the info you presented it looks like it would depend on the customer requirement really. Cannot offer to suggest which one you should choose on the list of Cloud Methodologies available as already highlighted in the screenshot, it is &lt;STRONG&gt;Specific&lt;/STRONG&gt; hence it can vary from one solution to another.&lt;BR /&gt;You should try to check this with SAP Activate if SAP PaPM Cloud is in their pipeline.&lt;/P&gt;&lt;P&gt;Nevertheless, there are some blogpost which you can read on through and make use of for the tips on implementation of SAP PaPM Cloud such as:&lt;BR /&gt;&lt;A href="https://community.sap.com/t5/financial-management-blogs-by-sap/sap-profitability-and-performance-management-cloud-subscription/ba-p/13518196" target="_blank"&gt;https://community.sap.com/t5/financial-management-blogs-by-sap/sap-profitability-and-performance-management-cloud-subscription/ba-p/13518196&lt;/A&gt;&lt;BR /&gt;&lt;A href="https://community.sap.com/t5/financial-management-blogs-by-sap/sap-papm-cloud-modeling-environment-lifecycle-promotion/ba-p/13515235" target="_blank"&gt;https://community.sap.com/t5/financial-management-blogs-by-sap/sap-papm-cloud-modeling-environment-lifecycle-promotion/ba-p/13515235&lt;/A&gt;&lt;BR /&gt;&lt;A href="https://community.sap.com/t5/financial-management-blogs-by-sap/sap-papm-cloud-let-us-talk-about-integration/ba-p/13528491" target="_blank"&gt;https://community.sap.com/t5/financial-management-blogs-by-sap/sap-papm-cloud-let-us-talk-about-integration/ba-p/13528491&lt;/A&gt;&lt;/P&gt;&lt;P&gt;These are only a few but you can check more via help portal: &lt;A href="https://help.sap.com/docs/SAP_PROFITABILITY_PERFORMANCE_MANAGEMENT_CLOUD" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/SAP_PROFITABILITY_PERFORMANCE_MANAGEMENT_CLOUD&lt;/A&gt;&lt;BR /&gt;You may also browse through Content Type: Blogposts under this link: &lt;A href="https://community.sap.com/t5/c-khhcw49343/SAP+Profitability+and+Performance+Management/pd-p/73555000100800000092" target="_blank"&gt;https://community.sap.com/t5/c-khhcw49343/SAP+Profitability+and+Performance+Management/pd-p/73555000100800000092&lt;/A&gt;&lt;/P&gt;&lt;P&gt;My opinion is it would be better to contact SAP Sales/Presales representative for this matter.&lt;/P&gt;&lt;P&gt;Thanks and regards,&lt;/P&gt;&lt;P&gt;Gene&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/product-lifecycle-management-q-a/re-which-sap-activate-roadmap-is-for-papm-cloud-implemen/qaq-p/13888309/comment-id/81666#M81666"/>
+    <published>2024-10-04T10:40:47.043000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/re-sbpa-workflow-my-inbox-application-custom-attributes/qaq-p/13888311/comment-id/4886783#M4886783</id>
+    <title>Re: SBPA - Workflow - My Inbox application custom attributes</title>
+    <updated>2024-10-04T10:41:14.985000+02:00</updated>
+    <author>
+      <name>siddharth_jain</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/184556</uri>
+    </author>
+    <content>Hi All is this feature supported for sbpa ui task after defining the attributes in sbpa task and enabling custom attributes in my inbox copy app those do not show up any idea ?</content>
+    <link href="https://community.sap.com/t5/technology-q-a/re-sbpa-workflow-my-inbox-application-custom-attributes/qaq-p/13888311/comment-id/4886783#M4886783"/>
+    <published>2024-10-04T10:41:14.985000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/devtoberfest-discussions/techtoberfest-2024/m-p/13888314#M1514</id>
+    <title>Re: 🟡 Techtoberfest 2024</title>
+    <updated>2024-10-04T10:42:38.566000+02:00</updated>
+    <author>
+      <name>freilinger</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/17361</uri>
+    </author>
+    <content>&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Some say, you cannot have enough monitors.&lt;/P&gt;&lt;P&gt;I am one of them&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":winking_face:"&gt;😉&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="freilinger_1-1728031307783.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/175231i6BDEA0A70BC8BCE5/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="freilinger_1-1728031307783.png" alt="freilinger_1-1728031307783.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/devtoberfest-discussions/techtoberfest-2024/m-p/13888314#M1514"/>
+    <published>2024-10-04T10:42:38.566000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/ecc-to-s-4hana-pre-projects/bc-p/13888315#M58049</id>
+    <title>Re: ECC to S/4HANA - Pre-Projects</title>
+    <updated>2024-10-04T10:43:10.942000+02:00</updated>
+    <author>
+      <name>jurgen_pirotte</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/231643</uri>
+    </author>
+    <content>&lt;P&gt;Hi,&amp;nbsp;&lt;/P&gt;&lt;P&gt;for the RISE customer upgrading from 2020 to 2023, I'm would recommend to run the readiness check.&amp;nbsp; There are probably compatibility scope items that need to be fixed and this can be done upfront.&lt;/P&gt;&lt;P&gt;&lt;A href="https://me.sap.com/readinesscheck/home" target="_blank" rel="noopener noreferrer"&gt;https://me.sap.com/readinesscheck/home&lt;/A&gt;&lt;/P&gt;&lt;P&gt;kind regards, Jurgen&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/ecc-to-s-4hana-pre-projects/bc-p/13888315#M58049"/>
+    <published>2024-10-04T10:43:10.942000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/re-vs-code-sap-fiori-tools-application-modeler/qaq-p/13888316/comment-id/4886784#M4886784</id>
+    <title>Re: VS Code SAP FIORI Tools - Application Modeler</title>
+    <updated>2024-10-04T10:43:22.595000+02:00</updated>
+    <author>
+      <name>jochenlittleq</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/866323</uri>
+    </author>
+    <content>&lt;P&gt;Hello,&lt;/P&gt;&lt;P&gt;I'm facing the same issue. The Application Generator worked fine until yesterday. When I try to start it today, nothing happens. When I run command 'Open Template Wizzard' I get an error message saying "Cannot read properties of undefined (reading 'getNodeProcessVersion')"&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Regards,&lt;/P&gt;&lt;P&gt;Jochen&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/re-vs-code-sap-fiori-tools-application-modeler/qaq-p/13888316/comment-id/4886784#M4886784"/>
+    <published>2024-10-04T10:43:22.595000+02:00</published>
   </entry>
 </feed>
