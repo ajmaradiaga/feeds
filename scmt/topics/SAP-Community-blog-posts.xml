@@ -2,181 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Community-blog-posts.xml</id>
   <title>SAP Community - SAP Community</title>
-  <updated>2024-10-16T17:00:57.285250+00:00</updated>
+  <updated>2024-10-16T20:00:59.158198+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Community/pd-p/486157991894093153608181816584982" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Community blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/create-inbound-deliveries-in-ewm-using-an-abap-program-save-inbound/ba-p/13888099</id>
-    <title>Create Inbound Deliveries in EWM Using an ABAP Program (Save Inbound Delivery Replica)</title>
-    <updated>2024-10-04T08:12:32.254000+02:00</updated>
-    <author>
-      <name>dhawal_patil</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/5796</uri>
-    </author>
-    <content>&lt;P&gt;Recently, I encountered a requirement where Purchase Order data was being sourced from a non-SAP ERP system. This data was stored in our custom Z tables within the EWM system. The goal was to enable warehouse users to create inbound delivery replicas using RF devices or a front-end transaction in a decentralized EWM environment.&lt;/P&gt;&lt;P&gt;As a novice in EWM system development, I was unsure about the most efficient way to accomplish this task. Therefore, I will begin by outlining my approach and the solution I discovered.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;There are two standard ways I could create Inbound Delivery in EWM:&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Transaction: /SCWM/PRDI&lt;/LI&gt;&lt;LI&gt;Standard Inbound IDoc:&amp;nbsp;SHP_IBDLV_SAVE_REPLICA&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Creating the delivery using the transaction was not feasible, as it didn’t align with the user’s needs. An IDoc was the only option for automating the delivery creation process. However, using an IDoc would require either triggering it via a file or establishing outbound and inbound partner profiles for my system, followed by externally triggering the outbound IDoc from my ABAP program.&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Debugging /SCWM/PRDI transaction&lt;/STRONG&gt;: Debugging this transaction felt too complex and time-consuming, so I skipped this and went ahead with debugging IDoc function module&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Testing and debugging IDoc (SHP_IBDLV_SAVE_REPLICA)&lt;/STRONG&gt;: The delivery was successfully created using the WE19 IDoc test transaction. I further proceeded to debug the IDoc function module. During this process, I identified a class that was utilized for creating inbound&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Class: /scwm/cl_mapin_id_savereplica&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;While analyzing the function group for the IDoc function module, I discovered another function module within the same group.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;/SCWM/INB_DLV_SAVEREPLICA:&amp;nbsp;&lt;/STRONG&gt;This function module, also creates EWM Inbound Deliveries using the same class and methods as the IDoc. Therefore, I decided to investigate whether I could utilize this function module in my ABAP program to create inbound deliveries. As an additional note, this function module is also used to replicate Inbound Deliveries from SAP ERP systems using RFCs.&lt;/P&gt;&lt;P&gt;After a few trials and resolving quite a few errors, I discovered that this function module required qRFC to successfully create inbound deliveries. &lt;STRONG&gt;&lt;EM&gt;Invoking this function module without qRFC would result in an ABAP runtime error or dump.&lt;/EM&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Following this, I have included an example program that demonstrates the use of the function module for creating inbound deliveries.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;U&gt;Create EWM inbound delivery replica using FM: /SCWM/INB_DLV_SAVEREPLICA&lt;/U&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The following demo program illustrates how to create outbound and inbound queues using ABAP qRFC APIs and invoke the function as an RFC in a separate task.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; You must have an SM59 ABAP destination configured for your EWM system.&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;Program:&lt;/STRONG&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;*&amp;amp;---------------------------------------------------------------------*
-*&amp;amp; Report ZTEST_INBOUND_DELIVERY
-*&amp;amp;---------------------------------------------------------------------*
-*&amp;amp;
-*&amp;amp;---------------------------------------------------------------------*
-REPORT ZTEST_INBOUND_DELIVERY.
-
-DATA: lt_header_partner          TYPE /scwm/tt_header_partner,
-      lt_header_deadlines        TYPE /scwm/tt_header_deadlines,
-      lt_item_data               TYPE /scwm/tt_inb_item_data,
-      lt_item_org                TYPE /scwm/tt_inb_item_org,
-      lt_item_ref_purchase_order TYPE /scwm/tt_item_ref_prchse_order.
-
-
-*Creating work areas.
-DATA: ls_header_data   TYPE /scwm/bapiibdlvhdr,
-      ls_header_org    TYPE /scwm/bapiibdlvhdrorg,
-      lv_sender_system TYPE tbdls-logsys,
-      ls_techn_control TYPE /scwm/bapidlvcontrol.
-
-DATA: lv_matnr TYPE matnr VALUE '1'.
-
-
-
-DATA: lv_idoc_status TYPE bdidocstat-status,
-      lv_deliv_numb  TYPE vbeln_vl VALUE '4630900042'.
-
-
-"Set Data into Import Parameters
-ls_header_data = VALUE #( deliv_numb   = lv_deliv_numb
-                          billoflading = 'TESTBOL'
-                          extdelv_no   = |DEL_{ sy-datum }_{ sy-timlo }UTC|
-                          dlv_type     = 'EL'
-                          sd_doc_cat   = '7' ).
-
-ls_header_org = VALUE #( ship_point = '0001'
-                         whse_no    = 'W01' ).
-
-lv_sender_system = 'NONSAP_ERP'.        "Define as Non-SAP ERP in SPRO configs
-
-ls_techn_control = VALUE #( upd_ind        = 'I'
-                            recv_whs_no    = 'W01'
-                            recv_sys       = 'EWDCLNT100'
-                            dlv_type       = 'EL'
-                            internal_queue = abap_true ).
-
-lt_header_partner = VALUE #( ( deliv_numb = lv_deliv_numb
-                               itm_number = '000010'
-                               partner_no = 'WH01VEN' ) ).
-
-lt_header_deadlines = VALUE #( ( deliv_numb    = lv_deliv_numb
-                                 timetype      = 'WSHDRLFDAT'
-                                 timestamp_utc = '20240920150000'
-                                 timezone      = 'UTC' ) ).
-
-lt_item_data = VALUE #( ( deliv_numb        = lv_deliv_numb
-                          itm_number        = '000010'
-                          material          = |{ lv_matnr ALPHA = IN }|
-                          dlv_qty           = '5.000'
-                          sales_unit_iso    = 'EA'
-                          sales_unit        = 'EA'
-                          dlv_qty_stock     = '5.000'
-                          base_uom          = 'EA'
-                          base_uom_iso      = 'EA'
-                          conv_unit_nom     = '1'
-                          conv_unit_denom   = '1'
-                          rec_point         = '0001'
-                          item_categ        = 'ELN'
-                          whse_mvmt         = '101'
-                          move_type         = '101'
-                          move_type_wm      = '101'
-                          material_external = '1'
-                          prod_date         = sy-datum ) ).
-
-lt_item_org = VALUE #( ( deliv_numb = lv_deliv_numb
-                         itm_number = '000010'
-                         plant      = 'WH01'
-                         stge_loc   = 'WH01' ) ).
-
-lt_item_ref_purchase_order = VALUE #( ( deliv_numb     = lv_deliv_numb
-                                        itm_number     = '000010'
-                                        doc_number     = '4500000001'
-                                        itm_number_ref = '00010'
-                                        sd_doc_cat     = 'V'
-                                        doc_cat        = 'F'
-                                        doc_type       = 'NB'
-                                        status         = '9'
-                                        pur_group      = '001'
-                                        doc_date       = '20240911'
-                                        gr_ind         = 'X'
-                                        gr_basediv     = 'X' ) ).
-
-DATA: lv_deliv TYPE vbeln.
-
-CONSTANTS: lc_queue_name      TYPE trfcqout-qname VALUE 'TEST_QUEUE_EWM_1',
-           lc_queue_name_in   TYPE trfcqout-qname VALUE 'TEST_QUEUE_EWM_2',
-           lc_ewd_destination TYPE rfcdes-rfcdest VALUE 'EWD'.
-
-
-"Set Queue Name for the next qRFC-call
-CALL FUNCTION 'TRFC_SET_QUEUE_NAME'
-  EXPORTING
-    qname              = lc_queue_name
-  EXCEPTIONS
-    invalid_queue_name = 1
-    OTHERS             = 2.
-IF sy-subrc = 0.
-
-  CALL FUNCTION 'TRFC_SET_QIN_PROPERTIES'
-    EXPORTING
-      qin_name           = lc_queue_name_in
-      qout_name          = lc_queue_name
-    EXCEPTIONS
-      invalid_queue_name = 1
-      error_message      = 2
-      OTHERS             = 3.
-  IF sy-subrc = 0.
-
-    CALL FUNCTION '/SCWM/INB_DLV_SAVEREPLICA'
-      IN BACKGROUND TASK
-      AS SEPARATE UNIT
-      DESTINATION lc_ewd_destination
-      EXPORTING
-        techn_control           = ls_techn_control
-        header_data             = ls_header_data
-        header_org              = ls_header_org
-        sender_system           = lv_sender_system
-      TABLES
-        header_partner          = lt_header_partner
-        header_deadlines        = lt_header_deadlines
-        item_data               = lt_item_data
-        item_org                = lt_item_org
-        item_ref_purchase_order = lt_item_ref_purchase_order.
-    IF sy-subrc &amp;lt;&amp;gt; 0.
-      ROLLBACK WORK.
-    ELSE.
-      COMMIT WORK.
-    ENDIF.
-  ENDIF.
-ENDIF.
-
-WRITE: |Execution complete for queue|.
-
-"As the FM does not return Delivery Number,
-" we can wait and fetch the delivery from table
-"  using PO number as refernce
-WAIT UP TO 5 SECONDS.
-SELECT docno AS delivery
-      FROM /scdl/db_proch_i AS a
-      INNER JOIN /scdl/db_refdoc AS b
-      ON a~docid = b~docid
-      WHERE b~refdoccat = 'IDR'
-        AND b~doccat = 'PDI'
-        AND b~refbskey = 'NONSAP_ERP'
-        AND b~refdocno = _deliv_numb
-        INTO TABLE (lt_inb_deliv).
-IF sy-subrc = 0.
-  WRITE: |Delivery created Successfully|.
-  cl_demo_output=&amp;gt;display( lt_inb_deliv ).
-ENDIF.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/create-inbound-deliveries-in-ewm-using-an-abap-program-save-inbound/ba-p/13888099"/>
-    <published>2024-10-04T08:12:32.254000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-members/full-and-partial-pallet-putaway-storage-type-determination-based-on/ba-p/13883388</id>
     <title>Full and partial pallet putaway storage type determination based on quantity classification</title>
@@ -468,5 +297,17 @@ pm.sendRequest(getAppInstancePropsRequest, function (err, response) {
     <content>&lt;P&gt;TLS is a cryptographic protocol designed to provide secure communication over a computer network. It is used to establish a secure connection between a client and a server to ensure that the data exchanged is private and reliable.&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;The Benefits of TLS 1.3&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;The introduction of TLS1.3 in SAP S/4HANA 2023 brings several benefits designed to enhance security and streamline processes:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Simplified and stronger cipher suites:&lt;/STRONG&gt; TLS 1.3 removes support for outdated and potentially insecure algorithms and ciphers, focusing on a more streamlined and secure set. This simplification reduces the potential for misconfigurations and vulnerabilities while strengthening the overall security posture of your communications.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Perfect Forward Secrecy (PFS) always enabled:&lt;/STRONG&gt; With PFS enabled, each TLS session has a unique session key which cannot be recovered by learning the private key, ensuring that your session keys will not be compromised even if the server's private key is. In TLS1.3, PFS is always enabled, enhancing the confidentiality of your data.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Simplified key exchange:&lt;/STRONG&gt; TLS 1.3 only supports Diffie-Hellman type key exchange algorithms, removing support for RSA key exchange. This simplifies the key exchange process and eliminates potential vulnerabilities associated with RSA key exchange.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="4"&gt;How to Configure TLS 1.3 in SAP S/4HANA OnPremise&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P data-unlink="true"&gt;&lt;FONT size="3"&gt;Before configuring TLS 1.3, please make sure your system fits the version and patch requirements as detailed in SAP Note&amp;nbsp;&lt;A href="https://me.sap.com/notes/3318423/E" target="_self" rel="noopener noreferrer"&gt;3318423&lt;/A&gt;.&lt;/FONT&gt;&lt;/P&gt;&lt;P data-unlink="true"&gt;TLS versions can be configured via profile parameters. The following cipher suites are recommended by SAP for maximum interoperability, activating TLS 1.2 - 1.3 on the server (inbound) side, and TLS 1.0 - 1.3 on the client (outbound) side:&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%"&gt;&amp;nbsp;&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;&lt;STRONG&gt;Parameter Name&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;&lt;STRONG&gt;Parameter Value&lt;/STRONG&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%"&gt;&lt;STRONG&gt;Server &lt;/STRONG&gt;(inbound)&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;&lt;EM&gt;ssl/ciphersuites&lt;/EM&gt;&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;&lt;EM&gt;1569:PFS:HIGH::EC_X25519:EC_P256:EC_HIGH&lt;/EM&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%"&gt;&lt;STRONG&gt;Client &lt;/STRONG&gt;(outbound)&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;&lt;EM&gt;ssl/client_ciphersuites&lt;/EM&gt;&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;&lt;EM&gt;1174:PFS:HIGH::EC_X25519:EC_P256:EC_HIGH&lt;/EM&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P data-unlink="true"&gt;&lt;FONT size="3"&gt;As a note of caution: If your previous inbound configuration included TLS 1.0 - 1.1, please take a look at SAP Note&amp;nbsp;&lt;A href="https://me.sap.com/notes/3346659" target="_self" rel="noopener noreferrer"&gt;3346659&lt;/A&gt;&amp;nbsp;for how to safely restart your system after deactivating TLS 1.0 - 1.1.&lt;/FONT&gt;&lt;/P&gt;&lt;P data-unlink="true"&gt;If you prefer to have your inbound side open to TLS 1.0 - 1.1 as well as TLS 1.2 - 1.3, you can use the following parameter instead of the above one:&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="33.24742268041237%"&gt;&amp;nbsp;&lt;/TD&gt;&lt;TD width="33.24742268041237%"&gt;&lt;STRONG&gt;Parameter Name&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="33.24742268041237%"&gt;&lt;STRONG&gt;Parameter Value&lt;/STRONG&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.24742268041237%" height="30px"&gt;&lt;STRONG&gt;Server &lt;/STRONG&gt;(inbound)&lt;/TD&gt;&lt;TD width="33.24742268041237%" height="30px"&gt;&lt;EM&gt;ssl/ciphersuites&lt;/EM&gt;&lt;/TD&gt;&lt;TD width="33.24742268041237%" height="30px"&gt;&lt;EM&gt;1159:PFS:HIGH::EC_X25519:EC_P256:EC_HIGH&lt;/EM&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;If you would like to restrict your outbound communication to TLS 1.2 and 1.3 only, the following values are recommended:&lt;/P&gt;&lt;TABLE border="1" width="99.61138853092783%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="33.24742268041237%" height="30px"&gt;&amp;nbsp;&lt;/TD&gt;&lt;TD width="33.24742268041237%" height="30px"&gt;&lt;STRONG&gt;Parameter Name&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="33.1182237140041%" height="30px"&gt;&lt;STRONG&gt;Parameter Value&lt;/STRONG&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.24742268041237%" height="30px"&gt;&lt;STRONG&gt;Client &lt;/STRONG&gt;(outbound)&lt;/TD&gt;&lt;TD width="33.24742268041237%" height="30px"&gt;&lt;EM&gt;ssl/client_ciphersuites&lt;/EM&gt;&lt;/TD&gt;&lt;TD width="33.1182237140041%" height="30px"&gt;&lt;EM&gt;1584:PFS:HIGH::EC_X25519:EC_P256:EC_HIGH&lt;/EM&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P data-unlink="true"&gt;&lt;FONT size="3"&gt;Please note that SAP currently does not recommend setting the cipher suite string parameter to TLS 1.2 and 1.3 for the outbound side, as this may cause interoperability issues when trying to communicate with older servers. Especially older embedded devices often do not support TLS 1.2 and upwards. Therefore, please verify that you have no incompatible servers in your system landscape before making such a change. You can read more about how to safely configure restrictive parameters for your system in SAP Note&amp;nbsp;&lt;A href="https://me.sap.com/notes/3346659" target="_self" rel="noopener noreferrer"&gt;3346659&lt;/A&gt;.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="3"&gt;It is also possible to configure TLS 1.3 for specific clients in transaction sm59. For type G or H destinations, go to the tab "Logon &amp;amp; Security" and add your custom cipher suite string value in the field "TLS Cipher Suites".&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="maya_s_0-1724918519470.png" style="width: 766px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/159269i4E6D722701AAB793/image-dimensions/766x180?v=v2" width="766" height="180" role="button" title="maya_s_0-1724918519470.png" alt="maya_s_0-1724918519470.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="3"&gt;This approach is especially recommended if you would like to activate TLS 1.3 systemwide, but have specific servers in your landscape which do not support TLS 1.3 and behave erroneously when a client tries to establish a TLS 1.3 connection. In this case, you can disable TLS 1.3 for these specific servers via the configuration shown in the above image.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Please also see the &lt;A href="https://help.sap.com/docs/ABAP_PLATFORM_NEW/753088fc00704d0a80e7fbd6803c8adb/d40c862e2c6b4e44b1688df9f110dbb1.html?version=202310.001" target="_blank" rel="noopener noreferrer"&gt;sm59 documentation&lt;/A&gt; for more details.&lt;/P&gt;&lt;P&gt;&lt;FONT size="3"&gt;&lt;STRONG&gt;&lt;FONT size="4"&gt;TLS 1.3 in SAP S/4HANA Cloud&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="3"&gt;TLS 1.3 is activated by default in all SAP S/4HANA Cloud Web Dispatchers. You can read more about it in &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/sap-s-4hana-cloud-public-edition-now-shakes-hands-with-tls-1-3/ba-p/13611749" target="_self"&gt;this article&lt;/A&gt;.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;Relevant SAP Notes for Further Information&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;SAP has released several SAP Notes explaining which software versions, patch levels, and configurations are required to enable TLS 1.3 for SAP S/4HANA:&lt;/P&gt;&lt;P&gt;&lt;A href="https://me.sap.com/notes/3318423/E" target="_blank" rel="noopener noreferrer"&gt;&lt;STRONG&gt;3318423&lt;/STRONG&gt; - Is TLS 1.3 Supported by SAP Kernel for ABAP and SAP S/4HANA?&lt;/A&gt;&lt;BR /&gt;&lt;A href="https://me.sap.com/notes/3346659" target="_blank" rel="noopener noreferrer"&gt;&lt;STRONG&gt;3346659&lt;/STRONG&gt; - TLS Ciphersuite String Configuration for ABAP and SAP Kernel-Based Systems&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;The support of TLS 1.3 is a significant leap forward for SAP S/4HANA 2023. It simplifies configurations, enhances security through stronger cipher suites, and ensures the safety of your communication through PFS and a simplified key exchange.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-sap/a-leap-forward-in-encryption-tls-1-3-support-in-s-4hana/ba-p/13810881"/>
     <published>2024-10-16T09:58:28.359000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-blogs-by-sap/successconnect-2024-every-employee-is-a-success-story-with-sap-btp/ba-p/13901654</id>
+    <title>SuccessConnect 2024-Every employee is a success story with SAP BTP</title>
+    <updated>2024-10-16T19:58:11.671000+02:00</updated>
+    <author>
+      <name>rnoia</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/46078</uri>
+    </author>
+    <content>&lt;H1 id="toc-hId-942837822"&gt;SAP Business Technology Platform at SuccessConnect 2024&lt;/H1&gt;&lt;H2 id="toc-hId-875407036"&gt;Exciting news, demos and information on innovation, integration, extending HR apps, AI, analytics and workforce planning&lt;/H2&gt;&lt;P&gt;It’s time to get ready for this year’s SAP SuccessFactors SuccessConnect event!&amp;nbsp; This year’s sold-out event takes place in Lisbon, Portugal October 28 through the 30th and features more SAP Business Technology Platform-related sessions than ever before – 18 sessions including one special session on workforce planning available for free in the virtual event!&lt;/P&gt;&lt;P&gt;Discover solutions designed to fuel employee and business success and strategies for improving your&amp;nbsp;employee experiences, decisions, and processes.&lt;/P&gt;&lt;P&gt;To help guide attendees in packing their agendas with as much SAP BTP content and information as possible, here’s a guide of what is happening. &lt;A href="https://www.sap.com/events/successconnect/in-person/plan-your-day.html" target="_blank" rel="noopener noreferrer"&gt;Add these sessions to your SuccessConnect agenda now&lt;/A&gt;!&lt;/P&gt;&lt;P&gt;For more information on this year’s SuccessConnect event, visit &lt;A href="https://www.sap.com/events/successconnect.html" target="_blank" rel="noopener noreferrer"&gt;https://www.sap.com/events/successconnect.html&lt;/A&gt;&amp;nbsp;or to learn more about how SAP Business Technology Platform can help HR visit &lt;A href="http://www.sap.com/btp-for-hr" target="_blank" rel="noopener noreferrer"&gt;http://www.sap.com/btp-for-hr&lt;/A&gt;&amp;nbsp;.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;H3 id="toc-hId-807976250"&gt;General and Business Technology Platform&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123138&amp;amp;schid=524125&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;&lt;STRONG&gt;Using SAP Integration Suite to connect HR with the business&lt;/STRONG&gt;&lt;/A&gt;&lt;BR /&gt;Learn how SAP Integration Suite can help you connect HR across the business by integrating SAP SuccessFactors HCM with other SAP and third-party applications. Hear how organizations of all sizes are using this approach to create a single source of people data, enable end-to-end processes, and drive automation and efficiency. &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Integration+Suite/pd-p/73554900100800003241" class="lia-product-mention" data-product="23-1"&gt;SAP Integration Suite&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123169&amp;amp;schid=524182&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;Using SAP Build to extend your SAP SuccessFactors solutions&lt;/A&gt;&lt;/STRONG&gt;&lt;BR /&gt;Standardized business processes have come a long way, but every company still has a few things it does differently from everybody else. SAP Build solutions can help extend your human capital management solutions to address your specific business needs. See firsthand how to create low-code/no-code apps that boost end-user adoption and efficiency. &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Build/pd-p/73555000100700001491" class="lia-product-mention" data-product="1181-1"&gt;SAP Build&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123123&amp;amp;schid=524073&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;Road map and vision: Technology Foundation&lt;/A&gt;&lt;/STRONG&gt;&lt;BR /&gt;Explore the latest innovations and enhancements in the technology foundation of SAP SuccessFactors solutions, including workforce analytics, security, integration, extensibility, and more. Gain insights into what we have planned for our upcoming releases and get your questions answered by our product experts.&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123021&amp;amp;schid=524205&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;See how new innovations help you integrate and extend your SAP SuccessFactors solutions&lt;/A&gt;&lt;/STRONG&gt;&lt;BR /&gt;Discover how our recent innovations around domain-driven APIs and push events can help transform your business operations and enhance the user experience. Learn how you can use these technologies to achieve near real-time integrations with external service providers and streamline your business processes&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123052&amp;amp;schid=524216&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;Build trust with security and identity management technologies&lt;/A&gt;&lt;/STRONG&gt;&lt;BR /&gt;Discover the key technologies and innovations to help you secure your people data. Explore key challenges and learn how to mitigate risk and develop trust with a deep dive into newly available capabilities, including customer-managed keys in the new advanced encryption add-on and enhancements to the role-based permissions tool.&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123581&amp;amp;schid=524166&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;Unlock innovation with the generative AI hub&lt;/A&gt;&lt;/STRONG&gt;&lt;BR /&gt;The new generative AI hub in SAP AI Core and SAP AI Launchpad makes it easier for developers to build applications securely and efficiently with access to a broad range of tools and large language models. See how tools for prompt engineering, experimentation, and other AI capabilities can accelerate your development of applications for HR and more.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-611462745"&gt;Analytics and Workforce Planning&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Hands-on-lab: &lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123203&amp;amp;schid=524185&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;Create compelling report stories in SAP SuccessFactors HCM&lt;/A&gt;&lt;/STRONG&gt;&lt;BR /&gt;Designed for reporting administrators, this session will help you learn how to use a single, unified reporting approach to tell compelling stories. Get hands-on experience with key capabilities, such as rich visualizations and intelligent data joins, and learn how to use live data from SAP SuccessFactors solutions. This session is intended for intermediate to advanced reporting administrators with a working knowledge of the report center and role-based security permissions. It is for existing customers only. Laptops and scripts will be supplied. Note that registration is required for this session. Space is limited so that speakers have time to answer attendee questions. If a registered session attendee is five minutes late to the session, we will give their seat to the next person waiting in line. &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Analytics+Cloud/pd-p/67838200100800006884" class="lia-product-mention" data-product="3-1"&gt;SAP Analytics Cloud&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123134&amp;amp;schid=524083&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;Road map and vision: Reporting and analytics&lt;/A&gt;&lt;/STRONG&gt;&lt;BR /&gt;Explore the latest innovations in analytics and the significant benefits they offer for your business. Discover how to make use of these enhancements by finding out more about our new SAP SuccessFactors Analytics solution, report stories within SAP SuccessFactors solutions, and workforce planning in SAP Analytics Cloud for planning. &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Analytics+Cloud/pd-p/67838200100800006884" class="lia-product-mention" data-product="3-2"&gt;SAP Analytics Cloud&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Analytics+Cloud+for+planning/pd-p/819703369010316911100650199149950" class="lia-product-mention" data-product="4-1"&gt;SAP Analytics Cloud for planning&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123045&amp;amp;schid=524119&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;Improving people sustainability with workforce planning and data analytics&lt;/A&gt;&lt;/STRONG&gt;&lt;BR /&gt;With skill gaps increasing and regulatory mandates growing more complex, CHROs are turning to longer-term people sustainability. Discover how HR leaders can use AI-driven analytics and strategic workforce planning to create a workforce of the future. Gain insights on using skills analysis to inform talent investments and improve workforce planning. &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Analytics+Cloud/pd-p/67838200100800006884" class="lia-product-mention" data-product="3-3"&gt;SAP Analytics Cloud&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123255&amp;amp;schid=524212&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;Get the mot out of workforce planning templates using SAP Analytics Cloud for planning&lt;/A&gt;&lt;/STRONG&gt;&lt;BR /&gt;SAP Analytics Cloud for planning includes workforce planning templates. Get an overview of the various templates available in the business content network and the planning processes they support. Whether you’re looking to do operational, strategic, or skill-based workforce planning, these insights can help you. &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Analytics+Cloud+for+planning/pd-p/819703369010316911100650199149950" class="lia-product-mention" data-product="4-2"&gt;SAP Analytics Cloud for planning&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123261&amp;amp;schid=524183&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;Top three ways to create dynamic operational report stories&lt;/A&gt;&lt;/STRONG&gt;&lt;BR /&gt;How do you best create stories as unfolding narratives for your users to further explore data in more detail? Gain practical tips on how to use report stories within SAP SuccessFactors solutions to create dynamic, interactive stories that let users dive into details as needed. &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Analytics+Cloud/pd-p/67838200100800006884" class="lia-product-mention" data-product="3-4"&gt;SAP Analytics Cloud&lt;/a&gt;&amp;nbsp;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-414949240"&gt;Customer Speaking Sessions&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123399&amp;amp;schid=524224&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;How Eurobank uses SAP SuccessFactors Time Tracking and SAP BTP to comply with local labor legislation&lt;/A&gt;&lt;/STRONG&gt;&lt;BR /&gt;To maintain compliance with a new labor law and avoid costly fines, Eurobank chose the SAP SuccessFactors Time Tracking solution and SAP Business Technology Platform. Learn how the financial organization accurately tracks employee work hours, shifts, and overtime while linking data in real time to third-party platforms.&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123559&amp;amp;schid=524170&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;Unleashing HR insights: Reporting and workforce analytics at Dr. Oetker&lt;/A&gt;&lt;/STRONG&gt;&lt;BR /&gt;See how reporting in SAP SuccessFactors solutions has transformed Dr. Oetker’s HR reporting landscape and explore real-world use cases in the SAP SuccessFactors Workforce Analytics solution. From overcoming challenges to unlocking transformative insights, discover the power of reporting and analytics capabilities of SAP solutions. &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Analytics+Cloud/pd-p/67838200100800006884" class="lia-product-mention" data-product="3-5"&gt;SAP Analytics Cloud&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123487&amp;amp;schid=524225&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;How agile HR transformation at Volkswagen increased performance and transparency&lt;/A&gt;&lt;/STRONG&gt;&lt;BR /&gt;Using the “SAFe” framework, Volkswagen implemented SAP SuccessFactors solutions in one of the largest HR transformation programs worldwide. Join this session to learn how the company established a new product organization to increase performance and transparency.&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-218435735"&gt;Demo stations&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;DP106: &lt;STRONG&gt;&lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123836&amp;amp;schid=0&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;HR analytics and workforce planning area&lt;/A&gt;&lt;/STRONG&gt;&lt;BR /&gt;Discover how you can improve company performance and decision-making with data-driven people insights, workforce planning tools, and AI-driven recommendations. &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Analytics+Cloud/pd-p/67838200100800006884" class="lia-product-mention" data-product="3-6"&gt;SAP Analytics Cloud&lt;/a&gt;&amp;nbsp; &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Analytics+Cloud+for+planning/pd-p/819703369010316911100650199149950" class="lia-product-mention" data-product="4-3"&gt;SAP Analytics Cloud for planning&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;LI&gt;DP105:&lt;STRONG&gt; &lt;A href="https://www.sap.com/events/successconnect/inperson/scheduler/go/agendabuilder.sessions/?l=339&amp;amp;sid=123835&amp;amp;schid=0&amp;amp;locale=en_US" target="_blank" rel="noopener noreferrer"&gt;System administration and extensibility area&lt;/A&gt;&lt;/STRONG&gt;&lt;BR /&gt;See how SAP Business Technology Platform (SAP BTP) can help you grow your capabilities with third-party integrations and custom extensions featuring a real-world demo of a re-envisioning automated equipment ordering with SAP SuccessFactors Employee Central driving real-time triggers to order new hire equipment in SAP Ariba via SAP Integration Suite with automated service ticket create in SAP Service Cloud. &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Integration+Suite/pd-p/73554900100800003241" class="lia-product-mention" data-product="23-2"&gt;SAP Integration Suite&lt;/a&gt;&amp;nbsp; &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Build/pd-p/73555000100700001491" class="lia-product-mention" data-product="1181-2"&gt;SAP Build&lt;/a&gt;&amp;nbsp;&lt;/LI&gt;&lt;/UL&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-blogs-by-sap/successconnect-2024-every-employee-is-a-success-story-with-sap-btp/ba-p/13901654"/>
+    <published>2024-10-16T19:58:11.671000+02:00</published>
   </entry>
 </feed>
