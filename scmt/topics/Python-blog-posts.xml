@@ -2,220 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/Python-blog-posts.xml</id>
   <title>SAP Community - Python</title>
-  <updated>2024-11-05T12:11:29.646507+00:00</updated>
+  <updated>2024-11-06T00:11:37.021928+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/Python/pd-p/f220d74d-56e2-487e-8e6c-a8cb3def2378" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Python blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/artificial-intelligence-and-machine-learning-blogs/building-a-rag-application-in-python-with-langchain-hana-vector-db-and/ba-p/13714478</id>
-    <title>Building a RAG Application in Python with LangChain, HANA Vector DB and Generative AI Hub SDK</title>
-    <updated>2024-05-31T11:01:37.589000+02:00</updated>
-    <author>
-      <name>yxlee12345</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/15655</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-886590558"&gt;Introduction&lt;/H1&gt;&lt;P&gt;In the rapidly evolving world of AI, building applications that leverage the power of large language models (LLMs) has become increasingly essential. LangChain is an innovative framework that simplifies the development of these applications by providing robust tools and integrations for creating context-aware systems. It connects LLMs to various sources of context, enabling more accurate and meaningful responses to user queries. HANA Vector DB complements this by offering efficient storage and retrieval of vector embeddings, which are crucial for enhancing the capabilities of language models. Together with the Generative AI Hub SDK, these technologies enable the creation of sophisticated Retrieval Augmented Generation (RAG) applications, which integrate external knowledge to improve the quality and relevance of generated content.&lt;/P&gt;&lt;P&gt;There are several blog posts out there about HANA Vector DB, including &lt;A href="https://community.sap.com/t5/artificial-intelligence-and-machine-learning-blogs/mastering-sap-hana-cloud-vector-engine-for-rag-driven-llm-applications-an/ba-p/13662515" target="_blank"&gt;this post&lt;/A&gt; by my colleague &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1409138"&gt;@YangYue01&lt;/a&gt;. Another insightful &lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/hana-vector-engine-and-langchain/ba-p/13636959" target="_blank"&gt;post&lt;/A&gt; by &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/180606"&gt;@MartinKolb&lt;/a&gt;&amp;nbsp;demonstrates how to use LangChain with HANA Vector DB and Generative AI Hub SDK to develop a Retrieval-Augmented Generation (RAG) application. In this post, I'll walk you through building a Python RAG application using LangChain, HANA Vector DB, and Generative AI Hub SDK. We'll focus on the essential steps, rather than delving into details like prompt engineering and model parameters. Additionally, we'll use the LangChain Expression Language, a new syntax that simplifies the code needed to build our RAG chain.&lt;/P&gt;&lt;H1 id="toc-hId-690077053"&gt;Building Our RAG Application&lt;/H1&gt;&lt;H2 id="toc-hId-622646267"&gt;Setting up Connections&lt;/H2&gt;&lt;P&gt;To start off, we'll need to set up connections to a HANA Database as well as Generative AI Hub. Connection to the HANA Database can be configured using the &lt;FONT face="courier new,courier"&gt;hdbcli&lt;/FONT&gt; package:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from hdbcli import dbapi
-
-hana_conn = dbapi.connect(
-		address="some-host-address",
-		port="443",
-		user="some-username",
-		password="some-password",
-		autocommit=True,
-		sslTrustStore="some-certificate"
-)&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Similarly, connection to the Generative AI Hub can be configured using the &lt;FONT face="courier new,courier"&gt;generative-ai-hub-sdk&lt;/FONT&gt; package:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from gen_ai_hub.proxy.core.proxy_clients import get_proxy_client
-
-os.environ["AICORE_AUTH_URL"] = "some-auth-url"
-os.environ["AICORE_CLIENT_ID"] = "some-clientid"
-os.environ["AICORE_CLIENT_SECRET"] = "some-clientsecret"
-os.environ["AICORE_RESOURCE_GROUP"] = "some-resource-group"
-os.environ["AICORE_BASE_URL"] = "some-ai-core-base-url"
-
-proxy_client = get_proxy_client("gen-ai-hub")&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;With the Generative AI Hub proxy client set up, we could run the following code to get a list of deployments that are available:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;proxy_client.deployments&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;If the connection is successful, we should see something like this in the response:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;[Deployment(url='https://api.ai.prod.eu-central-1.aws.ml.hana.ondemand.com/v2/inference/deployments/d1e30862f24f01ec', config_id='cb08ab6d-94d9-4534-a60e-922ec1be66ff', config_name='gemini-1.0-pro-config-1', deployment_id='d1e30862f24f01ec', model_name='gemini-1.0-pro', created_at=datetime.datetime(2024, 4, 27, 5, 34, 58, tzinfo=datetime.timezone.utc), additonal_parameters={'executable_id': 'gcp-vertexai', 'model_version': '001'}, custom_prediction_suffix=None),
- Deployment(url='https://api.ai.prod.eu-central-1.aws.ml.hana.ondemand.com/v2/inference/deployments/d50f02e66f040e9f', config_id='2f34dd34-eb58-482d-a1c2-d1450011ac88', config_name='chat-bison-config-1', deployment_id='d50f02e66f040e9f', model_name='chat-bison', created_at=datetime.datetime(2024, 4, 27, 5, 34, 56, tzinfo=datetime.timezone.utc), additonal_parameters={'executable_id': 'gcp-vertexai', 'model_version': '002'}, custom_prediction_suffix=None),
-...&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-426132762"&gt;Defining our Embeddings and Vectorstore Objects&lt;/H2&gt;&lt;P&gt;After setting up our connections, we want to define our embeddings and vectorstore objects. The embeddings object is in charge of converting input texts into embedding vectors, while the vectorstore object handles CRUD operations to HANA Vector DB.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from gen_ai_hub.proxy.langchain.init_models import init_embedding_model
-from langchain_community.vectorstores import HanaDB
-
-embeddings = init_embedding_model("text-embedding-ada-002", proxy_client=proxy_client)
-hana_vectordb = HanaDB(embedding=embeddings, connection=hana_conn, table_name="RAG_EXAMPLE_VECTORSTORE")&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Some points to note:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The embedding model name &lt;FONT face="courier new,courier"&gt;text-embedding-ada-002&lt;/FONT&gt; was obtained from the output of &lt;FONT face="courier new,courier"&gt;proxy_client.deployments&lt;/FONT&gt; shown previously.&lt;/LI&gt;&lt;LI&gt;The second line of code that defines the &lt;FONT face="courier new,courier"&gt;HanaDB&lt;/FONT&gt; object would also result in the creation of a new table in the HANA database if the table specified (i.e. &lt;FONT face="courier new,courier"&gt;RAG_EXAMPLE_VECTORSTORE&lt;/FONT&gt;) doesn't already exist.&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-229619257"&gt;Writing Vectors to HANA Vector DB&lt;/H2&gt;&lt;P&gt;Now that we have our embeddings and vectorstore object defined, there are a few things that we could do here. One would be to write embedding vectors to the vector table in HANA. This is usually done offline in a separate process (e.g. in an ETL pipeline), so it technically isn't something that happens during inference time (when RAG is run), but I thought I would show a slightly different approach from what many other sources show when it comes to building up a vectorstore.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import pandas as pd
-from langchain_community.document_loaders import DataFrameLoader
-
-input_df = pd.read_csv("data/rag_example_inputs.csv")
-loader = DataFrameLoader(data_frame=input_df, page_content_column="text")
-documents_to_index = loader.load()
-hana_vectordb.add_documents(documents_to_index)&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In this code snippet, we read in data from a simple CSV file and used the text content within to generate the corresponding vectors, which are then written to our HANA Vector DB. Of course, depending on the use case, we could always use different ways to load our data, and LangChain contains various tools for this purpose.&lt;/P&gt;&lt;P&gt;The main point here is that we're doing the writing of vectors in a two-step approach (creating the &lt;FONT face="courier new,courier"&gt;HanaDB&lt;/FONT&gt; object first by the typical class instantiation, then using the &lt;FONT face="courier new,courier"&gt;add_documents&lt;/FONT&gt; method), rather than the &lt;FONT face="courier new,courier"&gt;hana_vectordb = HanaDB.from_documents()&lt;/FONT&gt; approach that is shown in many other resources. While the &lt;FONT face="courier new,courier"&gt;.from_documents()&lt;/FONT&gt; method is simpler which makes it suitable for PoCs, using this method for a vector table that already has vectors written to it could result in duplicated or unnecessary vectors being written due to the lack of separation between instance creation and writing of vectors. As such, I would advise using the two-step approach instead when it comes to writing of vectors in a productive use case setting.&lt;/P&gt;&lt;H2 id="toc-hId-33105752"&gt;Building our RAG Chain&lt;/H2&gt;&lt;P&gt;Here we'll be building the chain with the components we need using the LangChain Expression Language. For a chain to do RAG, we'll need:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;A retriever component, which fetches context from HANA Vector DB that is relevant to the inputted query&lt;/LI&gt;&lt;LI&gt;A prompt component, which contains the prompt structure that we need for text generation&lt;/LI&gt;&lt;LI&gt;An LLM (Large Language Model) client component, which basically sends inference requests to an LLM&lt;/LI&gt;&lt;LI&gt;(Optionally) An output parser component, which reformats the output of the text generation to fit our use case&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from gen_ai_hub.proxy.langchain.init_models import init_llm
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnableParallel, RunnablePassthrough
-
-hana_vector_retriever = hana_vectordb.as_retriever()
-
-template = """Answer the question based only on the following context:
-{context}
-
-Question: {question}
-"""
-
-prompt = ChatPromptTemplate.from_template(template)
-output_parser = StrOutputParser()
-
-setup_and_retrieval = RunnableParallel(
-    {
-        "context": hana_vector_retriever,
-        "question": RunnablePassthrough(),
-    }
-)
-
-llm = init_llm("gpt-4", proxy_client=proxy_client)
-
-rag_chain = setup_and_retrieval | prompt | llm | output_parser&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Some points to note:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Additional parameters can be passed to the method call &lt;FONT face="courier new,courier"&gt;hana_vectordb.as_retriever()&lt;/FONT&gt; to configure the way retrieval is done. For example, we could configure the retriever to retrieve at most 4 documents by setting &lt;FONT face="courier new,courier"&gt;.as_retriever(search_kwargs={'k': 4})&lt;/FONT&gt; . More details can be found in &lt;A href="https://api.python.langchain.com/en/v0.1/vectorstores/langchain_community.vectorstores.hanavector.HanaDB.html#langchain_community.vectorstores.hanavector.HanaDB.as_retriever" target="_blank" rel="noopener nofollow noreferrer"&gt;LangChain's documentation&lt;/A&gt; for the &lt;FONT face="courier new,courier"&gt;.as_retriever()&lt;/FONT&gt; method&lt;/LI&gt;&lt;LI&gt;The &lt;FONT face="courier new,courier"&gt;RunnableParallel&lt;/FONT&gt; and &lt;FONT face="courier new,courier"&gt;RunnablePassthrough&lt;/FONT&gt; classes are used here, as the question input is required by both the retriever and prompt components.&lt;/LI&gt;&lt;LI&gt;The LLM model name &lt;FONT face="courier new,courier"&gt;gpt-4&lt;/FONT&gt; was obtained from the output of &lt;FONT face="courier new,courier"&gt;proxy_client.deployments&lt;/FONT&gt; shown previously.&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId--163407753"&gt;Running RAG with our Chain&lt;/H2&gt;&lt;P&gt;Now that our chain is defined, we can now send queries to perform RAG:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;questions = [
-    "What is Python typically used for?",
-    "What is JavaScript typically used for?",
-    "Which programming languages are dynamically typed?",
-]
-
-for question in questions:
-    print(f"Question: {question}")
-    print(f"RAG Answer: {rag_chain.invoke(question)}")
-    print()&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;We should expect to get something like this for the response:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;Question: What is Python typically used for?
-RAG Answer: The text does not provide specific information on what Python is typically used for.
-
-Question: What is JavaScript typically used for?
-RAG Answer: JavaScript is typically used as a core technology of the Web, alongside HTML and CSS. It is used on the client side for webpage behavior in 99% of websites. JavaScript also has application programming interfaces (APIs) for working with text, dates, regular expressions, standard data structures, and the Document Object Model (DOM).
-
-Question: Which programming languages are dynamically typed?
-RAG Answer: The programming languages that are dynamically typed are Ruby and Python.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--489003977"&gt;Conclusion&lt;/H1&gt;&lt;P&gt;We've just built a straightforward Retrieval-Augmented Generation (RAG) application. While I've simplified some details for clarity, I encourage you to delve deeper on your own. To help with that, I've included some references that were useful to me, which I hope you'll find helpful as well. For more detailed examples, check out my &lt;A href="https://github.com/yu-xuan-lee-sap/rag-langchain-hana-example" target="_blank" rel="noopener nofollow noreferrer"&gt;GitHub repository&lt;/A&gt;, where I demonstrate how to implement RAG in both a Jupyter Notebook and a FastAPI application. I'd love to hear if this post has helped you, so feel free to share your thoughts in the comments. Happy coding! &lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":grinning_face_with_big_eyes:"&gt;😃&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;H1 id="toc-hId--685517482"&gt;References&lt;/H1&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://python.langchain.com/v0.1/docs/integrations/vectorstores/sap_hanavector/" target="_blank" rel="noopener nofollow noreferrer"&gt;LangChain documentation for working with HANA Vector DB&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://pypi.org/project/generative-ai-hub-sdk/" target="_blank" rel="noopener nofollow noreferrer"&gt;Generative AI Hub SDK&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://python.langchain.com/v0.1/docs/expression_language/get_started/#rag-search-example" target="_blank" rel="noopener nofollow noreferrer"&gt;Doing RAG with LangChain Expression Language&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/artificial-intelligence-and-machine-learning-blogs/building-a-rag-application-in-python-with-langchain-hana-vector-db-and/ba-p/13714478"/>
-    <published>2024-05-31T11:01:37.589000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/sap-ai-core-templating-environment-variables/ba-p/13718059</id>
-    <title>SAP AI Core Templating: Environment Variables</title>
-    <updated>2024-05-31T14:03:30.536000+02:00</updated>
-    <author>
-      <name>felixbartler</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/4997</uri>
-    </author>
-    <content>&lt;P&gt;Welcome to this deep-dive blog series about SAP AI Core template creation. In this series of blogs, I will show some of the details of the WorkflowTemplate and ServingTemplate concept by concept. This blog will focus on ways of using environment variables with your AI Core Workload.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="felixbartler_0-1717149293181.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/118100iFEEDCDB284C3A238/image-size/large?v=v2&amp;amp;px=999" role="button" title="felixbartler_0-1717149293181.png" alt="felixbartler_0-1717149293181.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1015788536"&gt;Environment Variables in ML Workflows:&lt;/H2&gt;&lt;P&gt;Environment variables play a crucial role in machine learning (ML) training workflows and deployments, providing a flexible and secure method for parameterization and configuration. They are commonly used to &lt;STRONG&gt;specify hyperparameters&lt;/STRONG&gt;, such as learning rates and batch sizes, allowing for easy adjustments without modifying code. Environment variables also point to data sources, indicating &lt;STRONG&gt;paths to training datasets&lt;/STRONG&gt;, validation datasets, and other essential resources, which simplifies data handling across different environments.&lt;/P&gt;&lt;P&gt;In deployments, environment variables are vital for &lt;STRONG&gt;securely managing credentials&lt;/STRONG&gt; and API keys. This approach avoids hard-coding sensitive information in the codebase, enhancing security. For instance, database connection strings, cloud storage access keys, and service credentials are often set as environment variables.&lt;/P&gt;&lt;P&gt;When working with Docker containers, environment variables facilitate the &lt;STRONG&gt;configuration of containerized applications&lt;/STRONG&gt;. They allow for dynamic adjustments to container behavior based on the deployment environment, enabling the same image to be used across development, testing, and production with different settings tailored via environment variables. This modularity and security make environment variables indispensable in modern ML workflows and deployments.&lt;/P&gt;&lt;H2 id="toc-hId-819275031"&gt;Concept in SAP AI Core:&lt;/H2&gt;&lt;P&gt;Overall SAP AI Core Workloads are defined in the two types of templates: Workflows and Servings. They themselves leverage two open source API specifications from the Kubeflow ecosystem: Argo Workflows and KFServing. Thus both Template types do have some distinct differences. Although they both do share the YAML syntax and use plenty of artifacts from the underlying Kubernetes environment, like the &lt;EM&gt;Containers&lt;/EM&gt; definition. This means the same scripting syntax is used across the templates.&lt;/P&gt;&lt;P&gt;Overall, there are multiple ways to specify environment variables in SAP AI Core:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Directly hardcoding them in the template.&lt;/LI&gt;&lt;LI&gt;Referencing a configuration parameter from the template.&lt;/LI&gt;&lt;LI&gt;Referencing a secret from the template.&lt;/LI&gt;&lt;LI&gt;Hardcoding them in the Docker image.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Option 4 is quite independent from AI Core and can be achieved using the simple &lt;A href="https://docs.docker.com/reference/dockerfile/" target="_self" rel="nofollow noopener noreferrer"&gt;ENV Keyword in the Dockerfiles,&lt;/A&gt;&amp;nbsp;plus it also does have some disadvantages, because we do not necessarily want our secrets and parameters to be bound to the source code.&amp;nbsp;&lt;SPAN&gt;Let's examine how the first three options appear in the template:&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId-622761526"&gt;WorkflowTemplates:&lt;/H2&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;apiVersion: argoproj.io/v1alpha1
-kind: WorkflowTemplate
-metadata:
-  name: trainenvdemo
-  annotations:
-    scenarios.ai.sap.com/description: "trainenvdemo"
-    scenarios.ai.sap.com/name: "trainenvdemo"
-    executables.ai.sap.com/description: "trainenvdemo"
-    executables.ai.sap.com/name: "trainenvdemo"
-  labels:
-    scenarios.ai.sap.com/id: "trainenvdemo"
-    executables.ai.sap.com/id: "trainenvdemo"
-    ai.sap.com/version: "1.0.0"
-spec:
-  entrypoint: trainenvdemo
-  arguments:
-    parameters:
-      - name: "ENV_FROM_CONFIG"    # name of the configuration parameter "not" the actual env variable set below
-        description: "description of the parameter"
-  templates:
-    - name: trainenvdemo
-      container:
-        image: docker.io/python:latest
-        env: 
-          - name: ENV_SECRET
-            valueFrom:
-              secretKeyRef:
-                name: felix-secret-1
-                key: api-key
-          - name: ENV_HARDCODED
-            value: "here we can hardcode any values we just want to have in the template"
-          - name: ENV_FROM_CONFIG
-            value: "{{workflow.parameters.ENV_FROM_CONFIG}}"          
-        command:
-          - python3
-          - '-c'
-        args:
-          - |
-           import os
-           print("Hello from SAP AI Core ENV Demo")
-           print(os.environ.get("ENV_SECRET", "not_set"))
-           print(os.environ.get("ENV_HARDCODED", "not_set"))
-           print(os.environ.get("ENV_FROM_CONFIG", "not_set"))&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;We need to set the environment variables directly in the container specification using the env keyword. In there we specify the name of the environment variable under which we can use it in our source code later. The values need to be specified either directly - for example like ENV_HARDCODED, referenced via the replacement syntax to the workflow parameters or by using a secretKeyRef. The replacement syntax refers to the field name of our parameter under spec &amp;gt; arguments &amp;gt; parameters. You can use a different name than the actual environment variable name.&lt;/P&gt;&lt;P&gt;In Action, we need to create a Configuration containing the actual values to be set in those variables - as we can see for this example I did not specify a default, so I do have to set a value to continue:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="felixbartler_3-1717155608531.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/118134iD4A355BB4A3DB616/image-size/large?v=v2&amp;amp;px=999" role="button" title="felixbartler_3-1717155608531.png" alt="felixbartler_3-1717155608531.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-555330740"&gt;Creating a Generic Secret in AI Launchpad:&lt;/H3&gt;&lt;P&gt;Referencing a Secret can be very helpful to deal with Credentials. In AI Launchpad we can maintain Generic Secrets either on Resource Group Level or on Tenant level.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="felixbartler_2-1717155191756.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/118133i12662141FBDACEFC/image-size/large?v=v2&amp;amp;px=999" role="button" title="felixbartler_2-1717155191756.png" alt="felixbartler_2-1717155191756.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;For the example I created one under my resource group with the name &lt;EM&gt;felix-secret-1&lt;/EM&gt;. This name is referenced in the secretKeyRef &amp;gt; name. The secret content needs to be in JSON format. The secret can contain multiple keys that we reference by the secretKeyRef &amp;gt; key parameter.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; We need to encode all the values in our secrets! AI Core does not accept secrets with arbitrary values see the &lt;A href="https://help.sap.com/docs/ai-launchpad/sap-ai-launchpad-user-guide/add-secret-e5cce06c8662434abaee27e77b748259?locale=en-US" target="_self" rel="noopener noreferrer"&gt;official documentation&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;For the example you can do this either key by key in the command line:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;&amp;gt; echo -n 'hey this is top secret' | base64
-&amp;gt; aGV5IHRoaXMgaXMgdG9wIHNlY3JldA==&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Or via a simple python script - encoding all keys in a object:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import base64
-
-secrets = {"secret1": "very_secret", "secret2": "more_secret"}
-
-def base64_encode(value):
-    encoded_bytes = base64.b64encode(value.encode('utf-8'))
-    encoded_str = encoded_bytes.decode('utf-8')
-    return encoded_str
-
-encoded_secrets = {key: base64_encode(value) for key, value in secrets.items()}    # Base64 encode all the values in the secrets dictionary
-
-print(encoded_secrets)&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Outputting:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;{'secret1': 'dmVyeV9zZWNyZXQ=', 'secret2': 'bW9yZV9zZWNyZXQ='}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-358817235"&gt;Demo:&lt;/H3&gt;&lt;P&gt;When running the above template, we see the below output.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;&amp;gt; Hello from SAP AI Core ENV Demo
-&amp;gt; hey this is top secret
-&amp;gt; here we can hardcode any values we just want to have in the template
-&amp;gt; this is a value from the configuration&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;All three types of environment variables are successfully created and able to be consumed from our code. Interestingly the base64 encoded secret is also handed over in plain text to the executing code, nice!&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":smiling_face_with_smiling_eyes:"&gt;😊&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-33221011"&gt;ServingTemplates:&lt;/H2&gt;&lt;P&gt;Now in the second part, let's look at the example for the serving templates:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;apiVersion: ai.sap.com/v1alpha1
-kind: ServingTemplate
-metadata:
-  name: serveenvdemo
-  annotations:
-    scenarios.ai.sap.com/description: "serveenvdemo"
-    scenarios.ai.sap.com/name: "serveenvdemo"
-    executables.ai.sap.com/description: "serveenvdemo"
-    executables.ai.sap.com/name: "serveenvdemo"
-  labels:
-    scenarios.ai.sap.com/id: "serveenvdemo"
-    ai.sap.com/version: "1.0"
-spec:
-  inputs:
-    parameters: 
-      - name: "ENV_FROM_CONFIG"    # name of the configuration parameter "not" the actual env variable set below
-        description: "description of the parameter"
-        default: "some default value for ENV_FROM_CONFIG"
-  template:
-    apiVersion: "serving.kserve.io/v1beta1"
-    metadata:
-      annotations: |
-        autoscaling.knative.dev/metric: concurrency
-        autoscaling.knative.dev/target: 1
-        autoscaling.knative.dev/targetBurstCapacity: 0
-      labels: |
-        ai.sap.com/resourcePlan: starter
-    spec: |
-      predictor:
-        minReplicas: 1
-        maxReplicas: 5
-        containers:
-        - name: kserve-container
-          image: docker.io/python:latest
-          ports:
-            - containerPort: 8080
-              protocol: TCP
-          env: 
-            - name: ENV_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: felix-secret-1
-                  key: api-key
-            - name: ENV_HARDCODED
-              value: "here we can hardcode any values we just want to have in the template"
-            - name: ENV_FROM_CONFIG
-              value: "{{inputs.parameters.ENV_FROM_CONFIG}}"          
-          command:
-            - python3
-            - '-c'
-          args:
-            - |
-              import os
-              print("Hello from SAP AI Core ENV Demo")
-              print(os.environ.get("ENV_SECRET", "not_set"))
-              print(os.environ.get("ENV_HARDCODED", "not_set"))
-              print(os.environ.get("ENV_FROM_CONFIG", "not_set"))&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The main difference if we compare the both template, is the place to put the "inputs/configurations" to. In the serving case, we specify them under &lt;EM&gt;spec &amp;gt; inputs &amp;gt; parameters&lt;/EM&gt;. So I replicated the same scenario, having one hardcoded, one via configuration and the secret reference. When defining a default value, we are prompted with it as a help in the AI Launchpad:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="felixbartler_4-1717155739435.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/118136iAF118D947067B6DA/image-size/large?v=v2&amp;amp;px=999" role="button" title="felixbartler_4-1717155739435.png" alt="felixbartler_4-1717155739435.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId--34209775"&gt;Demo:&lt;/H3&gt;&lt;P&gt;Other then that, when running the deployment, we will not go into running mode because we did not set up a actual server - but the logs still show, that the code is able to access the environment variables:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;&amp;gt; Hello from SAP AI Core ENV Demo
-&amp;gt; hey this is top secret
-&amp;gt; here we can hardcode any values we just want to have in the template
-&amp;gt; some default value for ENV_FROM_CONFIG&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Hope you find this blog insightful, feel free to try out the example templates and leave a comment in case of further questions.&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/sap-ai-core-templating-environment-variables/ba-p/13718059"/>
-    <published>2024-05-31T14:03:30.536000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/application-development-blog-posts/developer-challenge-sap-hana-multi-model-using-python-in-sap-business/ba-p/13722560</id>
     <title>Developer Challenge: SAP HANA multi-model using Python in SAP Business Application Studio</title>
@@ -1719,5 +1509,145 @@ jwcrypto
 requests&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId-1135566669"&gt;Reference Link:&lt;/H4&gt;&lt;H6 id="toc-hId-1197218602"&gt;&lt;A href="https://help.sap.com/docs/credential-store/sap-credential-store/sap-credential-store?q=basic" target="_blank" rel="noopener noreferrer"&gt;SAP Credential Store&lt;/A&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN&gt;&lt;A href="https://help.sap.com/docs/credential-store/sap-credential-store/credential-management-example-node-js?q=basic" target="_blank" rel="noopener noreferrer"&gt;Credential Management (Example: NodeJs)&lt;/A&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/H6&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-members/accessing-sap-credential-store-using-basic-authentication/ba-p/13926490"/>
     <published>2024-11-05T13:10:53.908000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-members/how-to-access-sap-credential-store-using-mutual-tls-mtls-authentication/ba-p/13926503</id>
+    <title>How to Access SAP Credential Store Using Mutual TLS (mTLS) Authentication with Python</title>
+    <updated>2024-11-05T13:20:29.529000+01:00</updated>
+    <author>
+      <name>nitishkumarrao</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1421085</uri>
+    </author>
+    <content>&lt;P&gt;&lt;STRONG&gt;What Is SAP Credential Store?&amp;nbsp;&lt;/STRONG&gt;SAP Credential Store is a repository on SAP BTP (Business Technology Platform) where you can securely store credentials, passwords, keys, and other sensitive data. For enhanced security, you can configure it to use mTLS, which verifies both the client and server identities before granting access.&lt;/P&gt;&lt;H5 id="toc-hId-1461163578"&gt;&lt;BR /&gt;&lt;STRONG&gt;Setting Up the Credential Store in SAP BTP for mTLS&lt;BR /&gt;&lt;/STRONG&gt;&lt;/H5&gt;&lt;P&gt;Go to your SAP BTP sub-account, then select &lt;STRONG&gt;Instances and Subscriptions&lt;/STRONG&gt; to create a new Credential Store instance if you haven’t done so already.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="1.png" style="width: 730px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/186135i32E28A8BAC727B27/image-size/large?v=v2&amp;amp;px=999" role="button" title="1.png" alt="1.png" /&gt;&lt;/span&gt;&lt;BR /&gt;Click Create. Default Authentication type for credential store is mTLS.&lt;BR /&gt;After creating the Credential Store instance, click &lt;STRONG&gt;View Dashboard&lt;/STRONG&gt; to open the Credential Store console.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="3.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/186136i39B6911B2030A84E/image-size/large?v=v2&amp;amp;px=999" role="button" title="3.png" alt="3.png" /&gt;&lt;/span&gt;&lt;BR /&gt;SAP Credential Store organizes data by namespaces for logical separation. Click &lt;STRONG&gt;Create Namespace&lt;/STRONG&gt; and name it according to your application.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="4.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/186137i706ABE810E4C4BB5/image-size/large?v=v2&amp;amp;px=999" role="button" title="4.png" alt="4.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Choose the credential type as needed, such as password, key, keyring. For our example, we’ll use an password type.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="5.png" style="width: 353px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/186138i5442ED753C28BBD0/image-size/large?v=v2&amp;amp;px=999" role="button" title="5.png" alt="5.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;SPAN&gt;For Deployment of Basic Python App in Cloud Foundry refer the blog,&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://community.sap.com/t5/technology-blogs-by-members/integrating-a-python-app-with-sap-business-application-studio-for-an-sap-s/ba-p/13691474" target="_blank"&gt;Integrating a Python App with SAP BAS&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;BR /&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;BR /&gt;&lt;SPAN&gt;Now, let’s bind the credential store to an application called&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;summary&lt;/STRONG&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="7.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/186142i424BDB07644EA888/image-size/large?v=v2&amp;amp;px=999" role="button" title="7.png" alt="7.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="8.png" style="width: 587px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/186141iE685283305D7DE63/image-size/large?v=v2&amp;amp;px=999" role="button" title="8.png" alt="8.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;SPAN&gt;Navigate to the app -&amp;gt; Environment Variables&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="9.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/186143i048608E314141C5E/image-size/large?v=v2&amp;amp;px=999" role="button" title="9.png" alt="9.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;For mTLS, you’ll need:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;A client certificate (issued by a trusted Certificate Authority)&lt;/LI&gt;&lt;LI&gt;A private key&lt;/LI&gt;&lt;LI&gt;A server certificate (provided by SAP Credential Store)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{
+	"VCAP_SERVICES": {
+		"credstore": [
+			{
+				"label": "credstore",
+				"provider": null,
+				"plan": "trial",
+				"name": "trial-cred",
+				"tags": [
+					"credstore",
+					"securestore",
+					"keystore",
+					"credentials"
+				],
+				"instance_guid": "0068a9eb-d4b5-4570-a7c8-fce5163eb95f",
+				"instance_name": "trial-cred",
+				"binding_guid": "60346d93-9d88-4a50-bfd4-59ae49df5b87",
+				"binding_name": null,
+				"credentials": {
+					"expires_at": "2025-01-01T14:28:44.5Z",
+					"encryption": {
+						"client_private_key": "",
+						"server_public_key": "",
+					"parameters": {
+						"authorization": {
+							"default_permissions": [
+								"create",
+								"decrypt",
+								"delete",
+								"encrypt",
+								"info",
+								"list",
+								"namespaces",
+								"read",
+								"update"
+							]
+						},
+						"encryption": {
+							"payload": "enabled",
+							"key": {
+								"size": 3072
+							}
+						},
+						"authentication": {
+							"type": "mtls"
+						},
+						"access_policy": {
+							"creds_api": "public",
+							"token_api": "public",
+							"kms_api": "public",
+							"encryption_api": "public"
+						}
+					},
+					"url": "https://credstore.mesh.cf.us10.hana.ondemand.com/api/v1/credentials",
+					"key": "",
+					"username": "60346d93-9d88-4a50-bfd4-59ae49df5b87.0.PXDf09rhPs7MkShqWt2be9CdoGLG1VmaAKW4D3kzWPg="
+				},
+				"syslog_drain_url": null,
+				"volume_mounts": []
+			}
+		]
+	}
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-877401916"&gt;&lt;STRONG&gt;Python Code to Access the Credential Storage API&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from dotenv import load_dotenv
+import os
+import json
+import requests
+from jwcrypto import jwk, jwe
+
+namespace = "PasswordHub"
+name = "Password"
+
+cred_headers = {
+    "sapcp-credstore-namespace": namespace
+}
+cred_params = {
+    "name": name
+}
+
+load_dotenv()
+vcap_services = os.getenv("VCAP_SERVICES")
+
+if vcap_services:
+    binding = json.loads(vcap_services)['credstore'][0]['credentials']
+    rsa_private_key = f"{binding['key']}"
+    primary_certificate = f"{binding['certificate']}"
+    api_url = binding["url"]
+else:
+    raise ValueError("VCAP_SERVICES not found in environment.")
+
+try:
+    with open("rsa_key.pem", "w") as key_file:
+        key_file.write(rsa_private_key)
+    
+    with open("client_cert.pem", "w") as cert_file:
+        cert_file.write(primary_certificate)
+
+    response = requests.get(
+        url=f"{api_url}/password",
+        cert=("client_cert.pem", "rsa_key.pem"),
+        verify=True,
+        headers=cred_headers,
+        params=cred_params
+    )
+    private_key_pem =f"-----BEGIN PRIVATE KEY-----\n{binding['encryption']['client_private_key']}\n-----END PRIVATE KEY-----"
+    private_key = jwk.JWK.from_pem(private_key_pem.encode('utf-8'))
+    jwetoken = jwe.JWE()
+    jwetoken.deserialize(response.text, key=private_key)
+    resp = jwetoken.payload.decode('utf-8')
+    json_payload = json.loads(resp)
+    api_key_val = json_payload['value']
+
+    print(f"Password stored in credential store for {cred_params['name']} is :-", api_key_val)
+finally:
+    os.remove("rsa_key.pem")
+    os.remove("client_cert.pem")&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Requirements:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;python-dotenv
+jwcrypto
+requests&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId-939053849"&gt;Reference Link:&lt;/H4&gt;&lt;H6 id="toc-hId-1000705782"&gt;&lt;A href="https://help.sap.com/docs/credential-store/sap-credential-store/sap-credential-store?q=basic" target="_blank" rel="noopener noreferrer"&gt;SAP Credential Store&lt;/A&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN&gt;&lt;A href="https://help.sap.com/docs/credential-store/sap-credential-store/credential-management-example-node-js?q=basic" target="_blank" rel="noopener noreferrer"&gt;Credential Management (Example: NodeJs)&lt;/A&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/H6&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-members/how-to-access-sap-credential-store-using-mutual-tls-mtls-authentication/ba-p/13926503"/>
+    <published>2024-11-05T13:20:29.529000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sap-codejam-blog-posts/sap-codejam-hana-ml-in-wroc%C5%82aw-2024-10-recap/ba-p/13929019</id>
+    <title>SAP CodeJam HANA ML in Wrocław 2024-10 Recap</title>
+    <updated>2024-11-05T13:55:58.300000+01:00</updated>
+    <author>
+      <name>Vitaliy-R</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/183</uri>
+    </author>
+    <content>&lt;P&gt;&lt;SPAN&gt;At the end of October, we had the Getting Started with Machine Learning using SAP HANA and&amp;nbsp;&lt;/SPAN&gt;&lt;A class="" href="https://community.sap.com/t5/c-khhcw49343/Python/pd-p/f220d74d-56e2-487e-8e6c-a8cb3def2378" target="_blank"&gt;Python&lt;/A&gt;&amp;nbsp;&lt;SPAN&gt;in Wrocław, Poland, kindly hosted by LeverX and organized by&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1728320"&gt;@Olena_Nadtochii&lt;/a&gt;.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="ImportedPhoto.751973070_w.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/187002iA6FF77C0CCA1D927/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="ImportedPhoto.751973070_w.jpg" alt="ImportedPhoto.751973070_w.jpg" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;We had a fantastic group of participants, ranging from seasoned SAP veterans...&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="ImportedPhoto.751973070_wide.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/187003i2DE0A44564C71835/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="ImportedPhoto.751973070_wide.jpg" alt="ImportedPhoto.751973070_wide.jpg" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;...to fresh talents who recently graduated from university.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="ImportedPhoto.751973037_wide.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/187004i326F80975E0C3D5D/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="ImportedPhoto.751973037_wide.jpg" alt="ImportedPhoto.751973037_wide.jpg" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;This SAP CodeJam took place in a historical building—the former seat of the Faculty of Pharmacy of Wrocław University: a part of the university buildings'&amp;nbsp;frontage, stretching along the Odra River in the northern part of the Old Town. The view from the top was breathtaking: from the&amp;nbsp;&lt;A href="https://en.wikipedia.org/wiki/Wroc%C5%82aw_Cathedral" target="_blank" rel="noopener nofollow noreferrer"&gt;&lt;SPAN&gt;Gothic&lt;/SPAN&gt; Cathedral&lt;/A&gt; on the right to Concordia Design on the left&lt;SPAN&gt;—&lt;/SPAN&gt;the &lt;A href="https://boty.archdaily.com/us/2021/candidates/135851/concordia-design-wroclaw-slash-mvrdv" target="_blank" rel="noopener nofollow noreferrer"&gt;Building of the Year 2021&lt;/A&gt;, according to ArchDaily.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="IMG_6049_w.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/187005iE712174D8EC6060A/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="IMG_6049_w.jpg" alt="IMG_6049_w.jpg" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;And the food was equally fabulous.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="IMG_6052_wide.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/187009iDD53FBACD33F7E6E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="IMG_6052_wide.jpg" alt="IMG_6052_wide.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class=""&gt;I’d like to thank all the participants who joined me for this final SAP CodeJam of 2024!&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="ImportedPhoto.751981248_wide.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/187011iAF43DAA8BA28677E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="ImportedPhoto.751981248_wide.jpg" alt="ImportedPhoto.751981248_wide.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class=""&gt;The 2024 tour included 14 stops for me, and now it has come to an end.&lt;/P&gt;&lt;P&gt;Now, the next stops are in 2025, and I hope to see you in Spain (&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/107"&gt;@ajmaradiaga&lt;/a&gt;&amp;nbsp;), UAE (&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/45547"&gt;@athavanraja&lt;/a&gt;&amp;nbsp;), India (&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/164257"&gt;@ShilpaSAP&lt;/a&gt;&amp;nbsp;).&amp;nbsp;&lt;SPAN&gt;Would you like to host such an SAP CodeJam in your location? Here are the details:&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/quot-getting-started-with-machine-learning-using-sap-hana-quot-as-a-new-sap/ba-p/13574098" target="_blank"&gt;https://community.sap.com/t5/technology-blogs-by-sap/quot-getting-started-with-machine-learning-usin...&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/sap-codejam-blog-posts/sap-codejam-hana-ml-in-wroc%C5%82aw-2024-10-recap/ba-p/13929019"/>
+    <published>2024-11-05T13:55:58.300000+01:00</published>
   </entry>
 </feed>
