@@ -2,140 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-qa.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2024-11-14T12:00:07.264070+00:00</updated>
+  <updated>2024-11-14T15:00:03.365132+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/zip-file-downloaded-via-application-server-is-invalid-data-after-the-end-of/qaq-p/13933711</id>
-    <title>Zip file downloaded via application server is invalid ('data after the end of the payload data')</title>
-    <updated>2024-11-11T06:23:50.020000+01:00</updated>
-    <author>
-      <name>MikeDoyle</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/13892</uri>
-    </author>
-    <content>&lt;P&gt;My brief is to create an ABAP report that downloads various table data to CSV, and then archives the CSV files to a single ZIP file.&amp;nbsp; It needs to work in the foreground (downloading the archive to the user's client) or in batch (downloading the archive to the application server). I use the standard ABAP class &lt;EM&gt;CL_ABAP_ZIP&lt;/EM&gt;.&lt;/P&gt;&lt;P&gt;The foreground mode is working fine, using&lt;!--   StartFragment    --&gt; &lt;EM&gt;CL_GUI_FRONTEND_SERVICES&lt;SPAN class=""&gt;=&amp;gt;&lt;/SPAN&gt;GUI_DOWNLOAD&lt;/EM&gt;.&amp;nbsp; When I use the 7-zip &lt;EM&gt;Test archive&lt;/EM&gt; function I can see that the there are no errors and I can even parse the zip file in the downstream CAP Node.js app, using &lt;A href="https://github.com/thejoshwolfe/yauzl#no-streaming-unzip-api" target="_self" rel="nofollow noopener noreferrer"&gt;yauzl&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;When I run the report in the background, and then download via CGY3, the file looks good. I can open the archive using 7-zip and I see all of the constituent CSV files.&amp;nbsp; When I test with 7-zip however I get the following error:&amp;nbsp;&lt;STRONG&gt;There are some data after the end of the payload data&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;When I upload the file and try to parse it, I get the following error in yauzl:&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Invalid comment length. Expected: 51. Found: 0. Are there extra bytes at the end of the file? Or is the end of central dir signature `PK☺☻` in the comment?&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;See&amp;nbsp;&lt;A href="https://github.com/thejoshwolfe/yauzl/issues/48#issuecomment-266587526" target="_blank" rel="noopener nofollow noreferrer"&gt;yauzl/issues/48#issuecomment-266587526&lt;/A&gt;&amp;nbsp;for explanation&lt;/P&gt;&lt;P&gt;In background mode I am using the OPEN DATASET / TRANSFER / CLOSE DATASET commands and I expect the file output to be identical to when I run in foreground. Clearly it isn't identical.&lt;/P&gt;&lt;P&gt;Has anyone seen a similar issue before?&amp;nbsp; Can you see what is wrong with my code (see below)?&amp;nbsp; Is there an alternative method I can use to save to the application server?&lt;/P&gt;&lt;P&gt;NB the code must be highly backwards compatible as it could be run in systems that aren't on recent releases. Hence no inline data declarations or other modern constructs&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD save_archive.
-
-        DATA: lv_xstring_zip TYPE xstring,
-              lv_zip_size TYPE i,
-              lv_datestamp(8),
-              lv_default_filename TYPE string,
-              lt_binary TYPE STANDARD TABLE OF raw255,
-              ls_binary LIKE LINE OF lt_binary,
-              lv_filename TYPE string,
-              lv_path TYPE string,
-              lv_fullpath TYPE string.
-
-        lv_xstring_zip = go_zip-&amp;gt;SAVE( ).
-
-*       Convert the XSTRING to Binary table
-        CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
-          EXPORTING
-            BUFFER                = lv_xstring_zip
-*           APPEND_TO_TABLE       = ' '
-          IMPORTING
-            OUTPUT_LENGTH         = lv_zip_size
-          TABLES
-            BINARY_TAB            = lt_binary
-                  .
-
-        CONCATENATE ZIP_FILE_PREFIX sy-datum INTO lv_default_filename.
-
-        IF sy-batch = 'X'.
-          OPEN DATASET I_EXPORT FOR OUTPUT IN BINARY MODE.
-          LOOP AT LT_BINARY INTO ls_binary.
-            TRANSFER ls_binary TO I_EXPORT.
-          ENDLOOP.
-          CLOSE DATASET I_EXPORT.
-        ELSE.
-          "NB for initial directory set parameter ID GR8
-          CALL METHOD CL_GUI_FRONTEND_SERVICES=&amp;gt;FILE_SAVE_DIALOG
-             EXPORTING
-               WINDOW_TITLE              = 'Choose export location'
-               DEFAULT_EXTENSION         = 'zip'
-               DEFAULT_FILE_NAME         = lv_default_filename
-               PROMPT_ON_OVERWRITE       = 'X'
-            CHANGING
-              FILENAME                  = lv_filename
-              PATH                      = lv_path
-              FULLPATH                  = lv_fullpath
-            EXCEPTIONS
-              CNTL_ERROR                = 1
-              ERROR_NO_GUI              = 2
-              NOT_SUPPORTED_BY_GUI      = 3
-              INVALID_DEFAULT_FILE_NAME = 4
-              others                    = 5
-                  .
-          IF SY-SUBRC &amp;lt;&amp;gt; 0.
-            MESSAGE e383(n1me) WITH sy-subrc.
-          ENDIF.
-
-          CALL METHOD CL_GUI_FRONTEND_SERVICES=&amp;gt;GUI_DOWNLOAD
-            EXPORTING
-               BIN_FILESIZE              = lv_zip_size
-               FILENAME                  = lv_fullpath
-               FILETYPE                  = 'BIN'
-            CHANGING
-              DATA_TAB                  = lt_binary
-            EXCEPTIONS
-              FILE_WRITE_ERROR          = 1
-              NO_BATCH                  = 2
-              GUI_REFUSE_FILETRANSFER   = 3
-              INVALID_TYPE              = 4
-              NO_AUTHORITY              = 5
-              UNKNOWN_ERROR             = 6
-              HEADER_NOT_ALLOWED        = 7
-              SEPARATOR_NOT_ALLOWED     = 8
-              FILESIZE_NOT_ALLOWED      = 9
-              HEADER_TOO_LONG           = 10
-              DP_ERROR_CREATE           = 11
-              DP_ERROR_SEND             = 12
-              DP_ERROR_WRITE            = 13
-              UNKNOWN_DP_ERROR          = 14
-              ACCESS_DENIED             = 15
-              DP_OUT_OF_MEMORY          = 16
-              DISK_FULL                 = 17
-              DP_TIMEOUT                = 18
-              FILE_NOT_FOUND            = 19
-              DATAPROVIDER_EXCEPTION    = 20
-              CONTROL_FLUSH_ERROR       = 21
-              NOT_SUPPORTED_BY_GUI      = 22
-              ERROR_NO_GUI              = 23
-              others                    = 24
-                  .
-          IF SY-SUBRC &amp;lt;&amp;gt; 0.
-            MESSAGE e828(5n) WITH sy-subrc.
-          ENDIF.
-        ENDIF.
-
-    ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/zip-file-downloaded-via-application-server-is-invalid-data-after-the-end-of/qaq-p/13933711"/>
-    <published>2024-11-11T06:23:50.020000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/read-justification-for-approvers-text-from-pr/qaq-p/13933804</id>
-    <title>Read 'Justification for Approvers' text from PR</title>
-    <updated>2024-11-11T08:19:50.453000+01:00</updated>
-    <author>
-      <name>masna_7</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/847448</uri>
-    </author>
-    <content>&lt;P&gt;Hi SAP,&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;I have a requirement to read 'Justification for Approvers' text from a PR and send it out to external system. Can you please tell me how to extract this text from ABAP. Adding screenshot for reference.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="masna_7_0-1731309576263.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/188998iDDA546232166557B/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="masna_7_0-1731309576263.png" alt="masna_7_0-1731309576263.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thanks and Best Regards&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/read-justification-for-approvers-text-from-pr/qaq-p/13933804"/>
-    <published>2024-11-11T08:19:50.453000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/convert-integer-to-hexadecimal/qaq-p/13934037</id>
-    <title>Convert Integer to Hexadecimal</title>
-    <updated>2024-11-11T11:53:40.049000+01:00</updated>
-    <author>
-      <name>Calcifer</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1384026</uri>
-    </author>
-    <content>&lt;P&gt;Hi Experts,&lt;BR /&gt;&lt;BR /&gt;Hope you're having a good day!&lt;BR /&gt;Just wanted to ask how do you convert an integer to hexadecimal?&lt;BR /&gt;Currently I have this line of code.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA(lt_tabix) = sy-tabix.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;which is then used to compare a hexadecimal value.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;LOOP AT lt_table ASSIGNING FIELD-SYMBOL(&amp;lt;fs_var&amp;gt;) WHERE hex = lt_tabix&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;It will give me an error since 10 is not 0000000000000010 in hexa.&lt;BR /&gt;Really appreciate your replies in advance.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/convert-integer-to-hexadecimal/qaq-p/13934037"/>
-    <published>2024-11-11T11:53:40.049000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/call-api-returns-code-500/qaq-p/13934042</id>
     <title>Call API returns code 500</title>
@@ -434,5 +304,41 @@ lo_client-&amp;gt;close( ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;Do you 
     <content>&lt;P&gt;&lt;SPAN&gt;Hi, &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;I need to send an email with a subject longer than 50 characters.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;I you using this method&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;SET_MESSAGE_SUBJECT&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;of class&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;CL_BCS&amp;nbsp;&lt;/STRONG&gt;but the parameter&amp;nbsp;&lt;SPAN&gt;I_SUBJECT is 50 digit.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;i tried also this but not working:&lt;/P&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/crm-and-cx-blogs-by-members/more-than-50-character-lengths-in-email-subject-with-class-cl-bcs/ba-p/13557089#:~:text=To%20extend%20the%20e%2Dmail,when%20creating%20the%20document%20reference.&amp;amp;text=i_subject%20%3D%20space%20%29" target="_blank"&gt;https://community.sap.com/t5/crm-and-cx-blogs-by-members/more-than-50-character-lengths-in-email-subject-with-class-cl-bcs/ba-p/13557089#:~:text=To%20extend%20the%20e%2Dmail,when%20creating%20the%20document%20reference.&amp;amp;text=i_subject%20%3D%20space%20%29&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;thank you&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/how-to-send-a-mail-with-subject-longer-than-50-characters-set-message/qaq-p/13937831"/>
     <published>2024-11-14T10:18:24.692000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/change-requisition-processing-state-and-tracking-number-for-pr-via-bapi-pr/qaq-p/13938145</id>
+    <title>Change 'Requisition Processing State' and 'Tracking Number' for PR via BAPI_PR_CHANGE</title>
+    <updated>2024-11-14T13:41:54.776000+01:00</updated>
+    <author>
+      <name>masna_7</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/847448</uri>
+    </author>
+    <content>&lt;P&gt;Hi,&lt;/P&gt;&lt;P&gt;I am trying to change the&amp;nbsp;Requisition Processing State' and 'Tracking Number' for PR via Integration. Can you please let me know what values to pass into the BAPI_PR_CHANGE to get this changed for a PR ?&lt;/P&gt;&lt;P&gt;Can we use BAPI_PR_CHANGE or is there any other BAPI to achieve this ?&lt;/P&gt;&lt;P&gt;adding the screenshots for reference.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="masna_7_0-1731588044290.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/190940i0AA733920972A202/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="masna_7_0-1731588044290.png" alt="masna_7_0-1731588044290.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="masna_7_1-1731588096842.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/190942i4E25C138F7CEDFCC/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="masna_7_1-1731588096842.png" alt="masna_7_1-1731588096842.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Help greatly appreciated.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thanks&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/change-requisition-processing-state-and-tracking-number-for-pr-via-bapi-pr/qaq-p/13938145"/>
+    <published>2024-11-14T13:41:54.776000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/issue-in-updating-inspection-lot-characteristics-after-ud-made/qaq-p/13938297</id>
+    <title>Issue in updating inspection lot characteristics after UD Made</title>
+    <updated>2024-11-14T15:35:54.021000+01:00</updated>
+    <author>
+      <name>GowthamReddy</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1528291</uri>
+    </author>
+    <content>&lt;P&gt;Hi,&lt;/P&gt;&lt;P&gt;I have a requirement to update inspection lot characteristics using ABAP logic after Usage Decision has made.&lt;/P&gt;&lt;P&gt;I have tried with the BAPI(BAPI_INSPOPER_RECORDRESULTS) for the Result recording this BAPI is throwing the below error&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="GowthamReddy_0-1731594747403.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/191015iFAA8A07C0E5C9574/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="GowthamReddy_0-1731594747403.png" alt="GowthamReddy_0-1731594747403.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Can anyone please help me with the process to achieve this scenario.&lt;/P&gt;&lt;P&gt;Thanks in Advance&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/issue-in-updating-inspection-lot-characteristics-after-ud-made/qaq-p/13938297"/>
+    <published>2024-11-14T15:35:54.021000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/ewm-rf-terminal-development-how-to-display-barcode-data/qaq-p/13938309</id>
+    <title>EWM RF Terminal Development: How to Display Barcode Data?</title>
+    <updated>2024-11-14T15:47:36.996000+01:00</updated>
+    <author>
+      <name>fsengul</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1503409</uri>
+    </author>
+    <content>&lt;P&gt;Hello SAP Community,&lt;/P&gt;&lt;P&gt;I am working on a project in the&amp;nbsp;#SAP EWM module where I need to develop a small RF terminal (handheld device) application. The goal is to scan a barcode, use it to retrieve some fields from an EWM table (for example, one of the /SCWM/ tables), and display this information on the RF terminal screen. However, I'm not entirely sure how to approach this task from scratch.&lt;/P&gt;&lt;P&gt;If you could recommend any books, documents, or video tutorials that explain how to perform this step-by-step, I would be very grateful. I am especially looking for resources that cover RF development within SAP EWM.&lt;/P&gt;&lt;P&gt;Any book recommendations, links to # SAP Learning Hub, or YouTube video series would be incredibly helpful. Thank you very much in advance for your assistance&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note&lt;/STRONG&gt;: I am an ABAP developer and fairly new to SAP EWM, so materials that start with the basics would be more helpful.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/ewm-rf-terminal-development-how-to-display-barcode-data/qaq-p/13938309"/>
+    <published>2024-11-14T15:47:36.996000+01:00</published>
   </entry>
 </feed>
