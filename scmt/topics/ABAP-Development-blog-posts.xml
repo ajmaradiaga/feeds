@@ -2,250 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2024-12-08T21:00:03.269539+00:00</updated>
+  <updated>2024-12-09T00:00:03.900868+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/start-lean-with-rap-restful-abap-programming-model-1/ba-p/13747002</id>
-    <title>Start lean with RAP (Restful ABAP programming model) #1</title>
-    <updated>2024-11-18T14:41:53.201000+01:00</updated>
-    <author>
-      <name>ivo_skolek</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/482416</uri>
-    </author>
-    <content>&lt;P&gt;Restful ABAP Programming Model... I went through openSAP course, I bought SAP press books. But somehow RAP seemed a bit scary.&amp;nbsp; I am a developer who likes to understand what I am writing and why. Looking at examples of RAP, the number of keywords in behaviour definition and the implemenation classes with EML just seemed a bit overwhelming... Is it just me?&lt;/P&gt;&lt;P&gt;I would start with a bit of a context - I am originally ABAP developer who learnt UI5 and got heavily into fullstack development. I spent a lot of time building apps on ECC on HANA db. That means not yet S/4 (but close!), ABAP 7.5, for oData using mostly what I would call BOPF-less ABAP Programming Model for Fiori =&amp;gt; SEGW with CDS views as referenced data source but not using BOPF cause at that version BOPF object can't be generated out of CDS. For implementing CRUD I would just add annotations below to my CDS exposed as referenced data source and then redefine methods for saving stuff in DPC_EXT class.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;@ObjectModel.createEnabled: true &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;@ObjectModel.updateEnabled: true &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;@ObjectModel.deleteEnabled: true&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;With that and a few other pieces of ABAP when CDS wouldn't be enough or for things like changesets or stream processing I was able to built any complex applications efficiently fully utilizing the power of SADL and CDS while having full flexibility of ABAP when needed.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;So this blog posts will be about achieving something similar in RAP in most simple and lean way I could find. Alright, let's start with my key recommendations. They might sound radical so please &lt;STRONG&gt;take it as a way to start with RAP, not as a best practice&lt;/STRONG&gt; (though in my experience following approach can work very well for productive developments).&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;1) do unamanged behaviour - you will understand exactly what you are doing&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;2) do behaviour definition and implementation directly on ZC* (consumption) view - skip added complexity of behaviour projection layer, it's optional&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;3) trim behaviour definition to bare minimum that you clearly understand. Remove everything that you don't need or don't understand&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;4) don't use EML - everything can be done with traditional ABAP, EML is optional - understand first what you are doing with traditional ABAP, later add EML if suitable&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Now here comes the example, let's assume simple model of 2 CDS views - for Purchase Order Header and Purchase Order Items. And app that allows displaying and creating purchase orders&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;define root view entity ZC_LeanRAP_PurchaseOrder as select from I_PurchaseOrder
-composition [1..*] of ZC_LeanRAP_PurchOrdItem as _Items
-{
-    key PurchaseOrder,
-    PurchasingGroup,
-    PurchasingOrganization,
-    Supplier,
-    CompanyCode,
-    DocumentCurrency,
-    PaymentTerms,
-    
-    _Items
-}&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;define view entity ZC_LeanRAP_PurchOrdItem as select from I_PurchaseOrderItem
-association to parent ZC_LeanRAP_PurchaseOrder as _Header on $projection.PurchaseOrder = _Header.PurchaseOrder
-{
-    key PurchaseOrder,
-    key PurchaseOrderItem,
-    Plant,
-    PurchaseOrderItemText,
-    NetPriceAmount,
-    OrderQuantity,
-    DocumentCurrency,
-    PurchaseOrderQuantityUnit,
-    
-    _Header
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Let's continue with behaviour definition - following the recommendations nr.1 and 2 we generate &lt;STRONG&gt;unmanaged&lt;/STRONG&gt; behaviour definition directly for&amp;nbsp;&lt;SPAN&gt;ZC_LeanRAP_PurchaseOrder. (please note that unmanaged here stands for the CUD operations! querying data with GET requests will be still managed by SADL pulling from CDS views so no coding there). When you generate it, it will look like this:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;unmanaged implementation in class zbp_c_leanrap_purchaseorder unique;
-strict ( 2 );
-
-define behavior for ZC_LeanRAP_PurchaseOrder //alias &amp;lt;alias_name&amp;gt;
-//late numbering
-lock master
-authorization master ( instance )
-//etag master &amp;lt;field_name&amp;gt;
-{
-  create;
-  update;
-  delete;
-  association _Items { create; }
-}
-
-define behavior for ZC_LeanRAP_PurchOrdItem //alias &amp;lt;alias_name&amp;gt;
-//late numbering
-lock dependent by _Header
-authorization dependent by _Header
-//etag master &amp;lt;field_name&amp;gt;
-{
-  update;
-  delete;
-  field ( readonly ) PurchaseOrder;
-  association _Header;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Now follow recommendation nr.3 and trim it... we want to create purchase order with items. Let's remove everything not directly related to that and we get to something like this:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;unmanaged implementation in class zbp_c_leanrap_purchaseorder unique;
-
-define behavior for ZC_LeanRAP_PurchaseOrder
-{
-  create;
-  association _Items { create; }
-}
-
-define behavior for ZC_LeanRAP_PurchOrdItem
-
-{
-  create;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Finally let's get to behaviour implementation that follows recommendation nr.4 - no EML. In a nutshell, just 3 methods are implemented there - methods for &lt;STRONG&gt;create&lt;/STRONG&gt; on header and item level will be called first and take data coming from frontend and save it into static attributes of transactional buffer class - lhc_buffer. And later method &lt;STRONG&gt;save&lt;/STRONG&gt; will find it there in buffer and call BAPI for creating Purchase Order. As simple as that - no EML, no special RAP commands. Just search and look at all places where lhc_buffer is used. It's simplified example but actually it's implementing deep insert - header and items collected and saved with single BAPI call.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_buffer DEFINITION.
-  PUBLIC SECTION.
-
-    CLASS-DATA: ss_bapi_po_header  TYPE bapimepoheader,
-                ss_bapi_po_headerx TYPE bapimepoheaderx,
-                st_bapi_po_item    TYPE STANDARD TABLE OF bapimepoitem,
-                st_bapi_po_itemx   TYPE STANDARD TABLE OF bapimepoitemx.
-ENDCLASS.
-
-
-CLASS lhc_ZC_LeanRAP_PurchaseOrder DEFINITION INHERITING FROM cl_abap_behavior_handler.
-  PRIVATE SECTION.
-
-    METHODS create FOR MODIFY
-      IMPORTING entities FOR CREATE ZC_LeanRAP_PurchaseOrder.
-
-    METHODS read FOR READ
-      IMPORTING keys FOR READ ZC_LeanRAP_PurchaseOrder RESULT result.
-
-    METHODS rba_Items FOR READ
-      IMPORTING keys_rba FOR READ ZC_LeanRAP_PurchaseOrder\_Items FULL result_requested RESULT result LINK association_links.
-
-    METHODS cba_Items FOR MODIFY
-      IMPORTING entities_cba FOR CREATE ZC_LeanRAP_PurchaseOrder\_Items.
-
-ENDCLASS.
-
-CLASS lhc_ZC_LeanRAP_PurchaseOrder IMPLEMENTATION.
-
-  METHOD create.
-
-    LOOP AT entities ASSIGNING FIELD-SYMBOL(&amp;lt;ls_header_create&amp;gt;).
-
-      lhc_buffer=&amp;gt;ss_bapi_po_header = VALUE #( doc_type     = 'ZPO'
-                                               purch_org    = &amp;lt;ls_header_create&amp;gt;-PurchasingOrganization
-                                               pur_group    = &amp;lt;ls_header_create&amp;gt;-PurchasingGroup
-                                               vendor       = &amp;lt;ls_header_create&amp;gt;-Supplier
-                                               comp_code    = &amp;lt;ls_header_create&amp;gt;-CompanyCode
-                                               currency     = &amp;lt;ls_header_create&amp;gt;-DocumentCurrency
-                                               pmnttrms     = &amp;lt;ls_header_create&amp;gt;-PaymentTerms ).
-
-      lhc_buffer=&amp;gt;ss_bapi_po_headerx = VALUE #( doc_type    = abap_true
-                                                purch_org   = abap_true
-                                                pur_group   = abap_true
-                                                vendor      = abap_true
-                                                comp_code   = abap_true
-                                                currency    = abap_true
-                                                pmnttrms    = abap_true ).
-
-      EXIT. "we expect always 1 header to come
-    ENDLOOP.
-
-  ENDMETHOD.
-
-  METHOD read.
-  ENDMETHOD.
-
-  METHOD rba_Items.
-  ENDMETHOD.
-
-  METHOD cba_Items.
-  ENDMETHOD.
-
-ENDCLASS.
-
-CLASS lhc_ZC_LeanRAP_PurchOrdItem DEFINITION INHERITING FROM cl_abap_behavior_handler.
-  PRIVATE SECTION.
-
-    METHODS read FOR READ
-      IMPORTING keys FOR READ ZC_LeanRAP_PurchOrdItem RESULT result.
-
-    METHODS rba_Header FOR READ
-      IMPORTING keys_rba FOR READ ZC_LeanRAP_PurchOrdItem\_Header FULL result_requested RESULT result LINK association_links.
-
-    METHODS create FOR MODIFY
-      IMPORTING entities FOR CREATE ZC_LeanRAP_PurchOrdItem.
-
-ENDCLASS.
-
-CLASS lhc_ZC_LeanRAP_PurchOrdItem IMPLEMENTATION.
-
-  METHOD read.
-  ENDMETHOD.
-
-  METHOD rba_Header.
-  ENDMETHOD.
-
-  METHOD create.
-    LOOP AT entities ASSIGNING FIELD-SYMBOL(&amp;lt;ls_item_create&amp;gt;).
-
-      APPEND VALUE bapimepoitem( po_item    = sy-tabix
-                                item_cat    =  '0'
-                                acctasscat  = 'C'
-                                plant       = &amp;lt;ls_item_create&amp;gt;-Plant
-                                short_text  = &amp;lt;ls_item_create&amp;gt;-PurchaseOrderItemText
-                                quantity    = &amp;lt;ls_item_create&amp;gt;-OrderQuantity
-                                po_unit     = &amp;lt;ls_item_create&amp;gt;-PurchaseOrderQuantityUnit
-                                net_price   = &amp;lt;ls_item_create&amp;gt;-NetPriceAmount
-                                matl_group  = 'TEST' )
-                   TO lhc_buffer=&amp;gt;st_bapi_po_item.
-
-      APPEND VALUE bapimepoitem( po_item    = sy-tabix
-                               item_cat     =  abap_true
-                               acctasscat   = abap_true
-                               plant        = abap_true
-                               short_text   = abap_true
-                               quantity     = abap_true
-                               po_unit      = abap_true
-                               net_price    = abap_true
-                               matl_group   = 'TEST' )
-                  TO lhc_buffer=&amp;gt;st_bapi_po_itemx.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-ENDCLASS.
-
-CLASS lsc_ZC_LEANRAP_PURCHASEORDER DEFINITION INHERITING FROM cl_abap_behavior_saver.
-  PROTECTED SECTION.
-
-    METHODS finalize REDEFINITION.
-
-    METHODS check_before_save REDEFINITION.
-
-    METHODS save REDEFINITION.
-
-    METHODS cleanup REDEFINITION.
-
-    METHODS cleanup_finalize REDEFINITION.
-
-ENDCLASS.
-
-CLASS lsc_ZC_LEANRAP_PURCHASEORDER IMPLEMENTATION.
-
-  METHOD finalize.
-  ENDMETHOD.
-
-  METHOD check_before_save.
-  ENDMETHOD.
-
-  METHOD save.
-
-    DATA ls_new_po TYPE bapimepoheader.
-    DATA lt_return TYPE bapiret2_t.
-
-    CALL FUNCTION 'BAPI_PO_CREATE1'
-      EXPORTING
-        poheader  = lhc_buffer=&amp;gt;ss_bapi_po_header
-        poheaderx = lhc_buffer=&amp;gt;ss_bapi_po_headerx
-        testrun   = abap_false
-      IMPORTING
-        expheader = ls_new_po
-      TABLES
-        return    = lt_return
-        poitem    = lhc_buffer=&amp;gt;st_bapi_po_item
-        poitemx   = lhc_buffer=&amp;gt;st_bapi_po_itemx.
-
-  ENDMETHOD.
-
-  METHOD cleanup.
-  ENDMETHOD.
-
-  METHOD cleanup_finalize.
-  ENDMETHOD.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In the next part(s) of this blog series we will take a look at adding more features while sticking to "lean RAP" recommendations:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;- implementing error handling and late numbering&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;- updating both header and item fields for existing Purchase Orders (changesets)&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;- &lt;/SPAN&gt;&lt;SPAN&gt;adding new items to existing Purchase Order with "create by association" operation&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;- implementing concurrency handling with etags&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Hope this blog series will help a few more fellow developers to transition from SEGW and DPC_EXT classes to RAP ;-).&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/start-lean-with-rap-restful-abap-programming-model-1/ba-p/13747002"/>
-    <published>2024-11-18T14:41:53.201000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/devtoberfest-blog-posts/my-journey-through-devtoberfest-2024-learning-connecting-and-growing-with/ba-p/13937478</id>
     <title>My Journey Through Devtoberfest 2024: Learning, Connecting, and Growing with SAP</title>
@@ -593,5 +353,35 @@ ENDDO.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <content>&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;Introduction&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This blog aims to provide a simple guide for discovering newly released APIs that replace traditional SAP objects, including tables, function modules, class objects, and more.&lt;/P&gt;&lt;P&gt;Whether your organization is implementing Clean Core mindset in S4/HANA On-remise or going through cloud migration(SAP RISE Private Cloud/Public Cloud), one of the first steps towards cloudification is to assess the existing custom solutions are&amp;nbsp;&lt;SPAN&gt;clean core compatible.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;The&amp;nbsp;&lt;A href="https://learning.sap.com/learning-journeys/practicing-clean-core-extensibility-for-sap-s-4hana-cloud/explaining-extensibility-model-best-practices_e290f382-800e-40ef-a203-85a13115f487" target="_blank" rel="noopener noreferrer"&gt;3-tier extensibility model&lt;/A&gt;&amp;nbsp;is a classification that provides rough idea of how much risk of system upgrade will disrupt your custom solution and how protected and stable it is. In the prerequisite of Tier 1, which by definition has the smallest risk of getting affected by upgrade disruption, states the enforced usage of released APIs. Using released objects is a must and a first step towards clean core way of building custom solutions in your SAP system.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The challenge with deprecated objects&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Before this clean core concept or 3-tier extension model were introduced, the standard way to extend SAP ERP core is using now so-called classic extensibility, which corresponds to the 3rd-tier in the 3tier-extensibility model. Organizations operating with SAP before this new concept are most likely full of classic extensibility solution. If their system is rated with today's clean core standard, the result will probably say it's not cloud ready/compatible. &lt;U&gt;Number of SAP objects used in the classic solution are now labeled as deprecated in the new standard, resulting in renovating all the custom solution that uses the deprecated objects. To adapt to the new standard, it is &lt;U&gt;crucial to map the deprecated objects to the new released APIs to ensure the functionality and the performance of the custom solutions.&lt;/U&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;(This is, of course, not customer's fault as back then the solutions were probably implemented with the newest technology, insight and standard of that time.)&lt;/P&gt;&lt;P&gt;With this in mind, let's look at what's the easiest way to find released APIs for each classic ABAP objects.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;1. Classic objects&amp;nbsp;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;span class="lia-unicode-emoji" title=":right_arrow:"&gt;➡️&lt;/span&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;&amp;nbsp;Released objects&lt;/STRONG&gt;&amp;nbsp; &amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;Database Tables&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;The easiest way is to use&amp;nbsp;Fiori App: View Browser(F2170). Check out&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":right_arrow:"&gt;➡️&lt;/span&gt;&amp;nbsp;&lt;A href="https://sapextensibility101.com/finding-released-cds-views-for-classic-sap-tables/" target="_blank" rel="noopener nofollow noreferrer"&gt;Finding released CDS views for classic SAP tables &lt;/A&gt;&amp;nbsp;for detailed steps to find released CDS views for classic SAP tables.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="aoyang_0-1733236102829.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/197968iF9F15F86216AF63A/image-size/large?v=v2&amp;amp;px=999" role="button" title="aoyang_0-1733236102829.png" alt="aoyang_0-1733236102829.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The second easiest way is to use SAP Cloudification Repository, which is also covered in the blog above (however not all objects are listed).&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="aoyang_1-1733152040280.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/197487i3ACCAD5C1033E9CF/image-size/large?v=v2&amp;amp;px=999" role="button" title="aoyang_1-1733152040280.png" alt="aoyang_1-1733152040280.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;Function Modules /&amp;nbsp;Class&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Open the function module in question with ABAP Development Tool(ADT). Open Properties-&amp;gt;API State and the successor object is specified.&lt;/P&gt;&lt;P&gt;Example below checks for function module BAPI_PO_CHANGE and class object CL_SD_DOCUMENT_FLOW_RT.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="aoyang_1-1733233148262.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/197933iC46126EE23B6C5FF/image-size/large?v=v2&amp;amp;px=999" role="button" title="aoyang_1-1733233148262.png" alt="aoyang_1-1733233148262.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="aoyang_0-1733233054119.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/197930i8AEAA5B247D657AF/image-size/large?v=v2&amp;amp;px=999" role="button" title="aoyang_0-1733233054119.png" alt="aoyang_0-1733233054119.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Alternatively, you can use&amp;nbsp;SAP Cloudification Repository(however not all objects are listed).&lt;/P&gt;&lt;H3 id="toc-hId-1205593059"&gt;&amp;nbsp;&lt;/H3&gt;&lt;P&gt;&lt;FONT size="6"&gt;&lt;FONT size="5"&gt;Business Add-Ins (BAdIs) Definitions&lt;/FONT&gt;&amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Open the BAdI Definition in question with ABAP Development Tool(ADT). When opening the object, the enhancement spot that uses the&amp;nbsp;BAdI Definition should open and all the&amp;nbsp;BAdI Definitions will be listed. Right click on the&amp;nbsp;BAdI Definition in question -&amp;gt; API State -&amp;gt; Display Use System-Internally.&lt;/P&gt;&lt;P&gt;Example below checks for BAdI Definition&amp;nbsp;MEOUT_BAPI_CUST.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="aoyang_0-1733235338721.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/197958i9E4CE4133C80BA02/image-size/large?v=v2&amp;amp;px=999" role="button" title="aoyang_0-1733235338721.png" alt="aoyang_0-1733235338721.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Release state is shown as well as the successor objects if you click Next.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="aoyang_1-1733235515221.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/197960iE84D0EE684C07856/image-size/large?v=v2&amp;amp;px=999" role="button" title="aoyang_1-1733235515221.png" alt="aoyang_1-1733235515221.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="aoyang_0-1733235887038.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/197966i112971458A364C9A/image-size/large?v=v2&amp;amp;px=999" role="button" title="aoyang_0-1733235887038.png" alt="aoyang_0-1733235887038.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;Function Interfaces, Authorization Object, Data Types..etc.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="3"&gt;Successor for rest of objects can be found in ADT same way as function module and class objects.&amp;nbsp; &amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="6"&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;2. Exploring released APIs&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="6"&gt;&lt;FONT size="5"&gt;In ABAP Development Tool(ADT)&lt;/FONT&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;ADT offers tree views to list all the objects depending on the object release status. You can also customize the tree as you see fit by adding Application Component, Packages and Software Component as an extra layer. It does not only show the released objects but also deprecated objects as well as deprecated objects with successors.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Check out&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":right_arrow:"&gt;➡️&lt;/span&gt;&amp;nbsp;&lt;A href="https://sapextensibility101.com/exploring-released-apis-in-abap-development-tool/" target="_blank" rel="noopener nofollow noreferrer"&gt;Exploring released APIs in ABAP Development Tool&lt;/A&gt;&amp;nbsp;for step-by-step guide.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="aoyang_0-1733407294572.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/198802i2C75239EB0859A44/image-size/medium?v=v2&amp;amp;px=400" role="button" title="aoyang_0-1733407294572.png" alt="aoyang_0-1733407294572.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="aoyang_0-1733398787981.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/198724iCAB4D77089FC24CF/image-size/large?v=v2&amp;amp;px=999" role="button" title="aoyang_0-1733398787981.png" alt="aoyang_0-1733398787981.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Trees that show Released Objects, Deprecated Objects and&amp;nbsp;Deprecated Objects with Successors&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="aoyang_1-1733407699573.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/198804i7C48EFCDB6D62FD1/image-size/medium?v=v2&amp;amp;px=400" role="button" title="aoyang_1-1733407699573.png" alt="aoyang_1-1733407699573.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="6"&gt;&lt;FONT size="5"&gt;In SAP Accelerator Hub&lt;/FONT&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://api.sap.com/" target="_self" rel="noopener noreferrer"&gt;SAP Accelerator Hub&lt;/A&gt; is an alternative to find API's for those that don't have developer access and want to explore APIs from business context. It contains not just APIs for tier1/tier2 cloud development, but also out-of-box template for business processes, integration scenarios, events based solutions and everything you need for extension your SAP ERP system. Choose your product(S/4 Public/Private Edition, BTP, etc) and start exploring.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="aoyang_0-1733408880756.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/198822i7F0124AF4A0E594F/image-size/large?v=v2&amp;amp;px=999" role="button" title="aoyang_0-1733408880756.png" alt="aoyang_0-1733408880756.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Filter the package and explore released APIs with your desired business area.&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="aoyang_0-1733410315213.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/198836i307995027191CED5/image-size/large?v=v2&amp;amp;px=999" role="button" title="aoyang_0-1733410315213.png" alt="aoyang_0-1733410315213.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="6"&gt;Appendix&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Released APIs&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;APIs marked as released are indic&lt;FONT size="3"&gt;ation tha&lt;/FONT&gt;t they are &lt;SPAN&gt;technically stable and is the only option available in tier 1 extension to communicate with SAP backend.&amp;nbsp;&lt;SPAN&gt;SAP categorizes the released objects in 5 ways depending on the types and the intension of the extension. In this blog, we focus on the cloudification of SAP objects used for custom development hence will only touch on&amp;nbsp;C1 Contract (Use System-Internally).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="2"&gt;&lt;SPAN&gt;Extend (C0)&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT color="#FF6600"&gt;&lt;STRONG&gt;&lt;FONT size="2"&gt;Use System-Internally (C1)&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="2"&gt;&lt;SPAN&gt;Use as Remote API (C2)&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="2"&gt;&lt;SPAN&gt;Manage Configuration Content (C3)&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;FONT size="2"&gt;Use in ABAP-Managed Database Procedures (C4)&lt;/FONT&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="3"&gt;C1 Contract (Use System-Internally)&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="3"&gt;Released in C1 contracts indicate that the object is stable enough to be used in Key-User Extension(Custom fields and Custom Logic apps) and Developer Extensibility(custom solution developed solely by ABAP Development for Cloud language scope). The release state is managed separately for each usage and can be found in ABAP Development Tool.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="aoyang_0-1733151446442.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/197484i5748457DEDFD2719/image-size/medium?v=v2&amp;amp;px=400" role="button" title="aoyang_0-1733151446442.png" alt="aoyang_0-1733151446442.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-members/s-4-hana-cloudification-guide-for-developer-navigating-to-released-apis/ba-p/13950875"/>
     <published>2024-12-05T15:57:16.495000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-members/building-a-rap-application-from-custom-actions-to-sending-emails-a-step-by/ba-p/13958287</id>
+    <title>Building a RAP Application: From Custom Actions to Sending Emails – A Step-by-Step Guide</title>
+    <updated>2024-12-08T23:37:14.397000+01:00</updated>
+    <author>
+      <name>ertugrul_bagci</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/775459</uri>
+    </author>
+    <content>&lt;P&gt;If you've started exploring SAP RAP, you may have noticed that classes like &lt;STRONG&gt;CL_BCS&lt;/STRONG&gt;, which are typically used for sending emails in SAP, cannot be directly used in RAP. The main reason is that RAP does not allow the use of "COMMIT" which is required by these classes.&lt;/P&gt;&lt;P&gt;In this blog, I aim to address this limitation while also exploring how to create a custom action and build a simple RAP project.&lt;/P&gt;&lt;P&gt;The blog will be structured around the following key topics:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Creation of Interface and Consumption CDS Views&lt;/LI&gt;&lt;LI&gt;Creation of Metadata&lt;/LI&gt;&lt;LI&gt;Creation of the Service&lt;/LI&gt;&lt;LI&gt;Creation of Behavior&lt;/LI&gt;&lt;LI&gt;Creation of Class and Action&lt;/LI&gt;&lt;LI&gt;Email Sending Process&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;To ensure clarity, we will proceed with an example scenario throughout the blog. Our scenario involves listing invoices and some details from the &lt;STRONG&gt;VBAK&lt;/STRONG&gt; table, and sending the selected data via email as part of the email sending process.&lt;/P&gt;&lt;P&gt;&lt;FONT size="6"&gt;Creation of Interface and Consumption CDS Views&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Interface CDS is used to abstract raw data into a reusable and meaningful structure, serving as the foundational data model. Consumption CDS, on the other hand, processes this data to make it user-friendly and tailored for specific use cases, such as reporting, Fiori UI, or analytical solutions.&lt;/P&gt;&lt;P&gt;Even though we might not need it for this project, it is generally good practice to follow this structure. Let's start by creating the Interface CDS view.&lt;/P&gt;&lt;P&gt;For the sake of example, I have added a few fields. You can expand it according to your scenario. Additionally, ensure that the entity is marked as "root," as this will be our top-level entity. [Figure-1]&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="ertugrul_bagci_0-1733693647522.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199705i5087A809D5F94E04/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_0-1733693647522.png" alt="ertugrul_bagci_0-1733693647522.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;Figure-1&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&amp;nbsp;During the creation of the Consumption CDS, we used the "Audat" filter to narrow down our dataset and also to leverage the Consumption logic.&amp;nbsp;[Figure-2]&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_1-1733694057130.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199706i317D14CB0E81CC28/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_1-1733694057130.png" alt="ertugrul_bagci_1-1733694057130.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-2&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="6"&gt;Creation of Metadata&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;In SAP RAP (Restful ABAP Programming Model), &lt;STRONG&gt;metadata extensions&lt;/STRONG&gt; are used to enhance the metadata of existing CDS views or entities without modifying the original CDS definition. This is especially useful for tailoring application behavior or UI representations in a decoupled and non-intrusive manner.&lt;/P&gt;&lt;P&gt;We create metadata from our Consumption CDS.[Figure-3]&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_1-1733694550358.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199708i0D3A26A3AD0FDFD6/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_1-1733694550358.png" alt="ertugrul_bagci_1-1733694550358.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-3&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="4"&gt;After creating the metadata extensions, we add annotations.[Figure-4]&amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_2-1733694616782.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199709i1CF2FFB5208AB289/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_2-1733694616782.png" alt="ertugrul_bagci_2-1733694616782.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-4&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="6"&gt;Creation of the Service&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Now, we create a service definition from our Consumption CDS.&lt;BR /&gt;You can follow Figures 5 and 6 for reference.&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_4-1733694729771.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199711i7116383582B6AF14/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_4-1733694729771.png" alt="ertugrul_bagci_4-1733694729771.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-5&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_5-1733694749408.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199712iDE9D78638DBED47C/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_5-1733694749408.png" alt="ertugrul_bagci_5-1733694749408.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-6&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;After the service is created, we must not forget to&lt;STRONG&gt; expose&lt;/STRONG&gt; our Consumption CDS views.&lt;FONT size="4"&gt;[Figure-7]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_7-1733694864062.png" style="width: 497px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199714i23B4B0DB27913B00/image-dimensions/497x113/is-moderation-mode/true?v=v2" width="497" height="113" role="button" title="ertugrul_bagci_7-1733694864062.png" alt="ertugrul_bagci_7-1733694864062.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-7&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="4"&gt;Now, we need to create a service binding. For this, we will use the service definition we previously created.[Figure-8]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_8-1733694951607.png" style="width: 491px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199715iE9827CEADE6BB588/image-dimensions/491x74/is-moderation-mode/true?v=v2" width="491" height="74" role="button" title="ertugrul_bagci_8-1733694951607.png" alt="ertugrul_bagci_8-1733694951607.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-8&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="4"&gt;Make sure to select &lt;STRONG&gt;"OData V2 - UI"&lt;/STRONG&gt; as the Binding Type.&lt;BR /&gt;When the service is first created, it will not be published. To publish it, click the button I have highlighted.[Figure-9]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_9-1733695053234.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199716i217D86A45B5AD920/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_9-1733695053234.png" alt="ertugrul_bagci_9-1733695053234.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-9&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="4"&gt;In the published service, you can view the entity sets and associations that you have added.[Figure-10]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_0-1733695202499.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199717i616E651CFF707850/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_0-1733695202499.png" alt="ertugrul_bagci_0-1733695202499.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-10&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="4"&gt;&lt;BR /&gt;If you want to test the service, simply double-click on the entity. This allows you to test your service easily.[Figure-11&lt;/FONT&gt;&lt;FONT size="4"&gt;]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_1-1733695208679.png" style="width: 582px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199718i3984E76E811D9D9F/image-dimensions/582x80/is-moderation-mode/true?v=v2" width="582" height="80" role="button" title="ertugrul_bagci_1-1733695208679.png" alt="ertugrul_bagci_1-1733695208679.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-11&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="6"&gt;Creation of Behavior&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="4"&gt;Behavior definitions for the business object entities in a given composition model are established for the root CDS view, outlining the behavior for all included entities.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Therefore, we create Behavior definitions for both the Interface and Consumption CDS views.&lt;/P&gt;&lt;P&gt;Let's start with the Interface CDS.&lt;FONT size="4"&gt;[Figure-12]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_2-1733695392048.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199719iAE1E4C49FAEBA89E/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_2-1733695392048.png" alt="ertugrul_bagci_2-1733695392048.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-12&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;After creating the Behavior, we add an alias.&lt;BR /&gt;Since we will not perform create, update, or delete operations, we can disable these actions.&amp;nbsp;&lt;FONT size="4"&gt;[Figure-13]&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;The class &lt;STRONG&gt;"zbp_i_vbak_example"&lt;/STRONG&gt; will be created in later steps.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_3-1733695462434.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199720i096A4FCE5BE1867A/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_3-1733695462434.png" alt="ertugrul_bagci_3-1733695462434.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-13&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Now, we need to create a Behavior for our Consumption CDS.&lt;FONT size="4"&gt;[Figure-14 &amp;amp; 15]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_4-1733695539600.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199721i2B6734E9B9DE94AF/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_4-1733695539600.png" alt="ertugrul_bagci_4-1733695539600.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-14&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_6-1733695561696.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199723i1C35E4CD73DD164D/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_6-1733695561696.png" alt="ertugrul_bagci_6-1733695561696.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-15&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="4"&gt;We have successfully created the Behavior within the Consumption CDS. Now, we can move on to the next step.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="6"&gt;Creation of Class and Action&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;To make the action we are going to create functional, we need a class.&lt;BR /&gt;To create the class, go to the Behavior, right-click, and select &lt;STRONG&gt;"Quick Fix"&lt;/STRONG&gt;.[Figure-16]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_7-1733695765262.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199724iAF8DF996F00EE116/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_7-1733695765262.png" alt="ertugrul_bagci_7-1733695765262.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-16&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="4"&gt;Here, we select &lt;STRONG&gt;"Create"&lt;/STRONG&gt; to create our class.[Figure-17]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_8-1733695860621.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199725iE75941EB444FC2C8/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_8-1733695860621.png" alt="ertugrul_bagci_8-1733695860621.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-17&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="4"&gt;&lt;BR /&gt;The class creation process is now complete.&lt;BR /&gt;Make sure to note that all the code we have written is under &lt;STRONG&gt;"Local Types"&lt;/STRONG&gt;.[Figure-18]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_9-1733695892829.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199726i1A79458664883173/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_9-1733695892829.png" alt="ertugrul_bagci_9-1733695892829.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-18&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="4"&gt;To create an action, we first need an abstract CDS. This CDS will define the input parameters for the action.&lt;BR /&gt;For this, we create a new &lt;STRONG&gt;Data Definition&lt;/STRONG&gt;.&lt;BR /&gt;&amp;nbsp;Here, we will define the input parameter for the email address.[Figure-19]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_10-1733695981340.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199727i1B1695F286C624A1/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_10-1733695981340.png" alt="ertugrul_bagci_10-1733695981340.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-19&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="4"&gt;Next, we go to the Interface ZI_** named behavior and define our action. We will provide the Abstract CDS as the parameter.&amp;nbsp;[Figure-20]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_13-1733696187612.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199730i0B14531D54328F71/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_13-1733696187612.png" alt="ertugrul_bagci_13-1733696187612.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-20&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="4"&gt;Then, by clicking the &lt;STRONG&gt;Quick Fix&lt;/STRONG&gt; button, we ensure the class method for the action is defined.[Figure-21]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_14-1733696244429.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199731i2DEFD57959CFA047/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_14-1733696244429.png" alt="ertugrul_bagci_14-1733696244429.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-21&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="4"&gt;Next, we go to the &lt;STRONG&gt;ZC_&lt;/STRONG&gt;*-named behavior and define the action there as well.[Figure-22]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_15-1733696355871.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199732i9EEFCC742DC9FDE1/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_15-1733696355871.png" alt="ertugrul_bagci_15-1733696355871.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-22&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="4"&gt;Finally, to make the button visible on the screen, we go to the &lt;STRONG&gt;Metadata Extension&lt;/STRONG&gt; and add the relevant line.[Figure-23]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_16-1733696408857.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199733i30CCD2F50CCEDA0C/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_16-1733696408857.png" alt="ertugrul_bagci_16-1733696408857.png" /&gt;&lt;/span&gt;&amp;nbsp;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-23&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;: { lineItem: [ 
+      { type: #FOR_ACTION, dataAction: 'SendMail', label: 'Send Mail' } ]} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Once we execute the service again, you will be able to see the button added.&lt;FONT size="4"&gt;[Figure-24]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_17-1733696481346.png" style="width: 496px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199734i3A23B0F5E64C93C4/image-dimensions/496x62/is-moderation-mode/true?v=v2" width="496" height="62" role="button" title="ertugrul_bagci_17-1733696481346.png" alt="ertugrul_bagci_17-1733696481346.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-24&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="6"&gt;Email Sending Process&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;As we mentioned earlier, we cannot use classes like &lt;STRONG&gt;CL_BCS&lt;/STRONG&gt; that include a &lt;STRONG&gt;"commit"&lt;/STRONG&gt; in RAP for email sending. Therefore, we will use the &lt;STRONG&gt;CL_BCS_MAIL_MESSAGE&lt;/STRONG&gt; class to send emails.&lt;/P&gt;&lt;P&gt;For this, we go to the class where we defined the &lt;STRONG&gt;Send_mail&lt;/STRONG&gt; method.&lt;BR /&gt;The selected row and email information will be contained in the &lt;STRONG&gt;"keys"&lt;/STRONG&gt; variable. We will read the table and send the email. I have not included many details in the email content, but you can add more as needed.&lt;FONT size="4"&gt;[Figure-25]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_18-1733696619664.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199735i1CF2D7670E44B840/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_18-1733696619664.png" alt="ertugrul_bagci_18-1733696619664.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-25&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt; METHOD SendMail.
+    DATA:lv_mail TYPE bcs_msg_sender.
+    DATA(ls_keys) = VALUE #( keys[ 1 ] OPTIONAL ).
+    lv_mail = ls_keys-%param-Mail.
+    DATA(mail) = cl_bcs_mail_message=&amp;gt;create_instance( ).
+    mail-&amp;gt;set_sender( 'Sender@mail.com' ).
+    mail-&amp;gt;add_recipient( lv_mail ).
+
+
+    mail-&amp;gt;set_subject( 'Test' ).
+
+    mail-&amp;gt;set_main( cl_bcs_mail_textpart=&amp;gt;create_instance(
+        iv_content      = '&amp;lt;h2&amp;gt;Hi&amp;lt;/h2&amp;gt;&amp;lt;p&amp;gt;Hi you can see the details of invoice number ' &amp;amp;&amp;amp; ls_keys-Vbeln &amp;amp;&amp;amp;' below. &amp;lt;/p&amp;gt;'
+        iv_content_type = 'text/html' ) ).
+
+    mail-&amp;gt;send( IMPORTING et_status = DATA(lt_status) ).
+
+  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Now, we run a preview of the service. We select an invoice, click the &lt;STRONG&gt;Send Mail&lt;/STRONG&gt; button, and enter the email address.&lt;FONT size="4"&gt;[Figure-26]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_19-1733696746091.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199736i70661F832F683958/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_19-1733696746091.png" alt="ertugrul_bagci_19-1733696746091.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-26&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align : left; "&gt;&lt;FONT size="4"&gt;To check the email, we will use the &lt;STRONG&gt;"SOST"&lt;/STRONG&gt; transaction code.&lt;BR /&gt;As shown in the figure, the email has been successfully sent.[Figure-27]&lt;/FONT&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ertugrul_bagci_20-1733696789414.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/199737iC591146B12EB6244/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ertugrul_bagci_20-1733696789414.png" alt="ertugrul_bagci_20-1733696789414.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P style=" text-align: center; "&gt;&lt;FONT size="2"&gt;Figure-27&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;I hope it has been a useful blog.&lt;BR /&gt;Regards.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-members/building-a-rap-application-from-custom-actions-to-sending-emails-a-step-by/ba-p/13958287"/>
+    <published>2024-12-08T23:37:14.397000+01:00</published>
   </entry>
 </feed>
