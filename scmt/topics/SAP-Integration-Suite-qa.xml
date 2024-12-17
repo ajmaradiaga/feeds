@@ -2,126 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Integration-Suite-qa.xml</id>
   <title>SAP Community - SAP Integration Suite</title>
-  <updated>2024-12-17T06:01:18.523675+00:00</updated>
+  <updated>2024-12-17T09:01:28.258933+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Integration Suite/pd-p/73554900100800003241" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Integration Suite Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/resolving-corrupted-zip-files-in-sap-cpi-during-ariba-itk-integration/qaq-p/13959596</id>
-    <title>Resolving Corrupted ZIP Files in SAP CPI During Ariba ITK Integration</title>
-    <updated>2024-12-10T06:34:37.702000+01:00</updated>
-    <author>
-      <name>iAmVen0m</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1459248</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Issue&lt;/STRONG&gt;:&amp;nbsp;&lt;BR /&gt;In SAP CPI, when retrieving procurement information from Ariba using ITK, large data volumes cause the ZIP file in the response to become corrupted. This corruption prevents the ZIP Splitter from extracting and processing the file.&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;Root Cause&lt;/STRONG&gt;:&lt;BR /&gt;When the data volume in Ariba is large, Ariba sends null bytes in the response ZIP file to keep the connection alive. These null bytes precede the actual ZIP content, causing the file to appear corrupted.&lt;/P&gt;&lt;P&gt;Upon investigation, we noticed that a valid ZIP file should start with the header 50 4B (the standard ZIP signature). However, in the corrupted files, null bytes (00) were added before this header, rendering the file invalid.&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;Investigation Details&lt;/STRONG&gt;:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Exported ZIP files from Ariba via ITK were inspected using a Hex Editor (e.g., Notepad++ with a HEX plugin).&lt;/LI&gt;&lt;LI&gt;The corrupted file had a significant number of null bytes (00) before the valid ZIP header (50 4B or similar).&lt;/LI&gt;&lt;LI&gt;These null bytes are intentional and part of Ariba's mechanism to keep the connection alive during long-running downloads.&lt;BR /&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="iAmVen0m_0-1733808131199.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/200075i57FDC3934B963F28/image-size/medium?v=v2&amp;amp;px=400" role="button" title="iAmVen0m_0-1733808131199.png" alt="iAmVen0m_0-1733808131199.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Solution&lt;/STRONG&gt;:&lt;BR /&gt;To resolve this issue, a Groovy script was developed to remove the null bytes from the ZIP file before processing. This script ensures the file integrity is restored by verifying and cleaning the ZIP header.&lt;BR /&gt;&lt;BR /&gt;Here is the Groovy script:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;import com.sap.gateway.ip.core.customdev.util.Message
-import java.util.zip.ZipInputStream
-import java.util.zip.ZipOutputStream
-import java.util.zip.ZipEntry
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-
-def Message processData(Message message) {
-    // Get the ZIP file from the message body as a byte array
-    byte[] zipBytes = message.getBody(byte[])
-
-    // Remove null bytes only before the first occurrence of 0x50 0x4B
-    byte[] cleanBytes = removeNullBytesBeforeSignature(zipBytes)
-
-    // Repackage the cleaned bytes into a valid ZIP file containing all files
-    byte[] reZippedBytes = repackageZip(cleanBytes)
-
-    // Add the re-zipped file as an attachment in the message log (optional)
-    def messageLog = messageLogFactory.getMessageLog(message)
-    if (messageLog != null) {
-        messageLog.addAttachmentAsString("ReZipped_File", new String(reZippedBytes, "ISO-8859-1"), "application/zip")
-    }
-
-    // Return the re-zipped bytes as a new InputStream to the message body
-    message.setBody(new ByteArrayInputStream(reZippedBytes))
-    return message
-}
-
-// Function to remove null bytes only before the first occurrence of 0x50 0x4B
-byte[] removeNullBytesBeforeSignature(byte[] fileBytes) {
-    int indexOfPK = findSignatureIndex(fileBytes, [0x50, 0x4B] as byte[])
-    if (indexOfPK == -1) {
-        // If the signature is not found, return the original array
-        return fileBytes
-    }
-    // Separate the data before and after the signature
-    byte[] beforeSignature = fileBytes[0..&amp;lt;(indexOfPK)]
-    byte[] afterSignature = fileBytes[indexOfPK..&amp;lt;fileBytes.length]
-
-    // Remove all null bytes from the section before the signature
-    beforeSignature = beforeSignature.findAll { it != 0x00 } as byte[]
-
-    // Combine the cleaned part with the rest of the data
-    byte[] result = new byte[beforeSignature.length + afterSignature.length]
-    System.arraycopy(beforeSignature, 0, result, 0, beforeSignature.length)
-    System.arraycopy(afterSignature, 0, result, beforeSignature.length, afterSignature.length)
-
-    return result
-}
-
-// Function to find the index of the first occurrence of a byte signature
-int findSignatureIndex(byte[] data, byte[] signature) {
-    for (int i = 0; i &amp;lt;= data.length - signature.length; i++) {
-        boolean match = true
-        for (int j = 0; j &amp;lt; signature.length; j++) {
-            if (data[i + j] != signature[j]) {
-                match = false
-                break
-            }
-        }
-        if (match) {
-            return i
-        }
-    }
-    return -1
-}
-
-// Function to repackage cleaned bytes into a valid ZIP containing all original files
-byte[] repackageZip(byte[] cleanedData) {
-    ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()
-    ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream)
-
-    // Read the cleaned bytes as a ZIP file
-    ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(cleanedData))
-
-    ZipEntry entry
-    while ((entry = zipInputStream.getNextEntry()) != null) {
-        // Copy each entry to the new ZIP file
-        zipOutputStream.putNextEntry(new ZipEntry(entry.getName()))
-        byte[] buffer = new byte[1024]
-        int bytesRead
-        while ((bytesRead = zipInputStream.read(buffer)) != -1) {
-            zipOutputStream.write(buffer, 0, bytesRead)
-        }
-        zipOutputStream.closeEntry()
-        zipInputStream.closeEntry()
-    }
-
-    zipInputStream.close()
-    zipOutputStream.close()
-
-    return byteArrayOutputStream.toByteArray()
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/resolving-corrupted-zip-files-in-sap-cpi-during-ariba-itk-integration/qaq-p/13959596"/>
-    <published>2024-12-10T06:34:37.702000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/sap-integration-suite-custom-udf-in-message-mapping/qaq-p/13960332</id>
-    <title>SAP Integration Suite Custom UDF in Message Mapping</title>
-    <updated>2024-12-10T17:52:50.838000+01:00</updated>
-    <author>
-      <name>nileshnagane12</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/868509</uri>
-    </author>
-    <content>&lt;P&gt;Hello SAP Community,&lt;/P&gt;&lt;P&gt;I need help creating a Groovy UDF to split a property value (containing a comma-separated string) into multiple values within the same context in SAP PI/PO message mapping.&lt;/P&gt;&lt;P&gt;For example, the property value:&lt;BR /&gt;item=000010,000030,000020&lt;/P&gt;&lt;P&gt;I want to extract each value (000010, 000030, 000020) as separate outputs in the same context.&lt;/P&gt;&lt;P&gt;Here’s the Groovy script I wrote:&lt;/P&gt;&lt;P&gt;def void getProperty(String propertyName, MappingContext context, Output output) {&lt;BR /&gt;def propertyValue = context.getProperty(propertyName)&lt;BR /&gt;if (propertyValue) {&lt;BR /&gt;def values = propertyValue.split(",")&lt;BR /&gt;values.each { value -&amp;gt;&lt;BR /&gt;output.addValue(value.trim())&lt;BR /&gt;}&lt;BR /&gt;} else {&lt;BR /&gt;output.addValue("")&lt;BR /&gt;}&lt;BR /&gt;}&lt;/P&gt;&lt;P&gt;However, the function doesn’t appear in the "Custom UDF" section. Can someone help identify what I might be doing wrong or suggest improvements to achieve this functionality?&lt;/P&gt;&lt;P&gt;Thank you!&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/sap-integration-suite-custom-udf-in-message-mapping/qaq-p/13960332"/>
-    <published>2024-12-10T17:52:50.838000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/sap-cloud-integration-error-http-header-is-larger-than-8192-bytes/qaq-p/13960898</id>
     <title>SAP Cloud Integration Error:  HTTP header is larger than 8192 bytes.</title>
@@ -356,15 +240,15 @@ return message
     <published>2024-12-16T17:06:38.005000+01:00</published>
   </entry>
   <entry>
-    <id>https://community.sap.com/t5/questions-about-sap-websites/sap-datasphere-and-open-connectors-what-is-supposed-to-be-quot-access/qaq-p/13964939</id>
+    <id>https://community.sap.com/t5/technology-q-a/sap-datasphere-and-open-connectors-what-is-supposed-to-be-quot-access/qaq-p/13964939</id>
     <title>SAP Datasphere and Open connectors what is supposed to be "access method BULK" ?</title>
     <updated>2024-12-16T17:09:45.731000+01:00</updated>
     <author>
       <name>albertosimeoni</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/829608</uri>
     </author>
-    <content>&lt;P&gt;Hello Experts,&lt;/P&gt;&lt;P&gt;I have a very slow Data Flow in Datasphere, due to the fact that a source is from an Open Connector connection.&lt;/P&gt;&lt;P&gt;The Dataflow is very slow, i don't know if it is due to the connection between the source and SAP Integration suite, or between SAP integration suite and dataflows, or inside the dataflow itself.&lt;/P&gt;&lt;P&gt;What is my idea based on observations?&lt;/P&gt;&lt;P&gt;With open connectors the datatypes set for column of type STRING is "STRING(5000)"&amp;nbsp; (for every STRING columns in the source!!!).&lt;/P&gt;&lt;P&gt;So a possible problem that I found is that when I raise batch size the dataflow =&amp;gt; it runs into an error and say "out of memory". This makes me think that dataflow for some reason preallocate memory based on datatypes of the columns. Many columns like "IDs" that may have up to 10 character are treated as STRING(5000).&lt;/P&gt;&lt;P&gt;And this datatype can not be changed in the source property inside Datasphere.&lt;/P&gt;&lt;P&gt;But this is all hypothetical based on observations.&lt;/P&gt;&lt;P&gt;Another observation is that the first rows are written with high speed, the last rows are incredibly slow. this makes me think that the extraction made from the open connector do something like this:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;read the first 1000 rows and process them,&lt;/P&gt;&lt;P&gt;read the first 2000 rows and process the last 1000.&lt;/P&gt;&lt;P&gt;..&lt;/P&gt;&lt;P&gt;&lt;U&gt;read the first 100000 rows&lt;/U&gt; and process the last 1000.&lt;/P&gt;&lt;P&gt;I believe the rows are fetched multiple times from a source and only the last are processed, and this due to the times it takes to download the content (around 200K rows x 100 columns (many of which have a STRING datatype)).&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;U&gt;A thing that I notice is that we have options inside dataflows that are specific for Open Connectors.&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;U&gt;and that are not documented in me.sap.com nor in help.sap.com.&lt;/U&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;U&gt;So my question is what exactly do the option "Access Method" under the Advanced panel of a source of a dataflow in case of Open connectors?&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="albertosimeoni_0-1734364728495.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/202329iD1B44D85C0ED72E6/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="albertosimeoni_0-1734364728495.png" alt="albertosimeoni_0-1734364728495.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Best Regards,&lt;/P&gt;&lt;P&gt;Alberto&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/questions-about-sap-websites/sap-datasphere-and-open-connectors-what-is-supposed-to-be-quot-access/qaq-p/13964939"/>
+    <content>&lt;P&gt;Hello Experts,&lt;/P&gt;&lt;P&gt;I have a very slow Data Flow in Datasphere, due to the fact that a source is from an Open Connector connection.&lt;/P&gt;&lt;P&gt;The Dataflow is very slow, i don't know if it is due to the connection between the source and SAP Integration suite, or between SAP integration suite and dataflows, or inside the dataflow itself.&lt;/P&gt;&lt;P&gt;What is my idea based on observations?&lt;/P&gt;&lt;P&gt;With open connectors the datatypes set for column of type STRING is "STRING(5000)"&amp;nbsp; (for every STRING columns in the source!!!).&lt;/P&gt;&lt;P&gt;So a possible problem that I found is that when I raise batch size the dataflow =&amp;gt; it runs into an error and say "out of memory". This makes me think that dataflow for some reason preallocate memory based on datatypes of the columns. Many columns like "IDs" that may have up to 10 character are treated as STRING(5000).&lt;/P&gt;&lt;P&gt;And this datatype can not be changed in the source property inside Datasphere.&lt;/P&gt;&lt;P&gt;But this is all hypothetical based on observations.&lt;/P&gt;&lt;P&gt;Another observation is that the first rows are written with high speed, the last rows are incredibly slow. this makes me think that the extraction made from the open connector do something like this:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;read the first 1000 rows and process them,&lt;/P&gt;&lt;P&gt;read the first 2000 rows and process the last 1000.&lt;/P&gt;&lt;P&gt;..&lt;/P&gt;&lt;P&gt;&lt;U&gt;read the first 100000 rows&lt;/U&gt; and process the last 1000.&lt;/P&gt;&lt;P&gt;I believe the rows are fetched multiple times from a source and only the last are processed, and this due to the times it takes to download the content (around 200K rows x 100 columns (many of which have a STRING datatype)).&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;U&gt;A thing that I notice is that we have options inside dataflows that are specific for Open Connectors.&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;U&gt;and that are not documented in me.sap.com nor in help.sap.com.&lt;/U&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;U&gt;So my question is what exactly do the option "Access Method" under the Advanced panel of a source of a dataflow in case of Open connectors?&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="albertosimeoni_0-1734364728495.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/202329iD1B44D85C0ED72E6/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="albertosimeoni_0-1734364728495.png" alt="albertosimeoni_0-1734364728495.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;U&gt;EDIT&lt;/U&gt;: Another problem I found is that with this option ON, the columns with datatype timestamp from the source will generate an error in dataflow execution. =&amp;gt; this BULK option is not usable...&lt;/P&gt;&lt;P&gt;Best Regards,&lt;/P&gt;&lt;P&gt;Alberto&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/sap-datasphere-and-open-connectors-what-is-supposed-to-be-quot-access/qaq-p/13964939"/>
     <published>2024-12-16T17:09:45.731000+01:00</published>
   </entry>
   <entry>
@@ -378,5 +262,151 @@ return message
     <content>&lt;P&gt;I install Integration suite, but the Menu didn't show up.&lt;/P&gt;&lt;P&gt;This concerning the Task 2 of "Learning Journey" on Integration suite&lt;/P&gt;&lt;P&gt;Please could you help me ?&lt;/P&gt;&lt;P&gt;In the exercie , i suppose to have Menu : see screenshot for exercise&lt;/P&gt;&lt;P&gt;Thanks&lt;/P&gt;&lt;DIV&gt;&lt;H3 id="toc-hId-1206658778"&gt;&amp;nbsp;&lt;/H3&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV&gt;&lt;H4 id="toc-hId-1139227992"&gt;&amp;nbsp;&lt;/H4&gt;&lt;/DIV&gt;&lt;/DIV&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/login-to-integration-suite-but-the-menu-didn-t-show-up/qaq-p/13965166"/>
     <published>2024-12-16T23:51:07.700000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/how-to-handle-missing-source-values-and-default-to-empty-string-in-sap-cpi/qaq-p/13965396</id>
+    <title>How to Handle Missing Source Values and Default to Empty String in SAP CPI Mapping?</title>
+    <updated>2024-12-17T09:25:44.892000+01:00</updated>
+    <author>
+      <name>NS502079</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/134956</uri>
+    </author>
+    <content>&lt;P&gt;I’m working on an integration in SAP CPI where I need to handle missing or null values in the mapping. Specifically, I want to ensure that when there is no value for a specific source field, the target JSON payload includes "value": "". (see attached picture for current mapping).&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1206660793"&gt;&lt;FONT size="3"&gt;Original Problem:&lt;/FONT&gt;&lt;/H3&gt;&lt;P&gt;We are encountering the following error in the flow:&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;"Error occurred during custom_attributes processing. The responsibilities_employee attribute code doesn't have a value set. Enter the value and try again."&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;P&gt;The current payload looks like this:&lt;BR /&gt;&lt;STRONG&gt;&lt;EM&gt;{&lt;/EM&gt;&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;&lt;EM&gt;"attribute_code": "responsibilities_employee"&lt;/EM&gt;&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;&lt;EM&gt;}&amp;nbsp;&lt;/EM&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The requirement is that when there is no value for the attribute (e.g., responsibilities_employee), we need the output to include:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;EM&gt;{&lt;/EM&gt;&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;&lt;EM&gt;"attribute_code": "responsibilities_employee",&lt;/EM&gt;&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;&lt;EM&gt;"value": ""&lt;/EM&gt;&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;&lt;EM&gt;}&amp;nbsp;&lt;/EM&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;I have tried the following:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;I used the exists function to check if the input field exists.&lt;/LI&gt;&lt;LI&gt;I connected it to an ifS function to return either the source value (if it exists) or "" (empty string) if it does not.&lt;/LI&gt;&lt;LI&gt;I passed this output to a concat function to join the values (GivenName and FamilyName), with a space as a delimiter.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Here’s the simplified flow I’ve been building:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;GivenName&lt;/STRONG&gt; → ifS → concat&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;FamilyName&lt;/STRONG&gt; → ifS → concat&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;concat → value&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;However, it’s still not working as expected, and when the source value is missing, the value tag is missing entirely in the output payload instead of defaulting to "".&lt;/P&gt;&lt;P&gt;How can adjust the mapping in order for it to work?&lt;/P&gt;&lt;P&gt;For the sake of clarity. When the field is populated it looks like this:&lt;BR /&gt;&lt;FONT size="3"&gt;&lt;STRONG&gt;&lt;EM&gt;{&lt;/EM&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT size="3"&gt;&lt;STRONG&gt;&lt;EM&gt;"attribute_code": "responsibilities_employee",&lt;/EM&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT size="3"&gt;&lt;STRONG&gt;&lt;EM&gt;"value": "John Doe"&lt;/EM&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT size="3"&gt;&lt;STRONG&gt;&lt;EM&gt;},&lt;/EM&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/how-to-handle-missing-source-values-and-default-to-empty-string-in-sap-cpi/qaq-p/13965396"/>
+    <published>2024-12-17T09:25:44.892000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/how-to-add-attachement-to-message/qaq-p/13965424</id>
+    <title>How to add attachement to Message?</title>
+    <updated>2024-12-17T09:42:39.295000+01:00</updated>
+    <author>
+      <name>bere2009</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1422717</uri>
+    </author>
+    <content>&lt;P&gt;Hi all, we currently have an interface between SAP and Salesforce on BTP. When we have wrong or missing data, the user in salesforce gets the same error message as its shown in CPI Monitoring Status:&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;Error Details&lt;/SPAN&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;com.sap.it.rt.adapter.http.api.exception.HttpResponseException: An internal server error occured: HTTP operation failed invoking &lt;A href="https://XXXondemand.com/odata/SSCO/SF_BPARTNER_DATA_SRV/HeaderSet" target="_blank" rel="noopener nofollow noreferrer"&gt;https://XXXondemand.com/odata/SSCO/SF_BPARTNER_DATA_SRV/HeaderSet&lt;/A&gt; with statusCode: 500. The MPL ID for the failed message is : XXX&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;In CPI we have 3 attachments to each error, two headers, one body:&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;HTTP_Receiver_Adapter_Response_Body&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;I want to extract the text of the body (the message we get from SAP) and add it to the status (which is also the notification in salesforce). Here is a text what data is wrong, so the user could correct it directly. We have two groovy scripts. Could anyone please help me to do so? I tried with GPT but all we could do is: "An internal server error occured: No signature of method: com.sap.it.op.agent.mpl.factory.impl.MessageLogImpl.getAttachment() is applicable for argument types: (java.lang.String) values: [ErrorBody]."&lt;/DIV&gt;&lt;DIV class=""&gt;Unfortunatly the extraction of the attachment didnt work.&lt;/DIV&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;I will paste the original codes, without any transformation.&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;//* Groovy Error Exception Handling
+
+package com.scco.crm
+ 
+import com.sap.gateway.ip.core.customdev.util.Message
+import com.sap.it.api.msglog.MessageLog
+import com.sap.it.api.msglog.MessageLogFactory
+ 
+import groovy.json.JsonBuilder
+import groovy.json.JsonSlurper
+ 
+import java.util.concurrent.ThreadLocalRandom
+import java.util.HashMap
+ 
+import org.apache.camel.CamelException;
+import org.apache.camel.component.ahc.AhcOperationFailedException
+import org.apache.camel.component.cxf.CxfOperationException
+ 
+/**
+* Builds a general error response for the CRM-ERP integration APIs.
+* 
+* &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387962"&gt;@Param&lt;/a&gt; message the iFlow's Message instance.
+* @return the possibly modified iFlow's Message instance.
+*/
+def Message processData(Message message) {
+	MessageLog messageLog = messageLogFactory.getMessageLog(message)
+ 
+	String body = message.getBody(String.class)
+	messageLog.addAttachmentAsString('LastResponseBody', body != null ? body : '(null)', "text/plain")
+	String errorBody = null // the ordinary body may not be the error body, we derive the error body later
+	Map&amp;lt;String,String&amp;gt; response = new HashMap&amp;lt;&amp;gt;()
+	Map&amp;lt;String,String&amp;gt; fields = new HashMap&amp;lt;&amp;gt;()
+	int internalStatusCode = 0
+	Map&amp;lt;String, Object&amp;gt; map = message.getProperties();
+	def ex = map.get("CamelExceptionCaught");
+	if (ex instanceof Exception) {
+		String exClassName = ex.getClass().getName()
+		messageLog.addCustomHeaderProperty('CamelExceptionCaught', exClassName)
+		response.put("cause", exClassName)
+		if (isSpecificCamelException(ex, messageLog)) {
+			if (isNoneEmpty(ex.getResponseBody())) {
+				errorBody = ex.getResponseBody()
+				fields.put("causeErrorBody", errorBody)
+			}
+			internalStatusCode = ex.getStatusCode()
+     		fields.put("causeStatus", "" + ex.getStatusCode() + " (" + ex.getStatusText() + ')')
+		}
+		if (internalStatusCode == 503) {
+			response.put("message", "A necessary downstream service is - possibly temporarily - unavailable. After a while try the request again! - Original error: " + ex.getResponseBody())
+			response.put("errorCode", "SERVICE_UNAVAILABLE")
+		} else {
+			response.put("message", ex.getResponseBody())
+			response.put("errorCode", "INTERNAL_SERVER_ERROR") // we can not identify a specific error
+		}
+	} else {
+		response.put("message", "An unspecified error occurred. Please contact your administrator.")
+        response.put("errorCode", "INTERNAL_SERVER_ERROR") // here we can not identify a specific error
+	}
+	response.put("fields",fields);
+	if (!isNoneEmpty(errorBody)) {
+		errorBody = '(empty)'
+	}
+	messageLog.addAttachmentAsString('ErrorBody', errorBody, "text/plain")
+	messageLog.addCustomHeaderProperty('Status_business', 'failed')
+	message.setBody(new JsonBuilder(response).toString())
+	message.setHeader("Content-Type", "application/json")
+	message.setHeader("CamelHttpResponseCode", 500)
+	return message;
+}
+ 
+/**
+* Checks if the provided object is a {@link CamelException} and has the specific fields 'responseBody', 'statusCode' and statusText'.
+* &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1387962"&gt;@Param&lt;/a&gt; ex the object to test.
+* @return TRUE if if the provided object is a {@link CamelException} and has the specific fields described above.
+*/ 
+def boolean isSpecificCamelException(Object ex, MessageLog messageLog) {
+	if (ex instanceof CamelException) {
+		Class exClass = ex.getClass()
+		try {
+			// following fields has to be exist:
+			exClass.getMethod('getResponseBody', null)
+			exClass.getMethod('getStatusCode', null)
+			exClass.getMethod('getStatusText', null)
+		} catch (NoSuchMethodException|SecurityException e) {
+			messageLog.addCustomHeaderProperty('NoSuchMethod', e.toString())
+			return false;
+		}
+		return true;
+	}
+	messageLog.addCustomHeaderProperty('NoCamelException', ex.getClass().getName())
+	return false;
+}
+ 
+def boolean isNoneEmpty(Object o) {
+	if (o instanceof CharSequence) {
+		return o != null &amp;amp;&amp;amp; o.length() &amp;gt; 0
+	} else if (o instanceof Collection) {
+		return o != null &amp;amp;&amp;amp; !o.isEmpty()
+	}
+	return o != null;
+}
+ ​&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;//*groovy skript SAP Message
+package com.scco.crm.update_erp_debtor
+ 
+import com.sap.gateway.ip.core.customdev.util.Message
+import com.sap.it.api.msglog.MessageLog
+import com.sap.it.api.msglog.MessageLogFactory
+ 
+import groovy.json.JsonBuilder
+import groovy.json.JsonSlurper
+ 
+import java.util.concurrent.ThreadLocalRandom
+import java.util.HashMap
+ 
+def Message processData(Message message) {
+	def MessageLog messageLog = messageLogFactory.getMessageLog(message)
+	String bodyAsString = message.getBody(String.class)
+ 
+	messageLog.addAttachmentAsString('ERP-Update_ResponseBody', bodyAsString, "text/plain")
+ 
+	return message;
+}
+ &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/how-to-add-attachement-to-message/qaq-p/13965424"/>
+    <published>2024-12-17T09:42:39.295000+01:00</published>
   </entry>
 </feed>
