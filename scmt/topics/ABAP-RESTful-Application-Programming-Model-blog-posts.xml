@@ -2,250 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-RESTful-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2024-12-27T21:00:34.808310+00:00</updated>
+  <updated>2024-12-28T00:00:06.643258+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/start-lean-with-rap-restful-abap-programming-model-1/ba-p/13747002</id>
-    <title>Start lean with RAP (Restful ABAP programming model) #1</title>
-    <updated>2024-11-18T14:41:53.201000+01:00</updated>
-    <author>
-      <name>ivo_skolek</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/482416</uri>
-    </author>
-    <content>&lt;P&gt;Restful ABAP Programming Model... I went through openSAP course, I bought SAP press books. But somehow RAP seemed a bit scary.&amp;nbsp; I am a developer who likes to understand what I am writing and why. Looking at examples of RAP, the number of keywords in behaviour definition and the implemenation classes with EML just seemed a bit overwhelming... Is it just me?&lt;/P&gt;&lt;P&gt;I would start with a bit of a context - I am originally ABAP developer who learnt UI5 and got heavily into fullstack development. I spent a lot of time building apps on ECC on HANA db. That means not yet S/4 (but close!), ABAP 7.5, for oData using mostly what I would call BOPF-less ABAP Programming Model for Fiori =&amp;gt; SEGW with CDS views as referenced data source but not using BOPF cause at that version BOPF object can't be generated out of CDS. For implementing CRUD I would just add annotations below to my CDS exposed as referenced data source and then redefine methods for saving stuff in DPC_EXT class.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;@ObjectModel.createEnabled: true &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;@ObjectModel.updateEnabled: true &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;@ObjectModel.deleteEnabled: true&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;With that and a few other pieces of ABAP when CDS wouldn't be enough or for things like changesets or stream processing I was able to built any complex applications efficiently fully utilizing the power of SADL and CDS while having full flexibility of ABAP when needed.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;So this blog posts will be about achieving something similar in RAP in most simple and lean way I could find. Alright, let's start with my key recommendations. They might sound radical so please &lt;STRONG&gt;take it as a way to start with RAP, not as a best practice&lt;/STRONG&gt; (though in my experience following approach can work very well for productive developments).&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;1) do unamanged behaviour - you will understand exactly what you are doing&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;2) do behaviour definition and implementation directly on ZC* (consumption) view - skip added complexity of behaviour projection layer, it's optional&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;3) trim behaviour definition to bare minimum that you clearly understand. Remove everything that you don't need or don't understand&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;4) don't use EML - everything can be done with traditional ABAP, EML is optional - understand first what you are doing with traditional ABAP, later add EML if suitable&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Now here comes the example, let's assume simple model of 2 CDS views - for Purchase Order Header and Purchase Order Items. And app that allows displaying and creating purchase orders&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;define root view entity ZC_LeanRAP_PurchaseOrder as select from I_PurchaseOrder
-composition [1..*] of ZC_LeanRAP_PurchOrdItem as _Items
-{
-    key PurchaseOrder,
-    PurchasingGroup,
-    PurchasingOrganization,
-    Supplier,
-    CompanyCode,
-    DocumentCurrency,
-    PaymentTerms,
-    
-    _Items
-}&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;define view entity ZC_LeanRAP_PurchOrdItem as select from I_PurchaseOrderItem
-association to parent ZC_LeanRAP_PurchaseOrder as _Header on $projection.PurchaseOrder = _Header.PurchaseOrder
-{
-    key PurchaseOrder,
-    key PurchaseOrderItem,
-    Plant,
-    PurchaseOrderItemText,
-    NetPriceAmount,
-    OrderQuantity,
-    DocumentCurrency,
-    PurchaseOrderQuantityUnit,
-    
-    _Header
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Let's continue with behaviour definition - following the recommendations nr.1 and 2 we generate &lt;STRONG&gt;unmanaged&lt;/STRONG&gt; behaviour definition directly for&amp;nbsp;&lt;SPAN&gt;ZC_LeanRAP_PurchaseOrder. (please note that unmanaged here stands for the CUD operations! querying data with GET requests will be still managed by SADL pulling from CDS views so no coding there). When you generate it, it will look like this:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;unmanaged implementation in class zbp_c_leanrap_purchaseorder unique;
-strict ( 2 );
-
-define behavior for ZC_LeanRAP_PurchaseOrder //alias &amp;lt;alias_name&amp;gt;
-//late numbering
-lock master
-authorization master ( instance )
-//etag master &amp;lt;field_name&amp;gt;
-{
-  create;
-  update;
-  delete;
-  association _Items { create; }
-}
-
-define behavior for ZC_LeanRAP_PurchOrdItem //alias &amp;lt;alias_name&amp;gt;
-//late numbering
-lock dependent by _Header
-authorization dependent by _Header
-//etag master &amp;lt;field_name&amp;gt;
-{
-  update;
-  delete;
-  field ( readonly ) PurchaseOrder;
-  association _Header;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Now follow recommendation nr.3 and trim it... we want to create purchase order with items. Let's remove everything not directly related to that and we get to something like this:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;unmanaged implementation in class zbp_c_leanrap_purchaseorder unique;
-
-define behavior for ZC_LeanRAP_PurchaseOrder
-{
-  create;
-  association _Items { create; }
-}
-
-define behavior for ZC_LeanRAP_PurchOrdItem
-
-{
-  create;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Finally let's get to behaviour implementation that follows recommendation nr.4 - no EML. In a nutshell, just 3 methods are implemented there - methods for &lt;STRONG&gt;create&lt;/STRONG&gt; on header and item level will be called first and take data coming from frontend and save it into static attributes of transactional buffer class - lhc_buffer. And later method &lt;STRONG&gt;save&lt;/STRONG&gt; will find it there in buffer and call BAPI for creating Purchase Order. As simple as that - no EML, no special RAP commands. Just search and look at all places where lhc_buffer is used. It's simplified example but actually it's implementing deep insert - header and items collected and saved with single BAPI call.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_buffer DEFINITION.
-  PUBLIC SECTION.
-
-    CLASS-DATA: ss_bapi_po_header  TYPE bapimepoheader,
-                ss_bapi_po_headerx TYPE bapimepoheaderx,
-                st_bapi_po_item    TYPE STANDARD TABLE OF bapimepoitem,
-                st_bapi_po_itemx   TYPE STANDARD TABLE OF bapimepoitemx.
-ENDCLASS.
-
-
-CLASS lhc_ZC_LeanRAP_PurchaseOrder DEFINITION INHERITING FROM cl_abap_behavior_handler.
-  PRIVATE SECTION.
-
-    METHODS create FOR MODIFY
-      IMPORTING entities FOR CREATE ZC_LeanRAP_PurchaseOrder.
-
-    METHODS read FOR READ
-      IMPORTING keys FOR READ ZC_LeanRAP_PurchaseOrder RESULT result.
-
-    METHODS rba_Items FOR READ
-      IMPORTING keys_rba FOR READ ZC_LeanRAP_PurchaseOrder\_Items FULL result_requested RESULT result LINK association_links.
-
-    METHODS cba_Items FOR MODIFY
-      IMPORTING entities_cba FOR CREATE ZC_LeanRAP_PurchaseOrder\_Items.
-
-ENDCLASS.
-
-CLASS lhc_ZC_LeanRAP_PurchaseOrder IMPLEMENTATION.
-
-  METHOD create.
-
-    LOOP AT entities ASSIGNING FIELD-SYMBOL(&amp;lt;ls_header_create&amp;gt;).
-
-      lhc_buffer=&amp;gt;ss_bapi_po_header = VALUE #( doc_type     = 'ZPO'
-                                               purch_org    = &amp;lt;ls_header_create&amp;gt;-PurchasingOrganization
-                                               pur_group    = &amp;lt;ls_header_create&amp;gt;-PurchasingGroup
-                                               vendor       = &amp;lt;ls_header_create&amp;gt;-Supplier
-                                               comp_code    = &amp;lt;ls_header_create&amp;gt;-CompanyCode
-                                               currency     = &amp;lt;ls_header_create&amp;gt;-DocumentCurrency
-                                               pmnttrms     = &amp;lt;ls_header_create&amp;gt;-PaymentTerms ).
-
-      lhc_buffer=&amp;gt;ss_bapi_po_headerx = VALUE #( doc_type    = abap_true
-                                                purch_org   = abap_true
-                                                pur_group   = abap_true
-                                                vendor      = abap_true
-                                                comp_code   = abap_true
-                                                currency    = abap_true
-                                                pmnttrms    = abap_true ).
-
-      EXIT. "we expect always 1 header to come
-    ENDLOOP.
-
-  ENDMETHOD.
-
-  METHOD read.
-  ENDMETHOD.
-
-  METHOD rba_Items.
-  ENDMETHOD.
-
-  METHOD cba_Items.
-  ENDMETHOD.
-
-ENDCLASS.
-
-CLASS lhc_ZC_LeanRAP_PurchOrdItem DEFINITION INHERITING FROM cl_abap_behavior_handler.
-  PRIVATE SECTION.
-
-    METHODS read FOR READ
-      IMPORTING keys FOR READ ZC_LeanRAP_PurchOrdItem RESULT result.
-
-    METHODS rba_Header FOR READ
-      IMPORTING keys_rba FOR READ ZC_LeanRAP_PurchOrdItem\_Header FULL result_requested RESULT result LINK association_links.
-
-    METHODS create FOR MODIFY
-      IMPORTING entities FOR CREATE ZC_LeanRAP_PurchOrdItem.
-
-ENDCLASS.
-
-CLASS lhc_ZC_LeanRAP_PurchOrdItem IMPLEMENTATION.
-
-  METHOD read.
-  ENDMETHOD.
-
-  METHOD rba_Header.
-  ENDMETHOD.
-
-  METHOD create.
-    LOOP AT entities ASSIGNING FIELD-SYMBOL(&amp;lt;ls_item_create&amp;gt;).
-
-      APPEND VALUE bapimepoitem( po_item    = sy-tabix
-                                item_cat    =  '0'
-                                acctasscat  = 'C'
-                                plant       = &amp;lt;ls_item_create&amp;gt;-Plant
-                                short_text  = &amp;lt;ls_item_create&amp;gt;-PurchaseOrderItemText
-                                quantity    = &amp;lt;ls_item_create&amp;gt;-OrderQuantity
-                                po_unit     = &amp;lt;ls_item_create&amp;gt;-PurchaseOrderQuantityUnit
-                                net_price   = &amp;lt;ls_item_create&amp;gt;-NetPriceAmount
-                                matl_group  = 'TEST' )
-                   TO lhc_buffer=&amp;gt;st_bapi_po_item.
-
-      APPEND VALUE bapimepoitem( po_item    = sy-tabix
-                               item_cat     =  abap_true
-                               acctasscat   = abap_true
-                               plant        = abap_true
-                               short_text   = abap_true
-                               quantity     = abap_true
-                               po_unit      = abap_true
-                               net_price    = abap_true
-                               matl_group   = 'TEST' )
-                  TO lhc_buffer=&amp;gt;st_bapi_po_itemx.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-ENDCLASS.
-
-CLASS lsc_ZC_LEANRAP_PURCHASEORDER DEFINITION INHERITING FROM cl_abap_behavior_saver.
-  PROTECTED SECTION.
-
-    METHODS finalize REDEFINITION.
-
-    METHODS check_before_save REDEFINITION.
-
-    METHODS save REDEFINITION.
-
-    METHODS cleanup REDEFINITION.
-
-    METHODS cleanup_finalize REDEFINITION.
-
-ENDCLASS.
-
-CLASS lsc_ZC_LEANRAP_PURCHASEORDER IMPLEMENTATION.
-
-  METHOD finalize.
-  ENDMETHOD.
-
-  METHOD check_before_save.
-  ENDMETHOD.
-
-  METHOD save.
-
-    DATA ls_new_po TYPE bapimepoheader.
-    DATA lt_return TYPE bapiret2_t.
-
-    CALL FUNCTION 'BAPI_PO_CREATE1'
-      EXPORTING
-        poheader  = lhc_buffer=&amp;gt;ss_bapi_po_header
-        poheaderx = lhc_buffer=&amp;gt;ss_bapi_po_headerx
-        testrun   = abap_false
-      IMPORTING
-        expheader = ls_new_po
-      TABLES
-        return    = lt_return
-        poitem    = lhc_buffer=&amp;gt;st_bapi_po_item
-        poitemx   = lhc_buffer=&amp;gt;st_bapi_po_itemx.
-
-  ENDMETHOD.
-
-  METHOD cleanup.
-  ENDMETHOD.
-
-  METHOD cleanup_finalize.
-  ENDMETHOD.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In the next part(s) of this blog series we will take a look at adding more features while sticking to "lean RAP" recommendations:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;- implementing error handling and late numbering&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;- updating both header and item fields for existing Purchase Orders (changesets)&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;- &lt;/SPAN&gt;&lt;SPAN&gt;adding new items to existing Purchase Order with "create by association" operation&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;- implementing concurrency handling with etags&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Hope this blog series will help a few more fellow developers to transition from SEGW and DPC_EXT classes to RAP ;-).&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/start-lean-with-rap-restful-abap-programming-model-1/ba-p/13747002"/>
-    <published>2024-11-18T14:41:53.201000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-sap/add-custom-context-attributes-for-sap-released-event-types/ba-p/13940929</id>
     <title>Add Custom Context Attributes for SAP Released Event Types</title>
@@ -1645,5 +1405,17 @@ export function getTotalDeep(this: ExtensionAPI, pageContext: Context) {
 }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId--101379173"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;In this blog, we explored how to implement a custom action in RAP that processes deep parameters and integrate it with a Fiori Elements List Report. We demonstrated the end-to-end process, from backend implementation to frontend integration.&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;P&gt;Note that in a List Report, clicking "Select All" only selects the rows currently visible on the screen&amp;nbsp;&lt;SPAN&gt;(refer to &lt;/SPAN&gt;&lt;A href="https://me.sap.com/notes/0002428401" target="_self" rel="noopener noreferrer"&gt;SAP Note 2428401&lt;/A&gt;&lt;SPAN&gt;). As a result, the approach introduced here is best suited for use cases where a few rows from the displayed data are selected, rather than scenarios involving bulk selection of large datasets.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-members/how-to-call-rap-actions-with-table-types-from-a-list-report/ba-p/13969836"/>
     <published>2024-12-24T22:09:03.542000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-members/my-abap-in-eclipse-wish-list-for-2025-enhancements-new-features/ba-p/13972816</id>
+    <title>My ABAP in Eclipse wish list for 2025 enhancements / new features</title>
+    <updated>2024-12-27T22:30:05.686000+01:00</updated>
+    <author>
+      <name>Timo_John</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/15452</uri>
+    </author>
+    <content>&lt;DIV&gt;&lt;!--  ScriptorStartFragment  --&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;SPAN&gt;"Run in Projekt" Funktion.&amp;nbsp; &lt;/SPAN&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;SPAN&gt;We often develop in client 100 but run / test in client 120. So it would be great if we could set a "run in client" in which Unit Tests / Run / F9 etc are executed.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;So connect 120 as the "run in" client to development client 100.&lt;BR /&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Allow Comments in RAP Service Definition files.&lt;BR /&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Create Methods using method chains:&amp;nbsp;&amp;nbsp; &lt;/SPAN&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;SPAN&gt;currently&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;Z&lt;/SPAN&gt;&lt;SPAN&gt;CL_Factory=&amp;gt;get_instance( )-&amp;gt;createNewMethodWithWizzard()&amp;nbsp; &amp;nbsp; is not supported&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Move multiple ABAP Classes / Objects into a new package ( currently is only one possible )&lt;BR /&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Allow method call as parameters for functions modules instead of only variables. #ABAPCore&lt;BR /&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Auto Ref&lt;/SPAN&gt;&lt;SPAN&gt;r&lt;/SPAN&gt;&lt;SPAN&gt;esh test client on debug start.&amp;nbsp; We are adding new lines in client 100. Than we run test in client 120, but the code is not refreshed, we have to refresh the code in the debugger manually to see the cursor on the correct lines.&lt;BR /&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Debugger,&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;compare two structures in a comfortable view.&amp;nbsp; Example old and new data.&lt;BR /&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Allow method (getter) call in where clause&amp;nbsp; &amp;nbsp; #ABAPCore&lt;/SPAN&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Refactoring: add push-down method (additionally to pull-up method ; or is is called pull-down) - with selection of subclass.&amp;nbsp;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Show CDS &lt;/SPAN&gt;&lt;SPAN&gt;abapdoc &lt;/SPAN&gt;&lt;SPAN&gt;comments (/**...*/) in Element View (just like abapdoc in classes)&amp;nbsp; &lt;/SPAN&gt;&lt;SPAN&gt;[including &lt;/SPAN&gt;&lt;SPAN&gt;@link&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;might work automatically&lt;/SPAN&gt;&lt;SPAN&gt;]&lt;BR /&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Markdown in abapdoc (or other structuring features - &amp;lt;ul&amp;gt;&amp;lt;li&amp;gt;&amp;lt;/li&amp;gt; is very cumbersome; but also headings, bold, external links, etc.)&lt;BR /&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Fix abapdoc export, improve and add other elements e.g. &lt;/SPAN&gt;&lt;SPAN&gt;ddic, &lt;/SPAN&gt;&lt;SPAN&gt;CDS Views &lt;/SPAN&gt;&lt;SPAN&gt;; add adt links; initial page, navigation&lt;BR /&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Method signature (shift-Enter) provide functional signature &lt;/SPAN&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;SPAN&gt;data(matnr) = get_matnr( vbeln = vbeln posnr = posnr )&lt;/SPAN&gt;&lt;SPAN&gt; instead of&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;get_matnr( exporting vbeln = vbeln posnr = posnr returning matnr = matnr )&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;!--  ScriptorEndFragment  --&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Former post of feature Requests&amp;nbsp; :&lt;/P&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/application-development-blog-posts/adt-feature-requests-after-2-years-of-use-in-project/ba-p/13375168" target="_blank"&gt;https://community.sap.com/t5/application-development-blog-posts/adt-feature-requests-after-2-years-of-use-in-project/ba-p/13375168&lt;/A&gt;&lt;/P&gt;&lt;/DIV&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-members/my-abap-in-eclipse-wish-list-for-2025-enhancements-new-features/ba-p/13972816"/>
+    <published>2024-12-27T22:30:05.686000+01:00</published>
   </entry>
 </feed>
