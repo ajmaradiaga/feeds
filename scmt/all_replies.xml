@@ -2,230 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2024-12-31T10:29:01.330269+00:00</updated>
+  <updated>2024-12-31T10:44:01.389797+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/adapter-module-to-stop-processing-of-duplicate-file-ftp-location-gt-code/ba-p/13973080</id>
-    <title>Adapter Module to stop processing of duplicate file (FTP Location) ==&gt; Code Example Fixed</title>
-    <updated>2024-12-30T22:20:32.797000+01:00</updated>
-    <author>
-      <name>isudoajl_ine</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1454911</uri>
-    </author>
-    <content>&lt;P&gt;Source post by Sandeep Jaiswal:&amp;nbsp;&lt;A href="https://community.sap.com/t5/additional-blogs-by-members/adapter-module-to-stop-processing-of-duplicate-file-ftp-location/ba-p/12863432" target="_self"&gt;additional-blogs-by-members/adapter-module-to-stop-processing-of-duplicate-file-ftp-location/ba-p/&lt;/A&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;We had a requirement in one of our project, to stop the processing of duplicate files at the adapter level i.e. the message should not enter&amp;nbsp; the integration engine, if the file has been already processed earlier. There was a chance that client might place a file at FTP location more than ones.&lt;/P&gt;&lt;P&gt;Here we have used two text file at server to maintain the name of processed file and the password of the FTP. Example: name.txt and FtpPassword.txt.&lt;/P&gt;&lt;P&gt;The developed module code has the following functionality.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Whenever a file will be picked from a FTP location, the module code will check the existence of that file name in&amp;nbsp;the text file placed at the server. Example name.txt.&lt;/LI&gt;&lt;LI&gt;&amp;nbsp;If the name of the file already exist, the code will make the file empty by making URL connection with the FTP server (so that adapter will delete that file when pinged to the server next time. For that we had set the property “do not process empty file” in the ftp channel). An error will be thrown.&lt;/LI&gt;&lt;LI&gt;Else the name will be written in the text file (server) i.e. name.txt.&lt;/LI&gt;&lt;LI&gt;&amp;nbsp;The module code will make a URL connection with the FTP server by picking the password from a text file stored at the server.Example FtpPassword.txt.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; To implement this functionality,&amp;nbsp;we had written a module code. This module code will keep the name of files as record which will be checked before processing of the next file. If the file has been already processed, it will throw an error at adapter level which in turn can trigger alerts.&amp;nbsp;&lt;/P&gt;&lt;P&gt;The code for the adapter module:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;import javax.ejb.SessionBean;
-import javax.ejb.SessionContext;
-import javax.ejb.CreateException;
-import com.sap.aii.af.service.auditlog.*;
-/**
- * @ejbHome &amp;lt;{com.sap.aii.af.mp.module.ModuleHome}&amp;gt;
- * @ejbLocal &amp;lt;{com.sap.aii.af.mp.module.ModuleLocal}&amp;gt;
- * @ejbLocalHome &amp;lt;{com.sap.aii.af.mp.module.ModuleLocalHome}&amp;gt;
- * @ejbRemote &amp;lt;{com.sap.aii.af.mp.module.ModuleRemote}&amp;gt;
- * @stateless
- * @transactionType Container
- */
-import com.sap.aii.af.mp.module.*;
-import com.sap.aii.af.ra.ms.api.Message;
-import java.util.Hashtable;
-import java.io.*;
-import java.net.*;
-import java.util.ArrayList;
-import java.util.List;
-
-public class CustomFileBean implements SessionBean, Module {
-
-    private SessionContext myContext;
-
-    public void ejbRemove() {}
-    public void ejbActivate() {}
-    public void ejbPassivate() {}
-    public void ejbCreate() throws CreateException {}
-    public void setSessionContext(SessionContext context) {
-        myContext = context;
-    }
-
-    public ModuleData process(ModuleContext moduleContext, ModuleData inputModuleData) throws ModuleException {
-        Object obj = inputModuleData.getPrincipalData();
-        Message msg = (Message) obj;
-        String fileName = null;
-
-        Hashtable mp = (Hashtable) inputModuleData.getSupplementalData("module.parameters");
-        if (mp != null) {
-            fileName = (String) mp.get("FileName");
-        }
-
-        AuditMessageKey amk = new AuditMessageKey(msg.getMessageId(), AuditDirection.INBOUND);
-
-        String Location = moduleContext.getContextData("Location");
-        String FtpUser = moduleContext.getContextData("FtpUser");
-        String PassLocation = moduleContext.getContextData("PassLocation");
-
-        // Read existing processed file names into a list
-        List&amp;lt;String&amp;gt; wordList = new ArrayList&amp;lt;&amp;gt;();
-        BufferedReader br = null;
-        try {
-            br = new BufferedReader(new FileReader(Location));
-            String word;
-            while ((word = br.readLine()) != null) {
-                wordList.add(word);
-            }
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        } finally {
-            try {
-                if (br != null) br.close();
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
-        }
-
-        // Compare current file with the list of already-processed files
-        try {
-            String[] words = wordList.toArray(new String[0]);
-            Writer output = new BufferedWriter(new FileWriter(Location));
-            int flag = 0;
-
-            for (String w : words) {
-                String text = w + "&amp;lt;br /&amp;gt;";
-                output.write(text);
-                if (w.equals(fileName)) {
-                    flag = 1;
-                }
-            }
-
-            if (flag == 0) {
-                // Not processed yet, add to list
-                output.write(fileName);
-                output.close();
-            } else {
-                // Already processed
-                output.close();
-                try {
-                    BufferedReader read = new BufferedReader(new FileReader(PassLocation));
-                    Audit.addAuditLogEntry(amk, AuditLogStatus.ERROR, "File has been already processed");
-
-                    URL fileLocation = new URL(
-                        "ftp://" + FtpUser + ":" + read.readLine() + "@" +
-                        msg.getMessageProperty("http://sap.com/xi/XI/System/File", "SourceFTPHost") +
-                        msg.getMessageProperty("http://sap.com/xi/XI/System/File", "Directory") +
-                        "/" + fileName
-                    );
-                    DeleteFile(fileLocation);
-                } catch (Exception e) {
-                    throw new ModuleException(fileName + " should be deleted");
-                }
-                throw new ModuleException(fileName + " is already processed");
-            }
-        } catch (Exception e) {
-            throw new ModuleException(e);
-        }
-
-        return inputModuleData;
-    }
-
-    public void DeleteFile(URL fileLocation) throws Exception {
-        URLConnection uc = fileLocation.openConnection();
-        uc.setDoOutput(true);
-        try (OutputStream out = uc.getOutputStream()) {
-            out.flush();
-        }
-    }
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Code Explanation:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Package and imports&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;package com.sap; 
-// Defines the package. Standard naming convention.
-import javax.ejb.*; 
-import com.sap.aii.af.service.auditlog.*; 
-import com.sap.aii.af.mp.module.*; 
-import com.sap.aii.af.ra.ms.api.Message;
-import java.util.*; 
-import java.io.*; 
-import java.net.*;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Just the usual Java + SAP imports (Session Beans, audit log, module classes, and so on).&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Class declaration&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;public class CustomFileBean implements SessionBean, Module {
-    ...
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;This class is both a Session Bean (for EJB stuff) and implements Module (the SAP adapter module interface).&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;EJB lifecycle methods&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;private SessionContext myContext;
-public void ejbRemove() {}
-public void ejbActivate() {}
-public void ejbPassivate() {}
-public void ejbCreate() throws CreateException {}
-public void setSessionContext(SessionContext context) { 
-    myContext = context;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Boilerplate EJB code.&lt;/LI&gt;&lt;LI&gt;ejbCreate() gets called when bean is created, ejbRemove() when it’s removed, etc.&lt;/LI&gt;&lt;LI&gt;setSessionContext() receives a reference to the bean’s context.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Main module code&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;public ModuleData process(ModuleContext moduleContext, ModuleData inputModuleData) throws ModuleException {&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;process&lt;/STRONG&gt; is the key method that gets called when the adapter processes a message.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Extracting the message data&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;Object obj = inputModuleData.getPrincipalData();
-Message msg = (Message) obj;
-String fileName = null;
-
-Hashtable mp = (Hashtable) inputModuleData.getSupplementalData("module.parameters");
-if (mp != null) {
-    fileName = (String) mp.get("FileName");
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Retrieves the SAP message (msg).&lt;/LI&gt;&lt;LI&gt;Pulls additional “module parameters” (like the file name from the adapter).&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;fileName&lt;/STRONG&gt; is then set from these parameters.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Audit log stuff&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;AuditMessageKey amk = new AuditMessageKey(msg.getMessageId(), AuditDirection.INBOUND);&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;This is to log details in SAP’s audit log for this message, tied to msg.getMessageId().&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Reading module context&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;String Location = moduleContext.getContextData("Location");
-String FtpUser = moduleContext.getContextData("FtpUser");
-String PassLocation = moduleContext.getContextData("PassLocation");&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;These are custom adapter module properties set in the communication channel. For example:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Location might be where name.txt resides (list of already processed files).&lt;/LI&gt;&lt;LI&gt;FtpUser is the username for the FTP server.&lt;/LI&gt;&lt;LI&gt;PassLocation is where the password file (FtpPassword.txt) is.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Read the list of processed files&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;List&amp;lt;String&amp;gt; wordList = new ArrayList&amp;lt;&amp;gt;();
-BufferedReader br = null;
-try {
-    br = new BufferedReader(new FileReader(Location));
-    String word;
-    while ((word = br.readLine()) != null) {
-        wordList.add(word);
-    }
-} catch (IOException ex) {
-    ex.printStackTrace();
-} finally {
-    try {
-        if (br != null) br.close();
-    } catch (IOException ex) {
-        ex.printStackTrace();
-    }
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Opens name.txt (the file at Location) to read previously processed filenames.&lt;/LI&gt;&lt;LI&gt;Loads each line into a list (wordList).&lt;/LI&gt;&lt;LI&gt;If any error occurs, it’s caught and printed.&lt;/LI&gt;&lt;LI&gt;In the finally block, br is closed to free resources.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Compare current file name with the stored ones&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;String[] words = wordList.toArray(new String[0]);
-Writer output = new BufferedWriter(new FileWriter(Location));
-int flag = 0;
-
-for (String w : words) {
-    String text = w + "&amp;lt;br /&amp;gt;";
-    output.write(text);
-    if (w.equals(fileName)) {
-        flag = 1;
-    }
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Converts the list to an array for easy iteration.&lt;/LI&gt;&lt;LI&gt;Opens the same file (name.txt) again but in write mode (new FileWriter(Location)), so it can re-write the old names plus possibly the new one.&lt;/LI&gt;&lt;LI&gt;flag indicates if the file was previously processed.&lt;/LI&gt;&lt;LI&gt;Loop through existing file names, writing them back to name.txt. If a line matches our fileName, mark flag=1.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;If not processed&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;if (flag == 0) {
-    // Not processed yet, add to list
-    output.write(fileName);
-    output.close();
-} else {&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;If flag == 0, it means no match found, so we append the new file name.&lt;/LI&gt;&lt;LI&gt;Then close the output.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;If already processed&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;// Already processed
-output.close();
-try {
-    BufferedReader read = new BufferedReader(new FileReader(PassLocation));
-    Audit.addAuditLogEntry(amk, AuditLogStatus.ERROR, "File has been already processed");
-
-    URL fileLocation = new URL(
-        "ftp://" + FtpUser + ":" + read.readLine() + "@" +
-        msg.getMessageProperty("http://sap.com/xi/XI/System/File", "SourceFTPHost") +
-        msg.getMessageProperty("http://sap.com/xi/XI/System/File", "Directory") +
-        "/" + fileName
-    );
-    DeleteFile(fileLocation);
-} catch (Exception e) {
-    throw new ModuleException(fileName + " should be deleted");
-}
-throw new ModuleException(fileName + " is already processed");&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;If flag == 1, the file &lt;STRONG&gt;is&lt;/STRONG&gt; already processed.&lt;/LI&gt;&lt;LI&gt;Log an ERROR entry in SAP’s audit.&lt;/LI&gt;&lt;LI&gt;Read the FTP password from PassLocation (FtpPassword.txt).&lt;/LI&gt;&lt;LI&gt;Construct the URL to point exactly to that FTP file.&lt;/LI&gt;&lt;LI&gt;Call DeleteFile(...) to make the file empty on the FTP (so the adapter won't process it).&lt;/LI&gt;&lt;LI&gt;Throw a ModuleException so the module fails right here (the integration engine never processes it further).&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;DeleteFile method&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;public void DeleteFile(URL fileLocation) throws Exception {
-    URLConnection uc = fileLocation.openConnection();
-    uc.setDoOutput(true);
-    try (OutputStream out = uc.getOutputStream()) {
-        out.flush();
-    }
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Opens a connection to the file’s FTP URL.&lt;/LI&gt;&lt;LI&gt;setDoOutput(true) lets us write to it.&lt;/LI&gt;&lt;LI&gt;By opening and flushing the output stream, we effectively overwrite the file with nothing (empty file).&lt;/LI&gt;&lt;LI&gt;Because we have the channel property “do not process empty file” set, the adapter just deletes it.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Source Explanation: &lt;STRONG&gt;ChatGPT&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;Please refer to original post to see the deployment screenshots&lt;/STRONG&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;&lt;A href="https://community.sap.com/t5/additional-blogs-by-members/adapter-module-to-stop-processing-of-duplicate-file-ftp-location/ba-p/12863432" target="_self"&gt;https://community.sap.com/t5/additional-blogs-by-members/adapter-module-to-stop-processing-of-duplicate-file-ftp-location/ba-p/12863432&lt;/A&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;/U&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/adapter-module-to-stop-processing-of-duplicate-file-ftp-location-gt-code/ba-p/13973080"/>
-    <published>2024-12-30T22:20:32.797000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/sap-ds-search-results-export-to-file/qaq-p/13973935</id>
-    <title>SAP DS Search Results Export to File ?</title>
-    <updated>2024-12-30T22:23:48.241000+01:00</updated>
-    <author>
-      <name>dunncrew</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/7404</uri>
-    </author>
-    <content>&lt;P&gt;Hi, Is there a way to output the search results to a file of some kind, such as spreadsheet ?&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="dunncrew_1-1735593817390.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/206231i8F8540A3DF45923D/image-size/medium?v=v2&amp;amp;px=400" role="button" title="dunncrew_1-1735593817390.png" alt="dunncrew_1-1735593817390.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/sap-ds-search-results-export-to-file/qaq-p/13973935"/>
-    <published>2024-12-30T22:23:48.241000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-members/how-to-call-rap-actions-with-table-types-from-a-list-report/bc-p/13973936#M170948</id>
     <title>Re: How to Call RAP Actions with Table Types from a List Report</title>
@@ -2062,5 +1842,29 @@ cds add portal&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;if you add this , this will upda
     <content>Hi &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/44747"&gt;@arroyoweisson&lt;/a&gt; thank you for the solution it worked, only issue was that this solution required outlook to be installed on the system. hence opted for the Micro soft graph API mail send .</content>
     <link href="https://community.sap.com/t5/technology-q-a/re-how-to-send-an-email-with-attachment-using-outlook-sd/qaq-p/13974148/comment-id/4897559#M4897559"/>
     <published>2024-12-31T11:20:07.071000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/supply-chain-management-q-a/i-am-learning-sap-ibp-for-demand-please-explain-how-oultier-correction-with/qaq-p/13974153</id>
+    <title>I am learning SAP IBP for demand. Please explain how Oultier correction with tolerance works.</title>
+    <updated>2024-12-31T11:29:01.645000+01:00</updated>
+    <author>
+      <name>Jaya01</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1856821</uri>
+    </author>
+    <content>&lt;P&gt;I am learning SAP IBP for demand. Please explain how Oultier correction with tolerance works.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/supply-chain-management-q-a/i-am-learning-sap-ibp-for-demand-please-explain-how-oultier-correction-with/qaq-p/13974153"/>
+    <published>2024-12-31T11:29:01.645000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-q-a/ecc-payroll-to-ecp-migration/qaq-p/13974155</id>
+    <title>ECC Payroll to ECP Migration</title>
+    <updated>2024-12-31T11:41:53.097000+01:00</updated>
+    <author>
+      <name>arunsri_bs</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/38817</uri>
+    </author>
+    <content>&lt;P&gt;Hi all,&lt;/P&gt;&lt;P&gt;&amp;nbsp; Could you please share your experience on ECC Payroll to ECP Migration. Let us know how you migrated objects from ECC Payroll to SF ECP, how are the custom objects identified that needs to be migrated.&lt;/P&gt;&lt;P&gt;Please let me know.&lt;/P&gt;&lt;P&gt;Thanks&lt;/P&gt;&lt;P&gt;Sri&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-q-a/ecc-payroll-to-ecp-migration/qaq-p/13974155"/>
+    <published>2024-12-31T11:41:53.097000+01:00</published>
   </entry>
 </feed>
