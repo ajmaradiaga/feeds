@@ -2,190 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Business-Technology-Platform-blog-posts.xml</id>
   <title>SAP Community - SAP Business Technology Platform</title>
-  <updated>2025-01-13T18:00:45.087394+00:00</updated>
+  <updated>2025-01-13T21:00:46.327499+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Business Technology Platform/pd-p/73555000100700000172" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Business Technology Platform blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/sap-cap-lessons-learned-deploy-app-on-html5-repository/ba-p/13950921</id>
-    <title>SAP CAP Lessons Learned: Deploy app on HTML5 Repository</title>
-    <updated>2024-12-30T22:16:54.957000+01:00</updated>
-    <author>
-      <name>LucasMagriniRigo</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1484354</uri>
-    </author>
-    <content>&lt;P&gt;Good day fellow CAPpers,&lt;/P&gt;&lt;P&gt;Today I'll share one of the lessons I've learned working with CAP, something that may not be clear in the current tutorials or documentation. It's about deploying the front-end, the UI, of your CAP application in the SAP BTP's HTML5 Repository instead of creating an AppRouter, a separate Cloud Foundry application, for it.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Pre-requisite on BTP:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;To display or run HTML5 applications, your BTP SubAccount will need to have one of these services enabled/subscribed:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;EM&gt;SAP Build Work Zone, standard edition&lt;/EM&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;SAP Build Work Zone, advanced edition&lt;/LI&gt;&lt;LI&gt;SAP SuccessFactors Work Zone&lt;/LI&gt;&lt;LI&gt;SAP Cloud Portal service&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;I recommend &lt;EM&gt;SAP Build Work Zone, standard edition&lt;/EM&gt;, because it's the simplest to setup. It will be used in this guide.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Assumption about your CAP project:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The guide will assume you have the standard project structure for an MTA application:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;/project
- /app
-  /my-app
-   ...
-   package.json
-   ui5-deploy.yaml
-   ui5.yaml
- /db
- /srv
- package.json
- mta.yaml&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Note: the database module is optional.&lt;/P&gt;&lt;P&gt;Considering this, your &lt;STRONG&gt;mta.yaml&lt;/STRONG&gt; will require 3 modules:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;A module for the app itself, with &lt;EM&gt;type: html5&lt;/EM&gt; and &lt;EM&gt;path: app/my-app​&lt;BR /&gt;&lt;/EM&gt;- Each different app will require one of these modules&lt;BR /&gt;- It effectively zips the application and stores in the /resources folder&lt;/LI&gt;&lt;LI&gt;A deployer module with &lt;EM&gt;type: com.sap.application.content&lt;BR /&gt;&lt;/EM&gt;- This module can be reused for different apps, but needs a parameter for​ each app&lt;BR /&gt;- It takes the .zip files from /resources folder and sends to the HTML5 Repo&lt;/LI&gt;&lt;LI&gt;An app-content module with &lt;EM&gt;type: com.sap.application.content&lt;/EM&gt;&amp;nbsp;that will effectively do the setup of the HTML5 Repository​&lt;BR /&gt;- This module is unique and don't need to be edited if new apps are added.&lt;BR /&gt;- It sets up the connection between your app and the HTML5 Repository service and the service bindings&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;These modules will require 3 resources:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Repo Host: the service for HTML5 Repository Host&lt;/LI&gt;&lt;LI&gt;Destination: the service that allows your UI (/app) to communicate with the service (/srv)&lt;/LI&gt;&lt;LI&gt;XSUAA: User Authorization and Authentication. You can make it work without this service, but I wouldn't recommend.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;The resulting &lt;STRONG&gt;mta.yaml&lt;/STRONG&gt; would look like this:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;_schema-version: "3.1"
-ID: cap-app-id
-description: CAP app with UI on HTML5 Repo
-version: 1.0.0
-
-# build parameters added by the generator
-parameters:
-  deploy_mode: html5-repo
-  enable-parallel-deployments: true
-build-parameters:
-  before-all:
-    - builder: custom
-      commands:
-        - npm install
-        - npx cds build --production
-
-modules:
-  # srv
-  - name: my-srv
-    type: nodejs
-    path: gen/srv
-    build-parameters:
-      builder: npm
-    parameters:
-      buildpack: nodejs_buildpack
-      readiness-health-check-http-endpoint: /health
-      readiness-health-check-type: http
-      routes:
-        - route: ${space}-my-srv.${default-domain}
-    provides:
-      - name: srv-api
-        properties:
-          srv-url: ${routes/0/route}
-    requires:
-      - name: my-auth
-      - name: my-destination-service
-
-  # app content deployer
-  - name: my-deployer
-    type: com.sap.application.content
-    path: .
-    requires:
-      - name: my-repo-host
-        parameters:
-          content-target: true
-    build-parameters:
-      build-result: resources
-      requires:
-        - artifacts:
-            - my-app.zip
-          name: myapp
-          target-path: resources/
-        - artifacts:
-            - my-other-app.zip
-          name: myotherapp
-          target-path: resources/
-
-  # my app itself
-  - name: myapp
-    type: html5
-    path: app/my-app
-    build-parameters:
-      build-result: dist
-      builder: custom
-      commands:
-        - npm install
-        - npm run build:cf
-      supported-platforms:
-        []
-
-  # my other app itself
-  - name: myotherapp
-    type: html5
-    path: app/my-other-app
-    build-parameters:
-      build-result: dist
-      builder: custom
-      commands:
-        - npm install
-        - npm run build:cf
-      supported-platforms:
-        []
-
-  # app html5 repo host
-  - name: my-app-content
-    type: com.sap.application.content
-    build-parameters:
-      no-source: true
-    requires:
-      - name: my-auth
-        parameters:
-          service-key:
-            name: my-auth-key
-      - name: my-repo-host
-        parameters:
-          service-key:
-            name: my-repo-host-key
-      - name: my-destination-service
-        parameters:
-          content-target: true
-    parameters:
-      content:
-        instance:
-          existing_destinations_policy: update
-          destinations:
-            - Name: my-repo-host
-              ServiceInstanceName: my-html5-srv
-              ServiceKeyName: my-repo-host-key
-              sap.cloud.service: my.app
-            - Name: my-auth
-              Authentication: OAuth2UserTokenExchange
-              ServiceInstanceName: my-auth
-              ServiceKeyName: my-auth-key
-              sap.cloud.service: my.app
-
-resources:
-  - name: my-repo-host
-    type: org.cloudfoundry.managed-service
-    parameters:
-      service: html5-apps-repo
-      service-name: my-html5-srv
-      service-plan: app-host
-  - name: my-destination-service
-    type: org.cloudfoundry.managed-service
-    requires:
-      - name: srv-api
-    parameters:
-      config:
-        HTML5Runtime_enabled: true
-        init_data:
-          instance:
-            destinations:
-              - Authentication: NoAuthentication
-                Name: ui5
-                ProxyType: Internet
-                Type: HTTP
-                URL: https://ui5.sap.com
-              - Name: app-dest # defined in the apps xs-app.json
-                Authentication: NoAuthentication
-                ProxyType: Internet
-                HTML5.ForwardAuthToken: true
-                HTML5.DynamicDestination: true
-                Type: HTTP
-                URL: https://~{srv-api/srv-url} # reference to the service
-            existing_destinations_policy: update
-        version: 1.0.0
-      service: destination
-      service-name: my-destination-service
-      service-plan: lite
-  - name: my-auth
-    type: org.cloudfoundry.managed-service
-    parameters:
-      service: xsuaa
-      service-plan: application
-      path: ./xs-security.json
-      config:
-        xsappname: my-app # update as required
-        tenant-mode: dedicated
- &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;May this post help you on your troubleshooting. Reply if you find any issues so I, and the community, can help.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Lucas Magrini Rigo&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Business+Technology+Platform/pd-p/73555000100700000172" class="lia-product-mention" data-product="1215-1"&gt;SAP Business Technology Platform&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Cloud+Application+Programming+Model/pd-p/9f13aee1-834c-4105-8e43-ee442775e5ce" class="lia-product-mention" data-product="100-1"&gt;SAP Cloud Application Programming Model&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/c-khhcw49343/HTML5/pd-p/680828266263384213323560113427399" class="lia-product-mention" data-product="318-1"&gt;HTML5&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Fiori+Launchpad/pd-p/538710751289542466232554247536294" class="lia-product-mention" data-product="1060-1"&gt;SAP Fiori Launchpad&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Build+Work+Zone%25252C+standard+edition/pd-p/73554900100800003081" class="lia-product-mention" data-product="684-1"&gt;SAP Build Work Zone, standard edition&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/sap-cap-lessons-learned-deploy-app-on-html5-repository/ba-p/13950921"/>
-    <published>2024-12-30T22:16:54.957000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-members/sap-cap-lessons-learned-run-a-cap-app-using-sqlite-on-sap-btp-cloud-foundry/ba-p/13972594</id>
     <title>SAP CAP Lessons Learned: Run a CAP app using SQLite on SAP BTP - Cloud Foundry</title>
@@ -591,5 +411,17 @@ icm/ssl_config_1 = CRED=$(DIR_INSTANCE)/sec/SAPSSLS1.pse&lt;/PRE&gt;&lt;H4 id="t
 icm/ssl_config_1 = CRED=$(DIR_INSTANCE)\sec\SAPSSLS1.pse&lt;/PRE&gt;&lt;P&gt;Explanation of the parameters:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;$(DIR_INSTANCE) refers to the root directory where SAP Web Dispatcher is installed.&lt;/LI&gt;&lt;LI&gt;The SSL certificate files, SAPSSLS.pse and SAPSSLS1.pse, should be placed in the sec directory.&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-225847962"&gt;3. Applying the Configuration Changes&lt;/H3&gt;&lt;P&gt;After modifying the configuration, restart Web Dispatcher to apply the new SSL certificate settings.&lt;/P&gt;&lt;P&gt;These steps will help you configure&amp;nbsp;two different SSL in Web Dispatcher. If you need further details or assistance with specific steps, feel free to ask, and I can provide additional guidance.&lt;/P&gt;&lt;P&gt;That is all. I hope that is useful for you.&lt;/P&gt;&lt;P&gt;Thanks for reading.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-members/routing-using-multiple-ssl-server-certificates-over-a-single-ip-address-in/ba-p/13982067"/>
     <published>2025-01-10T14:48:46.549000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-sap/introduction-to-monte-carlo-simulation/ba-p/13972777</id>
+    <title>Introduction to Monte Carlo Simulation</title>
+    <updated>2025-01-13T20:04:28.089000+01:00</updated>
+    <author>
+      <name>ChenNee</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/46487</uri>
+    </author>
+    <content>&lt;P&gt;&lt;SPAN&gt;With the &lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/general-release-of-sap-analytics-cloud-compass/ba-p/13958001" target="_blank"&gt;upcoming general release of SAP Analytics Cloud compass&lt;/A&gt; targeted for 2025 Q1 (fast track 2024.25), business users with no mathematical or IT background will be able to perform Monte Carlo simulations to understand the risk involved when faced with fluctuating driver performances.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;But what exactly is a Monte Carlo Simulation?&lt;/SPAN&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1207498724"&gt;&lt;STRONG&gt;&lt;SPAN&gt;What Can It Do and When To Use It?&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;A Monte Carlo Simulation is well suited to &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;estimate the impact&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; when the driver performance can be &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;expected to be within a certain range but there is no telling yet of what the final value would be&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;. For example, in the business world, it could provide insight to the probable operating income (when the expected inflation is fluctuating), or the necessary FTE (when the attrition and hiring rate could be estimated but not finalised), or the possible cash flow (when there are different investment strategies, each with its own spectrum of possible costs). The generated insights enable an understanding of the risk resulting from the compound driver certainties, and are thus particularly useful in cases where the ability to know the boundaries of the optimistic, pessimistic&amp;nbsp;and realistic cases is crucial. Examples could include target setting, budget reviews, strategic planning, workforce planning, just to name a few.&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1010985219"&gt;&lt;STRONG&gt;&lt;SPAN&gt;The Origin&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;The most prominent early implementation of the Monte Carlo Simulation is commonly attributed to Stanislaw Ulam, a Polish scientist, who utilized this method in the 1940s for his calculation of neutron diffusion while working for the Manhattan project&lt;/SPAN&gt;&lt;SPAN&gt;. Ulam utilized computers for his implementation of the Monte Carlo method, repeating the calculations in high iterations with automated random inputs. While the method &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;does not delivery a singular, deterministic solution, it gives a statistical representation of the probable outcomes&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; – a benefit which is still valued by many performing business simulations today.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-814471714"&gt;&lt;STRONG&gt;&lt;SPAN&gt;The Method in a Nutshell&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;For those new to the method, it might help to see the similarity between a Monte Carlo Simulation and the act of tossing dice to see what turns up. To illustrate the similarity, let us start with a simplified example: &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Imagine that you are tossing 3 dice 100 times to explore the most probable sums achievable&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;, and after each toss, you note down the value achieved for each dice and the aggregation obtained across all 3 dice. What you will have at the end of 100 trials is a list showing you how often a particular aggregation result shows up&lt;/SPAN&gt;&lt;SPAN&gt;, which you can plot in a graph to visualize the value against the relative frequency of appearance, which can be understood as the probability in (%). &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Below is a simplified diagram to illustrate the process, from left to right:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Data Toss Example.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/211495iE2E596682A132C57/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Data Toss Example.png" alt="Data Toss Example.png" /&gt;&lt;/span&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Define Data and Driver:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; As we have three dice, we have 3 drivers with uncertainties, which is the value range between 1 to 6 for each dice (D1, D2 and D3).&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Random Sampling and Calculation:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; The very act of tossing in this example is actually a random sampling of a value between 1 to 6 for each dice. When this is done for all dice, the aggregation D1 + D2 + D3 can be calculated. This process can be repeated for a high number of trials to observe the frequency of achieved results (in this example 100 times).&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;List Creation:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; The achieved results can be sorted in a list as a preparation for the calculation of the frequency and the plotting of a graph.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Plotting:&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;SPAN&gt;The achieved aggregation value is plotted against its relative frequency of appearance, which can be understood as the probability in (%), for better consumption of the insight generated.&lt;/SPAN&gt;&lt;SPAN&gt; Let’s say in this example the results yield the graph as shown above; the probability distribution of the aggregated results is easily understood - tossing 3 dice will most likely result in a sum of 10 or 11, while the sum of 3 or 18 is very unlikely. Here we have the answer to the initial question regarding the most probable outcomes when tossing 3 dice.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Note here that the answer(s) obtained could vary if you perform a new simulation with another 100 iterations again, as we are dealing with statistical probability here. But if performed with a higher number of calculation iteration, e.g. 1000, 10 000 or more, the probability distribution results between two simulations will reduce significantly.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-617958209"&gt;&lt;STRONG&gt;&lt;SPAN&gt;SAP Analytics Cloud compass and Monte Carlo Simulation&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="compass_simulating_regional_revenue_small.gif" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/211508i9B8BCFEF5ABB6496/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="compass_simulating_regional_revenue_small.gif" alt="compass_simulating_regional_revenue_small.gif" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;With the ability to calculate the probable outcomes when faced with uncertainties, it is evident that the Monte Carlo Simulation is useful for simulations beyond aggregation of tossed dice – it is in fact a valued method when it comes to business simulations. SAP Analytics Cloud compass has taken Monte Carlo Simulation one step further by enabling automation in all above-mentioned process steps:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Define Data and Driver: &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;Simulating straight off a SAP Analytics Cloud model, the model definition is utilized for the simulation and there is no need for end user to manually duplicate data and calculation formula. Driver detection is also automated.&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Random Sampling and Calculation: &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;Likewise, the random sampling is taken care of by the system. All that is required from the end user is the input for the expected driver performance range. Per default, the distribution type for the random sampling distribution is set to normal distribution, which means, in short, that during random sampling, values around the middle are more likely to be chosen than those near the range boundaries (i.e. 68% of the result will fall within 1 standard deviation, 95% within 2 standard deviations, and 99.7% within 3 standard deviations). If desired, it could be configured to uniform distribution, where all values share the same chances of being sampled. Currently compass does not offer other distribution types beyond normal and uniform. However, if you would like to see other types in compass, do raise it in the &lt;/SPAN&gt;&lt;A href="https://influence.sap.com/sap/ino/#/campaign/884" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;influence portal&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;. We would certainly love to understand your use case and how this particular distribution type could help you.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Besides the random sampling, there are also further pre-configurations to ease the workflow for business end users, such as the definition of calculation iterations and the sorting of results for&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;subsequent graphical display.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;List Creation and Plotting: &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;This is entirely automated by the system. The plotted graph also allows customization of the percentile boundaries for optimistic, pessimistic and realistic cases, and the colouring, to suit different consumption preferences.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;With these automations, end users using compass to explore impact of driver uncertainties do no not need prior knowledge of Monte Carlo Simulation method to enjoy its benefits.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-421444704"&gt;&lt;STRONG&gt;&lt;SPAN&gt;SAP Analytics Cloud compass vs Time Series Predictions&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;A compass simulation is not interchangeable with e.g. a time series forecast prediction. The major difference lies in the methods utilized and the associated business question:&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The Monte Carlo Simulation, which forms the basis of compass, is a &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;mathematical simulation&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; method delivering a range of (stochastic) probable outcomes as result. Unlike time series forecast prediction, it does not analysis data trends but relies instead on repeated calculation using random inputs. This also means that a&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt; formula or definition of relation between the impacted KPI and the drivers is required &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;before the simulation could be executed. As this method is exploring the possible outcomes brought about by random inputs, the business questions leading to a compass simulation is hence more likely to centre around what happens &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;if things change.&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;A time series forecast prediction &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;projects the data trend from historical values into the future&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;, and is not reliant on existing mathematical definition between the KPIs. The prerequisite here is hence the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;availability of enough historical data&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; to detect the trend for the desired period into the future. The kind of business questions leading to a time series prediction is centring more around what happens &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;if things develop at more or less the same rate.&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Of course this does not mean that one cannot be built on top of the other to enhance the insights attainable. Depending on use case, it could be beneficial to first generate a time series forecast for an observation of what would happen in the future if the current trend persists, and to perform a Monte Carlo Simulation on top of this predicted version to understand the risk context if a few key drivers are impacted unexpectedly, just as an example.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-224931199"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Key Takeaways&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;A Monte Carlo Simulation is well suited to &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;estimate the impact&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; of volatile driver performances.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Use cases include the understanding of risk context during &lt;STRONG&gt;target setting, budget reviews, strategic or workforce planning, and beyond.&lt;/STRONG&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;The simulation result is a &lt;STRONG&gt;statistical representation of the probable outcomes&lt;/STRONG&gt; and not a single, deterministic value.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;The Monte Carlo Simulation method could be compared to the tossing of dice to explore the frequency of achieved aggregations. The main concept &lt;STRONG&gt;involves a high calculation iteration combined with random sampling of possible driver inputs&lt;/STRONG&gt; to explore the probability distribution.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Unlike time series predictions, a Monte Carlos Simulation &lt;STRONG&gt;does not analyse data trend&lt;/STRONG&gt; to project it into the future. It requires an existing mathematical relationship between the drivers and the impacted KPI to execute the calculation.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Time series prediction and Monte Carlo Simulation &lt;STRONG&gt;can be used on top of each other&lt;/STRONG&gt; to answer more complex business questions.&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-sap/introduction-to-monte-carlo-simulation/ba-p/13972777"/>
+    <published>2025-01-13T20:04:28.089000+01:00</published>
   </entry>
 </feed>
