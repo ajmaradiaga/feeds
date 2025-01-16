@@ -2,114 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2025-01-16T18:00:07.563516+00:00</updated>
+  <updated>2025-01-16T21:00:03.571588+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/how-to-do-select-single-select-up-to-1-rows-using-cds/ba-p/13968716</id>
-    <title>How to do SELECT SINGLE/SELECT UP TO 1 ROWS using CDS</title>
-    <updated>2024-12-24T16:04:52.918000+01:00</updated>
-    <author>
-      <name>victor_souza</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/338959</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;It is common to need one line for a specific table on SAP. For example, most part of the companies that I worked you can get the Purchase Order plant from EKPO, because it is always the same.&lt;/P&gt;&lt;P&gt;Unfortunately, CDS does not provide a way to do a select up to 1 rows, but here is the workaround that I've been using for a while and SAP seems to be adopted as well&lt;/P&gt;&lt;P&gt;Important to mention that I do my best to avoid AMDP. For all personal experience, the performance and reusability is worse than common data definition/CDS Views&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Getting the first (or last) row&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The trick is that, for the Purchase Order example, we do not have the item to have the right cardinality. So, we must have all the keys available to perform the select to one specific record&lt;/P&gt;&lt;P&gt;To do that, we can create a view that will return the first or the last (does not matter as the information must be the same anyway)&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Purchase Order First Item'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-define view entity Z_I_EKPOFirstItem
-  as select from I_PurchaseOrderItem
-{
-  key PurchaseOrder,
-      cast( min(PurchaseOrderItem) as ebelp ) as FirstItem
-}
-group by
-  PurchaseOrder&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Joining to get the full data&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Now, if we do a select on the Z_I_EKPOFirstItem by Purchase Order (EBELN), it will return always only one row, which is the full key of EKPO. Then, we can use this view and join with the standard view to have access to all EKPO fields and select the one that we initially needed&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Purchase Order'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-define view entity Z_I_PurchaseOrder
-  as select from I_PurchaseOrder
-
-    inner join   Z_I_EKPOFirstItem   on Z_I_EKPOFirstItem.PurchaseOrder = I_PurchaseOrder.PurchaseOrder
-
-    inner join   I_PurchaseOrderItem on  I_PurchaseOrderItem.PurchaseOrder     = I_PurchaseOrder.PurchaseOrder
-                                     and I_PurchaseOrderItem.PurchaseOrderItem = Z_I_EKPOFirstItem.FirstItem
-{
-  key I_PurchaseOrder.PurchaseOrder,
-      I_PurchaseOrderItem.Plant,
-      I_PurchaseOrder.PurchaseOrderType
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;You can see that the plant comes from I_PurchaseOrderItem, which is selected from&amp;nbsp;Z_I_EKPOFirstItem using the full key.&lt;/P&gt;&lt;P&gt;This way, we will never have more than one record and it will not duplicate any records.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Tables with more than two key fields&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;You can do the same for tables with more key columns than only two, but then it gets uglier&lt;/P&gt;&lt;P&gt;Create the same way the CDS View to select only one record from your table, for this example, MARD - it is just an example, I am not saying that this example makes sense hehe&lt;BR /&gt;But now, as you have more than one key, MIN or MAX will not work properly, then you can use it concatenating all keys - do not forget to include all key columns&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'MARD First Row'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-define view entity Z_I_MARDFirstRow
-  as select from mard
-{
-  key matnr                     as Matnr,
-      min(concat(werks, lgort)) as firstRowKey
-}
-group by
-  matnr&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;After that, you can use it in your view, but you will need to use a substring according to each field position and length.&lt;BR /&gt;For this example WERKS and LGORT have 4 as length. You can use it directly on the join like below&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'MARA'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-define view entity Z_I_TS_MARA
-  as select from mara
-
-    inner join   Z_I_MARDFirstRow on Z_I_MARDFirstRow.Matnr = mara.matnr
-
-    inner join   mard             on  mard.matnr = Z_I_MARDFirstRow.Matnr
-                                  and mard.werks = substring( Z_I_MARDFirstRow.firstRowKey, 1, 4 )
-                                  and mard.lgort = substring( Z_I_MARDFirstRow.firstRowKey, 5, 4 )
-{
-  key mara.matnr as Matnr,
-      mard.lgort,
-      mard.werks
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Any better ideas?&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;I could not think of something better than this approach, but it seems that SAP is using that as well, for example you can check the standard view&amp;nbsp;I_BillingDocFirstItem&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Get BillingDocument Item Position'
-@AbapCatalog.sqlViewName: 'ISDBILLDOCFSTIT'
-@AbapCatalog.compiler.compareFilter: true
-@ClientHandling.algorithm: #SESSION_VARIABLE
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@VDM.viewType: #COMPOSITE
-
-@ObjectModel.usageType.serviceQuality:#D
-@ObjectModel.usageType.sizeCategory: #XL
-@ObjectModel.usageType.dataClass: #MIXED
-
-
-define view I_BillingDocFirstItem
-  as select from I_ExciseDueDocBase
-{
-  I_ExciseDueDocBase.BillingDocument,
-  min(I_ExciseDueDocBase.BillingDocumentItem) as BillingDocumentItem
-}
-group by
-  BillingDocument              &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/how-to-do-select-single-select-up-to-1-rows-using-cds/ba-p/13968716"/>
-    <published>2024-12-24T16:04:52.918000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-members/simple-method-to-wrap-the-subfield-access-for-x-and-xstring-variables/ba-p/13972782</id>
     <title>Simple method to wrap the subfield access for X and XSTRING variables</title>
@@ -1011,5 +907,17 @@ ENDFORM.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In the ge
     <content>&lt;P&gt;I just asked a publicly GPT trained model at my company, to generate the documentation of an old and huge ABAP program, to see if ChatGPT can save me some time to understand what the program does.&lt;/P&gt;&lt;P&gt;The prompt is limited to one or two thousand characters, so I can only ask for one portion of a subroutine at a time. The generated text is just good for explaining the meaning of each individual ABAP statement. It cannot save time.&lt;/P&gt;&lt;P&gt;Below are two questions and answers for your information.&lt;/P&gt;&lt;P&gt;Did you have a better experience with GenAI for generating a good ABAP documentation?&lt;/P&gt;&lt;P&gt;Which engine do you use? (public, SAP Joule, privately trained model, etc.)&lt;/P&gt;&lt;P&gt;Thank you.&lt;/P&gt;&lt;P&gt;Sandra&lt;/P&gt;&lt;P&gt;First prompt:&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="100%"&gt;Describe the detailed steps of the subroutine SAVE_COMMENT. Here is its code: FORM save_comment USING p_vl_max_fake p_ok_boolean. CLEAR sg_zfake_user. MOVE sy-datum TO sg_zfake_user-date_2. IF gw_mode = 'CREER'. MOVE sy-datum TO sg_zfake_user-date_1. MOVE 'E' TO sg_zfake_user-statut. ELSE. DELETE FROM zfake_user WHERE nfake = gi_nfake AND typefake = '2'. IF sy-subrc &amp;lt;&amp;gt; 0. ENDIF. MOVE g_date_1 TO sg_zfake_user-date_1. MOVE g_statut TO sg_zfake_user-statut. ENDIF. MOVE gi_nfake TO sg_zfake_user-nfake. MOVE '2' TO sg_zfake_user-typefake. MOVE 0 TO sg_zfake_user-notypefake. PERFORM affichage_commentaire USING 'GET' tg_fake_commentaire_user_m tg_fake_commentaire_admin_m. LOOP AT tg_fake_commentaire_user_m INTO sg_fake_commentaire. CONCATENATE sg_zfake_user-rubrique1 sg_fake_commentaire INTO sg_zfake_user-rubrique1 SEPARATED BY space. ENDLOOP. CONDENSE sg_zfake_user-rubrique1. MOVE sg_zfake_user-rubrique1 TO g_rubrique1. LOOP AT tg_fake_commentaire_admin_m INTO sg_fake_commentaire. CONCATENATE sg_zfake_user-rubrique2 sg_fake_commentaire INTO sg_zfake_user-rubrique2 SEPARATED BY space. ENDLOOP. CONDENSE sg_zfake_user-rubrique2. MOVE sg_zfake_user-rubrique2 TO g_rubrique2. MOVE p_encopiede TO sg_zfake_user-rubrique3. IF p_encopiede IS NOT INITIAL. CLEAR : b_mdp_ecc, b_sup_ecc , b_sup_decisionnel, sg_zfake_user-rubrique4, sg_zfake_user-rubrique6, sg_zfake_user-rubrique7. ELSE. IF b_mdp_ecc = 'X'. MOVE 'X' TO sg_zfake_user-rubrique4. ENDIF. IF b_mdp_infocentre = 'X'. MOVE 'X' TO sg_zfake_user-rubrique5. ENDIF. IF b_sup_ecc = 'X'. MOVE 'X' TO sg_zfake_user-rubrique6. ENDIF. IF b_sup_decisionnel = 'X'. MOVE 'X' TO sg_zfake_user-rubrique7. ENDIF. ENDIF. INSERT zfake_user FROM sg_zfake_user. IF sy-subrc &amp;lt;&amp;gt; 0. UPDATE zfake_user FROM sg_zfake_user. ENDIF. IF sy-subrc &amp;lt;&amp;gt; 0. MESSAGE 'Cannot save the comments' TYPE 'S' p_ok_boolean = 'X'. EXIT. ENDIF. ENDFORM.&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;The answer:&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="100%"&gt;There’s a problem processing your request. Please try again later or let me know if I can help.&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;I shortened the prompt:&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="100%" height="277px"&gt;Describe the detailed steps of the subroutine SAVE_COMMENT. Here is its code: FORM save_comment USING p_vl_max_fake p_ok_boolean. CLEAR sg_zfake_user. MOVE sy-datum TO sg_zfake_user-date_2. IF gw_mode = 'CREER'. MOVE sy-datum TO sg_zfake_user-date_1. MOVE 'E' TO sg_zfake_user-statut. ELSE. DELETE FROM zfake_user WHERE nfake = gi_nfake AND typefake = '2'. IF sy-subrc &amp;lt;&amp;gt; 0. ENDIF. MOVE g_date_1 TO sg_zfake_user-date_1. MOVE g_statut TO sg_zfake_user-statut. ENDIF. MOVE gi_nfake TO sg_zfake_user-nfake. MOVE '2' TO sg_zfake_user-typefake. MOVE 0 TO sg_zfake_user-notypefake. PERFORM affichage_commentaire USING 'GET' tg_fake_commentaire_user_m tg_fake_commentaire_admin_m. LOOP AT tg_fake_commentaire_user_m INTO sg_fake_commentaire. CONCATENATE sg_zfake_user-rubrique1 sg_fake_commentaire INTO sg_zfake_user-rubrique1 SEPARATED BY space. ENDLOOP.&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;The answer:&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="100%"&gt;&lt;P&gt;Using publicly trained GPT model...&lt;/P&gt;&lt;P&gt;Sure, let's break down the subroutine `SAVE_COMMENT` step by step:&lt;/P&gt;&lt;P&gt;Subroutine Definition&lt;BR /&gt;FORM save_comment USING p_vl_max_fake p_ok_boolean.&lt;BR /&gt;The subroutine SAVE_COMMENT is defined with two parameters: p_vl_max_fake and p_ok_boolean.&lt;/P&gt;&lt;P&gt;Step 1: Clear the Work Area&lt;BR /&gt;CLEAR sg_zfake_user.&lt;BR /&gt;The work area sg_zfake_user is cleared to ensure it starts with no data.&lt;/P&gt;&lt;P&gt;Step 2: Set the Current Date&lt;BR /&gt;MOVE sy-datum TO sg_zfake_user-date_2.&lt;BR /&gt;The current system date (sy-datum) is moved to the field date_2 of the work area sg_zfake_user.&lt;/P&gt;&lt;P&gt;Step 3: Check the Mode&lt;BR /&gt;IF gw_mode = 'CREER'.&lt;BR /&gt;The subroutine checks if the mode (gw_mode) is 'CREER' (which likely means 'create').&lt;/P&gt;&lt;P&gt;Step 3.1: If Mode is 'CREER'&lt;BR /&gt;MOVE sy-datum TO sg_zfake_user-date_1.&lt;BR /&gt;MOVE 'E' TO sg_zfake_user-statut.&lt;BR /&gt;The current system date (sy-datum) is moved to the field date_1 of the work area sg_zfake_user.&lt;BR /&gt;The status field statut of the work area sg_zfake_user is set to 'E'.&lt;/P&gt;&lt;P&gt;Step 3.2: If Mode is Not 'CREER'&lt;BR /&gt;ELSE.&lt;BR /&gt;DELETE FROM zfake_user WHERE nfake = gi_nfake AND typefake = '2'.&lt;BR /&gt;IF sy-subrc &amp;lt;&amp;gt; 0.&lt;BR /&gt;ENDIF.&lt;BR /&gt;MOVE g_date_1 TO sg_zfake_user-date_1.&lt;BR /&gt;MOVE g_statut TO sg_zfake_user-statut.&lt;BR /&gt;The subroutine deletes entries from the database table zfake_user where nfake equals gi_nfake and typefake equals '2'.&lt;BR /&gt;If the deletion is not successful (sy-subrc is not zero), it does nothing (empty ENDIF).&lt;BR /&gt;The value of g_date_1 is moved to the field date_1 of the work area sg_zfake_user.&lt;BR /&gt;The value of g_statut is moved to the field statut of the work area sg_zfake_user.&lt;/P&gt;&lt;P&gt;Step 4: Set Additional Fields&lt;BR /&gt;MOVE gi_nfake TO sg_zfake_user-nfake.&lt;BR /&gt;MOVE '2' TO sg_zfake_user-typefake.&lt;BR /&gt;MOVE 0 TO sg_zfake_user-notypefake.&lt;BR /&gt;The value of gi_nfake is moved to the field nfake of the work area sg_zfake_user.&lt;BR /&gt;The value '2' is moved to the field typefake of the work area sg_zfake_user.&lt;BR /&gt;The value 0 is moved to the field notypefake of the work area sg_zfake_user.&lt;/P&gt;&lt;P&gt;Step 5: Perform Another Subroutine&lt;BR /&gt;PERFORM affichage_commentaire USING 'GET' tg_fake_commentaire_user_m tg_fake_commentaire_admin_m.&lt;BR /&gt;The subroutine affichage_commentaire is called with the parameters 'GET', tg_fake_commentaire_user_m, and tg_fake_commentaire_admin_m.&lt;/P&gt;&lt;P&gt;Step 6: Loop Through Internal Table&lt;BR /&gt;LOOP AT tg_fake_commentaire_user_m INTO sg_fake_commentaire.&lt;BR /&gt;CONCATENATE sg_zfake_user-rubrique1 sg_fake_commentaire INTO sg_zfake_user-rubrique1 SEPARATED BY space.&lt;BR /&gt;ENDLOOP.&lt;BR /&gt;The subroutine loops through the internal table tg_fake_commentaire_user_m and reads each entry into the work area sg_fake_commentaire.&lt;BR /&gt;For each entry, it concatenates the value of sg_fake_commentaire to the field rubrique1 of the work area sg_zfake_user, separated by a space.&lt;/P&gt;&lt;P&gt;End of Subroutine&lt;BR /&gt;ENDFORM.&lt;BR /&gt;The subroutine ends.&lt;/P&gt;&lt;P&gt;Summary&lt;BR /&gt;The SAVE_COMMENT subroutine performs the following actions:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Clears the work area sg_zfake_user.&lt;/LI&gt;&lt;LI&gt;Sets the current date in date_2.&lt;/LI&gt;&lt;LI&gt;Depending on the mode (gw_mode), it either sets the creation date and status or deletes existing entries and sets the date and status from global variables.&lt;/LI&gt;&lt;LI&gt;Sets additional fields in the work area.&lt;/LI&gt;&lt;LI&gt;Calls another subroutine affichage_commentaire.&lt;/LI&gt;&lt;LI&gt;Loops through an internal table and concatenates its entries to a field in the work area.&lt;/LI&gt;&lt;/UL&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-members/disenchantment-gpt-for-generating-abap-code-documentation/ba-p/13983219"/>
     <published>2025-01-11T18:24:29.595000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-members/date-to-factory-date-conversion-with-s-4hana-abap-cds-view/ba-p/13988259</id>
+    <title>Date to Factory Date Conversion with S/4HANA ABAP CDS view</title>
+    <updated>2025-01-16T20:15:24.433000+01:00</updated>
+    <author>
+      <name>uladzislau_pralat</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/185101</uri>
+    </author>
+    <content>&lt;P&gt;I wish S/4HANA ABAP CDS views supported date-to-factory-date conversion using an out-of-the-box built-in function, similar to currency or unit conversion. Unfortunately, that’s not the case. But don’t worry—I’ve got you covered with a custom-built S/4HANA ABAP CDS view.&lt;/P&gt;&lt;P&gt;S/4HANA provides&amp;nbsp;DATE_CONVERT_TO_FACTORYDATE standard function module for date-to-factory-date conversion. Base on factory, for example, CA Canada:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="uladzislau_pralat_0-1737040490889.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213115i4E82A466E5BD6F60/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="uladzislau_pralat_0-1737040490889.png" alt="uladzislau_pralat_0-1737040490889.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The function module converts date to closest next factory date (default "+" conversion option):&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="uladzislau_pralat_2-1737040875350.jpeg" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213124i63FE754402AB9312/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="uladzislau_pralat_2-1737040875350.jpeg" alt="uladzislau_pralat_2-1737040875350.jpeg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;or closest prior factory date ("-" conversion option):&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="uladzislau_pralat_3-1737040914086.jpeg" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213125i77EDFB38EEC501CB/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="uladzislau_pralat_3-1737040914086.jpeg" alt="uladzislau_pralat_3-1737040914086.jpeg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The same date-to-factory-date conversion can be achieved using custom-built ABAP CDS view&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="uladzislau_pralat_4-1737041466998.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213128i180CE8FC71EAA058/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="uladzislau_pralat_4-1737041466998.png" alt="uladzislau_pralat_4-1737041466998.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;All it takes a simple custom built ABAP CDS view&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="uladzislau_pralat_6-1737041728164.jpeg" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213132iFFCC50ECB0CE3E92/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="uladzislau_pralat_6-1737041728164.jpeg" alt="uladzislau_pralat_6-1737041728164.jpeg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="uladzislau_pralat_0-1737054646707.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213183i4BF814A820FE720F/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="uladzislau_pralat_0-1737054646707.png" alt="uladzislau_pralat_0-1737054646707.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Above code does a trick transforming pivoted and nested factory calendar data&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="uladzislau_pralat_8-1737044160689.jpeg" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213146i8056D5CF393FECC3/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="uladzislau_pralat_8-1737044160689.jpeg" alt="uladzislau_pralat_8-1737044160689.jpeg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;into factory calendar on date level&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="uladzislau_pralat_9-1737044673748.jpeg" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213147i90893B534B8E4FCF/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="uladzislau_pralat_9-1737044673748.jpeg" alt="uladzislau_pralat_9-1737044673748.jpeg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;followed by a couple of window functions to find next and previous factory date for first week-end / holiday day&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="uladzislau_pralat_10-1737044856113.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213150i789BC035CE419FCE/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="uladzislau_pralat_10-1737044856113.png" alt="uladzislau_pralat_10-1737044856113.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;and copy it over to other week-end / holiday dates as well fill next factory date / previous factory date for weekdays.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="uladzislau_pralat_11-1737045919783.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213152i58F75B74DAECD568/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="uladzislau_pralat_11-1737045919783.png" alt="uladzislau_pralat_11-1737045919783.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Source code for the CDS view can be downloaded below:&lt;/P&gt;&lt;P&gt;&lt;A href="https://github.com/UladzislauPralat/ABAP/blob/master/DateToFactoryDateConversionWithS4HANAABAPCDSView/ZI_FactoryCalendar.abap" target="_self" rel="nofollow noopener noreferrer"&gt;ZI_FactoryCalendar&lt;/A&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;A href="https://github.com/UladzislauPralat/ABAP/blob/master/DateToFactoryDateConversionWithS4HANAABAPCDSView/zcl_factory_calendar.abap" target="_self" rel="nofollow noopener noreferrer"&gt;ZCL_FACTORY_CALENDAR&lt;/A&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-members/date-to-factory-date-conversion-with-s-4hana-abap-cds-view/ba-p/13988259"/>
+    <published>2025-01-16T20:15:24.433000+01:00</published>
   </entry>
 </feed>
