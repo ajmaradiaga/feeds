@@ -2,223 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2025-01-17T08:44:01.667222+00:00</updated>
+  <updated>2025-01-17T08:59:01.445501+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/program-to-get-b4-roles-for-bex-queries-and-infoproviders/ba-p/13988492</id>
-    <title>Program to get B4 Roles for BEx Queries and Infoproviders</title>
-    <updated>2025-01-17T03:48:30.667000+01:00</updated>
-    <author>
-      <name>lakshminarasimhan_n4</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/200273</uri>
-    </author>
-    <content>&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Many times as a Business warehouse consultant we need to know which BEx query is tied to which role. Most of the case in production system we would not have suim access or it looks complex for production support guys. So to simplify, a program is created and can be executed in any of the B4 system then it gives the roles related either to BEx Query or roles belonging to any InfoProviders.&lt;/P&gt;&lt;P&gt;As a first step we will create a below CDS view which basically takes data from below tables&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;UST12 - Authorization Object&amp;nbsp; and Values, our focus here is with S_RS_COMP and S_RS_COMP1 both of these Authorization objects points to BEx Query and InfoProviders.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;AGR_1251 - Authorization Object identified in&amp;nbsp;UST12 is passed here to take the Role.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;AGR_AGRS - Parent Role for the identified role in&amp;nbsp;AGR_1251.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: #NONE
-@AbapCatalog.sqlViewName: 'ZVROLEANDAUTH01F'
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'BW4: Roles and Authorizations'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-define view ZCROLESANDAUTH01F as 
-select distinct from ust12
-inner join
-agr_1251  
-on
-agr_1251.auth = ust12.auth
-inner join 
-agr_agrs 
-on
-agr_agrs.child_agr = agr_1251.agr_name
-{
-
-key ust12.mandt as Mandt,
-key objct as AuthorizationObject,
-key ust12.auth as AuthorizationProfile,
-key aktps as Version,
-key ust12.field as Field,
-key von as Von,
-key bis as Bis,
-agr_1251.agr_name as SubRole,
-agr_agrs.agr_name as CompositeRole
-    
-}
-where 
-( objct = 'S_RS_COMP' or
-objct =  'S_RS_COMP1' )
-and 
-aktps = 'A'&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Once this CDS view is ready then create below program in B4 system to help the support people to pass either BEx Query or InfoProvider names or both of them to Program and then the program reads from the above CDS view and present the output as ALV grid, which the support people can easily download.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;report zbwr_roleidentification.
-
-tables : rszcompdir, rso_s_adso_key, rso_s_hcpr_key.
-
-" Get Input
-selection-screen: begin of block b1 with frame title text-001.
-select-options p_qry for rszcompdir-compid no intervals.
-select-options p_adso for rso_s_adso_key-adsonm no intervals.
-select-options p_cpo for rso_s_adso_key-adsonm no intervals.
-selection-screen:end of block b1.
-
-data: gr_alv type  ref to cl_salv_table,
-      lt_return    type standard table of ddshretval,
-      gr_functions type ref to cl_salv_functions,
-      gr_display   type ref to cl_salv_display_settings,
-      lr_columns   type ref to cl_salv_columns_table.
-
-" F4 Help for ADSO
-at selection-screen on value-request for p_adso-low.
-select distinct adsonm from rsoadso into table (lt_adso)
-where objvers = 'A'.
-call function 'F4IF_INT_TABLE_VALUE_REQUEST'
-exporting
-retfield = 'ADSONM'
-dynpprog = sy-repid
-dynpnr = '1000'
-dynprofield = 'P_ADSO'
-value_org = 'S'
-tables
-value_tab = lt_adso
-return_tab = lt_return
-exceptions
-parameter_error = 1
-no_values_found = 2
-others = 3.
-if sy-subrc = 0.
-  read table lt_return into data(ls_return) index 1.
-endif.
-
-" F4 Help for Composite Provider
-at selection-screen on value-request for p_cpo-low.
-select distinct hcprnm from rsohcpr into table (lt_cpo)
-where objvers = 'A'.
-call function 'F4IF_INT_TABLE_VALUE_REQUEST'
-exporting
-retfield = 'ADSONM'
-dynpprog = sy-repid
-dynpnr = '1000'
-dynprofield = 'P_ADSO'
-value_org = 'S'
-tables
-value_tab = lt_cpo
-return_tab = lt_return
-exceptions
-parameter_error = 1
-no_values_found = 2
-others = 3.
-if sy-subrc = 0.
-  read table lt_return into data(ls_return) index 1.
-endif.
-
-start-of-selection.
-" If Query selection is not blank
-if p_qry is not initial.
-select distinct compositerole, subrole, von from
-  zvroleandauth01f into table (lt_roles)
-  where
-  von in @p_qry.
-
-endif.
-
-" If ADSO Selection is not blank
-if p_adso is not initial.
-select distinct compositerole, subrole, von from
-  zvroleandauth01f appending table _roles
-  where
-  von in @p_adso.
-endif.
-
-" If Composite Provider Selection is not blank
-if p_cpo is not initial.
-select distinct compositerole, subrole, von from
-  zvroleandauth01f appending table _roles
-  where
-  von in @p_cpo.
-endif.
-
- if lt_roles[] is not initial.
-  sort lt_roles by compositerole subrole von.
-  delete adjacent duplicates from lt_roles comparing all fields.
-
-  call method cl_salv_table=&amp;gt;factory
-  exporting
-  list_display = if_salv_c_bool_sap=&amp;gt;false
-  importing
-  r_salv_table = gr_alv
-  changing
-  t_table = lt_roles.
-
-  gr_functions = gr_alv-&amp;gt;get_functions( ).
-  gr_functions-&amp;gt;set_all( abap_true ).
-  gr_display = gr_alv-&amp;gt;get_display_settings( ). "Display Settings
-
-  gr_alv-&amp;gt;display( ).
- endif.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Now we can create the tcode is SE93 and give the tcode to the support team.&lt;/P&gt;&lt;P&gt;Sample Input to Program&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="lakshminarasimhan_n4_0-1737081886573.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213237i996009353E8191BE/image-size/medium?v=v2&amp;amp;px=400" role="button" title="lakshminarasimhan_n4_0-1737081886573.png" alt="lakshminarasimhan_n4_0-1737081886573.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Sample Output, for security reasons I have trimmed the output&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="lakshminarasimhan_n4_1-1737082024067.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213238iDB088C92AC01C105/image-size/medium?v=v2&amp;amp;px=400" role="button" title="lakshminarasimhan_n4_1-1737082024067.png" alt="lakshminarasimhan_n4_1-1737082024067.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/program-to-get-b4-roles-for-bex-queries-and-infoproviders/ba-p/13988492"/>
-    <published>2025-01-17T03:48:30.667000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/re-in-sap-screen-personas-scripting-how-to-give-a-beep-s/qaq-p/13988501/comment-id/4899498#M4899498</id>
-    <title>Re: In SAP Screen personas scripting how to give a beep s...</title>
-    <updated>2025-01-17T04:09:14.041000+01:00</updated>
-    <author>
-      <name>Tamas_Hoznek</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/182281</uri>
-    </author>
-    <content>Now, this being an EWM RF flavor is an important information, and it certainly changes things. Using session.info.screenNumber in your script will give you the screen number.</content>
-    <link href="https://community.sap.com/t5/technology-q-a/re-in-sap-screen-personas-scripting-how-to-give-a-beep-s/qaq-p/13988501/comment-id/4899498#M4899498"/>
-    <published>2025-01-17T04:09:14.041000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/re-sap-mobile-services-client-keeps-crashing/qaq-p/13988502/comment-id/4899499#M4899499</id>
-    <title>Re: SAP Mobile Services Client Keeps Crashing</title>
-    <updated>2025-01-17T04:11:59.271000+01:00</updated>
-    <author>
-      <name>Jitendra_Kansal</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/3305</uri>
-    </author>
-    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1441627"&gt;@Riyaz_abdul&lt;/a&gt;Could you share the page metadata so I can understand exactly what you've tried?&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/re-sap-mobile-services-client-keeps-crashing/qaq-p/13988502/comment-id/4899499#M4899499"/>
-    <published>2025-01-17T04:11:59.271000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/introducing-sap-analytics-cloud-add-in-for-microsoft-powerpoint/bc-p/13988508#M178367</id>
-    <title>Re: Introducing SAP Analytics Cloud, add-in for Microsoft PowerPoint</title>
-    <updated>2025-01-17T05:11:39.916000+01:00</updated>
-    <author>
-      <name>Abhinav09</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1954534</uri>
-    </author>
-    <content>&lt;P&gt;Hi, Thanks for the reply&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/422162"&gt;@Ashok_R&lt;/a&gt;&amp;nbsp;.&lt;/P&gt;&lt;P&gt;I have tried to zoom out the window size as much as I can do but still it is not showing the full data. I have tried for Mutiple widgets and different dashboards but still facing the same.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Abhinav09_0-1737086980954.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213242iB2C0A76B5F806DEB/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Abhinav09_0-1737086980954.png" alt="Abhinav09_0-1737086980954.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/introducing-sap-analytics-cloud-add-in-for-microsoft-powerpoint/bc-p/13988508#M178367"/>
-    <published>2025-01-17T05:11:39.916000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-purchase-order-numbering-based-on-plant/qaq-p/13988514/comment-id/4205810#M4205810</id>
-    <title>Re: Purchase Order Numbering based on Plant</title>
-    <updated>2025-01-17T05:17:16.959000+01:00</updated>
-    <author>
-      <name>Vivek_Savant</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1405329</uri>
-    </author>
-    <content>&lt;P&gt;Hello &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1774345"&gt;@Ariel09&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;You can configure purchase order number ranges according to the document type in SAP S/4HANA Cloud Public Edition. However, dynamically changing the purchase order document type based on the plant is not supported in this edition.&lt;/P&gt;&lt;P&gt;As a workaround, you may explore the feasibility of developing a custom Fiori application tailored to your specific business requirements&lt;/P&gt;&lt;P&gt;Best Regards&lt;/P&gt;&lt;P&gt;Vivek Savant&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-purchase-order-numbering-based-on-plant/qaq-p/13988514/comment-id/4205810#M4205810"/>
-    <published>2025-01-17T05:17:16.959000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-billing-blocks-for-cancelled-deliveries-in-s-4-public/qaq-p/13988515/comment-id/4205811#M4205811</id>
-    <title>Re: Billing blocks for cancelled deliveries in S/4 Public...</title>
-    <updated>2025-01-17T05:17:53.056000+01:00</updated>
-    <author>
-      <name>Vivek_Savant</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1405329</uri>
-    </author>
-    <content>&lt;P&gt;Hello &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1822731"&gt;@Milica3&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In the SAP S/4HANA Cloud Public Edition , VL_COMPLETE transaction code is not available. You need to check for other workaround.&lt;/P&gt;&lt;P&gt;Best Regards&lt;/P&gt;&lt;P&gt;Vivek Savant&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-billing-blocks-for-cancelled-deliveries-in-s-4-public/qaq-p/13988515/comment-id/4205811#M4205811"/>
-    <published>2025-01-17T05:17:53.056000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-purchase-order-numbering-based-on-plant/qaq-p/13988516/comment-id/4205812#M4205812</id>
     <title>Re: Purchase Order Numbering based on Plant</title>
@@ -1294,7 +1081,7 @@ define role DEMO_CDS_ROLE_INHERITED_VE {
       <name>mtayibi</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/722406</uri>
     </author>
-    <content>&lt;P&gt;Hello,&lt;/P&gt;&lt;P&gt;when i try to set an earlier date then the start date the selection for the end date is not possible.&lt;/P&gt;&lt;P&gt;I receive the error "The start date cannot be later than the end date.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="date range.png" style="width: 455px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213388iEA0C46F192E2BD45/image-size/large?v=v2&amp;amp;px=999" role="button" title="date range.png" alt="date range.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Is there any way to fix this?&lt;/P&gt;&lt;P&gt;In the former sac verions it was possible. Dont know why not in optimised view mode.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Kr&lt;/P&gt;</content>
+    <content>&lt;P&gt;Hello,&lt;/P&gt;&lt;P&gt;when i try to set an earlier date then the start date the selection for the end date is not possible.&lt;/P&gt;&lt;P&gt;I cant confirm the date and the calendar remains open.&lt;/P&gt;&lt;P&gt;I receive the error "The start date cannot be later than the end date.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="date range.png" style="width: 455px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213388iEA0C46F192E2BD45/image-size/large?v=v2&amp;amp;px=999" role="button" title="date range.png" alt="date range.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Is there any way to fix this?&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Kr&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/questions-about-sap-websites/sac-input-control-date-range-setting-ranges/qaq-p/13988760"/>
     <published>2025-01-17T09:20:21.888000+01:00</published>
   </entry>
@@ -1447,5 +1234,77 @@ define role DEMO_CDS_ROLE_INHERITED_VE {
     <content>&lt;P data-unlink="true"&gt;We're very excited to kick-off 2025 with a &lt;A href="https://events.sap.com/sap-btp-guidance-framework/en/home" target="_self" rel="noopener noreferrer"&gt;dedicated series&lt;/A&gt; to bring you closer to the SAP BTP Guidance Framework.&lt;/P&gt;&lt;P data-unlink="true"&gt;&lt;SPAN&gt;In each of the 3 episodes, our experts will share why the &lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/sap-btp-guidance-framework/guidance-framework/what-is-sap-btp-guidance-framework" target="_self" rel="noopener noreferrer"&gt;&lt;SPAN&gt;SAP BTP Guidance Framework&lt;/SPAN&gt;&lt;/A&gt;&amp;nbsp;&lt;SPAN&gt;is the only link you’ll need for any and all SAP BTP projects. Whether you are an architect, developer or administrator, the SAP BTP Guidance Framework provides dedicated information about all the relevant tools and assets in one place, outlining a clear, structured approach to help you continuously innovate with SAP BTP.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="GF overview.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213389iE2D625CC30579BFE/image-size/large?v=v2&amp;amp;px=999" role="button" title="GF overview.png" alt="GF overview.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Each &lt;STRONG&gt;live session&lt;/STRONG&gt; targets a specific persona, but for a comprehensive overview, we highly recommend attending all 3 sessions.&lt;/P&gt;&lt;P&gt;And don't be shy! Our experts love engaging with our community and &lt;STRONG&gt;answering your questions.&lt;/STRONG&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1079518266"&gt;&lt;FONT color="#0000FF"&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Episode 1&lt;/SPAN&gt;&lt;SPAN class=""&gt;:&lt;/SPAN&gt; &lt;SPAN class=""&gt;Paving the way for architects&lt;/SPAN&gt;&lt;SPAN class=""&gt; to &lt;/SPAN&gt;&lt;SPAN class=""&gt;shine&lt;/SPAN&gt;&lt;SPAN class=""&gt; with SAP BTP&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;In episode 1, we’ll focus on &lt;STRONG&gt;architects&lt;/STRONG&gt;.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;As an SAP BTP architect, there are different tools and assets available to support you in your role. Do you know them all? Do you even know where to start? Probably not. That’s exactly where the SAP BTP Guidance Framework comes in. From decision guides and methodologies to SAP BTP reference architectures, we’ve compiled all the must-have information in one place. This makes it easier for you to find what you need, understand why you need it and successfully accomplish your tasks. You can best use the guiding assets of &lt;STRONG&gt;SAP BTP Guidance Framework&lt;/STRONG&gt; together with &lt;STRONG&gt;SAP LeanIX&lt;/STRONG&gt; enterprise architecture management solutions which allow you to plan, govern, and track the modernization of your IT landscape according to best practices from SAP.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Hint&lt;/STRONG&gt;: this session will also include a brief overview of the SAP BTP Guidance Framework. If you are completely new to the concept, even if you are not an architect, I highly recommend attending this first session.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":smiling_face_with_sunglasses:"&gt;😎&lt;/span&gt;&amp;nbsp; Meet our &lt;STRONG&gt;experts&lt;/STRONG&gt;:&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/6399"&gt;@KatrinVonAhsen&lt;/a&gt;&amp;nbsp;and&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/6850"&gt;@Rene_de_Daniel&lt;/a&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":right_arrow:"&gt;➡️&lt;/span&gt;&amp;nbsp; Register &lt;A href="https://events.sap.com/sap-btp-guidance-framework/en/home" target="_self" rel="noopener noreferrer"&gt;here&lt;/A&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":television:"&gt;📺&lt;/span&gt;&amp;nbsp;&amp;nbsp;&lt;A href="https://url.sap/cteanl" target="_self" rel="nofollow noopener noreferrer"&gt;Watch live&lt;/A&gt; on YouTube.&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId-883004761"&gt;&lt;SPAN&gt;&lt;FONT color="#0000FF"&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Episode &lt;/SPAN&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;SPAN class=""&gt;:&lt;/SPAN&gt;&lt;SPAN class=""&gt; Paving the way for &lt;/SPAN&gt;&lt;SPAN class=""&gt;d&lt;/SPAN&gt;&lt;SPAN class=""&gt;evelopers &lt;/SPAN&gt;&lt;SPAN class=""&gt;to &lt;/SPAN&gt;&lt;SPAN class=""&gt;innovate&lt;/SPAN&gt; &lt;SPAN class=""&gt;with&lt;/SPAN&gt;&lt;SPAN class=""&gt; SAP BTP&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;SPAN class=""&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;This session will focus on &lt;STRONG&gt;developers&lt;/STRONG&gt; and how they can benefit from the &lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/sap-btp-guidance-framework/guidance-framework/what-is-sap-btp-guidance-framework" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;SAP BTP Guidance Framework&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Developers have many tasks and interact with various puzzle pieces as they navigate through the ins and outs of their development projects. Without a clear understanding of what is available, then it could get messy and complicated very quickly. But worry not, the SAP BTP Guidance Framework is the answer to it all. It’s the single source of truth for all relevant SAP BTP assets and sources of information that you’ll need to successfully complete your development tasks.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Our expert will share how and why we compiled these assets and dive further into the &lt;A href="https://help.sap.com/docs/btp/btp-developers-guide/btp-developers-guide" target="_self" rel="noopener noreferrer"&gt;SAP BTP Developer's Guide&lt;/A&gt;&amp;nbsp;and &lt;A href="https://pages.community.sap.com/topics/low-code-no-code" target="_self" rel="noopener noreferrer"&gt;SAP Build&lt;/A&gt;. Both essential for kicking off any and all development projects on SAP BTP.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":smiling_face_with_sunglasses:"&gt;😎&lt;/span&gt;&amp;nbsp;&amp;nbsp;Meet our expert:&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1652555"&gt;@srivatsansundar1&lt;/a&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":right_arrow:"&gt;➡️&lt;/span&gt;&amp;nbsp; Register &lt;A href="https://events.sap.com/sap-btp-guidance-framework/en/home" target="_self" rel="noopener noreferrer"&gt;here&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":television:"&gt;📺&lt;/span&gt;&amp;nbsp;&amp;nbsp;&lt;A href="https://url.sap/5t6lmm" target="_self" rel="nofollow noopener noreferrer"&gt;Watch live&lt;/A&gt; on YouTube&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId-686491256"&gt;&lt;FONT color="#0000FF"&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;Episode &lt;/SPAN&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;SPAN class=""&gt;: Paving the way for &lt;/SPAN&gt;&lt;SPAN class=""&gt;administrators&lt;/SPAN&gt;&lt;SPAN class=""&gt; to &lt;/SPAN&gt;&lt;SPAN class=""&gt;operate&lt;/SPAN&gt;&lt;SPAN class=""&gt; efficiently &lt;/SPAN&gt;&lt;SPAN class=""&gt;with SAP BTP&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;With episode 3, we’ll turn our focus to the unsung heroes of day-to-day operations – the &lt;STRONG&gt;administrators.&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Administrators need to deal with several different tasks that span from onboarding to SAP BTP, to running and operating applications as smoothly as possible on the platform.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;This includes concepts like account structuring, deployment and observability and understanding how to use OpenTelemetry@SAP through SAP Cloud ALM for operations.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;But administrators are also responsible for enabling their teams to efficiently use SAP BTP. For example, by enabling agile development on SAP BTP and ensuring the right level of control.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;And last but not least, it’s important to understand how SAP supports administrators with tools, best practices and guidance. For instance, by reducing manual efforts around account provisioning and operating applications, and by integrating SAP BTP operation processes into a central operations platform like SAP Cloud ALM.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Our experts will share how all this and more is covered in the SAP BTP Guidance Framework with assets like the &lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/btp/btp-admin-guide/btp-admin-guide" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;SAP BTP Administrator Guide&lt;/SPAN&gt;&lt;/A&gt; &lt;SPAN&gt;and the new&amp;nbsp;SAP learning journey &lt;/SPAN&gt;&lt;A href="https://learning.sap.com/learning-journeys/administrating-sap-business-technology-platform" target="_blank" rel="noopener noreferrer"&gt;“Administrating SAP Business Technology Platform”&lt;/A&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":smiling_face_with_sunglasses:"&gt;😎&lt;/span&gt;&amp;nbsp; Meet our experts:&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/87"&gt;@BorisZarske&lt;/a&gt;,&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/129796"&gt;@stephaniejerch&lt;/a&gt;&amp;nbsp;and&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/11942"&gt;@NiklasSiemer&lt;/a&gt;&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":right_arrow:"&gt;➡️&lt;/span&gt;&amp;nbsp; Register &lt;A href="https://events.sap.com/sap-btp-guidance-framework/en/home" target="_self" rel="noopener noreferrer"&gt;here&lt;/A&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":television:"&gt;📺&lt;/span&gt;&amp;nbsp;&amp;nbsp;&lt;A href="https://www.youtube.com/live/6c3GO3NphDY" target="_self" rel="nofollow noopener noreferrer"&gt;Watch live&lt;/A&gt; on YouTube.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-unicode-emoji" title=":collision:"&gt;💥&lt;/span&gt;&amp;nbsp; Will you be attending? Do you already have questions for our experts? Let us know in the comments!&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":collision:"&gt;💥&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-sap/navigating-sap-btp-with-the-sap-btp-guidance-framework-live-series/ba-p/13988771"/>
     <published>2025-01-17T09:42:01.578000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/re-windows-username-automatically-populating-sapshcut-exe/qaq-p/13988785/comment-id/4899540#M4899540</id>
+    <title>Re: Windows Username automatically populating sapshcut.exe</title>
+    <updated>2025-01-17T09:46:41.018000+01:00</updated>
+    <author>
+      <name>beergamesbeer</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1722369</uri>
+    </author>
+    <content>&lt;P&gt;Hi Lucas,&lt;/P&gt;&lt;P&gt;This has fixed my issue - Many thanks!&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/re-windows-username-automatically-populating-sapshcut-exe/qaq-p/13988785/comment-id/4899540#M4899540"/>
+    <published>2025-01-17T09:46:41.018000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/more-than-one-validity-area-in-import-file/qaq-p/13988788</id>
+    <title>More than one validity area in import file</title>
+    <updated>2025-01-17T09:48:20.194000+01:00</updated>
+    <author>
+      <name>Vivian7</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1880959</uri>
+    </author>
+    <content>&lt;P&gt;Hello,&lt;/P&gt;&lt;P&gt;I am trying to load more than one Validity Area and Rating. But it gives back errors with the following options, maybe you have an idea.&lt;/P&gt;&lt;P&gt;For the load of just one Validity Area and Rating into Usage, I tried the following (and it worked):&lt;/P&gt;&lt;TABLE width="150"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="150"&gt;Usage&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;U:VACLID,RVLID&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;STRING.EXTERM&amp;lt;";"&amp;gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;PUBLIC;REG_WORLD&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;I tried that as well, but I was unsuccessful&lt;/P&gt;&lt;TABLE width="150"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="150"&gt;Usage&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;U:VACLID,RVLID&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;STRING.LIST&amp;lt;","&amp;gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;PUBLIC;CA,PUBLIC;US&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;Hopefully, one of you has a solution.&lt;/P&gt;&lt;P&gt;Thank you&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/more-than-one-validity-area-in-import-file/qaq-p/13988788"/>
+    <published>2025-01-17T09:48:20.194000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-blogs-by-sap/onboarding-2-0-additional-onboarding-data-collection-ui-configurations/bc-p/13988789#M8196</id>
+    <title>Re: Onboarding 2.0 – Additional Onboarding Data Collection UI Configurations</title>
+    <updated>2025-01-17T09:51:32.542000+01:00</updated>
+    <author>
+      <name>harishreddyd</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/153043</uri>
+    </author>
+    <content>&lt;P&gt;Hi&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/20755"&gt;@ivettemmatoth&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT face="arial black,avant garde"&gt;&lt;SPAN&gt;I think you should put the HTML code in the Init rule, not in the UI, because you can't save it that way. -&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;Do you have a sample screenshot of how it looks when you use HTML code in oninit rule? Please share your inputs.&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/5311"&gt;@smitajalit&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/17956"&gt;@Gopinath&lt;/a&gt;&amp;nbsp;- Appreciate if you can share your thoughts to setup this requirement.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-blogs-by-sap/onboarding-2-0-additional-onboarding-data-collection-ui-configurations/bc-p/13988789#M8196"/>
+    <published>2025-01-17T09:51:32.542000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/product-lifecycle-management-q-a/sap-dm-creation-of-a-custom-unit-of-measure/qaq-p/13988791</id>
+    <title>SAP DM - Creation of a Custom Unit of Measure</title>
+    <updated>2025-01-17T09:56:13.238000+01:00</updated>
+    <author>
+      <name>Yuri2</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1838669</uri>
+    </author>
+    <content>&lt;P&gt;Hi all,&lt;/P&gt;&lt;P&gt;I have just created a new unit of measure in SAP Digital Manufacturing using the API POST&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/product-lifecycle-management-q-a/sap-dm-creation-of-a-custom-unit-of-measure/qaq-p/13988791"/>
+    <published>2025-01-17T09:56:13.238000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/coffee-corner-discussions/how-it-s-like-beeing-a-quot-top-abap-blogger-quot/m-p/13988793#M3087</id>
+    <title>Re: How it's like beeing a "Top ABAP Blogger"</title>
+    <updated>2025-01-17T09:57:53.269000+01:00</updated>
+    <author>
+      <name>joachimrees1</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/3837</uri>
+    </author>
+    <content>&lt;P&gt;Thanks&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/4934"&gt;@Jelena_Perfiljeva&lt;/a&gt;&amp;nbsp;! &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&lt;BR /&gt;"Navigation by typo", now that's a nice search feature! &lt;span class="lia-unicode-emoji" title=":winking_face:"&gt;😉&lt;/span&gt; #SapCommunity&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/coffee-corner-discussions/how-it-s-like-beeing-a-quot-top-abap-blogger-quot/m-p/13988793#M3087"/>
+    <published>2025-01-17T09:57:53.269000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/how-to-check-your-custom-code-for-abap-cloud/bc-p/13988794#M59247</id>
+    <title>Re: How to check your custom code for ABAP Cloud</title>
+    <updated>2025-01-17T09:57:57.457000+01:00</updated>
+    <author>
+      <name>SriKrishna</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/167129</uri>
+    </author>
+    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/4266"&gt;@ThFiedler&lt;/a&gt;&amp;nbsp;Is arbitrary location supported now? any update on this.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="SriKrishna_0-1737104243138.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/213402i8C99384CDA6E1A9A/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="SriKrishna_0-1737104243138.png" alt="SriKrishna_0-1737104243138.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/how-to-check-your-custom-code-for-abap-cloud/bc-p/13988794#M59247"/>
+    <published>2025-01-17T09:57:57.457000+01:00</published>
   </entry>
 </feed>
