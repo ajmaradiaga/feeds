@@ -2,278 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-BTP-Kyma-runtime-blog-posts.xml</id>
   <title>SAP Community - SAP BTP, Kyma runtime</title>
-  <updated>2025-01-22T12:00:26.207804+00:00</updated>
+  <updated>2025-01-22T15:00:25.376012+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP BTP, Kyma runtime/pd-p/73554900100800003012" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP BTP, Kyma runtime blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/deploying-flux-1-schnell-model-on-sap-ai-core/ba-p/13867766</id>
-    <title>Deploying Flux.1 Schnell  Model on SAP AI Core</title>
-    <updated>2024-10-07T16:36:29.732000+02:00</updated>
-    <author>
-      <name>Mykhaylo</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1584309</uri>
-    </author>
-    <content>&lt;P&gt;Flux.1 Schnell is a cutting edge Text2Image model from black-forest-labs capable of generating very realistic Images with a simple prompt, just tell what you need and you'll get it.&lt;/P&gt;&lt;P&gt;Here is an example, I gave the model the following prompt: Blue birthday cake with SAP logo on top&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ezgif-3-548c14e448.jpg" style="width: 833px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/176337i0B745426AE6434DB/image-dimensions/833x833?v=v2" width="833" height="833" role="button" title="ezgif-3-548c14e448.jpg" alt="ezgif-3-548c14e448.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The Flux model can help you get the image that you are looking for in a couple of seconds/minutes, you can extend your prompt and get a result closer to what you expect.&lt;/P&gt;&lt;P&gt;The model as it is, is too big to be deployed on SAP AI Core, but we will quantize it to bypass this restriction.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Before we start there are a couple of things that you need to prepare:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;I recommend you to start by doing the official SAP AI Core tutorials on &lt;A href="https://developers.sap.com/group.ai-core-get-started-basics.html" target="_self" rel="noopener noreferrer"&gt;this page&lt;/A&gt;&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;SAP AI Core access on SAP BTP&lt;/LI&gt;&lt;LI&gt;Docker account connected to AI Core (you can find how to do it in the tutorials)&lt;/LI&gt;&lt;LI&gt;Github account connected to AI Core (also follow the tutorial)&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;When you're done we can finally start, the best way to execute this code is with Jupyter Notebook:&lt;/P&gt;&lt;P&gt;Firstly let's connect to AI Core and create the resource group:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from ai_core_sdk.models import Artifact
-from ai_core_sdk.ai_core_v2_client import AICoreV2Client
-
-ai_core_client = AICoreV2Client(
-    base_url = AICORE_API_BASE_JP,
-    auth_url=  AICORE_AUTH_URL_JP,
-    client_id = AICORE_CLIENT_ID_JP,
-    client_secret = AICORE_CLIENT_SECRET_JP
-)
-
-response = ai_core_client.resource_groups.create("flux")
-print(response)&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Let's write the code to serve our model:&lt;/P&gt;&lt;P&gt;Firstly I create a Pipeline Manager to manage our model, since the Flux 1 Schnell model is too large, we quantize it to&amp;nbsp;&lt;SPAN&gt;float16&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import torch
-from optimum.quanto import freeze, quantize, qint4
-from diffusers import FlowMatchEulerDiscreteScheduler, AutoencoderKL
-from diffusers.models.transformers.transformer_flux import FluxTransformer2DModel
-from diffusers.pipelines.flux.pipeline_flux import FluxPipeline
-from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5TokenizerFast
-
-class PipelineManager:
-    def __init__(self):
-        self.pipeline = None
-        self.load_model()  
-        
-    def load_model(self):
-        dtype = torch.float16
-
-        bfl_repo = "black-forest-labs/FLUX.1-schnell"
-        revision = "refs/pr/1"
-
-        scheduler = FlowMatchEulerDiscreteScheduler.from_pretrained(bfl_repo, subfolder="scheduler", revision=revision)
-        text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14", torch_dtype=dtype)
-        tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14", torch_dtype=dtype)
-        text_encoder_2 = T5EncoderModel.from_pretrained(bfl_repo, subfolder="text_encoder_2", torch_dtype=dtype, revision=revision)
-        tokenizer_2 = T5TokenizerFast.from_pretrained(bfl_repo, subfolder="tokenizer_2", torch_dtype=dtype, revision=revision)
-        vae = AutoencoderKL.from_pretrained(bfl_repo, subfolder="vae", torch_dtype=dtype, revision=revision)
-        transformer = FluxTransformer2DModel.from_pretrained(bfl_repo, subfolder="transformer", torch_dtype=dtype, revision=revision)
-        quantize(transformer, weights=qint4, exclude=["proj_out", "x_embedder", "norm_out", "context_embedder"])
-        freeze(transformer)
-        quantize(text_encoder_2, weights=qint4)
-        freeze(text_encoder_2)
-
-        DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-        pipe = FluxPipeline(
-            scheduler=scheduler,
-            text_encoder=text_encoder,
-            tokenizer=tokenizer,
-            text_encoder_2=None,
-            tokenizer_2=tokenizer_2,
-            vae=vae,
-            transformer=None,
-        )
-        pipe.text_encoder_2 = text_encoder_2
-        pipe.transformer = transformer
-        pipe.to(DEVICE)
-        self.pipeline = pipe
-
-    def get_pipeline(self):
-        if self.pipeline is None:
-            self.load_model()
-        return self.pipeline&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Than let's create a basic API using the fastapi to serve the model&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;from fastapi import FastAPI, HTTPException, UploadFile, File
-from fastapi.responses import StreamingResponse
-from io import BytesIO
-import subprocess
-import uvicorn
-from pydantic import BaseModel
-from typing import List
-import asyncio
-from asyncio import wait_for, TimeoutError
-import os, logging, shutil, signal
-
-app = FastAPI()
-
-PIPELINE_MANAGER = PipelineManager()
-
-# Define the inference request model
-class TextToImageRequest(BaseModel):
-    prompt: str
-    guidance_scale: float =  0.0
-    num_inference_steps: int =  4
-    max_sequence_length: int =  256
-    seed: int = 0
-
-@app.post('/v1/generate-image')
-async def generate_image(request: TextToImageRequest):
-    try: 
-        content = request
-        prompt = content.prompt
-        guidance_scale = content.guidance_scale
-        num_inference_steps = content.num_inference_steps
-        max_sequence_length = content.max_sequence_length
-        seed = content.seed
-        LOGGER.info("Request parsed")
-        pipe = PIPELINE_MANAGER.get_pipeline()
-        LOGGER.info("Pipeline received")
-
-        # Generate the image
-        generator = torch.Generator().manual_seed(seed)
-        LOGGER.info("Torch generator created")
-        image = pipe(
-            prompt,
-            guidance_scale=guidance_scale,
-            num_inference_steps=num_inference_steps,
-            max_sequence_length=max_sequence_length,
-            generator=generator
-        ).images[0]
-        LOGGER.info("Image generated")
-
-        # Save image to a BytesIO buffer
-        buffer = BytesIO()
-        image.save(buffer, format="PNG")
-        LOGGER.info("Image saved")
-        buffer.seek(0)
-
-        # Send the buffer as a response
-        LOGGER.info("Image is about to be returned")
-        return StreamingResponse(buffer, media_type="image/png")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error during the image generation. Details: {e}")
-
-def main()-&amp;gt;None:
-    host_port = int(os.environ.get("HOST_PORT",8085))
-    LOGGER.info("Starting application")
-    uvicorn.run(app, host="0.0.0.0", port=host_port)
-
-if __name__ == "__main__":
-    main()&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Here are the requirements, save them as requirements.txt&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;transformers==4.43.4
-transformer-utils==0.1.1
-sentencepiece==0.2.0
-torch==2.4.0
-torchvision==0.19.0
-urllib3==2.2.2
-Werkzeug==3.0.3
-protobuf==5.27.3 
-optimum-quanto==0.2.4
-accelerate==0.33.0
-diffusers==0.30.0
-fastapi==0.112.1
-uvicorn==0.30.6
-pydantic==2.8.2
-typing==3.7.4.3
-asyncio==3.4.3
-requests==2.32.3
-python-multipart==0.0.9&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The next step is to create the docker Image, firstly log in in to your account:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;docker login DOCKER_REGISTRY -u DOCKER_USERNAME&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Than let's create our Docker file:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
-
-WORKDIR /code
-
-ENV HOST_PORT=8085
-ENV PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-ENV HF_HOME=/code/cache
-ENV HOME=/code
-ENV PATH=/code/.local/bin:$PATH
-ENV CUDA_HOME=/usr/local/cuda-12.1
-
-RUN mkdir -p ${HF_HOME} &amp;amp;&amp;amp; chown -R nobody:nogroup ${HF_HOME} /code
-
-USER root
-
-# Install build-essential (includes gcc/g++ compilers and related tools)
-RUN apt-get update &amp;amp;&amp;amp; \
-    apt-get install -y build-essential &amp;amp;&amp;amp; \
-    rm -rf /var/lib/apt/lists/*
-
-USER nobody
-
-COPY requirements.txt /code
-
-RUN pip install --no-cache-dir --user -r requirements.txt
-
-COPY main.py /code
-
-USER root
-
-RUN chown nobody:nogroup /code/main.py /code/requirements.txt 
-RUN chown -R nobody:nogroup /code/main.py /code/requirements.txt 
-
-EXPOSE 8085
-
-CMD ["python", "main.py"]&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Open again the terminal to create and push our docker image&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;docker build -t docker.io/DOCKER_USERNAME/flux:latest .
-docker push docker.io/DOCKER_USERNAME/flux:latest&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The next step is to create a GitHub repository and add the following serving yaml file to it:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;apiVersion: ai.sap.com/v1alpha1
-kind: ServingTemplate
-metadata:
-  name: flux-1 #Enter a unique name here
-  annotations:
-    scenarios.ai.sap.com/description: "Flux image generation"
-    scenarios.ai.sap.com/name: "flux-clf"
-    executables.ai.sap.com/description: "Flux Model Serving executable"
-    executables.ai.sap.com/name: "flux-serve-exectuable"
-  labels:
-    scenarios.ai.sap.com/id: "flux-clf"
-    ai.sap.com/version: "1.0.0"
-spec:
-  template:
-    apiVersion: "serving.kubeflow.org/v1beta1"
-    metadata:
-      labels: |
-        ai.sap.com/resourcePlan: infer.l
-    spec: |
-      predictor:
-        imagePullSecrets:
-          - name: your-docker-registry-secret
-        containers:
-          - name: kfserving-container
-            image: "docker.io/DOCKER_USERNAME/flux:latest"
-            ports:
-              - containerPort: 8085
-                protocol: TCP
-            env:
-              - name: HOST_PORT
-                value: "8085"&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;It should look like this:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2024-09-17 at 16.47.00.png" style="width: 372px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/167235iA53EC6E4D83570C6/image-dimensions/372x141?v=v2" width="372" height="141" role="button" title="Screenshot 2024-09-17 at 16.47.00.png" alt="Screenshot 2024-09-17 at 16.47.00.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Remember to replace the DOCKER_USERNAME with your actual docker username and your-docker-registry-secret with your actual docker registry secret in AI Core.&lt;/P&gt;&lt;P&gt;We can now finally create an application in AI Core with the SDK, so open Jupyter once again:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;response = ai_core_client.applications.create(
-    application_name = "flux-clf-app-1",
-    revision = "HEAD",
-    repository_url = "https://github.com/GITHUB-USERNAME/flux-1", 
-    path = "pipelines"
-)
-print(response)&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;If the operation was successful we can now switch to the AI Core GUI to complete the last steps, log in in to your account, choose the right workspace and resource group. Go to ML Operations -&amp;gt; Configurations -&amp;gt; Create&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2024-09-17 at 16.57.33.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/167241iFB8439159E6EC4FF/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Screenshot 2024-09-17 at 16.57.33.png" alt="Screenshot 2024-09-17 at 16.57.33.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Choose the following parameters:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2024-09-17 at 17.01.26 (2).png" style="width: 774px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/167245iC93735EFCFAB8E36/image-dimensions/774x460?v=v2" width="774" height="460" role="button" title="Screenshot 2024-09-17 at 17.01.26 (2).png" alt="Screenshot 2024-09-17 at 17.01.26 (2).png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt; Skip the Input Parameters and Artifacts and click "Create", now choose "Create Deployment"&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2024-09-17 at 17.01.00 (1).png" style="width: 765px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/167246i789C89A71F8F59A3/image-dimensions/765x463?v=v2" width="765" height="463" role="button" title="Screenshot 2024-09-17 at 17.01.00 (1).png" alt="Screenshot 2024-09-17 at 17.01.00 (1).png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;After you create your deployment you have to wait a couple of minutes for the app to pull the model and start, when it's ready you will get the app url to use, it will look like this:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2024-09-17 at 17.07.07 (1).png" style="width: 793px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/167248i342658E6CECC418B/image-dimensions/793x480?v=v2" width="793" height="480" role="button" title="Screenshot 2024-09-17 at 17.07.07 (1).png" alt="Screenshot 2024-09-17 at 17.07.07 (1).png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Now let's test our app:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import requests
-from ai_core_sdk.ai_core_v2_client import AICoreV2Client
-from dotenv import load_dotenv
-import os
-load_dotenv()
-
-# Endpoint URL
-base = "APP_URL"
-url = base + "/v1/generate-image"
-
-# JSON payload with parameters for image generation
-payload = {
-    "prompt": "A beautiful landscape of southern Germany, with some mountains and a lake",  
-    "guidance_scale": 7,   
-    "num_inference_steps": 50,  
-    "max_sequence_length": 512, 
-    "seed": 42                        
-}
-
-ai_core_client = AICoreV2Client(
-    base_url = os.environ['AICORE_API_BASE_JP'],
-    auth_url=  os.environ['AICORE_AUTH_URL_JP'],
-    client_id = os.environ['AICORE_CLIENT_ID_JP'],
-    client_secret = os.environ['AICORE_CLIENT_SECRET_JP']
-)
-
-headers = {"Authorization": ai_core_client.rest_client.get_token(),
-           'ai-resource-group': "flux",
-           "Content-Type": "application/json"}
-
-response = requests.post(url, json=payload, headers=headers)
-
-# Check if the request was successful
-if response.status_code == 200:
-    # Save the image to a file
-    print("Image generated successfully")
-    with open("generated_image.png", "wb") as f:
-        f.write(response.content)
-    print("Image successfully saved as 'generated_image.png'")
-else:
-    print(f"Failed to generate image. Status code: {response.status_code}")
-    print(f"Response: {response.text}")&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;This is the result Image that we got back:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="generated_image.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/167249i4D92A361D6BD7B2D/image-size/medium?v=v2&amp;amp;px=400" role="button" title="generated_image.png" alt="generated_image.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Here are some other examples of images generated with the Flux1 Schnell model:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="generated_image-4.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/176353i9841CEF32353FE83/image-size/medium?v=v2&amp;amp;px=400" role="button" title="generated_image-4.png" alt="generated_image-4.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt; &lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="generated_image-3.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/176354iCCCDB672F16759AB/image-size/medium?v=v2&amp;amp;px=400" role="button" title="generated_image-3.png" alt="generated_image-3.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt; &lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="generated_image-1.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/176355i1E7717392E21C106/image-size/medium?v=v2&amp;amp;px=400" role="button" title="generated_image-1.png" alt="generated_image-1.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt; &lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="6"&gt;Conclusion&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;The AI World is continuously evolving, a technology never changed this quickly before. Every new version provides a better result. In this race is crucially important to keep up with the evolution and SAP AI Core can help you with this. &lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;Always use the AI ethically and responsibly .&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;Here are a couple of references:&lt;BR /&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;- &lt;A href="https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/what-is-sap-ai-core" target="_self" rel="noopener noreferrer"&gt;What is SAP AI Core&lt;/A&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;- &lt;A href="https://discovery-center.cloud.sap/serviceCatalog/sap-ai-core?region=all" target="_self" rel="nofollow noopener noreferrer"&gt;SAP AI Core discover center&lt;/A&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;- &lt;A href="https://huggingface.co/black-forest-labs/FLUX.1-schnell" target="_self" rel="nofollow noopener noreferrer"&gt;Flux 1 Schnell official page&lt;/A&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt; &lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/deploying-flux-1-schnell-model-on-sap-ai-core/ba-p/13867766"/>
-    <published>2024-10-07T16:36:29.732000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-sap/check-out-the-updated-sap-btp-developer-s-guide-and-let-us-know-what-you/ba-p/13892927</id>
     <title>Check out the updated SAP BTP Developer's Guide and let us know what you think</title>
@@ -1067,5 +799,27 @@ helm install langfuse . -n langfuse-v3-preview&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;
     <content>&lt;P&gt;In integration flows, aggregators play a crucial role in collecting messages until a specific condition is met. Here's a breakdown of their functionality:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Purpose:&lt;/STRONG&gt; Aggregators gather messages across multiple executions of an integration flow, not just one.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Process:&lt;/STRONG&gt; If the flow receives three messages, the same aggregator instance collects all of them.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Storage:&lt;/STRONG&gt; Messages are stored in a data store (supports XML, plain text messages).&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vamsikk_0-1736929826107.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/212147i6160620D5753225C/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vamsikk_0-1736929826107.png" alt="vamsikk_0-1736929826107.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Configuration:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;General Tab:&lt;/STRONG&gt; Assign a descriptive name to your aggregator for easy identification.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Correlation Tab:&lt;/STRONG&gt; Define the field used to group related messages. For instance, messages with the same "CustomerID" will be grouped together.&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Example:&lt;/STRONG&gt; Aggregating employee, personal, and student records based on their IDs. Messages with the same ID (e.g., "Emp123," "Per456," "Stu789") will be combined, while those with different IDs will be collected separately within the same aggregator.&lt;/LI&gt;&lt;LI&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-01-08 174444.png" style="width: 782px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/212151iEAA158118F80D92A/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-01-08 174444.png" alt="Screenshot 2025-01-08 174444.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;LI&gt;&lt;STRONG&gt;Aggregation Strategy:&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Incoming Format:&lt;/STRONG&gt; Always set to XML, as aggregators currently support this format only.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Aggregation Algorithm:&lt;/STRONG&gt; Choose between two options:&lt;/LI&gt;&lt;/OL&gt;&lt;UL&gt;&lt;OL&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Combine:&lt;/STRONG&gt; Concatenates collected messages in the order they are received.&lt;/LI&gt;&lt;LI&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-01-08 174602.png" style="width: 877px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/212153i99A6DEAEE914B626/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-01-08 174602.png" alt="Screenshot 2025-01-08 174602.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Combine in Sequence:&lt;/STRONG&gt; Orders/sorts collected messages based on a field specified in the "Message Sequence Expression" parameter.&lt;BR /&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-01-08 174527.png" style="width: 925px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/212152i3BA493653523974B/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-01-08 174527.png" alt="Screenshot 2025-01-08 174527.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/OL&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;1.Message Sequence Expression (XPath):&lt;/STRONG&gt; (Enabled only for "Combin&lt;SPAN&gt;e in Sequence")&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;OL&gt;&lt;UL&gt;&lt;LI&gt;Define the XPath of the field used for sorting messages within the aggregator.&lt;/LI&gt;&lt;/UL&gt;&lt;/OL&gt;&lt;/UL&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Last Message Condition (XPath):&lt;/STRONG&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;UL&gt;&lt;OL&gt;&lt;UL&gt;&lt;LI&gt;Specify a field and its corresponding value to mark the end of message collection.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Example:&lt;/STRONG&gt; /PersonalDetails/PersonalDetail/PersonID = '1' - When an ID of "1" is received, the aggregator stops processing and proceeds to the next step.&lt;/LI&gt;&lt;/UL&gt;&lt;/OL&gt;&lt;/UL&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Completion Timeout (in minutes):&lt;/STRONG&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;UL&gt;&lt;OL&gt;&lt;UL&gt;&lt;LI&gt;Set the maximum time (in minutes) the aggregator waits for messages before processing the next steps in the pipeline.&lt;/LI&gt;&lt;/UL&gt;&lt;/OL&gt;&lt;/UL&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Data Store Name:&lt;/STRONG&gt; (Usually auto-populated) This field displays the data store used for storing collected messages.&lt;BR /&gt;&lt;P&gt;By understanding aggregators, you can optimize message handling within your integration flows, ensuring efficient processing and data management.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="aggregator1.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/212155i60DA2D9140229651/image-size/large?v=v2&amp;amp;px=999" role="button" title="aggregator1.png" alt="aggregator1.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-01-08 175644.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/212156i4F58AC0A4247CC1D/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-01-08 175644.png" alt="Screenshot 2025-01-08 175644.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-01-08 175805.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/212157i62E8B1B0DF818F09/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-01-08 175805.png" alt="Screenshot 2025-01-08 175805.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-members/aggregators-streamlining-message-handling-in-integration-flows/ba-p/13986318"/>
     <published>2025-01-17T15:36:24.244000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/crm-and-cx-blogs-by-sap/subscribing-sap-commerce-business-events-in-kyma-by-executing-serverless/ba-p/13990811</id>
+    <title>Subscribing SAP Commerce business events in Kyma by executing serverless Functions</title>
+    <updated>2025-01-22T13:29:45.440000+01:00</updated>
+    <author>
+      <name>ksarnicki</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1700269</uri>
+    </author>
+    <content>&lt;H3 id="toc-hId-1209286953"&gt;Introduction&lt;/H3&gt;&lt;P&gt;A subject of this post is to show how to send business events like:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;customer created&lt;/LI&gt;&lt;LI&gt;password forgotten&lt;/LI&gt;&lt;LI&gt;order created&lt;/LI&gt;&lt;LI&gt;product added to cart&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;from SAP Commerce to BTP, Kyma Runtime and subscribe to them by executing a serverless Function.&lt;/P&gt;&lt;H3 id="toc-hId-1012773448"&gt;Prerequisites&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;SAP Commerce instance installed&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/getting-started-with-trial-account-in-kyma-environment" target="_self" rel="noopener noreferrer"&gt;SAP BTP global account &amp;amp; subaccount created and Trial Kyma environment enabled&amp;nbsp;&lt;/A&gt;&amp;nbsp;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-816259943"&gt;Integrate SAP Commerce with BTP, Kyma Runtime&lt;/H3&gt;&lt;P&gt;1. Add following Kyma-related extensions in &lt;STRONG&gt;localextensions.xml&lt;/STRONG&gt; file:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;&amp;lt;extension name='kymaintegrationbackoffice' /&amp;gt;
+&amp;lt;extension name='kymaintegrationservices' /&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;2. Build &amp;amp; start a platform.&lt;/P&gt;&lt;P&gt;3. When SAP Commerce is up, go to:&amp;nbsp;&lt;STRONG&gt;&lt;EM&gt;System-&amp;gt;Update &lt;/EM&gt;&lt;/STRONG&gt;in HAC, select "&lt;STRONG&gt;Update Running System&lt;/STRONG&gt;", then select extensions:&lt;/P&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;&lt;STRONG&gt;kymaintegrationbackoffice&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;kymaintegrationservices&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;and execute the update.&lt;/P&gt;&lt;P&gt;4. In Backoffice, go to: &lt;EM&gt;&lt;STRONG&gt;System-&amp;gt;API-&amp;gt;Destination Targets&lt;/STRONG&gt;&lt;/EM&gt;, select "&lt;STRONG&gt;Default_Template"&lt;/STRONG&gt; and execute action: &lt;STRONG&gt;"Register Destination Target"&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_0-1737375318251.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214396i7E070E1DFD6D7601/image-size/medium?v=v2&amp;amp;px=400" role="button" title="ksarnicki_0-1737375318251.png" alt="ksarnicki_0-1737375318251.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;5. Provide following fields in the registration form:&lt;/P&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;Token URL: &lt;EM&gt;[&lt;STRONG&gt;will be available after registering SAP Commerce instance in BTP cockpit&lt;/STRONG&gt;]&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;New destination's id:&amp;nbsp;&lt;STRONG&gt;&lt;EM&gt;BTP_KYMA_RUNTIME&lt;/EM&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_2-1737375867322.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214400i53F421BD1D41B85F/image-size/medium?v=v2&amp;amp;px=400" role="button" title="ksarnicki_2-1737375867322.png" alt="ksarnicki_2-1737375867322.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-619746438"&gt;Register SAP Commerce in BTP cockpit and expose it to BTP, Kyma Runtime&lt;/H3&gt;&lt;P&gt;1. Enter the BTP global account and&amp;nbsp;&lt;SPAN&gt;go to:&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;EM&gt;System Landscape-&amp;gt;Systems&lt;/EM&gt;&amp;nbsp;&lt;/STRONG&gt;and&amp;nbsp; select: "&lt;STRONG&gt;Add System"&lt;/STRONG&gt;. Provide following fields in the form:&lt;/P&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;&lt;SPAN class=""&gt;System Type: select "&lt;STRONG&gt;&lt;EM&gt;SAP Commerce Cloud&lt;/EM&gt;&lt;/STRONG&gt;"&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN class=""&gt;System Name:&amp;nbsp;&lt;STRONG&gt;&lt;EM&gt;local SAP Commerce instance&lt;/EM&gt;&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_0-1737376870749.png" style="width: 706px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214405i88E85A55A6ED4E84/image-dimensions/706x143?v=v2" width="706" height="143" role="button" title="ksarnicki_0-1737376870749.png" alt="ksarnicki_0-1737376870749.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;2. After adding the system, get the required token URL:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_1-1737377109709.png" style="width: 693px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214407iB6284DC25AB2D381/image-dimensions/693x137?v=v2" width="693" height="137" role="button" title="ksarnicki_1-1737377109709.png" alt="ksarnicki_1-1737377109709.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_2-1737377890413.png" style="width: 681px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214418i80A2F6C3FB485292/image-dimensions/681x80?v=v2" width="681" height="80" role="button" title="ksarnicki_2-1737377890413.png" alt="ksarnicki_2-1737377890413.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;3. Paste the token to previous form in SAP Commerce Backoffice and finish the registration:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_4-1737378025098.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214420i4F72677EB56BABDB/image-size/medium?v=v2&amp;amp;px=400" role="button" title="ksarnicki_4-1737378025098.png" alt="ksarnicki_4-1737378025098.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;4. See newly created &lt;STRONG&gt;"BTP_KYMA_RUNTIME"&lt;/STRONG&gt; destination target&amp;nbsp;with configuration of API to be exposed and events to be emitted:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_5-1737378560496.png" style="width: 481px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214422iF3F98F7C2E7CFC04/image-dimensions/481x362?v=v2" width="481" height="362" role="button" title="ksarnicki_5-1737378560496.png" alt="ksarnicki_5-1737378560496.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;5. Expose registered SAP Commerce system to BTP, Kyma Runtime. In BTP Cockpit (global account) go to:&amp;nbsp;&lt;STRONG&gt;&lt;EM&gt;System Landscape-&amp;gt;Formations&lt;/EM&gt;&amp;nbsp;&lt;/STRONG&gt;and select: "&lt;STRONG&gt;Create Formation"&lt;/STRONG&gt;. In the form provide:&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;Formation Name:&amp;nbsp;&lt;EM&gt;&lt;STRONG&gt;SAP Commerce To Kyma&lt;/STRONG&gt;&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;Formation Type: select "&lt;EM&gt;&lt;STRONG&gt;Side-by-Side Extensibility with Kyma&lt;/STRONG&gt;&lt;/EM&gt;"&lt;/LI&gt;&lt;LI&gt;Subaccount: select &lt;EM&gt;&lt;STRONG&gt;[your_subaccount]&lt;/STRONG&gt;&lt;/EM&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_0-1737380378808.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214433i31ED9780352466C8/image-size/medium?v=v2&amp;amp;px=400" role="button" title="ksarnicki_0-1737380378808.png" alt="ksarnicki_0-1737380378808.png" /&gt;&lt;/span&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;P&gt;6. In the next step, select registered system:&amp;nbsp;&lt;EM&gt;&lt;STRONG&gt;local SAP Commerce instance&lt;/STRONG&gt;&lt;/EM&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_1-1737380486259.png" style="width: 461px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214434i768F8B021CB0052C/image-dimensions/461x212?v=v2" width="461" height="212" role="button" title="ksarnicki_1-1737380486259.png" alt="ksarnicki_1-1737380486259.png" /&gt;&lt;/span&gt;&lt;P&gt;7. SAP Commerce system is exposed to Kyma now:&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_2-1737380806349.png" style="width: 460px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214438i4A620C1F80962781/image-dimensions/460x245?v=v2" width="460" height="245" role="button" title="ksarnicki_2-1737380806349.png" alt="ksarnicki_2-1737380806349.png" /&gt;&lt;/span&gt;&lt;H3 id="toc-hId-423232933"&gt;Configure Kyma and check if SAP Commerce is connected in Kyma dashboard&lt;/H3&gt;&lt;P&gt;1. Enter BTP cockpit &lt;U&gt;subaccount&lt;/U&gt;, select&amp;nbsp;&lt;STRONG&gt;&lt;EM&gt;Overview&lt;/EM&gt;&amp;nbsp;&lt;/STRONG&gt;from menu and go to &lt;EM&gt;&lt;STRONG&gt;Kyma Environment&lt;/STRONG&gt;&lt;/EM&gt; section. You should already have the Kyma environment enabled (if not, go to the link given in "&lt;STRONG&gt;Prerequisites"&amp;nbsp;&lt;/STRONG&gt;paragraph). Enter the Kyma dashboard:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_3-1737381386644.png" style="width: 579px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214444iF826C3662344654A/image-dimensions/579x220?v=v2" width="579" height="220" role="button" title="ksarnicki_3-1737381386644.png" alt="ksarnicki_3-1737381386644.png" /&gt;&lt;/span&gt;&lt;P&gt;2. In "&lt;STRONG&gt;Cluster Details"&lt;/STRONG&gt;&amp;nbsp;(main view after selecting the cluster) go to: &lt;STRONG&gt;&lt;EM&gt;Configuration-&amp;gt;Modules&lt;/EM&gt;&amp;nbsp;&lt;/STRONG&gt;and click "&lt;STRONG&gt;Add"&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;3. Select following modules and add them:&lt;/P&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;&lt;STRONG&gt;application-connector&lt;/STRONG&gt; - to connect with registered SAP Commerce system in BTP&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;eventing&lt;/STRONG&gt; - to handle events emmited by SAP Commerce&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;nats&lt;/STRONG&gt; - to use NATS server as a backend for eventing&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;serverless&lt;/STRONG&gt; - to use serverless Kyma Functions&lt;/LI&gt;&lt;/UL&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_0-1737383167009.png" style="width: 482px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214458i1994AB8D9069123B/image-dimensions/482x431?v=v2" width="482" height="431" role="button" title="ksarnicki_0-1737383167009.png" alt="ksarnicki_0-1737383167009.png" /&gt;&lt;/span&gt;&lt;P&gt;4. To properly enable the eventing functionality, edit &lt;STRONG&gt;eventing&lt;/STRONG&gt; module and set backend type to &lt;EM&gt;&lt;STRONG&gt;NATS&lt;/STRONG&gt;.&lt;/EM&gt;&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_1-1737389559079.png" style="width: 645px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214519i461D94A3B75799F8/image-dimensions/645x332?v=v2" width="645" height="332" role="button" title="ksarnicki_1-1737389559079.png" alt="ksarnicki_1-1737389559079.png" /&gt;&lt;/span&gt;&lt;P&gt;5. Enter "&lt;STRONG&gt;Cluster Details"&lt;/STRONG&gt;&amp;nbsp;view and go to &lt;STRONG&gt;&lt;EM&gt;Integration-&amp;gt;Application&lt;/EM&gt;&amp;nbsp;&lt;/STRONG&gt;and check if you see local SAP Commerce instance connected:&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_0-1737451274459.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214823iB97A39B26B35D574/image-size/medium?v=v2&amp;amp;px=400" role="button" title="ksarnicki_0-1737451274459.png" alt="ksarnicki_0-1737451274459.png" /&gt;&lt;/span&gt;&lt;P&gt;If not, please check if "&lt;STRONG&gt;BTP_KYMA_RUNTIME&lt;/STRONG&gt;"&amp;nbsp;destination target has already "&lt;STRONG&gt;Registered&lt;/STRONG&gt;" status in Backoffice.&lt;/P&gt;&lt;H3 id="toc-hId-226719428"&gt;Create serverless Function and Subscription to SAP Commerce event&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;1. Create a serverless Function that logs the "&lt;STRONG&gt;customer created&lt;/STRONG&gt;" event emitted by SAP Commerce after customer registration. Thus, go to &lt;EM&gt;&lt;STRONG&gt;Namespaces&lt;/STRONG&gt;&lt;/EM&gt;&amp;nbsp;and select "&lt;STRONG&gt;default&lt;/STRONG&gt;". Then go to &lt;EM&gt;&lt;STRONG&gt;Workloads-&amp;gt;Functions&amp;nbsp;&lt;/STRONG&gt;&lt;/EM&gt;and create the function.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;2. Provide following fields in the form:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;&lt;SPAN&gt;Name - &lt;EM&gt;&lt;STRONG&gt;customer-created&lt;/STRONG&gt;&lt;/EM&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;Source Type: &lt;EM&gt;&lt;STRONG&gt;Inline&lt;/STRONG&gt;&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;Language: &lt;EM&gt;&lt;STRONG&gt;JavaScript&lt;/STRONG&gt;&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;Runtime: &lt;EM&gt;&lt;STRONG&gt;Node.js 20&lt;/STRONG&gt;&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;Source:&lt;/LI&gt;&lt;/UL&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;    module.exports = {
+       main: async function (event, context) {
+       console.log("Customer created:", event.data);
+       return;
+       }
+   }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_2-1737455134552.png" style="width: 641px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214855i8777984060D9A5BB/image-dimensions/641x445?v=v2" width="641" height="445" role="button" title="ksarnicki_2-1737455134552.png" alt="ksarnicki_2-1737455134552.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;3. After creating the function wait until its state is "&lt;STRONG&gt;Running&lt;/STRONG&gt;":&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_0-1737465145546.png" style="width: 782px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214984i758C739A27DFB6A9/image-dimensions/782x45?v=v2" width="782" height="45" role="button" title="ksarnicki_0-1737465145546.png" alt="ksarnicki_0-1737465145546.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;4. In the Backoffice, in previously created &lt;STRONG&gt;BTP_KYMA_RUNTIME&lt;/STRONG&gt; Destination Target, in&amp;nbsp;&lt;SPAN&gt;&lt;STRONG&gt;Destinations and Event Configurations&amp;nbsp;&lt;/STRONG&gt;&lt;/SPAN&gt;section there are pre-defined events' ids available, i.a.:&lt;/P&gt;&lt;P&gt;- &lt;STRONG&gt;customer.created.v1&lt;/STRONG&gt; - emitted after customer registration&lt;/P&gt;&lt;P&gt;- &lt;STRONG&gt;order.created.v1&lt;/STRONG&gt; -&amp;nbsp;emitted after placing order&lt;/P&gt;&lt;P&gt;- &lt;STRONG&gt;password.forgotten.v1&lt;/STRONG&gt; - emitted after password forgotten action triggered&lt;/P&gt;&lt;P&gt;-&amp;nbsp;&lt;STRONG&gt;product.addtocart.v1&lt;/STRONG&gt; - emitted after adding product to the cart&lt;/P&gt;&lt;P&gt;We will use&amp;nbsp;&lt;STRONG&gt;customer.created.v1&lt;/STRONG&gt; event in our example.&lt;/P&gt;&lt;P&gt;5. To subscribe the event, create a Subscription resource. In the Kyma dashboard (&lt;STRONG&gt;"default"&lt;/STRONG&gt; namespace view) go to &lt;STRONG&gt;&lt;EM&gt;Configuration-&amp;gt;Subscriptions&lt;/EM&gt;&amp;nbsp;&lt;/STRONG&gt;and create the Subscription. Provide following fields in the form:&lt;/P&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;Name: &lt;EM&gt;&lt;STRONG&gt;customer-created-sub&lt;/STRONG&gt;&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;Types: &lt;EM&gt;&lt;STRONG&gt;customer.created.v1&lt;/STRONG&gt;&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;Service: select "&lt;EM&gt;&lt;STRONG&gt;customer-created"&amp;nbsp;&lt;/STRONG&gt;&lt;/EM&gt;(name of previously created Function)&lt;/LI&gt;&lt;LI&gt;Sink: &lt;EM&gt;&lt;STRONG&gt;[automatically populated after selecting the service]&lt;/STRONG&gt;&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;Type matching: &lt;STRONG&gt;Standard&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;Source: select&amp;nbsp;&lt;EM&gt;&lt;STRONG&gt;mp-local-sap-commerce-instance&amp;nbsp;&lt;/STRONG&gt;&lt;/EM&gt;(previously connected SAP Commerce instance)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_0-1737467085441.png" style="width: 629px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214994iA2A4C354D64B3007/image-dimensions/629x517?v=v2" width="629" height="517" role="button" title="ksarnicki_0-1737467085441.png" alt="ksarnicki_0-1737467085441.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;6. All configuration steps are finished when a Subscription has status &lt;STRONG&gt;"Ready"&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_1-1737467294518.png" style="width: 776px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/214995i7315AE3214CD14C4/image-dimensions/776x40?v=v2" width="776" height="40" role="button" title="ksarnicki_1-1737467294518.png" alt="ksarnicki_1-1737467294518.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-30205923"&gt;Register new customer on the storefront to test "customer created" event&amp;nbsp;&lt;/H3&gt;&lt;P&gt;1. Go to storefront and register new user:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ksarnicki_0-1737472882710.png" style="width: 537px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/215036iFF2F20EB78FCCCAB/image-dimensions/537x420?v=v2" width="537" height="420" role="button" title="ksarnicki_0-1737472882710.png" alt="ksarnicki_0-1737472882710.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;2. You should see similar logs about emitting the event to Kyma in the SAP Commerce:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;INFO [Thread-14] [KymaEventEmitStrategy] Event (EventId : df428555-e4d5-4436-aa21-f9a9994a8854) sending response : &amp;lt;200,{"event-id":"df428555-e4d5-4436-aa21-f9a9994a8854","status":"","reason":""},[content-length:"76", content-type:"application/json", date:"Tue, 21 Jan 2025 15:06:35 GMT", server:"istio-envoy", x-envoy-upstream-service-time:"36"]&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;3. In Kyma dashboard select "&lt;STRONG&gt;customer-created"&lt;/STRONG&gt; Function previously created, go to&amp;nbsp;&lt;SPAN&gt;section&amp;nbsp;&lt;/SPAN&gt;&lt;EM&gt;&lt;STRONG&gt;Replicas of the Function&lt;/STRONG&gt;&lt;/EM&gt;&lt;SPAN&gt;&amp;nbsp;and select the replica, then go to &lt;EM&gt;&lt;STRONG&gt;Containers&lt;/STRONG&gt;&lt;/EM&gt; section and click "&lt;STRONG&gt;View Logs".&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;You can find following logs with the event payload produced by the function after&amp;nbsp;&lt;STRONG&gt;"customer created"&lt;/STRONG&gt; event.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;Customer created: {
+   customerId: '5c2ef4c2-e6a8-4094-bb53-8f08c7dcefe3',
+   customerUid: 'jan.kowalski@gmail.com',
+   storeUid: 'electronics'
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--166307582"&gt;Conclusion&lt;/H3&gt;&lt;P&gt;We used BTP, Kyma Runtime to subscribe business events emitted from SAP Commerce. Created serverless Function that was a subscriber just logged the event payload. Nevertheless, we can use the Function to execute any logic written in node.js or Python, like complex calculations, storing data in external database, calling the API exposed by SAP Commerce or integrating with 3rd party services. Function body itself can be defined in &lt;STRONG&gt;Inline&lt;/STRONG&gt; mode (source code added during Function creation)&amp;nbsp; or fetched from indicated &lt;STRONG&gt;Git repository&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/crm-and-cx-blogs-by-sap/subscribing-sap-commerce-business-events-in-kyma-by-executing-serverless/ba-p/13990811"/>
+    <published>2025-01-22T13:29:45.440000+01:00</published>
   </entry>
 </feed>
