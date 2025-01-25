@@ -2,159 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-RESTful-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2025-01-25T09:00:05.604922+00:00</updated>
+  <updated>2025-01-25T12:00:06.465848+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/how-to-call-rap-actions-with-table-types-from-a-list-report/ba-p/13969836</id>
-    <title>How to Call RAP Actions with Table Types from a List Report</title>
-    <updated>2024-12-24T22:09:03.542000+01:00</updated>
-    <author>
-      <name>MioYasutake</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/789</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-1077701857"&gt;Introduction&lt;/H2&gt;&lt;P&gt;In this blog, we’ll explore how to define an action in the ABAP RESTful Application Programming Model (RAP) that accepts a &lt;STRONG&gt;table-type parameter&lt;/STRONG&gt; and returns &lt;STRONG&gt;a single result&lt;/STRONG&gt;. Additionally, we’ll walk through how to integrate this action into a List Report.&lt;/P&gt;&lt;P&gt;The motivation for exploring this approach came from a requirement to generate a PDF report based on the data from multiple selected rows. While the standard actions in a List Report allow for returning a single result using &lt;EM&gt;"invocationGrouping": #CHANGE_SET&lt;/EM&gt;, we, as developers, cannot easily handle such results within custom logic. This led to the idea of creating a custom action.&lt;/P&gt;&lt;P&gt;For this blog, we’ll demonstrate the implementation using a simpler scenario, focusing on how to realize this functionality step by step.&lt;/P&gt;&lt;H2 id="toc-hId-881188352"&gt;Scenario Overview&lt;/H2&gt;&lt;P&gt;We will create a simple application focused on calculating inventory values for products.&amp;nbsp;In a List Report, users can select one or more products from the list and trigger the action via a button. The total value will then be displayed in a popup dialog.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="MioYasutake_6-1734987501916.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/204796iFDF28E3579B1799F/image-size/large?v=v2&amp;amp;px=999" role="button" title="MioYasutake_6-1734987501916.png" alt="MioYasutake_6-1734987501916.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-684674847"&gt;Development Environment&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Backend: &lt;/STRONG&gt;BTP ABAP Environment (trial)&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;STRONG&gt;&lt;STRONG&gt;Frontend: &lt;/STRONG&gt;&lt;/STRONG&gt;&lt;/STRONG&gt;SAP Business Application Studio&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-488161342"&gt;Development Steps&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Backend&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Table Definition&lt;/LI&gt;&lt;LI&gt;Defining an Action to Handle Deep Parameters&lt;/LI&gt;&lt;LI&gt;Implement Behavior Logic&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Frontend&lt;/STRONG&gt;&lt;UL&gt;&lt;LI&gt;Creating a Fiori Elements Application&lt;/LI&gt;&lt;LI&gt;Implementing the Custom Action&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-291647837"&gt;&lt;STRONG&gt;Backend&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;1. Table Definition&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Define a simple table containing product information.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Product Stock'
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #RESTRICTED
-define table zyasu_stock {
-
-  key client      : abap.clnt not null;
-  key id          : sysuuid_x16 not null;
-  product_id      : abap.char(20);
-  price           : abap.int2;
-  stock           : abap.int2;
-  created_by      : abp_creation_user;
-  created_at      : abp_creation_tstmpl;
-  last_changed_by : abp_locinst_lastchange_user;
-  last_changed_at : abp_locinst_lastchange_tstmpl;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;After creating the table, generate a RAP BO and an OData service using the "Generate ABAP Repository Objects" wizard.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="MioYasutake_0-1734900075917.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/204330iDE8E04B6F386C5FC/image-size/medium?v=v2&amp;amp;px=400" role="button" title="MioYasutake_0-1734900075917.png" alt="MioYasutake_0-1734900075917.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;2. Defining an Action to Handle Deep Parameters&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;An action &lt;SPAN&gt;&lt;EM&gt;calcStockAmountDeep&lt;/EM&gt; has been added to the auto-generated behavior definition. This action receives a deep parameter, &lt;EM&gt;ZA_PRODUCT_ROOT&lt;/EM&gt;.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;static action calcStockAmountDeep deep parameter ZA_PRODUCT_ROOT result [1] ZA_AMOUNT; &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Initially, I was going to use the &lt;STRONG&gt;deep table parameter&lt;/STRONG&gt;&amp;nbsp;because my requirement was to pass a single level table entity. However, as posted in &lt;A href="https://community.sap.com/t5/technology-q-a/rap-error-for-action-with-deep-table-parameter-metadata-and-service-binding/qaq-p/12807334" target="_self"&gt;this Q&amp;amp;A&lt;/A&gt;,&amp;nbsp;&amp;nbsp;this statement does not seem to be supported yet, so I used the deep parameter instead.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;To define an action parameter that takes a deep structure as input, the following objects will be created:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Root Abstract Entity&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This entity contains a table of products. A "dummy" is defined because at least one property must be present in the root entity.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Deep Parameter Root'
-define root abstract entity ZA_PRODUCT_ROOT
-{
-    dummy: abap.char(1); 
-    _product : composition [0..*] of ZA_PRODUCT_TABLE;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Child Abstract Entity&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This entity contains the key fields of the product entity. An "isActiveEntity" field is added, because the service is draft-enabled. This is necessary if you want to handle both active entities and draft entities in the event handler.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Deep Parameter for Products'
-define abstract entity ZA_PRODUCT_TABLE
-{
-  productUuId : sysuuid_x16;
-  isActiveEntity: abap_boolean;
-  
-  _root: association to parent ZA_PRODUCT_ROOT;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Abstract Behavior Definition&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;An abstract behavior definition is required to use the abstract entity as a deep parameter for an action.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;abstract;
-strict ( 2 );
-with hierarchy;
-define behavior for ZA_PRODUCT_ROOT alias Root
-{
-    association _product;
-}
-
-define behavior for ZA_PRODUCT_TABLE alias Product
-{
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;3.&amp;nbsp;Implement Behavior Logic&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;First, define the following type in the private section of the behavior handler class.&amp;nbsp;This type will be used to extract the product keys from the parameters passed to the action.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;    TYPES: BEGIN OF ty_key,
-             id       TYPE sysuuid_x16,
-             is_draft TYPE abp_behv_flag,
-           END OF ty_key.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Next, implement the &lt;EM&gt;calcStockAmountDeep&lt;/EM&gt;&amp;nbsp;method as follows.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  METHOD calcStockAmountDeep.
-    DATA amount TYPE i.
-    DATA lt_productuuid TYPE STANDARD TABLE OF ty_key.
-
-    "get product keys
-    LOOP AT keys INTO DATA(key).
-      LOOP AT key-%param-_product INTO DATA(product).
-        APPEND VALUE #( id = product-productUuId
-                        is_draft = SWITCH #( product-isActiveEntity
-                                              WHEN abap_true THEN if_abap_behv=&amp;gt;mk-off
-                                                             ELSE if_abap_behv=&amp;gt;mk-on ) ) TO lt_productuuid.
-      ENDLOOP.
-    ENDLOOP.
-
-    READ ENTITIES OF zr_yasu_stock IN LOCAL MODE
-      ENTITY Stock
-      FIELDS ( Price Stock )
-      WITH VALUE #( FOR data IN lt_productuuid (
-          %tky = VALUE #( id = data-id
-                          %is_draft = data-is_draft ) ) )
-      RESULT DATA(stock_t).
-
-    " calculate stock amount
-    LOOP AT stock_t INTO DATA(stock).
-      amount = amount + stock-Price * stock-Stock.
-    ENDLOOP.
-
-    " return result
-    result = VALUE #( FOR key1 IN keys (
-                       %cid = key1-%cid
-                       %param =  VALUE #( amount = amount )
-                     ) ).
-
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;With the backend implementation complete, we will test the action by calling it from Postman. Before invoking the action, use a GET method to retrieve the CSRF token, and include it in the headers when making the action call. You can confirm that the total stock value is returned successfully.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="MioYasutake_2-1734986420942.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/204789iB0E245C4F41506F4/image-size/large?v=v2&amp;amp;px=999" role="button" title="MioYasutake_2-1734986420942.png" alt="MioYasutake_2-1734986420942.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="MioYasutake_3-1734986455131.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/204790iDCD4B9C2EC61295E/image-size/medium?v=v2&amp;amp;px=400" role="button" title="MioYasutake_3-1734986455131.png" alt="MioYasutake_3-1734986455131.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-95134332"&gt;Frontend&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;1. Creating a Fiori Elements Application&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In SAP Business Application Studio, select the OData service created in the previous step and use the List Report template to create the application. Since we want to implement the logic using TypeScript, select the "Enable TypeScript" option in the "Project Attributes" during the project setup process.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="MioYasutake_7-1734988969774.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/204805iE0D23724B3FE7413/image-size/medium?v=v2&amp;amp;px=400" role="button" title="MioYasutake_7-1734988969774.png" alt="MioYasutake_7-1734988969774.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;2. Implementing the Custom Action&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;From the Page Map, add an action to the table's toolbar by selecting "&lt;STRONG&gt;Add Custom Action&lt;/STRONG&gt;".&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="MioYasutake_4-1734986822312.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/204791iA5E779B7050BF544/image-size/medium?v=v2&amp;amp;px=400" role="button" title="MioYasutake_4-1734986822312.png" alt="MioYasutake_4-1734986822312.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In the "New Custom Action" dialog, define the action as follows. (Although not visible in the screenshot, the Handler Method was set to &lt;EM&gt;getTotalDeep&lt;/EM&gt;.)&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="MioYasutake_5-1734987108059.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/204792iAE1D774E5F38526E/image-size/medium?v=v2&amp;amp;px=400" role="button" title="MioYasutake_5-1734987108059.png" alt="MioYasutake_5-1734987108059.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Implement the action in &lt;EM&gt;ext/controller/GetTotalDeep.ts&lt;/EM&gt;&amp;nbsp;as follows.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;import ExtensionAPI from 'sap/fe/core/ExtensionAPI';
-import Context from 'sap/ui/model/odata/v4/Context';
-import ListReportExtensionAPI from 'sap/fe/templates/ListReport/ExtensionAPI';
-import ODataContextBinding from 'sap/ui/model/odata/v4/ODataContextBinding';
-import MessageBox from 'sap/m/MessageBox';
-import NumberFormat from 'sap/ui/core/format/NumberFormat';
-
-interface Error {
-	message: string
-	error: { 
-		code: string
-		details: Error[] 
-	}
-}
-
-interface Result {
-    amount: string
-}
-
-const namespace = "com.sap.gateway.srvd.zui_yasu_stock_o4.v0001."
-
-/**
- * Generated event handler.
- *
- *  this reference to the 'this' that the event handler is bound to.
- *  pageContext the context of the page on which the event was fired
- */
-export function getTotalDeep(this: ExtensionAPI, pageContext: Context) {
-    //get selected contexts
-    const ListReportExtensionAPI = this as ListReportExtensionAPI;
-    const contexts = ListReportExtensionAPI.getSelectedContexts();
-    const products = contexts.map(context =&amp;gt; {
-        return {
-            productUuId: context.getProperty("Id"),
-            isActiveEntity: context.getProperty("IsActiveEntity")
-        }
-    })
-
-    //invoke the action
-    const model = ListReportExtensionAPI.getModel();
-    const operation = model?.bindContext("/Stock/" + namespace + "calcStockAmountDeep(...)") as ODataContextBinding;
-    operation.setParameter("dummy", "X");
-    operation.setParameter("_product", products);
-    
-    const fnSuccess = () =&amp;gt; {
-        //show total
-        const result = operation.getBoundContext().getObject() as Result;
-        const amount = result.amount;
-        const numberFormat = NumberFormat.getIntegerInstance({
-            groupingEnabled: true
-        });
-        var formattedAmount = numberFormat.format(amount);
-        MessageBox.show(`${formattedAmount} JPY`, {
-            title: "Stock Amount"
-        });
-    }
-
-    const fnError = (error:Error) =&amp;gt; {
-        MessageBox.error(error.message);
-    }
-
-    operation.invoke().then(fnSuccess, fnError);
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId--101379173"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;In this blog, we explored how to implement a custom action in RAP that processes deep parameters and integrate it with a Fiori Elements List Report. We demonstrated the end-to-end process, from backend implementation to frontend integration.&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;P&gt;Note that in a List Report, clicking "Select All" only selects the rows currently visible on the screen&amp;nbsp;&lt;SPAN&gt;(refer to &lt;/SPAN&gt;&lt;A href="https://me.sap.com/notes/0002428401" target="_self" rel="noopener noreferrer"&gt;SAP Note 2428401&lt;/A&gt;&lt;SPAN&gt;). As a result, the approach introduced here is best suited for use cases where a few rows from the displayed data are selected, rather than scenarios involving bulk selection of large datasets.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/how-to-call-rap-actions-with-table-types-from-a-list-report/ba-p/13969836"/>
-    <published>2024-12-24T22:09:03.542000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-members/my-abap-in-eclipse-wish-list-for-2025-enhancements-new-features/ba-p/13972816</id>
     <title>My ABAP in Eclipse wish list for 2025 enhancements / new features</title>
@@ -2322,5 +2173,58 @@ define service Z7PAPI_ZREP_BLOCK {
 }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Mahmoud_Wael_0-1737544514045.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/215320iD6323D9F434F9C40/image-size/large?v=v2&amp;amp;px=999" role="button" title="Mahmoud_Wael_0-1737544514045.png" alt="Mahmoud_Wael_0-1737544514045.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;then we move to testing&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Mahmoud_Wael_1-1737544929653.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/215325iDD5B5B368E9750DC/image-size/large?v=v2&amp;amp;px=999" role="button" title="Mahmoud_Wael_1-1737544929653.png" alt="Mahmoud_Wael_1-1737544929653.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Mahmoud_Wael_2-1737544939552.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/215326i7FE0588AA79FF693/image-size/large?v=v2&amp;amp;px=999" role="button" title="Mahmoud_Wael_2-1737544939552.png" alt="Mahmoud_Wael_2-1737544939552.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;as shown you can access your header and child entities however you see fit&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-members/create-deep-entity-using-rap-unmanaged/ba-p/13993060"/>
     <published>2025-01-24T16:44:09.141000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-members/defining-a-basic-cds-view/ba-p/13996477</id>
+    <title>Defining a Basic CDS View</title>
+    <updated>2025-01-25T10:58:50.521000+01:00</updated>
+    <author>
+      <name>mickaelquesnot</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/150004</uri>
+    </author>
+    <content>&lt;DIV class=""&gt;&lt;P&gt;Defining a basic Core Data Services (CDS) view in SAP involves creating a data model on the database layer rather than the application layer. This offers significant advantages in terms of performance, data access, and reusability. Here's a breakdown of how to define a basic CDS view:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;1. Development Environment:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;You'll typically use the ABAP Development Tools (ADT) in Eclipse to create CDS views. This provides a modern and integrated development environment.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;2. CDS View Syntax:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The basic syntax for defining a CDS view is as follows:&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;SQL&lt;/SPAN&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;PRE&gt;&lt;SPAN class=""&gt;@AbapCatalog&lt;/SPAN&gt;.sqlViewName: &lt;SPAN class=""&gt;'SQL_VIEW_NAME'&lt;/SPAN&gt;
+&lt;SPAN class=""&gt;@AbapCatalog&lt;/SPAN&gt;.compiler.compareFilter: &lt;SPAN class=""&gt;true&lt;/SPAN&gt;
+&lt;SPAN class=""&gt;@AccessControl&lt;/SPAN&gt;.authorizationCheck: #&lt;SPAN class=""&gt;CHECK&lt;/SPAN&gt;
+&lt;SPAN class=""&gt;define&lt;/SPAN&gt; &lt;SPAN class=""&gt;view&lt;/SPAN&gt; VIEW_NAME
+  &lt;SPAN class=""&gt;as&lt;/SPAN&gt; &lt;SPAN class=""&gt;select&lt;/SPAN&gt; &lt;SPAN class=""&gt;from&lt;/SPAN&gt; DATABASE_TABLE &lt;SPAN class=""&gt;or&lt;/SPAN&gt; &lt;SPAN class=""&gt;VIEW&lt;/SPAN&gt;
+{
+  element1 &lt;SPAN class=""&gt;as&lt;/SPAN&gt; alias1,
+  element2 &lt;SPAN class=""&gt;as&lt;/SPAN&gt; alias2,
+  ...
+  elementN &lt;SPAN class=""&gt;as&lt;/SPAN&gt; aliasN
+};&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;Let's break down each part:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;@AbapCatalog.sqlViewName: 'SQL_VIEW_NAME':&lt;/STRONG&gt; This annotation is mandatory. It defines the name of the corresponding SQL view that will be created in the database. This is the name you'll use when accessing the view from standard SQL.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;@AbapCatalog.compiler.compareFilter: true:&lt;/STRONG&gt; This annotation is recommended. It ensures that filter conditions are pushed down to the database level for better performance.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;@AccessControl.authorizationCheck: #CHECK:&lt;/STRONG&gt; This annotation is crucial for security. It enforces authorization checks based on the defined authorization objects.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;define view VIEW_NAME:&lt;/STRONG&gt; This keyword starts the definition of the CDS view, followed by the name you want to give to the CDS entity. This is the name used within ABAP programs.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;as select from DATABASE_TABLE or VIEW:&lt;/STRONG&gt; This specifies the data source for the view. You can select from database tables, database views, or other CDS views.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;{ element1 as alias1, ... }:&lt;/STRONG&gt; This is the element list. It defines the fields you want to include in the view. You can rename fields using aliases (as alias).&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;3. Example:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Let's say you have a database table SCARR (Carrier) and you want to create a CDS view that includes the carrier ID and name:&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;SQL&lt;/SPAN&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;PRE&gt;&lt;SPAN class=""&gt;@AbapCatalog&lt;/SPAN&gt;.sqlViewName: &lt;SPAN class=""&gt;'Z_CARRIER_VIEW'&lt;/SPAN&gt;
+&lt;SPAN class=""&gt;@AbapCatalog&lt;/SPAN&gt;.compiler.compareFilter: &lt;SPAN class=""&gt;true&lt;/SPAN&gt;
+&lt;SPAN class=""&gt;@AccessControl&lt;/SPAN&gt;.authorizationCheck: #&lt;SPAN class=""&gt;CHECK&lt;/SPAN&gt;
+&lt;SPAN class=""&gt;define&lt;/SPAN&gt; &lt;SPAN class=""&gt;view&lt;/SPAN&gt; ZCarrierView
+  &lt;SPAN class=""&gt;as&lt;/SPAN&gt; &lt;SPAN class=""&gt;select&lt;/SPAN&gt; &lt;SPAN class=""&gt;from&lt;/SPAN&gt; SCARR
+{
+  carrid &lt;SPAN class=""&gt;as&lt;/SPAN&gt; CarrierID,
+  carrname &lt;SPAN class=""&gt;as&lt;/SPAN&gt; CarrierName
+};&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;In this example:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Z_CARRIER_VIEW is the name of the SQL view.&lt;/LI&gt;&lt;LI&gt;ZCarrierView is the name of the CDS view.&lt;/LI&gt;&lt;LI&gt;carrid is renamed to CarrierID.&lt;/LI&gt;&lt;LI&gt;carrname is renamed to CarrierName.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;4. Key Concepts and Enhancements:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Aliases:&lt;/STRONG&gt; Using aliases makes your code more readable and can be essential when joining tables with fields that have the same name.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Data Types:&lt;/STRONG&gt; The data types of the elements in the view are derived from the underlying database table or view.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Expressions:&lt;/STRONG&gt; You can use expressions in the element list to create calculated fields. For example:&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;SQL&lt;/SPAN&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;PRE&gt;&lt;SPAN class=""&gt;define&lt;/SPAN&gt; &lt;SPAN class=""&gt;view&lt;/SPAN&gt; ZSalesOrderValue
+  &lt;SPAN class=""&gt;as&lt;/SPAN&gt; &lt;SPAN class=""&gt;select&lt;/SPAN&gt; &lt;SPAN class=""&gt;from&lt;/SPAN&gt; VBAK
+{
+  vbeln &lt;SPAN class=""&gt;as&lt;/SPAN&gt; SalesOrder,
+  netwr &lt;SPAN class=""&gt;as&lt;/SPAN&gt; NetValue,
+  waerk &lt;SPAN class=""&gt;as&lt;/SPAN&gt; Currency,
+  netwr &lt;SPAN class=""&gt;*&lt;/SPAN&gt; &lt;SPAN class=""&gt;1.19&lt;/SPAN&gt; &lt;SPAN class=""&gt;as&lt;/SPAN&gt; GrossValue &lt;SPAN class=""&gt;/&lt;/SPAN&gt;&lt;SPAN class=""&gt;/&lt;/SPAN&gt; Calculated field
+};&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Joins:&lt;/STRONG&gt; You can join multiple tables or views in the FROM clause.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;SQL&lt;/SPAN&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;PRE&gt;&lt;SPAN class=""&gt;define&lt;/SPAN&gt; &lt;SPAN class=""&gt;view&lt;/SPAN&gt; ZCustomerOrders
+  &lt;SPAN class=""&gt;as&lt;/SPAN&gt; &lt;SPAN class=""&gt;select&lt;/SPAN&gt; &lt;SPAN class=""&gt;from&lt;/SPAN&gt; KNA1 &lt;SPAN class=""&gt;as&lt;/SPAN&gt; Customer
+    &lt;SPAN class=""&gt;inner&lt;/SPAN&gt; &lt;SPAN class=""&gt;join&lt;/SPAN&gt; VBAK &lt;SPAN class=""&gt;as&lt;/SPAN&gt; SalesOrder
+      &lt;SPAN class=""&gt;on&lt;/SPAN&gt; Customer.kunnr &lt;SPAN class=""&gt;=&lt;/SPAN&gt; SalesOrder.kunnr
+{
+  Customer.kunnr &lt;SPAN class=""&gt;as&lt;/SPAN&gt; CustomerID,
+  Customer.name1 &lt;SPAN class=""&gt;as&lt;/SPAN&gt; CustomerName,
+  SalesOrder.vbeln &lt;SPAN class=""&gt;as&lt;/SPAN&gt; SalesOrderNumber
+};&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;WHERE Clause:&lt;/STRONG&gt; You can use a WHERE clause to filter the data.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;SQL&lt;/SPAN&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;PRE&gt;&lt;SPAN class=""&gt;define&lt;/SPAN&gt; &lt;SPAN class=""&gt;view&lt;/SPAN&gt; ZActiveCustomers
+  &lt;SPAN class=""&gt;as&lt;/SPAN&gt; &lt;SPAN class=""&gt;select&lt;/SPAN&gt; &lt;SPAN class=""&gt;from&lt;/SPAN&gt; KNA1
+{
+  kunnr &lt;SPAN class=""&gt;as&lt;/SPAN&gt; CustomerID,
+  name1 &lt;SPAN class=""&gt;as&lt;/SPAN&gt; CustomerName
+} &lt;SPAN class=""&gt;where&lt;/SPAN&gt; kunnr &lt;SPAN class=""&gt;like&lt;/SPAN&gt; &lt;SPAN class=""&gt;'1000%'&lt;/SPAN&gt;; &lt;SPAN class=""&gt;/&lt;/SPAN&gt;&lt;SPAN class=""&gt;/&lt;/SPAN&gt; &lt;SPAN class=""&gt;Filter&lt;/SPAN&gt; customers starting &lt;SPAN class=""&gt;with&lt;/SPAN&gt; &lt;SPAN class=""&gt;1000&lt;/SPAN&gt;
+&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Associations:&lt;/STRONG&gt; You can define associations between CDS views to navigate related data. This is a more advanced topic but very powerful for building complex data models.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;5. Activation and Usage:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;After defining the CDS view in ADT, you need to activate it. This creates the corresponding SQL view in the database. You can then use the CDS view in ABAP programs using Open SQL statements:&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;ABAP&lt;/SPAN&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;PRE&gt;SELECT *
+  FROM ZCarrierView
+  INTO TABLE @DATA(lt_carriers).&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;You can also access the underlying SQL view directly using native SQL if needed.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Benefits of CDS Views:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Performance:&lt;/STRONG&gt; Data processing is pushed down to the database level, which is much faster than processing data in the application server.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Simplified Data Access:&lt;/STRONG&gt; CDS views provide a simplified and consistent way to access data.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Reusability:&lt;/STRONG&gt; CDS views can be reused in multiple applications.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Extensibility:&lt;/STRONG&gt; You can extend standard SAP data models using CDS views without modifying the original objects.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;By understanding these basic concepts, you can start building efficient and powerful data models using CDS views in your SAP development.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;A title="PDF LINKEDIN" href="https://www.linkedin.com/posts/mickaelquesnot_gusap-s4-hanadefining-a-basic-cds-viewdocx-activity-7288156015299108864-KdWM?utm_source=share&amp;amp;utm_medium=member_desktop" target="_self" rel="nofollow noopener noreferrer"&gt;https://www.linkedin.com/posts/mickaelquesnot_gusap-s4-hanadefining-a-basic-cds-viewdocx-activity-7288156015299108864-KdWM?utm_source=share&amp;amp;utm_medium=member_desktop&lt;/A&gt;&lt;/P&gt;&lt;/DIV&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-members/defining-a-basic-cds-view/ba-p/13996477"/>
+    <published>2025-01-25T10:58:50.521000+01:00</published>
   </entry>
 </feed>
