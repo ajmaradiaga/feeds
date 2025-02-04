@@ -2,114 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-BTP-ABAP-environment-blog-posts.xml</id>
   <title>SAP Community - SAP BTP, ABAP environment</title>
-  <updated>2025-02-04T09:00:21.719685+00:00</updated>
+  <updated>2025-02-04T12:00:25.960085+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP BTP, ABAP environment/pd-p/73555000100800001164" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP BTP, ABAP environment blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/how-to-do-select-single-select-up-to-1-rows-using-cds/ba-p/13968716</id>
-    <title>How to do SELECT SINGLE/SELECT UP TO 1 ROWS using CDS</title>
-    <updated>2024-12-24T16:04:52.918000+01:00</updated>
-    <author>
-      <name>victor_souza</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/338959</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;It is common to need one line for a specific table on SAP. For example, most part of the companies that I worked you can get the Purchase Order plant from EKPO, because it is always the same.&lt;/P&gt;&lt;P&gt;Unfortunately, CDS does not provide a way to do a select up to 1 rows, but here is the workaround that I've been using for a while and SAP seems to be adopted as well&lt;/P&gt;&lt;P&gt;Important to mention that I do my best to avoid AMDP. For all personal experience, the performance and reusability is worse than common data definition/CDS Views&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Getting the first (or last) row&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The trick is that, for the Purchase Order example, we do not have the item to have the right cardinality. So, we must have all the keys available to perform the select to one specific record&lt;/P&gt;&lt;P&gt;To do that, we can create a view that will return the first or the last (does not matter as the information must be the same anyway)&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Purchase Order First Item'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-define view entity Z_I_EKPOFirstItem
-  as select from I_PurchaseOrderItem
-{
-  key PurchaseOrder,
-      cast( min(PurchaseOrderItem) as ebelp ) as FirstItem
-}
-group by
-  PurchaseOrder&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Joining to get the full data&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Now, if we do a select on the Z_I_EKPOFirstItem by Purchase Order (EBELN), it will return always only one row, which is the full key of EKPO. Then, we can use this view and join with the standard view to have access to all EKPO fields and select the one that we initially needed&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Purchase Order'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-define view entity Z_I_PurchaseOrder
-  as select from I_PurchaseOrder
-
-    inner join   Z_I_EKPOFirstItem   on Z_I_EKPOFirstItem.PurchaseOrder = I_PurchaseOrder.PurchaseOrder
-
-    inner join   I_PurchaseOrderItem on  I_PurchaseOrderItem.PurchaseOrder     = I_PurchaseOrder.PurchaseOrder
-                                     and I_PurchaseOrderItem.PurchaseOrderItem = Z_I_EKPOFirstItem.FirstItem
-{
-  key I_PurchaseOrder.PurchaseOrder,
-      I_PurchaseOrderItem.Plant,
-      I_PurchaseOrder.PurchaseOrderType
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;You can see that the plant comes from I_PurchaseOrderItem, which is selected from&amp;nbsp;Z_I_EKPOFirstItem using the full key.&lt;/P&gt;&lt;P&gt;This way, we will never have more than one record and it will not duplicate any records.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Tables with more than two key fields&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;You can do the same for tables with more key columns than only two, but then it gets uglier&lt;/P&gt;&lt;P&gt;Create the same way the CDS View to select only one record from your table, for this example, MARD - it is just an example, I am not saying that this example makes sense hehe&lt;BR /&gt;But now, as you have more than one key, MIN or MAX will not work properly, then you can use it concatenating all keys - do not forget to include all key columns&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'MARD First Row'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-define view entity Z_I_MARDFirstRow
-  as select from mard
-{
-  key matnr                     as Matnr,
-      min(concat(werks, lgort)) as firstRowKey
-}
-group by
-  matnr&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;After that, you can use it in your view, but you will need to use a substring according to each field position and length.&lt;BR /&gt;For this example WERKS and LGORT have 4 as length. You can use it directly on the join like below&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'MARA'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-define view entity Z_I_TS_MARA
-  as select from mara
-
-    inner join   Z_I_MARDFirstRow on Z_I_MARDFirstRow.Matnr = mara.matnr
-
-    inner join   mard             on  mard.matnr = Z_I_MARDFirstRow.Matnr
-                                  and mard.werks = substring( Z_I_MARDFirstRow.firstRowKey, 1, 4 )
-                                  and mard.lgort = substring( Z_I_MARDFirstRow.firstRowKey, 5, 4 )
-{
-  key mara.matnr as Matnr,
-      mard.lgort,
-      mard.werks
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Any better ideas?&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;I could not think of something better than this approach, but it seems that SAP is using that as well, for example you can check the standard view&amp;nbsp;I_BillingDocFirstItem&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Get BillingDocument Item Position'
-@AbapCatalog.sqlViewName: 'ISDBILLDOCFSTIT'
-@AbapCatalog.compiler.compareFilter: true
-@ClientHandling.algorithm: #SESSION_VARIABLE
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@VDM.viewType: #COMPOSITE
-
-@ObjectModel.usageType.serviceQuality:#D
-@ObjectModel.usageType.sizeCategory: #XL
-@ObjectModel.usageType.dataClass: #MIXED
-
-
-define view I_BillingDocFirstItem
-  as select from I_ExciseDueDocBase
-{
-  I_ExciseDueDocBase.BillingDocument,
-  min(I_ExciseDueDocBase.BillingDocumentItem) as BillingDocumentItem
-}
-group by
-  BillingDocument              &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/how-to-do-select-single-select-up-to-1-rows-using-cds/ba-p/13968716"/>
-    <published>2024-12-24T16:04:52.918000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-sap/sap-btp-abap-environment-pre-upgrade-option-for-release-2502/ba-p/13973043</id>
     <title>SAP BTP ABAP Environment – Pre-Upgrade Option for Release 2502</title>
@@ -658,5 +554,17 @@ define abstract entity ZA_PO_PARAMS
     <content>&lt;P&gt;&lt;FONT size="6"&gt;&lt;STRONG&gt;What is this feature about?&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;U&gt;Overview&lt;/U&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;This feature enables users to replace the standard SAP logo with a custom logo by uploading an image file in the SAP Fiori launchpad.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;As a result, the SAP Fiori launchpad shell can display a customized logo.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;U&gt;Benefits&lt;/U&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;Previously, customizing a logo required using custom themes via the UI theme designer to create these themes and replace the standard SAP logo with a customer-specific one. With this new feature, the benefit is a significant reduction in the administrative effort needed to update the logo in the SAP Fiori launchpad shell.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;U&gt;Restriction&lt;/U&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;Even though this feature allows customization of the logo to be displayed in the SAP Fiori launchpad shell, users are unable to revert to the original SAP logo once it’s replaced. Nevertheless, they have the option to replace the uploaded custom logo with another new image file if needed.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="6"&gt;&lt;STRONG&gt;How to enable this feature?&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;As an administrator, it is possible to upload an image file as company logo using the parameter ‘&lt;STRONG&gt;COMPANY_LOGO_URL&lt;/STRONG&gt;’ via the '&lt;STRONG&gt;Manage Launchpad Settings&lt;/STRONG&gt;' application as depicted in the screenshots below.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="Manage Launchpad Settings.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/220132i2498ACE856FA0353/image-size/large?v=v2&amp;amp;px=999" role="button" title="Manage Launchpad Settings.png" alt="Manage Launchpad Settings.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="Custom Logo.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/220133i6265610ADEA849E8/image-size/large?v=v2&amp;amp;px=999" role="button" title="Custom Logo.png" alt="Custom Logo.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;This parameter allows users to add their logo to all themes, including SAP standard themes and custom themes. The uploaded custom logo always takes precedence over any other logos (for e.g a logo defined by the custom theme).&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;It is also possible to maintain an accessible text for the custom logo using the parameter ‘&lt;STRONG&gt;COMPANY_LOGO_ACCESSIBLE_TEXT&lt;/STRONG&gt;’.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;This ensures that all users, including those with disabilities, can understand its purpose. This can be done by adding descriptive alt text (for e.g "CompanyName Logo, link to homepage") to aid in navigation and understanding.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;To update the above two settings, users must&amp;nbsp;&lt;STRONG&gt;Edit&lt;/STRONG&gt;&amp;nbsp;and&amp;nbsp;&lt;STRONG&gt;Save&lt;/STRONG&gt;&amp;nbsp;it.&amp;nbsp;The changes to the configurations will take effect only after a refresh.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;NOTE&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="4"&gt;This feature is available with&amp;nbsp;SAP S/4HANA Cloud public Edition 2408 (refer to the official documentation &lt;A href="https://help.sap.com/docs/SAP_S4HANA_CLOUD/4fc8d03390c342da8a60f8ee387bca1a/22d573aead754b80abca18ec71872fb7.html?locale=en-US&amp;amp;version=2408.500" target="_self" rel="noopener noreferrer"&gt;here&lt;/A&gt;), Integrated Business Planning 2408 &amp;amp; BTP ABAP environment / Steampunk 2408.&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="4"&gt;This feature is also planned to be delivered with SAP S/4HANA Cloud Private Edition 2025 (on-premise).&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-sap/upload-of-a-custom-logo-to-be-displayed-in-an-sap-fiori-launchpad-shell/ba-p/14003315"/>
     <published>2025-02-02T13:28:14.333000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sap-learning-blog-posts/develop-powerful-analytical-queries-using-abap-core-data-services-cds/ba-p/13999588</id>
+    <title>Develop Powerful Analytical Queries using ABAP Core Data Services (CDS)</title>
+    <updated>2025-02-04T11:59:07.949000+01:00</updated>
+    <author>
+      <name>MarkGreen</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/718</uri>
+    </author>
+    <content>&lt;P&gt;Analytical Queries play an important role in SAP S/4HANA analytics. Analytical Queries sit on top of cubes and generate meaningful data sets that business users can explore using their own front-end tools, such as SAP Analytics Cloud.&amp;nbsp;Analytical Queries are developed using ABAP CDS in the ADT tools of Eclipse.&lt;/P&gt;&lt;P&gt;A new, free-of-charge Learning Journey has been provided to help you develop skills in this popular topic. The Learning Journey can be found here&amp;nbsp;&lt;STRONG&gt;&amp;lt;coming early February, please check back frequently&amp;gt;&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;The course files are available to all learners, along with instructions to setup your own cloud ABAP environment. This means you can practice what you have learned in your own environment and even try out your own ideas without having to setup a data model from scratch.&amp;nbsp; You will find the course files and instructions for importing into your own system, &lt;A title="here" href="https://github.com/SAP-samples/abap-platform-analytics-data-modeling" target="_blank" rel="noopener nofollow noreferrer"&gt;&lt;STRONG&gt;here.&lt;/STRONG&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/sap-learning-blog-posts/develop-powerful-analytical-queries-using-abap-core-data-services-cds/ba-p/13999588"/>
+    <published>2025-02-04T11:59:07.949000+01:00</published>
   </entry>
 </feed>
