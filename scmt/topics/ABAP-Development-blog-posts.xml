@@ -2,190 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2025-02-11T12:00:04.747551+00:00</updated>
+  <updated>2025-02-11T15:00:03.100437+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-members/reuse-alv-grid-display-dynamic-total-in-editable-alv/ba-p/13981454</id>
-    <title>REUSE_ALV_GRID_DISPLAY - Dynamic Total in Editable ALV</title>
-    <updated>2025-01-10T13:49:32.183000+01:00</updated>
-    <author>
-      <name>Abhijeet</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1392530</uri>
-    </author>
-    <content>&lt;P&gt;In SAP ABAP, handling editable ALV (ABAP List Viewer) grids with dynamic events such as data changes and automatic summations can be tricky, but it provides a very effective way to interact with and manipulate data. The program we are reviewing here aims to achieve just that—enable editable fields in the ALV grid, track changes in those fields, and update the summation of those changes at runtime.&lt;/P&gt;&lt;P&gt;The main objective of the blog is to create an editable ALV grid where the user can modify the weight (BRGEW) of materials (MATNR). When any change occurs, the summation of the BRGEW field is automatically recalculated and displayed.&lt;/P&gt;&lt;P&gt;The ALV grid provides a user-friendly interface for displaying the data, and we utilize event handling (specifically the DATA_CHANGED event) to capture and process changes made by the user. Additionally, since the Enter key does not trigger a default action in the ALV grid, the report uses the DATA_CHANGED event to monitor any updates and recalculate the summation.&lt;/P&gt;&lt;P&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2F5QfZWl1r4-I%3Ffeature%3Doembed&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D5QfZWl1r4-I&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2F5QfZWl1r4-I%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="400" height="225" scrolling="no" title="Editable ALV and Dynamic Total" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1208389506"&gt;&lt;FONT size="5"&gt;Key Concepts:&lt;/FONT&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Editable ALV&lt;/STRONG&gt;: The ALV grid is made editable for the field BRGEW.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Event Handling&lt;/STRONG&gt;: The DATA_CHANGED event is used to detect when data in the grid changes, which triggers the summation update.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Summation&lt;/STRONG&gt;: Whenever the user edits the BRGEW field, the program recalculates the total value of the BRGEW column and displays the updated sum.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="5"&gt;Code Snippet:&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;REPORT ztest7.
-TYPE-POOLS:slis.
-
-DATA: gt_mara     TYPE TABLE OF ztest_s,
-      gt_fieldcat TYPE slis_t_fieldcat_alv,
-      gt_events   TYPE slis_t_event,
-      go_grid     TYPE REF TO cl_gui_alv_grid,
-      gs_stable   TYPE lvc_s_stbl,
-      gr_data     TYPE REF TO data.
-
-FIELD-SYMBOLS: &amp;lt;gtr_sum_tab&amp;gt; TYPE table.
-
-START-OF-SELECTION.
-
-  SELECT matnr,
-         brgew
-    FROM mara
-    INTO TABLE _mara UP TO 10 ROWS.
-  IF sy-subrc EQ 0.
-    CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
-      EXPORTING
-        i_program_name         = sy-repid
-        i_structure_name       = 'ZTEST_S'
-      CHANGING
-        ct_fieldcat            = gt_fieldcat
-      EXCEPTIONS
-        inconsistent_interface = 1
-        program_error          = 2
-        OTHERS                 = 3.
-    IF sy-subrc = 0.
-      READ TABLE gt_fieldcat ASSIGNING FIELD-SYMBOL(&amp;lt;gs_fcat&amp;gt;) WITH KEY fieldname = 'BRGEW'.
-      IF sy-subrc EQ 0.
-        &amp;lt;gs_fcat&amp;gt;-edit = 'X'.
-        &amp;lt;gs_fcat&amp;gt;-do_sum = 'X'.
-      ENDIF.
-
-      APPEND VALUE #( name = 'DATA_CHANGED' form = 'GET_DATA_CHANGED' ) TO gt_events.
-
-      CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
-        EXPORTING
-          i_callback_program       = sy-repid
-          it_fieldcat              = gt_fieldcat
-          it_events                = gt_events
-          i_callback_pf_status_set = 'SET_PF_STATUS'
-        TABLES
-          t_outtab                 = gt_mara.
-    ENDIF.
-  ENDIF.
-
-
-FORM set_pf_status USING itr_extab TYPE slis_t_extab.
-
-* Get the ALV Object reference
-  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
-    IMPORTING
-      e_grid = go_grid.
-  IF go_grid IS BOUND.
-    CALL METHOD go_grid-&amp;gt;register_edit_event
-      EXPORTING
-        i_event_id = cl_gui_alv_grid=&amp;gt;mc_evt_modified.
-
-    CALL METHOD go_grid-&amp;gt;register_edit_event
-      EXPORTING
-        i_event_id = cl_gui_alv_grid=&amp;gt;mc_evt_enter.
-  ENDIF.
-
-  " PF Status Code
-  CASE sy-ucomm.
-*	WHEN
-    WHEN OTHERS.
-  ENDCASE.
-ENDFORM.
-
-FORM get_data_changed USING io_data_changed TYPE REF TO cl_alv_changed_data_protocol.
-
-  IF go_grid IS BOUND.
-
-    LOOP AT io_data_changed-&amp;gt;mt_mod_cells ASSIGNING FIELD-SYMBOL(&amp;lt;gs_changed&amp;gt;) WHERE fieldname = 'BRGEW'.
-      READ TABLE gt_mara ASSIGNING FIELD-SYMBOL(&amp;lt;gs_tab&amp;gt;) INDEX &amp;lt;gs_changed&amp;gt;-row_id.
-      IF sy-subrc EQ 0.
-        &amp;lt;gs_tab&amp;gt;-brgew = &amp;lt;gs_changed&amp;gt;-value.
-      ENDIF.
-    ENDLOOP.
-
-    go_grid-&amp;gt;get_subtotals(
-      IMPORTING
-        ep_collect00 = gr_data   " Overall Total
-    ).
-
-    ASSIGN gr_data-&amp;gt;* TO &amp;lt;gtr_sum_tab&amp;gt;.
-    READ TABLE &amp;lt;gtr_sum_tab&amp;gt; ASSIGNING FIELD-SYMBOL(&amp;lt;l_sum&amp;gt;) INDEX 1.
-    IF sy-subrc EQ 0.
-      ASSIGN COMPONENT 'BRGEW' OF STRUCTURE &amp;lt;l_sum&amp;gt; TO FIELD-SYMBOL(&amp;lt;lg_val&amp;gt;).
-      IF &amp;lt;lg_val&amp;gt; IS ASSIGNED.
-        &amp;lt;lg_val&amp;gt; = REDUCE #( INIT lv_i TYPE ntgew_15 FOR &amp;lt;ls_t&amp;gt; IN gt_mara NEXT lv_i = lv_i + &amp;lt;ls_t&amp;gt;-brgew ).
-      ENDIF.
-    ENDIF.
-
-    gs_stable-col = 'X'.
-    gs_stable-row = 'X'.
-
-    go_grid-&amp;gt;refresh_table_display(
-      EXPORTING
-        is_stable      = gs_stable      " With Stable Rows/Columns
-        i_soft_refresh = 'X'            " Without Sort, Filter, etc.
-      EXCEPTIONS
-        finished       = 1              " Display was Ended (by Export)
-        OTHERS         = 2
-    ).
-    IF sy-subrc &amp;lt;&amp;gt; 0.
-    ENDIF.
-
-  ENDIF.
-
-ENDFORM.                    "get_data_changed&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Event Handler Registration&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;APPEND VALUE #( name = 'DATA_CHANGED' form = 'GET_DATA_CHANGED' ) TO gt_events.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The DATA_CHANGED event is added to the event table (gt_events). This event will trigger the GET_DATA_CHANGED form when any modification happens to the grid.&lt;/P&gt;&lt;H4 id="toc-hId-1140958720"&gt;Make the BRGEW Field Editable and Enable Summation&lt;/H4&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;READ TABLE gt_fieldcat ASSIGNING FIELD-SYMBOL(&amp;lt;gs_fcat&amp;gt;) WITH KEY fieldname = 'BRGEW'.
-IF sy-subrc EQ 0.
-  &amp;lt;gs_fcat&amp;gt;-edit = 'X'.
-  &amp;lt;gs_fcat&amp;gt;-do_sum = 'X'.
-ENDIF.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In this section, we search for the BRGEW field in the field catalog (gt_fieldcat). If the field is found, it is set to be editable (edit = 'X') and summable (do_sum = 'X').&lt;/P&gt;&lt;H4 id="toc-hId-944445215"&gt;PF Status&lt;/H4&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;FORM set_pf_status USING itr_extab TYPE slis_t_extab.
-  " Get the ALV Object reference
-  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
-    IMPORTING
-      e_grid = go_grid.
-  IF go_grid IS BOUND.
-    CALL METHOD go_grid-&amp;gt;register_edit_event
-      EXPORTING
-        i_event_id = cl_gui_alv_grid=&amp;gt;mc_evt_modified.
-    CALL METHOD go_grid-&amp;gt;register_edit_event
-      EXPORTING
-        i_event_id = cl_gui_alv_grid=&amp;gt;mc_evt_enter.
-  ENDIF.
-  " PF Status Code
-  CASE sy-ucomm.
-    WHEN OTHERS.
-  ENDCASE.
-ENDFORM.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Intentionally, the FM GET_GLOBALS_FROM_SLVC_FULLSCR is initialized, and events are registered in the PF status so that the ENTER key press event should be detected. This can also be added in the TOP-OF-PAGE event. The ABAP code retrieves an ALV grid object (go_grid) using the function GET_GLOBALS_FROM_SLVC_FULLSCR and checks if it is properly initialized with the IS BOUND check. If the grid object is bound, it registers two edit events for the grid: one for when the user modifies data (mc_evt_modified), and another for when the user presses the Enter key (mc_evt_enter). These events are linked to the grid to allow further processing or actions in response to user interactions with the grid, such as triggering updates or executing custom logic.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Data Changed Handler (Recalculate Sum)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;FORM get_data_changed USING io_data_changed TYPE REF TO cl_alv_changed_data_protocol.
-  IF go_grid IS BOUND.
-    LOOP AT io_data_changed-&amp;gt;mt_mod_cells ASSIGNING FIELD-SYMBOL(&amp;lt;gs_changed&amp;gt;) WHERE fieldname = 'BRGEW'.
-      READ TABLE gt_mara ASSIGNING FIELD-SYMBOL(&amp;lt;gs_tab&amp;gt;) INDEX &amp;lt;gs_changed&amp;gt;-row_id.
-      IF sy-subrc EQ 0.
-        &amp;lt;gs_tab&amp;gt;-brgew = &amp;lt;gs_changed&amp;gt;-value.
-      ENDIF.
-    ENDLOOP.
-    go_grid-&amp;gt;get_subtotals(
-      IMPORTING
-        ep_collect00 = gr_data   " Overall Total
-    ).
-    ASSIGN gr_data-&amp;gt;* TO &amp;lt;gtr_sum_tab&amp;gt;.
-    READ TABLE &amp;lt;gtr_sum_tab&amp;gt; ASSIGNING FIELD-SYMBOL(&amp;lt;l_sum&amp;gt;) INDEX 1.
-    IF sy-subrc EQ 0.
-      ASSIGN COMPONENT 'BRGEW' OF STRUCTURE &amp;lt;l_sum&amp;gt; TO FIELD-SYMBOL(&amp;lt;lg_val&amp;gt;).
-      IF &amp;lt;lg_val&amp;gt; IS ASSIGNED.
-        &amp;lt;lg_val&amp;gt; = REDUCE #( INIT lv_i TYPE ntgew_15 FOR &amp;lt;ls_t&amp;gt; IN gt_mara NEXT lv_i = lv_i + &amp;lt;ls_t&amp;gt;-brgew ).
-      ENDIF.
-    ENDIF.
-    gs_stable-col = 'X'.
-    gs_stable-row = 'X'.
-    go_grid-&amp;gt;refresh_table_display(
-      EXPORTING
-        is_stable      = gs_stable      " With Stable Rows/Columns
-        i_soft_refresh = 'X'            " Without Sort, Filter, etc.
-      EXCEPTIONS
-        finished       = 1              " Display was Ended (by Export)
-        OTHERS         = 2
-    ).
-    IF sy-subrc &amp;lt;&amp;gt; 0.
-    ENDIF.
-  ENDIF.
-ENDFORM.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In the get_data_changed form, the system loops through the modified cells, retrieves the updated value, and updates the corresponding entry in the internal table gt_mara. Then, it calculates the sum of the BRGEW column and refreshes the ALV grid to display the updated total.&lt;/P&gt;&lt;P&gt;In conclusion, this blog demonstrates how to build an interactive and editable ALV grid in SAP ABAP that responds to user modifications in real-time. By leveraging the DATA_CHANGED event, we are able to efficiently track and process changes to the data, recalculate sums dynamically, and display the updated results without requiring the user to press any additional buttons. This approach provides a seamless and intuitive user experience while utilizing SAP's built-in functionality to manage the ALV grid and event handling.&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;Thanks for Reading!&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;I hope this blog post provided useful insights into creating dynamic, editable ALV grids in SAP. Feel free to adapt and customize the provided code to suit your specific needs.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Regards,&lt;/STRONG&gt;&lt;BR /&gt;Abhijeet Tikar&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-members/reuse-alv-grid-display-dynamic-total-in-editable-alv/ba-p/13981454"/>
-    <published>2025-01-10T13:49:32.183000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-members/disenchantment-gpt-for-generating-abap-code-documentation/ba-p/13983219</id>
     <title>Disenchantment: GPT for generating ABAP code documentation</title>
@@ -1622,5 +1442,159 @@ CLASS lcl_jt IMPLEMENTATION.
 ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-members/api-to-create-application-job-catalog-entry-amp-template-before-cl-apj-dt/ba-p/14011757"/>
     <published>2025-02-09T21:12:16.125000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blogs-by-members/calling-soap-asynchronous-api-in-rap-public-cloud/ba-p/14012118</id>
+    <title>Calling SOAP Asynchronous Api In RAP ( Public Cloud )</title>
+    <updated>2025-02-11T14:49:07.721000+01:00</updated>
+    <author>
+      <name>Ilayda_Ymlhgl</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/176149</uri>
+    </author>
+    <content>&lt;P&gt;Greetings to everyone,&lt;/P&gt;&lt;P&gt;I recently took part in my first public cloud project. I did a lot of research and development in this process. I would like to share with you a case that happened to me and the steps I applied in this case.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Used Api:&lt;/STRONG&gt; Journal Entry - Clearing (Asynchronous)&amp;nbsp;&lt;/P&gt;&lt;P&gt;( &lt;A href="https://api.sap.com/api/JOURNALENTRYBULKCLEARINGREQUES/overview" target="_blank" rel="noopener noreferrer"&gt;https://api.sap.com/api/JOURNALENTRYBULKCLEARINGREQUES/overview&lt;/A&gt; )&lt;/P&gt;&lt;P&gt;Tutorial on the use of SOAP Services:&lt;/P&gt;&lt;P&gt;&lt;A href="https://developers.sap.com/tutorials/abap-environment-soap-web-services..html" target="_blank" rel="noopener noreferrer"&gt;https://developers.sap.com/tutorials/abap-environment-soap-web-services..html&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Case:&lt;/STRONG&gt; Journal Entry - Clearing (Asynchronous) api is called with a button behind a screen made using RAP. In this case, when we start with the approach in the tutorial link above, dump is taken on the screen caused by the modify statement in the automatically generated class.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ilayda_Ymlhgl_13-1739180905880.png" style="width: 559px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/224206iA6B1BA1096656062/image-dimensions/559x102?v=v2" width="559" height="102" role="button" title="Ilayda_Ymlhgl_13-1739180905880.png" alt="Ilayda_Ymlhgl_13-1739180905880.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ilayda_Ymlhgl_1-1739180719289.png" style="width: 558px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/224191i4EC99AA48577041B/image-dimensions/558x254?v=v2" width="558" height="254" role="button" title="Ilayda_Ymlhgl_1-1739180719289.png" alt="Ilayda_Ymlhgl_1-1739180719289.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ilayda_Ymlhgl_2-1739180719290.png" style="width: 560px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/224190i563DBF34F3A1546B/image-dimensions/560x133?v=v2" width="560" height="133" role="button" title="Ilayda_Ymlhgl_2-1739180719290.png" alt="Ilayda_Ymlhgl_2-1739180719290.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ilayda_Ymlhgl_3-1739180719290.png" style="width: 557px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/224192i84D4D56A87B5F27A/image-dimensions/557x103?v=v2" width="557" height="103" role="button" title="Ilayda_Ymlhgl_3-1739180719290.png" alt="Ilayda_Ymlhgl_3-1739180719290.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;(&amp;nbsp; &lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/rap-transactional-model-and-sap-luw" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/abap-cloud/abap-rap/rap-transactional-model-and-sap-luw&lt;/A&gt; )&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Approach:&lt;/STRONG&gt; In this case, we can run the xml of the soap service by embedding it into the body as if we call ODATA service. However, ws-a addressing and generate message id ticks must be checked in order to run Asynchronous Soap services. The aim is to make these ticks behave as if they are checked in postman and to provide the same situation in the code.&lt;/P&gt;&lt;P&gt;In order to run the Asynchronous SOAP service via SOAPUI, the following two ticks must be checked ( &lt;A href="https://www.soapui.org/docs/soap-and-wsdl/supported-standards/using-ws-addressing/" target="_blank" rel="noopener nofollow noreferrer"&gt;https://www.soapui.org/docs/soap-and-wsdl/supported-standards/using-ws-addressing/&lt;/A&gt; )&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ilayda_Ymlhgl_14-1739180928235.png" style="width: 596px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/224207iE66BC191EE70E7A9/image-dimensions/596x283?v=v2" width="596" height="283" role="button" title="Ilayda_Ymlhgl_14-1739180928235.png" alt="Ilayda_Ymlhgl_14-1739180928235.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In order for Postman to correspond to this, we need to put the ws-a addressing link that we view in the wsdl file into the header and then fill in the action and message id parts.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Action:&lt;/STRONG&gt; We can get the action link on SoapUI.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ilayda_Ymlhgl_5-1739180719292.png" style="width: 534px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/224193i613190F2E4FAF6F2/image-dimensions/534x310?v=v2" width="534" height="310" role="button" title="Ilayda_Ymlhgl_5-1739180719292.png" alt="Ilayda_Ymlhgl_5-1739180719292.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;WS-A:&lt;/STRONG&gt; We can get the link on WSDL.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ilayda_Ymlhgl_6-1739180719292.jpeg" style="width: 538px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/224195i77857D490C832183/image-dimensions/538x105?v=v2" width="538" height="105" role="button" title="Ilayda_Ymlhgl_6-1739180719292.jpeg" alt="Ilayda_Ymlhgl_6-1739180719292.jpeg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;MessageID:&lt;/STRONG&gt; urn:uuid:{{{$randomUUUID}}} should be used to structure that generate random uuid with every time we do a post operation.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ilayda_Ymlhgl_16-1739181002688.png" style="width: 635px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/224211i1F259EB3342F41A7/image-dimensions/635x218?v=v2" width="635" height="218" role="button" title="Ilayda_Ymlhgl_16-1739181002688.png" alt="Ilayda_Ymlhgl_16-1739181002688.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;We can embed this structure into our transform object when calling the api from our Behavior class. We can use cl_system_uuid=&amp;gt;create_uuid_c36_static( ) method to provide the same format as urn:uuid:{{$randomUUUID}}.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ilayda_Ymlhgl_8-1739180719295.png" style="width: 580px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/224197iA19717EA79E597F7/image-dimensions/580x200?v=v2" width="580" height="200" role="button" title="Ilayda_Ymlhgl_8-1739180719295.png" alt="Ilayda_Ymlhgl_8-1739180719295.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ilayda_Ymlhgl_9-1739180719298.png" style="width: 205px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/224198i7347840BEA8F9B30/image-dimensions/205x37?v=v2" width="205" height="37" role="button" title="Ilayda_Ymlhgl_9-1739180719298.png" alt="Ilayda_Ymlhgl_9-1739180719298.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ilayda_Ymlhgl_10-1739180719298.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/224199i75A2A11D68F84F69/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Ilayda_Ymlhgl_10-1739180719298.png" alt="Ilayda_Ymlhgl_10-1739180719298.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ilayda_Ymlhgl_11-1739180719298.png" style="width: 292px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/224200iB8806FDCFBE6B854/image-dimensions/292x113?v=v2" width="292" height="113" role="button" title="Ilayda_Ymlhgl_11-1739180719298.png" alt="Ilayda_Ymlhgl_11-1739180719298.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ilayda_Ymlhgl_0-1739181866309.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/224218i63B4E379AF0086BD/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Ilayda_Ymlhgl_0-1739181866309.png" alt="Ilayda_Ymlhgl_0-1739181866309.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The code of the Behavior Class Method where the Asynchronous Soap API is called:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;TRY.
+DATA(lo_http_destination) = cl_http_destination_provider=&amp;gt;create_by_url( 'https://host-api.s4hana.cloud.sap/sap/bc/srt/scs_ext/sap/journalentrybulkclearingreques' ).
+  CATCH cx_http_dest_provider_error INTO DATA(lo_http_dest_provider_error).
+ENDTRY.
+
+  TRY.
+        DATA(lo_web_http_client) = cl_web_http_client_manager=&amp;gt;create_by_http_destination( lo_http_destination ) .
+      CATCH  cx_web_http_client_error INTO DATA(lo_client_error).
+        DATA(lv_client) = lo_client_error-&amp;gt;get_text( ).
+    ENDTRY.
+
+    DATA(lo_web_http_request) = lo_web_http_client-&amp;gt;get_http_request( ).
+    lo_web_http_request-&amp;gt;set_authorization_basic(  EXPORTING  i_username = Communication User
+                                                              i_password = Communication User Password ).
+
+
+    lo_web_http_request-&amp;gt;set_header_fields( VALUE #( (  name = 'Content-Type' value = 'text/xml; charset=UTF-8' )
+                                                     (  name = 'SOAPAction'    value = 'http://sap.com/xi/SAPSCORE/SFIN/JournalEntryBulkClearingRequest_In/JournalEntryBulkClearingRequest_InRequest' ) )   ).
+TRY.
+        DATA(lv_uuid) = cl_system_uuid=&amp;gt;create_uuid_c36_static( ).
+      CATCH cx_uuid_error INTO DATA(lx_uuid).
+    ENDTRY.
+    lv_uuid_s = lv_uuid.
+
+
+*---&amp;gt;fill the body
+
+
+  DATA(lv_body) = xco_cp_json=&amp;gt;data-&amp;gt;from_abap( ls_body )-&amp;gt;apply( VALUE #(  ( xco_cp_json=&amp;gt;transformation-&amp;gt;underscore_to_pascal_case ) ) )-&amp;gt;to_string( ).
+
+        TRY.
+            CALL TRANSFORMATION zfi_ac_api_to
+           SOURCE data = ls_body
+            RESULT XML lv_body.
+          CATCH cx_root INTO DATA(lo_root).
+            DATA(lv_mes_tr) = lo_root-&amp;gt;get_text( ).
+        ENDTRY.
+
+
+        REPLACE ALL OCCURRENCES OF 'uuid:{UUID}' IN lv_body WITH lv_uuid_s.
+        REPLACE ALL OCCURRENCES OF '&amp;lt;?xml version="1.0" encoding="utf-16"?&amp;gt;' IN lv_body WITH ''.
+        REPLACE ALL OCCURRENCES OF '&amp;amp;lt;' IN lv_body WITH '&amp;lt;'.
+        REPLACE ALL OCCURRENCES OF '&amp;amp;gt;' IN lv_body WITH '&amp;gt;'.
+
+        lo_web_http_request-&amp;gt;set_text( lv_body ).
+        TRY.
+            DATA(lo_web_http_response) = lo_web_http_client-&amp;gt;execute( if_web_http_client=&amp;gt;post ).
+          CATCH cx_web_http_client_error INTO lo_client_error.
+            lv_client = lo_client_error-&amp;gt;get_text( ).
+        ENDTRY.
+        DATA(lv_response)      = lo_web_http_response-&amp;gt;get_text( ).
+        DATA(ls_response_stat) = lo_web_http_response-&amp;gt;get_status( ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The code of the Transformation Object:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;&amp;lt;xsl:transform xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:sap="http://www.sap.com/sapxsl" version="1.0"&amp;gt;
+  &amp;lt;xsl:strip-space elements="*"/&amp;gt;
+
+  &amp;lt;xsl:output encoding="UTF-8" indent="yes" method="xml"/&amp;gt;
+
+  &amp;lt;xsl:template match="DATA"&amp;gt;
+    &amp;lt;soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sfin="http://sap.com/xi/SAPSCORE/SFIN"&amp;gt;
+      &amp;lt;soapenv:Header xmlns:wsa="http://www.w3.org/2005/08/addressing"&amp;gt;
+        &amp;lt;wsa:Action soapenv:mustUnderstand="1"&amp;gt;http://sap.com/xi/SAPSCORE/SFIN/JournalEntryBulkClearingRequest_In/JournalEntryBulkClearingRequest_InRequest&amp;lt;/wsa:Action&amp;gt;
+        &amp;lt;wsa:MessageID soapenv:mustUnderstand="1"&amp;gt;uuid:{UUID}&amp;lt;/wsa:MessageID&amp;gt;
+
+      &amp;lt;/soapenv:Header&amp;gt;
+      &amp;lt;soapenv:Body&amp;gt;
+        &amp;lt;sfin:JournalEntryBulkClearingRequest&amp;gt;
+          &amp;lt;xsl:element name="MessageHeader"&amp;gt;
+            &amp;lt;xsl:element name="ID"&amp;gt;
+              &amp;lt;xsl:value-of select="JOURNAL_ENTRY_BULK_CLEARING_RE/MESSAGE_HEADER/I_D"/&amp;gt;
+            &amp;lt;/xsl:element&amp;gt;
+            &amp;lt;xsl:element name="CreationDateTime"&amp;gt;
+              &amp;lt;xsl:value-of select="JOURNAL_ENTRY_BULK_CLEARING_RE/MESSAGE_HEADER/CREATION_DATE_TIME"/&amp;gt;
+            &amp;lt;/xsl:element&amp;gt;
+            &amp;lt;TestDataIndicator&amp;gt;
+              &amp;lt;xsl:value-of select="JOURNAL_ENTRY_BULK_CLEARING_RE/MESSAGE_HEADER/TEST_DATA_INDICATOR"/&amp;gt;
+            &amp;lt;/TestDataIndicator&amp;gt;
+          &amp;lt;/xsl:element&amp;gt;
+          &amp;lt;JournalEntryClearingRequest&amp;gt;
+            &amp;lt;xsl:element name="MessageHeader"&amp;gt;
+              &amp;lt;ID&amp;gt;
+                &amp;lt;xsl:value-of select="JOURNAL_ENTRY_BULK_CLEARING_RE/JOURNAL_ENTRY_CLEARING_REQUEST/MESSAGE_HEADER/I_D"/&amp;gt;
+              &amp;lt;/ID&amp;gt;
+              &amp;lt;xsl:element name="CreationDateTime"&amp;gt;
+                &amp;lt;xsl:value-of select="JOURNAL_ENTRY_BULK_CLEARING_RE/JOURNAL_ENTRY_CLEARING_REQUEST/MESSAGE_HEADER/CREATION_DATE_TIME"/&amp;gt;
+              &amp;lt;/xsl:element&amp;gt;
+            &amp;lt;/xsl:element&amp;gt;
+            
+            &amp;lt;JournalEntry&amp;gt;
+              &amp;lt;CompanyCode&amp;gt;
+                &amp;lt;xsl:value-of select="JOURNAL_ENTRY_BULK_CLEARING_RE/JOURNAL_ENTRY_CLEARING_REQUEST/JOURNAL_ENTRY/COMPANY_CODE"/&amp;gt;
+              &amp;lt;/CompanyCode&amp;gt;
+              &amp;lt;AccountingDocumentType&amp;gt;
+                &amp;lt;xsl:value-of select="JOURNAL_ENTRY_BULK_CLEARING_RE/JOURNAL_ENTRY_CLEARING_REQUEST/JOURNAL_ENTRY/ACCOUNTING_DOCUMENT_TYPE"/&amp;gt;
+              &amp;lt;/AccountingDocumentType&amp;gt;
+              &amp;lt;DocumentDate&amp;gt;
+                &amp;lt;xsl:value-of select="JOURNAL_ENTRY_BULK_CLEARING_RE/JOURNAL_ENTRY_CLEARING_REQUEST/JOURNAL_ENTRY/DOCUMENT_DATE"/&amp;gt;
+              &amp;lt;/DocumentDate&amp;gt;
+              &amp;lt;PostingDate&amp;gt;
+                &amp;lt;xsl:value-of select="JOURNAL_ENTRY_BULK_CLEARING_RE/JOURNAL_ENTRY_CLEARING_REQUEST/JOURNAL_ENTRY/POSTING_DATE"/&amp;gt;
+              &amp;lt;/PostingDate&amp;gt;
+              &amp;lt;CurrencyCode&amp;gt;
+                &amp;lt;xsl:value-of select="JOURNAL_ENTRY_BULK_CLEARING_RE/JOURNAL_ENTRY_CLEARING_REQUEST/JOURNAL_ENTRY/CURRENCY_CODE"/&amp;gt;
+              &amp;lt;/CurrencyCode&amp;gt;
+              &amp;lt;DocumentHeaderText&amp;gt;
+                &amp;lt;xsl:value-of select="JOURNAL_ENTRY_BULK_CLEARING_RE/JOURNAL_ENTRY_CLEARING_REQUEST/JOURNAL_ENTRY/DOCUMENT_HEADER_TEXT"/&amp;gt;
+              &amp;lt;/DocumentHeaderText&amp;gt;
+              &amp;lt;CreatedByUser&amp;gt;
+                &amp;lt;xsl:value-of select="JOURNAL_ENTRY_BULK_CLEARING_RE/JOURNAL_ENTRY_CLEARING_REQUEST/JOURNAL_ENTRY/CREATED_BY_USER"/&amp;gt;
+              &amp;lt;/CreatedByUser&amp;gt;
+              
+              &amp;lt;xsl:for-each select="JOURNAL_ENTRY_BULK_CLEARING_RE/JOURNAL_ENTRY_CLEARING_REQUEST/JOURNAL_ENTRY/APARITEMS/item"&amp;gt;
+                &amp;lt;APARItems&amp;gt;
+                  &amp;lt;ReferenceDocumentItem&amp;gt;
+                    &amp;lt;xsl:value-of select="REFERENCE_DOCUMENT_ITEM"/&amp;gt;
+                  &amp;lt;/ReferenceDocumentItem&amp;gt;
+                  &amp;lt;CompanyCode&amp;gt;
+                    &amp;lt;xsl:value-of select="COMPANY_CODE"/&amp;gt;
+                  &amp;lt;/CompanyCode&amp;gt;
+                  &amp;lt;AccountType&amp;gt;
+                    &amp;lt;xsl:value-of select="ACCOUNT_TYPE"/&amp;gt;
+                  &amp;lt;/AccountType&amp;gt;
+                  &amp;lt;APARAccount&amp;gt;
+                    &amp;lt;xsl:value-of select="APARACCOUNT"/&amp;gt;
+                  &amp;lt;/APARAccount&amp;gt;
+                  &amp;lt;FiscalYear&amp;gt;
+                    &amp;lt;xsl:value-of select="FISCAL_YEAR"/&amp;gt;
+                  &amp;lt;/FiscalYear&amp;gt;
+                  &amp;lt;AccountingDocument&amp;gt;
+                    &amp;lt;xsl:value-of select="ACCOUNTING_DOCUMENT"/&amp;gt;
+                  &amp;lt;/AccountingDocument&amp;gt;
+                  &amp;lt;AccountingDocumentItem&amp;gt;
+                    &amp;lt;xsl:value-of select="ACCOUNTING_DOCUMENT_ITEM"/&amp;gt;
+                  &amp;lt;/AccountingDocumentItem&amp;gt;
+                  &amp;lt;xsl:value-of select="OTHER_DEDUCTION_AMOUNT_IN_DSP"/&amp;gt;
+                &amp;lt;/APARItems&amp;gt;
+
+              &amp;lt;/xsl:for-each&amp;gt;
+            &amp;lt;/JournalEntry&amp;gt;
+          &amp;lt;/JournalEntryClearingRequest&amp;gt;
+        &amp;lt;/sfin:JournalEntryBulkClearingRequest&amp;gt;
+      &amp;lt;/soapenv:Body&amp;gt;
+    &amp;lt;/soapenv:Envelope&amp;gt;
+  &amp;lt;/xsl:template&amp;gt;
+&amp;lt;/xsl:transform&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;I hope this blog post has been helpful.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Have a great day!&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blogs-by-members/calling-soap-asynchronous-api-in-rap-public-cloud/ba-p/14012118"/>
+    <published>2025-02-11T14:49:07.721000+01:00</published>
   </entry>
 </feed>
