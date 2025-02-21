@@ -2,172 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Integration-Suite-qa.xml</id>
   <title>SAP Community - SAP Integration Suite</title>
-  <updated>2025-02-21T12:01:14.974929+00:00</updated>
+  <updated>2025-02-21T15:01:12.005218+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Integration Suite/pd-p/73554900100800003241" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Integration Suite Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/sap-cloud-integration-groovy-filtering-personal-information-in/qaq-p/14012856</id>
-    <title>[SAP Cloud Integration-Groovy]: Filtering Personal Information in CompoundEmployee Payload</title>
-    <updated>2025-02-10T15:08:57.887000+01:00</updated>
-    <author>
-      <name>babruvahana</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/43977</uri>
-    </author>
-    <content>&lt;P&gt;Hi Experts,&lt;/P&gt;&lt;P&gt;I need to ensure that the &lt;EM&gt;&lt;STRONG&gt;personal_information&lt;/STRONG&gt;&lt;/EM&gt;&amp;nbsp;section is included in the payload only when there is a &lt;EM&gt;&lt;STRONG&gt;Hire, Rehire, or Subsidiary Transfer event&lt;/STRONG&gt;&lt;/EM&gt;&amp;nbsp;or if any &lt;EM&gt;&lt;STRONG&gt;delta changes&lt;/STRONG&gt;&lt;/EM&gt;&amp;nbsp;have been made to the &lt;EM&gt;&lt;STRONG&gt;personal_information&lt;/STRONG&gt;&lt;/EM&gt; portlet. Otherwise, this section should be filtered out before further processing via message mapping.&lt;/P&gt;&lt;P&gt;The relevant events can be identified using the following XPaths:&lt;/P&gt;&lt;P&gt;queryCompoundEmployeeResponse/CompoundEmployee/person/employment_information/job_information/event='H'&lt;BR /&gt;queryCompoundEmployeeResponse/CompoundEmployee/person/employment_information/job_information/event='R'&lt;BR /&gt;queryCompoundEmployeeResponse/CompoundEmployee/person/employment_information/job_information/event='6'&lt;/P&gt;&lt;P&gt;Currently, I have implemented this logic using &lt;EM&gt;&lt;STRONG&gt;two Groovy scripts,&lt;/STRONG&gt;&lt;/EM&gt; but I am looking for an optimized &lt;EM&gt;&lt;STRONG&gt;single Groovy script&lt;/STRONG&gt;&lt;/EM&gt; solution to achieve the same outcome.&lt;/P&gt;&lt;P&gt;I would appreciate any guidance or alternative approaches to accomplish this efficiently.&lt;/P&gt;&lt;P&gt;&lt;EM&gt;&lt;STRONG&gt;First Groovy Script:&lt;/STRONG&gt;&lt;/EM&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;import com.sap.gateway.ip.core.customdev.util.Message;
-import java.util.HashMap;
-import groovy.xml.XmlUtil;
-import groovy.util.XmlParser;
-import groovy.util.Node;
-import groovy.xml.MarkupBuilder;
-import java.text.SimpleDateFormat; 
-import java.util.Date;
-
-def Message processData(Message message) {
-
-	def body = message.getBody(Reader)
-	def Root = new XmlParser().parse(body)
-	def parent = "";
-	def action = "";
-    map = message.getProperties();
-	
-	def Iflow_LSRD = map.get("interfaceLastRunTime").substring(0,10);
-
-    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-    Date LSRD = sdf.parse(Iflow_LSRD);
-	
-	Root.CompoundEmployee.each {CE -&amp;gt;
-		CE.person.employment_information.job_information.each{JOB -&amp;gt;
-			action = JOB.action.text();
-            event = JOB.event.text();
-            event_reason = JOB.event_reason.text();
-			event_previous = JOB.event_previous.text();
-			event_reason_previous = JOB.event_reason_previous.text();
-			emplStatus_previous = JOB.emplStatus_previous.text();
-			
-			last_modified_on = JOB.last_modified_on.text().substring(0,10);
-            Date LMD = sdf.parse(last_modified_on);
-			
-			if(((event == 'H') &amp;amp;&amp;amp; (LMD &amp;gt;= LSRD)) || ((event == 'R') &amp;amp;&amp;amp; (LMD &amp;gt;= LSRD)) || ((event == 'GA') &amp;amp;&amp;amp; (LMD &amp;gt;= LSRD)))
-			{
-				CE.appendNode("EventFlag", "X");
-			}
-			action =  "";
-		}
-	}
-	message.setBody(XmlUtil.serialize(Root));
-	return message;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;EM&gt;&lt;STRONG&gt;Second Groovy Script:&lt;/STRONG&gt;&lt;/EM&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;import com.sap.gateway.ip.core.customdev.util.Message;
-import java.util.HashMap;
-import groovy.xml.XmlUtil;
-import groovy.util.XmlParser;
-import groovy.util.Node;
-import groovy.xml.MarkupBuilder;
-import java.text.SimpleDateFormat; 
-import java.util.Date;
-
-def Message processData(Message message) {
-	def body = message.getBody(Reader)
-	def Root = new XmlParser().parse(body)
-
-	def parent = "";
-    map = message.getProperties();
-	
-	def Iflow_LSRD = map.get("interfaceLastRunTime").substring(0,10);
-    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-    Date LSRD = sdf.parse(Iflow_LSRD);
-	
-	def dnicard_code = "          1";
-    def arncard_code = "          6";
-    def pascard_code = "          2";
-
-	Root.CompoundEmployee.each {CE -&amp;gt;
-		
-/*		CE.person.employment_information.job_information.each{JOB -&amp;gt;
-			action = JOB.action.text();
-            event = JOB.event.text();
-            event_reason = JOB.event_reason.text();
-			event_previous = JOB.event_previous.text();
-			event_reason_previous = JOB.event_reason_previous.text();
-			emplStatus_previous = JOB.emplStatus_previous.text();
-			
-			last_modified_on = JOB.last_modified_on.text().substring(0,10);
-            Date LMD = sdf.parse(last_modified_on);
-			
-			if(((event == 'H') &amp;amp;&amp;amp; (LMD &amp;gt;= LSRD)) || ((event == 'R') &amp;amp;&amp;amp; (LMD &amp;gt;= LSRD)) || ((event == 'GA') &amp;amp;&amp;amp; (LMD &amp;gt;= LSRD)))
-			{
-				CE.appendNode("EventFlag", "X");
-			}
-			action =  "";
-		} */
-		def FlagCheck = CE.EventFlag.text();
-		CE.person.personal_information.each{PER -&amp;gt;
-			
-		/*	FlagCheck = PER.parent();
-            check = FlagCheck.EventFlag.text(); */
-			
-			def action = PER.action.text();
-			def first_name_previous = PER.first_name_previous.text();
-			def last_name_previous = PER.last_name_previous.text();
-			def gender_previous = PER.gender_previous.text();
-			def salutation_previous = PER.salutation_previous.text();
-			def marital_status_previous = PER.marital_status_previous.text();
-			def last_modified_on = PER.last_modified_on.text().substring(0,10);
-            Date LMD = sdf.parse(last_modified_on);
-			if((action == 'INSERT') ||(FlagCheck == 'X') || ((first_name_previous != null ) &amp;amp;&amp;amp; (first_name_previous.trim().length() &amp;gt; 0))|| ((last_name_previous != null ) &amp;amp;&amp;amp; (last_name_previous.trim().length() &amp;gt; 0)) || ((gender_previous != null ) &amp;amp;&amp;amp; (gender_previous.trim().length() &amp;gt; 0))||((salutation_previous != null ) &amp;amp;&amp;amp; (salutation_previous.trim().length() &amp;gt; 0))||
-			((marital_status_previous != null ) &amp;amp;&amp;amp; (marital_status_previous.trim().length() &amp;gt; 0))||
-			(LMD &amp;gt;= LSRD))
-			{
-
-			}
-			else
-			{
-				parent = PER.parent();
-				parent.remove(PER);
-				parent = "";
-			}
-			action =  "";
-		}
-		
-		CE.person.national_id_card.each{NAT -&amp;gt;
-			def action = NAT.action.text();
-			def card_type = NAT.card_type.text();
-			def national_id = NAT.national_id.text();
-			def card_type_previous = NAT.card_type_previous.text();
-			def national_id_previous = NAT.national_id_previous.text();
-			def	last_modified_on_NAT = NAT.last_modified_on.text().substring(0,10);
-            Date LMD_NAT = sdf.parse(last_modified_on_NAT);
-
-			if((action == 'INSERT') || ((card_type_previous != null ) &amp;amp;&amp;amp; (card_type_previous.trim().length() &amp;gt; 0))|| ((national_id_previous != null ) &amp;amp;&amp;amp; (national_id_previous.trim().length() &amp;gt; 0)) || (LMD_NAT &amp;gt;= LSRD))
-			{
-				if((national_id != '') &amp;amp;&amp;amp; (card_type == 'DNI')){
-					national_id = national_id.concat(dnicard_code);
-                    NAT.appendNode("national_id", national_id);
-				}
-				if (national_id != '' &amp;amp;&amp;amp; card_type == 'NIE'){
-					national_id = national_id.concat(arncard_code);
-                    NAT.appendNode("national_id", national_id);
-				}
-				if (national_id != '' &amp;amp;&amp;amp; card_type == 'PAS'){
-					national_id = national_id.concat(pascard_code);
-                    NAT.appendNode("national_id", national_id);
-				}
-			}
-			else
-			{
-				parent = NAT.parent();
-				parent.remove(NAT);
-				parent = "";
-			}
-			action =  "";
-		}
-	}
-	message.setBody(XmlUtil.serialize(Root));
-	return message;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Regards,&lt;BR /&gt;Pavan&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/sap-cloud-integration-groovy-filtering-personal-information-in/qaq-p/14012856"/>
-    <published>2025-02-10T15:08:57.887000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/sap-cpi-message-mapping-issue-handling-empty-amp-null-countrycode-with/qaq-p/14013037</id>
     <title>SAP CPI Message Mapping Issue: Handling Empty &amp; Null CountryCode with Conditional Mapping</title>
@@ -395,5 +233,17 @@ def Message processData(Message message) {
     <content>&lt;P&gt;Hi,&lt;/P&gt;&lt;P&gt;I added Manage Business Events (Event Mesh) from Manage Capabilities in Integration Suite and activated it in Configure -&amp;gt; Event Mesh and it shows Failed.&lt;/P&gt;&lt;P&gt;Even if I Deactivate the Event Mesh and reactivate it, it still shows Failed.&lt;BR /&gt;Please let me know if you know the cause or how to solve this problem.&lt;/P&gt;&lt;P&gt;Best Regards,&lt;BR /&gt;KuroKen.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/event-mesh-activation-in-integration-suite-fails/qaq-p/14023236"/>
     <published>2025-02-21T06:33:24.573000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/odata-v4-error/qaq-p/14023731</id>
+    <title>OData V4 Error.</title>
+    <updated>2025-02-21T13:58:57.449000+01:00</updated>
+    <author>
+      <name>bhargavparab</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/883470</uri>
+    </author>
+    <content>&lt;P&gt;Hello SAPians,&lt;/P&gt;&lt;P&gt;I have a requirement where I'm making OData V4&amp;nbsp;&lt;STRONG&gt;POST&lt;/STRONG&gt; call to S4HANA with standard OData&amp;nbsp;&lt;STRONG&gt;api_safetydatasheetassessment.&amp;nbsp;&lt;/STRONG&gt;Now there is an extension to this API i.e&amp;nbsp;&lt;STRONG&gt;SAP__self.UpdateSafetyDataSheetDocumentDetails&amp;nbsp;&lt;/STRONG&gt;which I'm providing manually because not getting this in Select Entity &amp;amp; Define Operations (attaching SS).&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="bhargavparab_1-1740139208105.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/228550i1BF6EA6719F843CD/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="bhargavparab_1-1740139208105.png" alt="bhargavparab_1-1740139208105.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="bhargavparab_0-1740139113862.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/228549iE561F69C25F64B59/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="bhargavparab_0-1740139113862.png" alt="bhargavparab_0-1740139113862.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;When I'm deploying the interface, I'm getting below error.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="bhargavparab_2-1740139317846.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/228552iA80BDEC3C8E20D67/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="bhargavparab_2-1740139317846.png" alt="bhargavparab_2-1740139317846.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;If anyone has worked on Product Compliance interfaces, please help me on this.&lt;/P&gt;&lt;P&gt;Please suggest some solution for this.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;P.S : Already tried converting JSON to XML.&lt;BR /&gt;Also tried with HTTP adapter.&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Thanks in advance!!&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":smiling_face_with_smiling_eyes:"&gt;😊&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;A class="" href="https://community.sap.com/t5/c-khhcw49343/SAP+Cloud+Platform%25252C+industry+edition%25252C+client+libraries/pd-p/73555000100800000218" target="_blank"&gt;SAP Cloud Platform, industry edition, client libraries&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A class="" href="https://community.sap.com/t5/c-khhcw49343/SAP+BTP%25252C+ABAP+environment/pd-p/73555000100800001164" target="_blank"&gt;SAP BTP, ABAP environment&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A class="" href="https://community.sap.com/t5/c-khhcw49343/SAP+Integration+Suite/pd-p/73554900100800003241" target="_blank"&gt;SAP Integration Suite&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A class="" href="https://community.sap.com/t5/c-khhcw49343/Cloud+Integration/pd-p/67837800100800006801" target="_blank"&gt;Cloud Integration&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A class="" href="https://community.sap.com/t5/c-khhcw49343/SAP+Business+Technology+Platform/pd-p/73555000100700000172" target="_blank"&gt;SAP Business Technology Platform&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/odata-v4-error/qaq-p/14023731"/>
+    <published>2025-02-21T13:58:57.449000+01:00</published>
   </entry>
 </feed>
