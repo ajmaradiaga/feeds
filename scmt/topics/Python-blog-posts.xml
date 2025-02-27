@@ -2,246 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/Python-blog-posts.xml</id>
   <title>SAP Community - Python</title>
-  <updated>2025-02-26T12:11:33.914832+00:00</updated>
+  <updated>2025-02-27T00:11:30.212600+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/Python/pd-p/f220d74d-56e2-487e-8e6c-a8cb3def2378" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Python blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/build-a-python-app-on-btp-cloud-foundry-read-filter-and-download-table-data/ba-p/13898362</id>
-    <title>Build a Python App on BTP Cloud Foundry: Read, Filter, and Download Table Data from HANA Cloud DB</title>
-    <updated>2024-10-24T11:43:45.801000+02:00</updated>
-    <author>
-      <name>KarthikKumar31</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1677475</uri>
-    </author>
-    <content>&lt;P&gt;This blog demonstrates creation of a simple Python application on the BTP Cloud Foundry Environment to read, filter by columns, and download data from a table which is present in the HANA Cloud DB.&lt;/P&gt;&lt;H4 id="toc-hId-1309974200"&gt;&lt;U&gt;Step 1: Installation of Cloud Foundry CLI&lt;/U&gt;&lt;/H4&gt;&lt;P&gt;Install Cloud Foundry CLI. The Cloud Foundry CLI can be found at&amp;nbsp; &lt;A href="https://tools.hana.ondemand.com/#cloud-cpcli" target="_blank" rel="noopener nofollow noreferrer"&gt;https://tools.hana.ondemand.com/#cloud-cpcli&lt;/A&gt;&lt;/P&gt;&lt;H4 id="toc-hId-1113460695"&gt;&lt;U&gt;Step 2: New Directory Creation&lt;/U&gt;&lt;/H4&gt;&lt;P&gt;Create a new directory for the application&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;mkdir new-hana-app 
-cd new-hana-app&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId-916947190"&gt;&lt;U&gt;&lt;STRONG&gt;Step 3: Installation of Python&lt;/STRONG&gt;&lt;/U&gt;&lt;/H4&gt;&lt;P&gt;In the newly created directory new-hana-app, install Python and create &amp;amp; activate a Python virtual environment&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;python3 -m venv venv
-source venv\Scripts\activate&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId-720433685"&gt;&lt;STRONG&gt;&lt;U&gt;Step 4: Installation of Libraries&lt;/U&gt;&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;Inside the environment, install below necessary libraries for HANA Cloud connectivity using the below command in command prompt&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;pip install SQLAlchemy hdbcli Flask pandas xlsxwriter&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId-523920180"&gt;&lt;U&gt;&lt;STRONG&gt;Step 5: Creation of Python Script&lt;/STRONG&gt;&lt;/U&gt;&lt;/H4&gt;&lt;P&gt;Create Python Script inside the new-hana-app directory, create a file app.py (This is an example, replace it with the appropriate name), add the below python code that will handle the connection to HANA Cloud &amp;amp; data retrieval and save it&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from flask import Flask, request, render_template, send_file
-import pandas as pd
-from hdbcli import dbapi
-import io
-import os
-
-app = Flask(__name__)
-
-# HANA Cloud DB connection details
-DB_HOST = 'hanahdb.hana.trial-us10.hanacloud.ondemand.com'
-DB_PORT = 443
-DB_USER = 'USERNAME'
-DB_PASSWORD = 'PaSsWoRd@123'
-
-def query_hana_db(table_name, filters):
-    conn = dbapi.connect(
-        address=DB_HOST,
-        port=DB_PORT,
-        user=DB_USER,
-        password=DB_PASSWORD
-    )
-    cursor = conn.cursor()
-    
-    # Build the query with filters if provided
-    query = f'SELECT * FROM {table_name}'
-    
-    if filters:
-        filter_conditions = [f"{col}='{val}'" for col, val in filters.items() if val]  # Assuming exact matches
-        if filter_conditions:
-            query += " WHERE " + " AND ".join(filter_conditions)
-    
-    cursor.execute(query)
-    columns = [col[0] for col in cursor.description]
-    data = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    df = pd.DataFrame(data, columns=columns)
-    df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
-    return df
-
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    if request.method == 'POST':
-        table_name = request.form['table_name']
-        
-        # Get the filter inputs from the form
-        filter_column = request.form.get('filter_column')
-        filter_value = request.form.get('filter_value')
-        
-        filters = {filter_column: filter_value} if filter_column and filter_value else {}
-        
-        try:
-            data = query_hana_db(table_name, filters)
-            table_html = data.to_html(classes='data', index=False, header="true")
-            return render_template('index.html', table_html=table_html, table_name=table_name, filter_column=filter_column, filter_value=filter_value)
-        except Exception as e:
-            return f"Error: {str(e)}"
-    return render_template('index.html')
-
-@app.route('/download', methods=['POST'])
-def download():
-    table_name = request.form['table_name']
-    
-    # Get the filter inputs from the form for downloading filtered data
-    filter_column = request.form.get('filter_column')
-    filter_value = request.form.get('filter_value')
-    
-    filters = {filter_column: filter_value} if filter_column and filter_value else {}
-    
-    data = query_hana_db(table_name, filters)
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        data.to_excel(writer, sheet_name=table_name, index=False)
-    output.seek(0)
-    return send_file(output, download_name=f'{table_name}.xlsx', as_attachment=True)
-
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Please note the following&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;DB_HOST = 'hanahdb.hana.trial-us10.hanacloud.ondemand.com': This is an the example server name.&amp;nbsp;Replace it with the appropriate HANA server details&lt;/LI&gt;&lt;LI&gt;DB_USER = 'USERNAME' &amp;amp; DB_PASSWORD = 'PaSsWoRd': Replace these with valid credentials&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId-327406675"&gt;&lt;STRONG&gt;&lt;U&gt;Step 6: Creation of Frontend&lt;/U&gt;&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;Create a folder named templates inside new-hana-app directory and inside that create a file index.html, add the below HTML code and save it&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;mkdir templates
-cd templates&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;!DOCTYPE html&amp;gt;
-&amp;lt;html&amp;gt;
-&amp;lt;head&amp;gt;
-    &amp;lt;title&amp;gt;HANA Cloud Table Data&amp;lt;/title&amp;gt;
-    &amp;lt;!-- Import Google Icon Font and Materialize CSS --&amp;gt;
-    &amp;lt;link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"&amp;gt;
-    &amp;lt;link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"&amp;gt;
-
-    &amp;lt;style&amp;gt;
-        body {
-            display: flex;
-            min-height: 100vh;
-            flex-direction: column;
-        }
-
-        main {
-            flex: 1 0 auto;
-        }
-
-        .container {
-            margin-top: 50px;
-        }
-
-        table {
-            width: 100%;
-            margin-top: 20px;
-        }
-
-        thead {
-            background-color: #f5f5f5;
-        }
-
-        th, td {
-            padding: 12px;
-            text-align: left;
-        }
-
-        .form-container {
-            padding: 20px;
-            background-color: #f9f9f9;
-            border-radius: 10px;
-        }
-
-        .table-container {
-            margin-top: 40px;
-        }
-    &amp;lt;/style&amp;gt;
-&amp;lt;/head&amp;gt;
-
-&amp;lt;body&amp;gt;
-    &amp;lt;nav&amp;gt;
-        &amp;lt;div class="nav-wrapper blue"&amp;gt;
-            &amp;lt;a href="#" class="brand-logo center"&amp;gt;HANA Cloud Data Viewer&amp;lt;/a&amp;gt;
-        &amp;lt;/div&amp;gt;
-    &amp;lt;/nav&amp;gt;
-
-    &amp;lt;main&amp;gt;
-        &amp;lt;div class="container"&amp;gt;
-            &amp;lt;div class="row"&amp;gt;
-                &amp;lt;div class="col s12 m8 offset-m2 form-container z-depth-2"&amp;gt;
-                    &amp;lt;h5 class="center-align"&amp;gt;Enter Table Name and Filter Data&amp;lt;/h5&amp;gt;
-                    &amp;lt;form method="POST"&amp;gt;
-                        &amp;lt;div class="input-field"&amp;gt;
-                            &amp;lt;input id="table_name" type="text" name="table_name" class="validate" required&amp;gt;
-                            &amp;lt;label for="table_name"&amp;gt;Table Name&amp;lt;/label&amp;gt;
-                        &amp;lt;/div&amp;gt;
-                        
-                        &amp;lt;!-- Optional filters for columns --&amp;gt;
-                        &amp;lt;div class="input-field"&amp;gt;
-                            &amp;lt;input id="filter_column" type="text" name="filter_column"&amp;gt;
-                            &amp;lt;label for="filter_column"&amp;gt;Filter Column (Optional)&amp;lt;/label&amp;gt;
-                        &amp;lt;/div&amp;gt;
-                        &amp;lt;div class="input-field"&amp;gt;
-                            &amp;lt;input id="filter_value" type="text" name="filter_value"&amp;gt;
-                            &amp;lt;label for="filter_value"&amp;gt;Filter Value (Optional)&amp;lt;/label&amp;gt;
-                        &amp;lt;/div&amp;gt;
-
-                        &amp;lt;div class="center-align"&amp;gt;
-                            &amp;lt;button class="btn waves-effect waves-light blue" type="submit" name="action"&amp;gt;
-                                Submit
-                                &amp;lt;i class="material-icons right"&amp;gt;send&amp;lt;/i&amp;gt;
-                            &amp;lt;/button&amp;gt;
-                        &amp;lt;/div&amp;gt;
-                    &amp;lt;/form&amp;gt;
-                &amp;lt;/div&amp;gt;
-            &amp;lt;/div&amp;gt;
-
-            {% if table_html %}
-            &amp;lt;div class="table-container"&amp;gt;
-                &amp;lt;h5 class="center-align"&amp;gt;Table Data&amp;lt;/h5&amp;gt;
-                &amp;lt;div class="card-panel"&amp;gt;
-                    &amp;lt;!-- Render HTML table --&amp;gt;
-                    {{ table_html | safe }}
-                &amp;lt;/div&amp;gt;
-
-                &amp;lt;form method="POST" action="/download"&amp;gt;
-                    &amp;lt;input type="hidden" name="table_name" value="{{ request.form['table_name'] }}"&amp;gt;
-                    &amp;lt;input type="hidden" name="filter_column" value="{{ request.form['filter_column'] }}"&amp;gt;
-                    &amp;lt;input type="hidden" name="filter_value" value="{{ request.form['filter_value'] }}"&amp;gt;
-                    &amp;lt;div class="center-align"&amp;gt;
-                        &amp;lt;button class="btn waves-effect waves-light green" type="submit"&amp;gt;
-                            Download Data
-                            &amp;lt;i class="material-icons right"&amp;gt;file_download&amp;lt;/i&amp;gt;
-                        &amp;lt;/button&amp;gt;
-                    &amp;lt;/div&amp;gt;
-                &amp;lt;/form&amp;gt;
-            &amp;lt;/div&amp;gt;
-            {% endif %}
-        &amp;lt;/div&amp;gt;
-    &amp;lt;/main&amp;gt;
-
-    &amp;lt;!-- Footer --&amp;gt;
-    &amp;lt;footer class="page-footer blue"&amp;gt;
-        &amp;lt;div class="container"&amp;gt;
-            &amp;lt;div class="center-align"&amp;gt;
-                2024 HANA Cloud Data Viewer
-            &amp;lt;/div&amp;gt;
-        &amp;lt;/div&amp;gt;
-    &amp;lt;/footer&amp;gt;
-
-    &amp;lt;!-- Import jQuery and Materialize JS --&amp;gt;
-    &amp;lt;script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"&amp;gt;&amp;lt;/script&amp;gt;
-&amp;lt;/body&amp;gt;
-&amp;lt;/html&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId-130893170"&gt;&lt;U&gt;&lt;STRONG&gt;Step 7: Dependencies file Creation&lt;/STRONG&gt;&lt;/U&gt;&lt;/H4&gt;&lt;P&gt;Create a 'requirements.txt' file inside the new-hana-app directory, add all required Python packages for deployment and save it&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;Flask==2.3.2
-SQLAlchemy==1.3.24
-hdbcli==2.22.27
-pandas==2.2.3
-xlsxwriter==3.2.0&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId--65620335"&gt;&lt;STRONG&gt;&lt;U&gt;Step 8: Creating Procfile to run script&lt;/U&gt;&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;In new-hana-app directory, create a file called Procfile file (without any file extension). Add the following content to the Procfile as this tells Cloud Foundry to run the app.py script when the app is started. Save the Procfile&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;web: python app.py&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId--262133840"&gt;&lt;U&gt;&lt;STRONG&gt;Step 9: Creating manifest.yml for Cloud Foundry Deployment&lt;/STRONG&gt;&lt;/U&gt;&lt;/H4&gt;&lt;P&gt;In new-hana-app directory, create a manifest.yml file. Add the following content to the manifest.yml as this defines how the app should be deployed. Save the file&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;---
-applications:
-  - name: new-hana-app
-    random-route: true
-    memory: 1G
-    buildpacks:
-      - python_buildpack
-    env:
-      FLASK_ENV: production
-    health-check-type: port
-    services:
-      - HANA_SERVICE&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId--458647345"&gt;&lt;STRONG&gt;&lt;U&gt;Step 10: Login to Cloud Foundry&lt;/U&gt;&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;Copy the Cloud Foundry executable (cf8.exe) which is present in the installation directory and place it inside new-hana-app directory. Execute the below command. Enter the email and password. Once the authentication is successful, the targeted org, space along with API endpoint, API version, user, org and space will be displayed&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;cf8 login&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_7-1728902934378.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178908i4A93859CB5BB890A/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_7-1728902934378.png" alt="KarthikKumar31_7-1728902934378.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H4 id="toc-hId--1152877945"&gt;&lt;U&gt;&lt;STRONG&gt;Step 11: Create Service and Service Key&lt;/STRONG&gt;&lt;/U&gt;&lt;/H4&gt;&lt;P&gt;Create Service and Service Key to generates secure credentials (like DB hostname, username, and password) for the HANA Cloud instance. These credentials are needed to programmatically connect the application to the service without hardcoding sensitive information. Execute the below commands&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;cf8 create-service hana hdi-shared HANA_SERVICE
-cf8 create-service-key HANA_SERVICE HANA_KEY&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_8-1728903022973.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178909iAD10B4BDC89C03D3/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_8-1728903022973.png" alt="KarthikKumar31_8-1728903022973.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Please note that HANA_SERVICE and HANA_KEY are example HANA Cloud Service name and Key name. Replace it with the required HANA Service name and key name.&lt;/P&gt;&lt;H4 id="toc-hId--1349391450"&gt;&lt;U&gt;&lt;STRONG&gt;Step 12: Deploy App to Cloud Foundry&lt;/STRONG&gt;&lt;/U&gt;&lt;/H4&gt;&lt;P&gt;Execute the below command to push the application new-hana-app to Cloud Foundry environment&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;cf8 push&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_9-1728903195795.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178910iAB1F5A33EA66B217/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_9-1728903195795.png" alt="KarthikKumar31_9-1728903195795.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_6-1728902867739.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178907iC653B89B29CC51EB/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_6-1728902867739.png" alt="KarthikKumar31_6-1728902867739.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H4 id="toc-hId--1545904955"&gt;&lt;U&gt;&lt;STRONG&gt;Step 13: Create Binding for HANA Cloud&lt;/STRONG&gt;&lt;/U&gt;&lt;/H4&gt;&lt;P&gt;Create Service Binding for HANA Cloud to enable the application to interact with the HANA Cloud instance. This links new-hana-app application to the HANA_CLOUD_DB database, allowing it to access the database securely and efficiently. Post this, restage the application. Execute the below commands&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;cf8 bind-service new-hana-app HANA_CLOUD_DB
-cf8 restage new-hana-app&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_0-1728904244247.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178929i9E5C3868AE63CDD1/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_0-1728904244247.png" alt="KarthikKumar31_0-1728904244247.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_1-1728904444819.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178930i5CEA47E96D69BF5E/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_1-1728904444819.png" alt="KarthikKumar31_1-1728904444819.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_2-1728904517302.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178931i0724BE7FB35AA07E/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_2-1728904517302.png" alt="KarthikKumar31_2-1728904517302.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Please note that HANA_CLOUD_DB is an example HANA Cloud DB name. Replace it with the required HANA Cloud DB name.&lt;/P&gt;&lt;H4 id="toc-hId--1742418460"&gt;&lt;U&gt;&lt;STRONG&gt;Step 14: Cross verify in BTP Cockpit&lt;/STRONG&gt;&lt;/U&gt;&lt;/H4&gt;&lt;P&gt;Login to SAP BTP Cockpit and navigate to Cloud Foundry space 'dev'. Click on Instances under Services tab and cross verify the HANA Cloud DB, HANA Service, Service Key and Bindings&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_0-1728905995136.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178943iEADC2FF48BEA2E01/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_0-1728905995136.png" alt="KarthikKumar31_0-1728905995136.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_1-1728906127397.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178944i17BF5C76062AB0E4/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_1-1728906127397.png" alt="KarthikKumar31_1-1728906127397.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_3-1728906184639.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178946i3A310EC43F84E59B/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_3-1728906184639.png" alt="KarthikKumar31_3-1728906184639.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H4 id="toc-hId--1938931965"&gt;&lt;U&gt;&lt;STRONG&gt;Step 15: Run the Python Application&lt;/STRONG&gt;&lt;/U&gt;&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;Login to SAP BTP Cockpit and navigate to Cloud Foundry space 'dev'.&lt;/LI&gt;&lt;LI&gt;Select the Applications tab to view all the applications present in the space&lt;/LI&gt;&lt;LI&gt;Click on the newly created application name 'new-hana-app'&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_0-1728907236229.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178951iBEFC2FBC3FAF3EC9/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_0-1728907236229.png" alt="KarthikKumar31_0-1728907236229.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Click the URL present in the Application Routes&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_1-1728907421539.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178953iB31B5250D52B685F/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_1-1728907421539.png" alt="KarthikKumar31_1-1728907421539.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_2-1728907621955.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178961i0D92C1E127E3A42E/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_2-1728907621955.png" alt="KarthikKumar31_2-1728907621955.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H4 id="toc-hId--2135445470"&gt;&lt;U&gt;&lt;STRONG&gt;Step 16: Testing the Python Application&lt;/STRONG&gt;&lt;/U&gt;&lt;/H4&gt;&lt;P&gt;Create a sample table in the HANA Cloud DB. Once the table creation and data insertion are successful, provide the table name in the URL. Also, if any specific column needs to be filtered, provide the name of the column and it's value. Click on 'SUBMIT' to view filtered table data and click on 'DOWNLOAD DATA' to download the filtered table data.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_4-1728909124562.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178978i162D11080A731277/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_4-1728909124562.png" alt="KarthikKumar31_4-1728909124562.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_5-1728909209217.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178979i53A77A6910922F92/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_5-1728909209217.png" alt="KarthikKumar31_5-1728909209217.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_6-1728909268738.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178980iFD057E8E15DFDA41/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_6-1728909268738.png" alt="KarthikKumar31_6-1728909268738.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KarthikKumar31_8-1728909578824.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/178983iA53A4F0299A4E3B0/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KarthikKumar31_8-1728909578824.png" alt="KarthikKumar31_8-1728909578824.png" /&gt;&lt;/span&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/build-a-python-app-on-btp-cloud-foundry-read-filter-and-download-table-data/ba-p/13898362"/>
-    <published>2024-10-24T11:43:45.801000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blogs-by-members/accessing-sap-credential-store-using-basic-authentication/ba-p/13926490</id>
     <title>Accessing SAP Credential Store using Basic Authentication</title>
@@ -1973,5 +1737,29 @@ for i in [1,2,3]:
 &amp;gt;&amp;gt;&amp;gt; np.mean(v_ms), np.min(v_ms), np.max(v_ms), np.std(v_ms)  &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;3. Summary&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In this blogpost we have shown how to use text embeddings vectors for document clustering. Numerical results shown that the use of text embedding vectors may significantly enhance the performance of the clustering algorithms compared to a typical traditional text vectorization technique LSA.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blogs-by-sap/document-clustering-using-kmeans-and-text-embeddings/ba-p/14025111"/>
     <published>2025-02-24T04:21:04.863000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sustainability-blogs/the-abap-detective-and-the-errant-electrolyte/ba-p/14023946</id>
+    <title>The ABAP Detective and the Errant Electrolyte</title>
+    <updated>2025-02-26T14:57:02.680000+01:00</updated>
+    <author>
+      <name>JimSpath</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/184</uri>
+    </author>
+    <content>&lt;P&gt;An aspect of sustainability is minimal resource use, in both the sense of lower costs, but also the avoidance of energy use that contributes to carbon dioxide emissions from fossil fuels. For an establishment on "all-electric" the latter is what might be called an externality. As a code and systems analysis detective, I look for areas of improvement.&lt;/P&gt;&lt;P&gt;Previous investigations into environmental monitoring tools are noted at the end; this case focuses on the efficiency and use of domestic hot water delivery. In the backwaters of the united states, standard appliances include a 30 or 40 gallon (sorry: X liters) tank with a heating source constantly attempting to maintain a set minimum temperature. Other areas use the "on-demand" approach, or hot-water-as-a-service, with a heating device close to the delivery point (let's not go into the 110 versus 220 volt infrastructure as a distraction).&lt;/P&gt;&lt;P&gt;To the crux of the biscuit: I set up a temperature monitor directly above the output of the hot water tank, connected to a Raspberry Pi that is polled by a central system. Other approaches would be locally collecting the data and uploading in scheduled bursts, pushing rather than pulling.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="TMP102 gauge, copper, insulation. (Photo by Jim Spath)" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/228898i94F434B6626F7AE6/image-size/large?v=v2&amp;amp;px=999" role="button" title="temp-102.jpg" alt="TMP102 gauge, copper, insulation. (Photo by Jim Spath)" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;TMP102 gauge, copper, insulation. (Photo by Jim Spath)&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;(photo by Jim Spath)&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;This ad hoc wiring approach works in a non-intrusive way, as the sensor unit does not touch the copper pipes, nor contact running water. Typically throughout the day, hot water is not running, so the readings are close to ambient room temperature. When a tap is opened somewhere, preheated water goes near enough to tick up the temperature reading, then after the flows stops the temperature gradually degrades. Or, if the tank completely empties of heated water, the readings will correspondingly decline.&lt;/P&gt;&lt;P&gt;&lt;EM&gt;Standalone sensor:&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="TMP102 gauge with blips" style="width: 818px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/228900iA0FFA581BFA70CD0/image-size/large?v=v2&amp;amp;px=999" role="button" title="tmp.png" alt="TMP102 gauge with blips" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;TMP102 gauge with blips&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;(screenshot from Zabbix web client)&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;A few times during the day, temperature rises, then declines. Not a particularly useful data set if you want to ask questions like "how hot is the hot water" or "how long did the washer run?" or even "how much did this unit of work cost?". The human brain can glance at these shapes and discern patterns, like Sherlock Holmes checking out cigar-ash-flakes in a pursuit. Writing an algorithm is a bit trickier.&lt;/P&gt;&lt;P&gt;The Zabbix open source suite I'm using has tools to run calculations on data feeds; for instance in some cases I'd pull values in Celsius, then add a derived parameter converting to Fahrenheit. There are ways to "look back" to prior values to determine deltas (which I've not implemented yet). You can also set up triggers to perform actions such as alerting on worst case scenarios (like overheating or frozen pipes: Ow!).&lt;/P&gt;&lt;P&gt;I'll gloss over the gnarly details of the Sparkfun/QWIIC monitoring hardware/software and cut to the chase: only one specific gauge per Pi, without adding multiplexing I2C complexities, so I was faced with deploying 2 Pi's with the same gauge type, or add a different gauge on 1 Pi. I chose the latter. Then the case went into what we colloquially called a "mung" state. Not "hung" but not right either.&lt;/P&gt;&lt;H3 id="toc-hId-1832754060"&gt;Pi and the OS&lt;/H3&gt;&lt;P&gt;If I could, I'd "flame" here, showing the rapid pace of software development breaks things that worked a few short years ago in surprising ways. I'm using code that someone else wrote in bash shell scripting back in 2012 or so, and that logic doesn't need to be tweaked when a new Linux kernel or even a subsystem component is written. And generally, Python examples the vendors share keeps working from year to year. Upgrades to the running environment are non-breaking other than minor steps like "oh, use Python 3.12 now instead of 3.10" that are easy enough to resolve.&lt;/P&gt;&lt;P&gt;My first Pi platform had a "6.1" 32-bit Linux kernel version; more recently new installs have a "6.6" kernel, where 64-bit flavors are as stable as the 32-bit. Great, why would that matter? Somewhere in the matrix, Python grew an appendage, nicknamed "&lt;EM&gt;&lt;STRONG&gt;venv&lt;/STRONG&gt;&lt;/EM&gt;" meaning a virtual environment. Let's add containers, crates, and virtualization while we're at it. Except this is a $10 machine with a single purpose.&lt;/P&gt;&lt;H3 id="toc-hId-1636240555"&gt;TMP102 and BME280&lt;/H3&gt;&lt;P&gt;These 2 temperature sensors are available in the chosen "ecosystem" that connects the Pi brain to the digital sensors, which could also include humidity and barometric pressure. Since I had collected and deployed at least one of each, I assumed connecting both to 1 Pi would be simple. I had code samples in shell and Python for both. "Just" follow the manufacturers instructions and "pip" it into place (no, not the old DEC PIP peripheral to peripheral connector, the new python software package installer). Failure to launch:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;$ pip install qwiic_bme280
+error: externally-managed-environment&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Oh, darn, this didn't work, and spit out a bunch of scary messages, especially this last dooms-day-scenario:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;You can override this, at the risk of breaking \
+ your Python installation or OS,  \
+ by passing --break-system-packages. \
+hint: See PEP 668 for the detailed specification.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;"Break system packages" sounds ominous. Maybe don't take that approach.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="pip breakage" style="width: 706px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/228906i31E66534EED5FDBD/image-dimensions/706x179?v=v2" width="706" height="179" role="button" title="pip-break.png" alt="pip breakage" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;pip breakage&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;(screenshot from terminal session)&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;A more staid detective would go read the reference manuals, consult others online, re-read the source code, then diligently make necessary repairs. Others more reactive might literally check with their vendors and ask what's up with this. Investigators with a hacking tendency would start typing likely fixes and rout/route around the damage. Command line use of a &lt;STRONG&gt;&lt;EM&gt;venv&lt;/EM&gt; &lt;/STRONG&gt;turned out to be fairly simple:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;python3 -m venv venv
+venv/bin/pip3 install sparkfun-qwiic-bme280
+
+[...]
+Successfully installed \
+ smbus2-0.5.0 \
+ sparkfun-qwiic-bme280-0.9.0 \
+ sparkfun-qwiic-i2c-1.0.0&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;No doubt more experienced Python developers are aghast at the hammer approach I used.&lt;/P&gt;&lt;P&gt;Getting readings at the command line would now work with 2 sensors; the new one shows:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;$ venv/bin/python3.11  /path/to/sparkfun.py  temperature_celsius
+16.2118&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Fine, a 3-pipe problem rather than a trivial 2-pipe one. Except the whole intent is to automate sensor data collection, not have to run a command line manually. I'll leave out the messy trial-and-error details, other than to share that the Zabbix process debug steps boil down to seeing whether a parameter shows as "not supported" or returns an error message such as "got string, expecting a number" in the console, and checking the agent logs for clues (like: "The Qwiic BME280 device isn't connected to the system. Please check your connection" when I used the wrong sensor).&lt;/P&gt;&lt;P&gt;Stuffed inside an old shell script are new links to the monitor logic.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;/path/venv/python3 /path/sparkfun-venv.py temperature_celsius&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The middle section didn't need to have any virtual environment goo but for the sake of my future self looking at these sensors after the next incompatibility will possibly recall why.&lt;/P&gt;&lt;P&gt;Before going to the trouble of writing calculation or trigger steps in parameter definitions I used a handy UI feature in Zabbix that overlays 2 measurements in one chart. First, make sure both metrics are stable:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="2 charts" style="width: 700px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/228683i41D722CB669B4B8B/image-dimensions/700x605?v=v2" width="700" height="605" role="button" title="tmp+bge.png" alt="2 charts" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;2 charts&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;(screenshot from Zabbix web client)&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;Then, add the second parameter to a dashboard widget. I didn't muck around with colors, lines, or transparencies, taking the defaults as good enough for the quick quality control / QC check.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="2 temperature sensors on 1 chart" style="width: 699px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/228910i6C3ED97834D5206E/image-dimensions/699x315?v=v2" width="699" height="315" role="button" title="tmp+bge-2.png" alt="2 temperature sensors on 1 chart" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;2 temperature sensors on 1 chart&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;(screenshot from Zabbix web client)&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;Next problems to solve?&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The 2 gauges differ under "no flow" states by over 1 degree.&lt;/LI&gt;&lt;LI&gt;Alerts/triggers&lt;/LI&gt;&lt;LI&gt;Validation/calibration&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1439727050"&gt;Calibration&lt;/H3&gt;&lt;P&gt;Back in the last century, my polytechnic/polymath education included &lt;A href="https://en.wikipedia.org/wiki/Calorimeter" target="_blank" rel="noopener nofollow noreferrer"&gt;calibrating thermometers&lt;/A&gt; by determining how close their readings were to freezing boiling water temperatures. A memorable lesson in theory versus practice, tossing aside the novice assumption that a device always shows accurate values. How many degrees or tenths-of-degrees plus or minus the correct reading? (let's skip over side issues such as does water boil at exactly 100 degrees Celsius at any specific elevation or location).&lt;/P&gt;&lt;P&gt;What I'd probably investigate next is recording the temperature at the taps compared to the utility room infrastructure, particularly after hearing anecdotal comments such as "the kitchen sink faucet is not hot enough."&lt;/P&gt;&lt;H3 id="toc-hId-1243213545"&gt;NOTES / REFERENCES&lt;/H3&gt;&lt;P&gt;Shell:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://znil.net/index.php/Zabbix:Template_Raspberry_Pi" target="_blank" rel="noopener nofollow noreferrer"&gt;https://znil.net/index.php/Zabbix:Template_Raspberry_Pi&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://znil.net/index.php?title=Temperatur_/_Spannung_etc._des_Raspberry_Pi_selbst_auslesen" target="_blank" rel="noopener nofollow noreferrer"&gt;https://znil.net/index.php?title=Temperatur_/_Spannung_etc._des_Raspberry_Pi_selbst_auslesen&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Python:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="http://rptl.io/venv" target="_blank" rel="noopener nofollow noreferrer"&gt;http://rptl.io/venv&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://docs.python.org/3/library/venv.html" target="_blank" rel="noopener nofollow noreferrer"&gt;https://docs.python.org/3/library/venv.html&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://peps.python.org/pep-0668/" target="_blank" rel="noopener nofollow noreferrer"&gt;https://peps.python.org/pep-0668/&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://github.com/sparkfun/qwiic_bme280_py" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/sparkfun/qwiic_bme280_py&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;SAP Community posts:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/product-lifecycle-management-blogs-by-members/the-abap-detective-takes-the-summer-heat/ba-p/13534577" target="_self"&gt;The ABAP Detective Takes The Summer Heat&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/product-lifecycle-management-blogs-by-members/the-abap-detective-gets-their-clock-cleaned/ba-p/13523477" target="_self"&gt;The ABAP Detective Gets Their Clock Cleaned&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blogs-by-members/the-abap-detective-takes-the-heat-or-how-to-cleanse-data/ba-p/13543695" target="_self"&gt;The ABAP Detective Takes The Heat, or How To Cleanse Data&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Also:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://jspath55.blogspot.com/2022/02/building-out-intra-home-data-aggregator.html" target="_blank" rel="noopener nofollow noreferrer"&gt;Intra home detectors&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/sustainability-blogs/the-abap-detective-and-the-errant-electrolyte/ba-p/14023946"/>
+    <published>2025-02-26T14:57:02.680000+01:00</published>
   </entry>
 </feed>
