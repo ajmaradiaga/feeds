@@ -2,206 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/OData-qa.xml</id>
   <title>SAP Community - OData</title>
-  <updated>2025-03-04T00:11:20.634859+00:00</updated>
+  <updated>2025-03-04T12:11:15.085511+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/OData/pd-p/551580658536717501828021060147962" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>OData Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/how-to-enable-caching-for-sap-odata-v2/qaq-p/14007692</id>
-    <title>How to enable caching for SAP OData V2?</title>
-    <updated>2025-02-05T08:51:58.177000+01:00</updated>
-    <author>
-      <name>CyrusDaguro</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1433040</uri>
-    </author>
-    <content>&lt;P&gt;Hello SAP experts!&lt;/P&gt;&lt;P&gt;May I enquire on how can I register my OData service for caching?&lt;/P&gt;&lt;P&gt;I referred to these guides by SAP&amp;nbsp;&lt;SPAN&gt;and I was able to add my service in transaction code /UI2/CACHE.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;After that, I'm kind of lost by SAP's guides:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A href="https://help.sap.com/docs/ABAP_PLATFORM/9765143c554c4ec3951fb17ff80d8989/9a7ddf62057b43c386e8b14e371b620b.html?version=1709.002" target="_blank" rel="noopener noreferrer"&gt;Cache for OData Services | SAP Help Portal&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A href="https://help.sap.com/docs/ABAP_PLATFORM/9765143c554c4ec3951fb17ff80d8989/2f3f7d17024b48abbb661c4ff4b73834.html?version=1709.002" target="_blank" rel="noopener noreferrer"&gt;Registering an OData Service for Caching | SAP Help Portal&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;My situation:&lt;BR /&gt;I tried creating an OData V2 for table MARA to discover its capabilities using the service implementation below. I noticed that every time I do client-paging ($top and $skip), data repeatedly gets queried from HANA database for every request/page which makes it inefficient.&lt;/P&gt;&lt;P&gt;My plan:&lt;/P&gt;&lt;P&gt;I thought maybe there's a way to (1) cache the queried data and do the client-paging from there. And (2) after sending to the requestor all pages of data, cache can now be emptied.&lt;/P&gt;&lt;P&gt;Steps I've done so far:&lt;/P&gt;&lt;P&gt;1) implement the OData for MARA with full and delta capabilities, dynamic select and dynamic where clauses.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD mara_get_entityset.
-
-* =================================================================================================
-*   Description :     Fetch MARA data based on filter and selection criteria.
-*   Author      :     
-*   Date        :     
-*
-*   Parameters:
-*      it_filter_select_options     : Table containing filter criteria
-*      iv_filter_string             : Dynamic filter string for SQL WHERE clause
-*      io_tech_request_context      : Context providing technical request details
-*      et_entityset                 : Output table containing the result set
-*      es_response_context          : Structure for response metadata
-*
-*   Purpose:
-*      This method extracts data from the MARA table based on provided
-*      filters from the OData URL. It handles both full and delta loads,
-*      processes $top and $skip parameters for pagination, and supports
-*      dynamic field selection through $select queries.
-* =================================================================================================
-
-
-* =================================================================================================
-*   Prepare variables
-* =================================================================================================
-  "Declare
-  DATA:
-    lv_select                     TYPE string,
-    lt_mara                       TYPE STANDARD TABLE OF mara.
-
-  "Initialize
-  CLEAR:
-    lv_select,
-    lt_mara[],
-    et_entityset[].
-
-
-* =================================================================================================
-*   Retrieve $filter values
-* =================================================================================================
-  "Scan all filters from request
-  LOOP AT it_filter_select_options ASSIGNING FIELD-SYMBOL(&amp;lt;lfs_f_so&amp;gt;).
-
-    "Check if LOAD filter is present
-    IF &amp;lt;lfs_f_so&amp;gt;-property = 'LOAD'.
-
-      "Read the first selection only of LOAD filter
-      READ TABLE &amp;lt;lfs_f_so&amp;gt;-select_options ASSIGNING FIELD-SYMBOL(&amp;lt;lfs_so&amp;gt;) INDEX 1.
-
-        "Check if LOAD filter is 'DELTA'
-        IF to_upper( &amp;lt;lfs_so&amp;gt;-low ) = 'DELTA'.
-          DATA(lv_load) = to_upper( &amp;lt;lfs_so&amp;gt;-low ).
-          EXIT.
-        ENDIF.
-
-    ENDIF.
-
-  ENDLOOP.
-
-
-* =================================================================================================
-*   Retrieve $select values
-* =================================================================================================
-  "Scan all selected fields from request
-  DATA(lt_select) = io_tech_request_context-&amp;gt;get_select( ).
-
-  "Build dynamic select string
-  LOOP AT lt_select ASSIGNING FIELD-SYMBOL(&amp;lt;lfs_select&amp;gt;).
-
-    IF &amp;lt;lfs_select&amp;gt; IS INITIAL.
-      lv_select = &amp;lt;lfs_select&amp;gt;.
-    ELSE.
-      lv_select = |{ lv_select }, { &amp;lt;lfs_select&amp;gt; }|.
-    ENDIF.
-
-  ENDLOOP.
-
-  "Set dynamic select to select ALL
-  IF lv_select IS INITIAL.
-    lv_select = '*'.
-  ENDIF.
-
-
-* =================================================================================================
-*   Query data from database
-* =================================================================================================
-  "Execute delta load
-  IF lv_load = 'DELTA'.
-
-    DATA(lv_yesterday) = sy-datum - 1.
-
-    "Extract data from yesterday to future
-    SELECT (lv_select)
-      FROM mara
-      INTO TABLE lt_mara
-      WHERE ( ersda &amp;gt;= lv_yesterday AND laeda = '00000000' )
-        OR ( laeda &amp;gt;= lv_yesterday AND laeda &amp;lt;&amp;gt; '00000000' )
-      ORDER BY matnr ASCENDING.
-
-  "Execute full load
-  ELSE.
-
-    IF iv_filter_string IS NOT INITIAL.
-
-      "Query data using $filter
-      SELECT (lv_select)
-        FROM mara
-        INTO TABLE lt_mara
-        WHERE (iv_filter_string)
-        ORDER BY matnr ASCENDING.
-
-    ELSE.
-
-      "Query all data
-      SELECT (lv_select)
-        FROM mara
-        INTO TABLE lt_mara
-        ORDER BY matnr ASCENDING.
-
-    ENDIF.
-
-  ENDIF.
-
-  "Get row count
-  DATA(lv_count) = sy-dbcnt.
-
-
-* =================================================================================================
-*   Prepare data for integration
-* =================================================================================================
-  "Check if the query returned data
-  IF lt_mara IS NOT INITIAL.
-
-    "Check if request has $count
-    IF io_tech_request_context-&amp;gt;has_count( ) = abap_true.
-
-      "Respond with row count of dataset
-      es_response_context-count = lv_count.
-
-    ELSE.
-
-      "Retrieve $top and $skip query options
-      DATA(lv_top) = io_tech_request_context-&amp;gt;get_top( ).
-      DATA(lv_skip) = io_tech_request_context-&amp;gt;get_skip( ).
-
-      "Check if paging is included in request
-      IF lv_top IS NOT INITIAL OR lv_skip IS NOT INITIAL.
-
-        DATA(lv_end_index) = lv_skip + lv_top.
-
-        "Set ending index to row count to prevent out-of-bounds issue
-        IF lv_end_index &amp;gt; lv_count.
-          lv_end_index = lv_count.
-        ENDIF.
-
-        "Respond with paginated dataset
-        LOOP AT lt_mara FROM lv_skip + 1 TO lv_end_index ASSIGNING FIELD-SYMBOL(&amp;lt;ls_mara&amp;gt;).
-          APPEND CORRESPONDING #( &amp;lt;ls_mara&amp;gt; ) TO et_entityset.
-        ENDLOOP.
-
-        "Release memory occupied
-        FREE:
-          lv_top,
-          lv_skip,
-          lv_end_index.
-
-      ELSE.
-
-        "Respond with whole dataset
-        et_entityset = CORRESPONDING #( lt_mara ).
-
-      ENDIF.
-
-    ENDIF.
-
-    "Release memory occupied
-    FREE:
-      lv_load,
-      lv_select,
-      lv_count,
-      lt_mara[].
-
-  ENDIF.
-
-ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;2) add the service of MARA OData to /UI2/CACHE&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="CyrusDaguro_0-1738741692083.png" style="width: 766px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/222109iD970B3AD37F2D43B/image-dimensions/766x182?v=v2" width="766" height="182" role="button" title="CyrusDaguro_0-1738741692083.png" alt="CyrusDaguro_0-1738741692083.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Couple notes:&lt;BR /&gt;1) Im using the OData to send data to Azure/Databricks Lakehouse&lt;/P&gt;&lt;P&gt;2) We are only using SAP ECC on HANA with runtime license so my options with integration are limited.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Hope you can help me with cache-ing thank you!&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/how-to-enable-caching-for-sap-odata-v2/qaq-p/14007692"/>
-    <published>2025-02-05T08:51:58.177000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/hana-xsa-fiori-elements/qaq-p/14007731</id>
     <title>HANA XSA Fiori-Elements</title>
@@ -445,5 +249,17 @@ ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;2) add 
     <content>&lt;P&gt;Customer is using &lt;STRONG&gt;SAP Business Process Automation (BPA)&lt;/STRONG&gt; to create a Sales Order in &lt;STRONG&gt;SAP S/4HANA Cloud (Public Edition)&lt;/STRONG&gt; by calling OData API.&lt;/P&gt;&lt;P&gt;The API call is made using a &lt;STRONG&gt;client certificate authentication destination&lt;/STRONG&gt; in &lt;STRONG&gt;SAP BTP&lt;/STRONG&gt;, where the keystore is created from the &lt;STRONG&gt;service key&lt;/STRONG&gt; of the &lt;STRONG&gt;SAP Build Process Automation&lt;/STRONG&gt; subscription.&lt;/P&gt;&lt;P&gt;Given this setup, the created &lt;STRONG&gt;Sales Order is classified as a Digital Access document&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Is it expected that Sales Orders created via &lt;STRONG&gt;client certificate authentication&lt;/STRONG&gt; are counted under &lt;STRONG&gt;Digital Access&lt;/STRONG&gt;?&lt;/LI&gt;&lt;LI&gt;Would using a &lt;STRONG&gt;Named User with Basic Authentication or Oauth2 User token exchange authentication&lt;/STRONG&gt;&amp;nbsp;instead of a service key avoid the Digital Access classification?&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Thanks.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/sales-order-created-via-client-certificate-authentication-classified-as/qaq-p/14032229"/>
     <published>2025-03-03T11:35:37.612000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/rap-restful-application-programming-model-projected-association-is-not/qaq-p/14033007</id>
+    <title>RAP / Restful Application Programming Model: Projected association is not draft enabled</title>
+    <updated>2025-03-04T08:36:21.548000+01:00</updated>
+    <author>
+      <name>Zerhat</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1511892</uri>
+    </author>
+    <content>&lt;P&gt;Hello all,&lt;/P&gt;&lt;P&gt;I am currently developing an RAP (Restful) App.&lt;/P&gt;&lt;P&gt;Relevant architecture: Managed scenario, draft enabled, multiple associations and multiple compositions are present. CRUD Operations have been mapped accordingly and strict( 2 ) is active for the Behavior Definition.&lt;/P&gt;&lt;P&gt;I first had an issue regarding the CREATE Button stemming from the managed scenario Behaviour definition, which did not generate. After some research it appeared to be based on the fact that for OData Version 4, CREATE and EDIT Buttons can only be generated provided draft is enabled.&lt;/P&gt;&lt;P&gt;Following that, I have just finished generating the Draft Tables necessary for all my compositions (which are used for multiple lineitem sections on the object page) and now come to an error message, which is hindering my progress.&lt;/P&gt;&lt;P&gt;The message is:&lt;/P&gt;&lt;P&gt;"&lt;STRONG&gt;Error in entity '(Projection_View_Name(CDS))': Projected association _AssociationName of&amp;nbsp;Projection_View_Name is not draft enabled."&lt;BR /&gt;&lt;/STRONG&gt;&amp;gt;&amp;gt;&amp;gt; Clicking into the message navigates to the Service Binding, which (since that message appeared) is not published anymore and also shows a error message next to its name.&lt;BR /&gt;&lt;BR /&gt;Based on the message I would think, that I would have to specifically define the given association inside the Projection View to be draft enabled, but I am not aware of the syntax. How could this be achieved?&lt;/P&gt;&lt;P&gt;Thanks in advance for every response!&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;04.03.2025 - EDIT:&lt;BR /&gt;If the Behaviour Projection it supplied with the syntax "use association _AssociationName { with draft; }" then the message results in: &lt;STRONG&gt;"Error in entity 'Projection_View_Name(CDS)': Entity Projection_View_Name: Association _AssociationName cannot be draft enabled."&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/rap-restful-application-programming-model-projected-association-is-not/qaq-p/14033007"/>
+    <published>2025-03-04T08:36:21.548000+01:00</published>
   </entry>
 </feed>
