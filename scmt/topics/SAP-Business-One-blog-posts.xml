@@ -2,125 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Business-One-blog-posts.xml</id>
   <title>SAP Community - SAP Business One</title>
-  <updated>2025-03-23T00:11:56.681615+00:00</updated>
+  <updated>2025-03-23T12:12:02.345905+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Business One/pd-p/01200615320800000816" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Business One blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/document-approval-email-notifications-in-sap-business-one/ba-p/13784870</id>
-    <title>Document Approval Email Notifications in SAP Business One</title>
-    <updated>2024-08-13T16:39:55.459000+02:00</updated>
-    <author>
-      <name>ogassem</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/453810</uri>
-    </author>
-    <content>&lt;P&gt;Creating an automated email notification system for document approval in SAP Business One using PowerShell can streamline your business processes and ensure that documents are approved promptly. In this tutorial, I'll guide you through the complete process, including setting up the database, creating a PowerShell script, and running it as a service.&lt;/P&gt;&lt;H3 id="toc-hId-1151224479"&gt;Overview of the Process&lt;/H3&gt;&lt;P&gt;We'll accomplish the following:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Set Up the User Defined Table (UDT) in SAP Business One&lt;/STRONG&gt;: A table to log email notifications that have been sent.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Write a PowerShell Script&lt;/STRONG&gt;: This script will run every 5 minutes, query the database for documents awaiting approval, and send email notifications.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Create a Windows Service&lt;/STRONG&gt;: Automate the execution of the PowerShell script by creating a Windows service.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Testing&lt;/STRONG&gt;: Ensure that everything works as expected.&lt;/LI&gt;&lt;/OL&gt;&lt;H3 id="toc-hId-954710974"&gt;Step 1: Set Up the User Defined Table in SAP Business One&lt;/H3&gt;&lt;P&gt;To begin, you'll need to create a User Defined Table (UDT) in SAP Business One that will keep track of the emails sent. This will prevent duplicate notifications for the same document.&lt;/P&gt;&lt;H4 id="toc-hId-887280188"&gt;How to Create a User Defined Table&lt;/H4&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Log into SAP Business One&lt;/STRONG&gt;.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Navigate to&lt;/STRONG&gt;: Tools &amp;gt; Customization Tools &amp;gt; User-Defined Tables - Setup.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Create a New Table&lt;/STRONG&gt; with the following details:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Table Name&lt;/STRONG&gt;: @Z_APPR_EMAILS&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Description&lt;/STRONG&gt;: Approval Email Logs&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Type&lt;/STRONG&gt;: No Object&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Add Fields to the Table&lt;/STRONG&gt;:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;U_email&lt;/STRONG&gt;: Email address to which the notification was sent.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;U_userid&lt;/STRONG&gt;: User ID associated with the document.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;U_internalNumber&lt;/STRONG&gt;: Internal Document Number.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;U_ObjType&lt;/STRONG&gt;: Object Type of the document.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;U_status&lt;/STRONG&gt;: Status of the email (e.g., Sent, Failed).&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;U_sentDate&lt;/STRONG&gt;: Date the email was sent.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;U_sentTime&lt;/STRONG&gt;: Time the email was sent.&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;H3 id="toc-hId-561683964"&gt;Step 2: Write the PowerShell Script&lt;/H3&gt;&lt;P&gt;We'll create a PowerShell script that connects to the SQL Server database, retrieves documents awaiting approval, and sends email notifications.&lt;/P&gt;&lt;H4 id="toc-hId-494253178"&gt;PowerShell Script: SendEmailNotifications.ps1&lt;/H4&gt;&lt;P&gt;Here's the complete script:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;# Main loop to run every 5 minutes
-while ($true) {
-
-# Define SQL Server connection parameters
-$serverInstance = "&amp;lt;Database Server Name&amp;gt;"
-$database = "&amp;lt;Database Name&amp;gt;"
-$username = "&amp;lt;UserName&amp;gt;"
-$password = "&amp;lt;Password&amp;gt;"
-$query = @"
-SELECT T0.[WddCode], T0.[DocEntry], T0.[ObjType], T0.[DocDate], T0.[CreateDate], T0.[CurrStep], T1.[UserID], T2.[U_NAME], T2.[E_Mail] as "Email"
-FROM OWDD T0
-INNER JOIN WDD1 T1 ON T0.[WddCode]= T1.[WddCode] AND T0.[CurrStep]=T1.[StepCode]
-INNER JOIN OUSR T2 ON T1.[UserID] = T2.[USERID]
-LEFT JOIN [dbo].[@Z_APPR_EMAILS] T3 ON T3.[U_userid]=T1.[UserID] AND T3.[U_internalNumber]=T0.[WddCode] AND T3.[U_ObjType]=T0.[ObjType]
-WHERE T0.[Status] ='W' AND T0.[WddCode]=4 AND T3.[Code] IS NULL
-"@
-
-# Create SQL connection string
-$connectionString = "Server=$serverInstance;Database=$database;User ID=$username;Password=$password;"
-
-# Create SQL connection
-$connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
-
-# Create SQL command
-$command = $connection.CreateCommand()
-$command.CommandText = $query
-
-# Open SQL connection
-$connection.Open()
-
-# Execute SQL query
-$reader = $command.ExecuteReader()
-
-# Process query results and send email notifications
-if ($reader.HasRows) {
-Write-Host "Query Results:"
-while ($reader.Read()) {
-$row = @{
-WddCode = $reader["WddCode"]
-DocEntry = $reader["DocEntry"]
-ObjType = $reader["ObjType"]
-DocDate = $reader["DocDate"]
-CreateDate = $reader["CreateDate"]
-CurrStep = $reader["CurrStep"]
-UserID = $reader["UserID"]
-U_NAME = $reader["U_NAME"]
-Email = $reader["Email"]
-}
-Write-Output $row
-
-# Send email notification
-$to = $row.Email
-$subject = "Document Approval Notification"
-$body = "Hello $($row.U_NAME),&amp;lt;br&amp;gt;&amp;lt;br&amp;gt;A document is waiting for your approval, "
-$body += "please log in to the system to review and approve this document.&amp;lt;br&amp;gt;&amp;lt;br&amp;gt;Regards,&amp;lt;br&amp;gt;SAP automatic notification"
-Send-MailMessage -To $to -From "sap.notification@yourcompany.com" -Subject $subject -Body $body -BodyAsHtml -SmtpServer "smtp.yourcompany.com"
-
-# Calculate the current time in hours and minutes combined into a single integer
-$currentDateTime = Get-Date
-$currentTime = $currentDateTime.ToString("HHmm")
-
-# Calculate the current date in YYYYMMDD format
-$currentDate = $currentDateTime.ToString("yyyyMMdd", [System.Globalization.CultureInfo]::InvariantCulture)
-
-# Close the DataReader before executing the insert command
-$reader.Close()
-
-# Get the latest Code number
-$maxCodeQuery = "SELECT MAX(CAST(Code AS INT)) FROM [dbo].[@Z_APPR_EMAILS]"
-$maxCodeCommand = $connection.CreateCommand()
-$maxCodeCommand.CommandText = $maxCodeQuery
-$latestCode = $maxCodeCommand.ExecuteScalar()
-$newCode = $latestCode + 1
-
-# Insert line into the database
-$insertQuery = "INSERT INTO [dbo].[@Z_APPR_EMAILS] (Code, Name, U_email, U_userid, U_internalNumber, U_ObjType, U_status, U_sentDate, U_sentTime) VALUES ('$newCode', '$newCode', '$to', '$($row.UserID)', '$($row.WddCode)', '$($row.ObjType)', 'Sent', $currentDate, $currentTime)"
-$insertCommand = $connection.CreateCommand()
-$insertCommand.CommandText = $insertQuery
-$insertCommand.ExecuteNonQuery() | Out-Null
-Write-Host "Line inserted into database for document $($row.DocEntry)." -ForegroundColor Cyan
-
-# Reopen the DataReader after executing the insert command
-$reader = $command.ExecuteReader()
-}
-} else {
-Write-Host "No documents awaiting approval found." -ForegroundColor Yellow
-}
-
-# Close SQL reader and connection
-$reader.Close()
-$connection.Close()
-
-# Sleep for 5 minutes before next iteration
-Start-Sleep -Seconds 300
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-168656954"&gt;Explanation of the Script&lt;/H3&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Connection Parameters&lt;/STRONG&gt;: Establish a connection with your SQL Server database by providing server instance, database name, username, and password.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;SQL Query&lt;/STRONG&gt;: Retrieve documents awaiting approval. This query checks if the document's status is 'W' and if no entry exists in the @Z_APPR_EMAILS table.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Sending Emails&lt;/STRONG&gt;: For each document found, the script sends an email using Send-MailMessage.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Logging&lt;/STRONG&gt;: After sending the email, the script logs the sent email details in the @Z_APPR_EMAILS table.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Continuous Execution&lt;/STRONG&gt;: The script runs continuously in a loop with a 5-minute pause between iterations.&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;H3 id="toc-hId--27856551"&gt;Step 3: Create a Windows Service&lt;/H3&gt;&lt;P&gt;Creating a Windows service allows your script to run automatically without manual intervention. Follow these steps to create and manage the service.&lt;/P&gt;&lt;H4 id="toc-hId--95287337"&gt;PowerShell Service Script&lt;/H4&gt;&lt;P&gt;Here's the script to set up your PowerShell script as a Windows service:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;# Define service name and description
-$serviceName = "EmailNotificationService"
-$serviceDisplayName = "Email Notification Service"
-$serviceDescription = "Service to send email notifications for document approval"
-
-# Define script path
-$scriptPath = "C:\scripts\SendEmailNotifications.ps1"
-
-# Create service
-New-Service -Name $serviceName -DisplayName $serviceDisplayName -Description $serviceDescription -BinaryPathName "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -File $scriptPath" -StartupType&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--420883561"&gt;Step 4: Testing&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Create a Test Document for Approval&lt;/STRONG&gt;:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Log into SAP Business One and create a new document that requires approval.&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Check for Email Notification&lt;/STRONG&gt;:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Wait a few minutes and check the email inbox of the user responsible for approving the document.&lt;/LI&gt;&lt;LI&gt;You should receive an email similar to the one below:&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ogassem_0-1722972801779.png" style="width: 619px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/147400i24968DB565415A5B/image-dimensions/619x249?v=v2" width="619" height="249" role="button" title="ogassem_0-1722972801779.png" alt="ogassem_0-1722972801779.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Verify Log Entry in @Z_APPR_EMAILS Table&lt;/STRONG&gt;:&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ogassem_1-1722972823277.png" style="width: 628px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/147401iEB30A0FD99076E7E/image-dimensions/628x278?v=v2" width="628" height="278" role="button" title="ogassem_1-1722972823277.png" alt="ogassem_1-1722972823277.png" /&gt;&lt;/span&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/document-approval-email-notifications-in-sap-business-one/ba-p/13784870"/>
-    <published>2024-08-13T16:39:55.459000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/unifying-your-business-operations-integrating-sap-build-work-zone-with-sap/ba-p/13801054</id>
     <title>Unifying Your Business Operations: Integrating SAP Build Work Zone with SAP Business One</title>
@@ -348,5 +233,17 @@ New-Service -Name $serviceName -DisplayName $serviceDisplayName -Description $se
     <content>&lt;P&gt;&lt;SPAN&gt;In the &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/customizing-field-values-part-3-how-to-use-mathematical-formula-with/ba-p/14038552" target="_self"&gt;previous blog&lt;/A&gt;, we demonstrated how to define a mathematical formula that uses fields from the database. In this blog, we’ll illustrate how to define a logical formula.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Using a similar concept as in the previous blog, this time the use case is: each time you change the customer code in a sales order, you want the system to retrieve the customer record from the database, check if the customer's balance is greater than 100,000$, and if so, automatically select a UDF checkbox that indicates the customer is a "Gold" customer. &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="OferOz_0-1741591754876.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/234882iD575DE588A328E2F/image-size/medium?v=v2&amp;amp;px=400" role="button" title="OferOz_0-1741591754876.png" alt="OferOz_0-1741591754876.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The first step is to specify the trigger, which is a field that will activate the UDV formula. In this case, the trigger is the Customer Code field.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="OferOz_1-1741591766751.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/234884iA1CE1DDC7915E2B5/image-size/medium?v=v2&amp;amp;px=400" role="button" title="OferOz_1-1741591766751.png" alt="OferOz_1-1741591766751.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The second step is to set the lookup conditions, similar to the example of customer balance in the previous blog (see &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/customizing-field-values-part-3-how-to-use-mathematical-formula-with/ba-p/14038552" target="_self"&gt;here&lt;/A&gt; for more details). This involves retrieving the business partner record based on the customer code in the sales order:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="OferOz_2-1741591779229.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/234885i4B481F8BCD343280/image-size/medium?v=v2&amp;amp;px=400" role="button" title="OferOz_2-1741591779229.png" alt="OferOz_2-1741591779229.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The final step is defining the formula itself, which is a simple logical expression:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="OferOz_3-1741591792012.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/234886iB1A75A4004659198/image-size/medium?v=v2&amp;amp;px=400" role="button" title="OferOz_3-1741591792012.png" alt="OferOz_3-1741591792012.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The system will check at runtime whether the balance is greater than 100,000. Based on the result, the UDF checkbox value will be set accordingly: if true, the checkbox will be turned on; if not, it will be turned off. &lt;/SPAN&gt;&lt;/P&gt;&lt;P data-unlink="true"&gt;&lt;SPAN&gt;Watch this &lt;A href="https://sapvideo.cfapps.eu10-004.hana.ondemand.com/?entry_id=1_hho6fr6f" target="_self" rel="nofollow noopener noreferrer"&gt;short video&lt;/A&gt;&amp;nbsp;for a live demo. &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;Here are a few tips for writing logical formulas: &lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;The logical formula supports logical operators and brackets (, &amp;lt;, &amp;gt;, !, ==, &amp;amp;&amp;amp;, ||, (,)), where &amp;amp;&amp;amp; stands for the AND operator, || for the OR operator, ! for the NOT operator, and == for the EQUAL operator&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;If you refer to a Boolean variable in the formula (such as a checkbox) and you want to check its value (on/off), it is sufficient to specify only the field name; there is no need to compare it to true/false (although this is possible)&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;In the lookup table, if the lookup field is a Boolean and you want to compare it with a constant value, the constant value should be Y or N (Yes/No)&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;This blog completes the series on UDV. We hope you find it beneficial and useful. &lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/customizing-field-values-part-4-how-to-use-logical-formula/ba-p/14038566"/>
     <published>2025-03-10T09:44:40.040000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/date-offset-is-the-new-norm/ba-p/14043187</id>
+    <title>Date offset is the new norm</title>
+    <updated>2025-03-23T09:52:50.665000+01:00</updated>
+    <author>
+      <name>Ari</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/9037</uri>
+    </author>
+    <content>&lt;P&gt;Dear SAP Business One community&lt;/P&gt;&lt;P&gt;Today I want to talk about a hidden Gem, date offset functionality available in any list view.&lt;/P&gt;&lt;P&gt;By leveraging the date offset you ensure that the list view will &lt;SPAN&gt;always present up to date data.&lt;/SPAN&gt;&lt;/P&gt;&lt;P data-unlink="true"&gt;Let’s look at this&amp;nbsp;&lt;A href="https://sapvideo.cfapps.eu10-004.hana.ondemand.com/?entry_id=1_ch1oxphh" target="_self" rel="nofollow noopener noreferrer"&gt;video&amp;nbsp;&lt;/A&gt;to learn more.&lt;/P&gt;&lt;P&gt;You can find additional information in the following &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-q-a/the-date-offset-concept/qaq-p/4770" target="_blank"&gt;blog&lt;/A&gt; and SAP Business One Web client&amp;nbsp;&lt;A href="https://learning.sap.com/learning-journeys/exploring-sap-business-one-web-client/leveraging-the-date-offset_be3a90e5-05e6-43a2-be8a-ac6169372b82" target="_blank" rel="noopener noreferrer"&gt;Learning journey&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;Regards&lt;/P&gt;&lt;P&gt;Ari&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/date-offset-is-the-new-norm/ba-p/14043187"/>
+    <published>2025-03-23T09:52:50.665000+01:00</published>
   </entry>
 </feed>
