@@ -2,244 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-RESTful-Application-Programming-Model-qa.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2025-03-26T09:00:07.068397+00:00</updated>
+  <updated>2025-03-26T12:00:06.618534+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/abap-rap-managed-scenario-shortdump-in-case-of-duplicate-key/qaq-p/14036794</id>
-    <title>ABAP RAP managed scenario, shortdump in case of duplicate key</title>
-    <updated>2025-03-07T11:51:36.162000+01:00</updated>
-    <author>
-      <name>patrick_weber11</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/215409</uri>
-    </author>
-    <content>&lt;P&gt;Hi there,&lt;/P&gt;&lt;P&gt;I try to build a RAP managed scenario around a simple table. The table consists of multiple key fields. One of these fields, I want to control the numbering. So I implemented a method for this.&lt;/P&gt;&lt;P&gt;Now I want to create a bunch of records. The MODIFY statement works good the first time and data are stored in table. When I run the code again, this will lead to duplicate records.&lt;/P&gt;&lt;P&gt;My expectation is that this situation either gets reported by MODIFY ENTITY statement or by COMMIT ENTITIES.&amp;nbsp;&lt;/P&gt;&lt;P&gt;The result is like this. MODIFY ENTITIES reports no error. COMMIT ENTITIES raises a shortdump. I was expecting that it will fill the FAILED or REPORTED, but this is not true.&lt;/P&gt;&lt;P&gt;Here a simplified example of my table&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'My table'
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #RESTRICTED
-define table zmy_table {
-
-  key client           : abap.clnt not null;
-  key order            : aufnr not null;
-  key item             : int4 not null;
-  Material             : matnr;
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;CDS View&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'My Table'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-define root view entity zi_my_table as select from zmy_table
-{
-    key order as Order,
-    key item as Item,
-    material as Material
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Behavior&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed implementation in class zbp_my_class unique;
-strict ( 2 );
-
-define behavior for zi_my_table alias MyTable
-persistent table zmy_table
-lock master
-authorization master ( instance )
-early numbering
-//etag master &amp;lt;field_name&amp;gt;
-{
-  create;
-  update;
-  delete;
-
-
-    field( readonly : update )
-    order,
-    item;
-
-  field( mandatory : create )
-  Material;
-
-  mapping for zmy_table
-  {
-    Order = order;
-    Item = item;
-    Material = material;
-   }
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;Behavior class&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_zi_my_table DEFINITION INHERITING FROM cl_abap_behavior_handler.
-  PRIVATE SECTION.
-    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-      IMPORTING keys REQUEST requested_authorizations FOR myTable RESULT result.
-
-    METHODS earlynumbering_create FOR NUMBERING
-      IMPORTING entities FOR CREATE myTable.
-
-ENDCLASS.
-
-
-CLASS lhc_zi_my_table IMPLEMENTATION.
-  METHOD get_instance_authorizations.
-  ENDMETHOD.
-
-  METHOD earlynumbering_create.
-    DATA(entities_wo_id) = entities.
-
-    SORT entities_wo_id BY order
-                           material.
-
-    LOOP AT entities_wo_id ASSIGNING FIELD-SYMBOL(&amp;lt;new_entity&amp;gt;).
-      " first check the largest ID used so far for given entry
-
-      SELECT MAX( item ) FROM @mapped-myTable AS existing
-        WHERE order = @&amp;lt;new_entity&amp;gt;-order
-        INTO &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1407137"&gt;@DATA&lt;/a&gt;(max_item).
-
-        &amp;lt;new_entity&amp;gt;-Item = max_item + 1.
-
-      APPEND VALUE #( %cid = &amp;lt;new_entity&amp;gt;-%cid
-                      %key = &amp;lt;new_entity&amp;gt;-%key )
-             TO mapped-myTable.
-
-    ENDLOOP.
-  ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Here I try to add new records. As long as an order has not been added so far, everything works. Once the order already exists, my code of item determination will lead to duplicate records.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;    MODIFY ENTITIES OF zi_my_table
-           ENTITY MyTable
-           CREATE AUTO FILL CID WITH VALUE #(
-               ( Order = '123456789
-                 Material = 'ABCDEF' ) 
-               ( Order = '123456789
-                 Material = 'XYZABC' )
-)
-
-           MAPPED DATA(mapped_data)
-           FAILED DATA(failed_records)
-           REPORTED DATA(reported_records).
-
-" This works for the first time but dump in case of additional execution.
-    IF failed_records IS INITIAL AND reported_records IS INITIAL.
-      COMMIT ENTITIES RESPONSES
-             FAILED DATA(failed_commit)
-             REPORTED DATA(reported_commit).
-
-    ENDIF.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;I'm aware of this situation but I really wonder why this does result in a shortdump instead of simple report failed records&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/abap-rap-managed-scenario-shortdump-in-case-of-duplicate-key/qaq-p/14036794"/>
-    <published>2025-03-07T11:51:36.162000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/call-of-the-function-bapi-reservation-create-failed/qaq-p/14038900</id>
-    <title>Call of the function BAPI_RESERVATION_CREATE failed;</title>
-    <updated>2025-03-10T13:57:53.696000+01:00</updated>
-    <author>
-      <name>Rohit45hitman</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1410462</uri>
-    </author>
-    <content>&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD /iwbep/if_mgw_appl_srv_runtime~create_deep_entity.
-
-  DATA: ls_header    TYPE zmb21_res_header,
-        lt_items     TYPE TABLE OF zmb21_res_item1,
-        ls_item      TYPE zmb21_res_item1,
-
-        lv_reserv_no TYPE resbn,
-        lt_return    TYPE TABLE OF bapiret2,
-        ls_return    TYPE bapiret2,
-        lv_message   TYPE string.
-
-  FIELD-SYMBOLS: &amp;lt;fs_item&amp;gt; TYPE zmb21_res_item1.
-
-
-  TYPES : BEGIN OF ty_deep_wo.
-            INCLUDE TYPE zmb21_res_header.
-
-  TYPES items TYPE TABLE OF  zmb21_res_item1 WITH DEFAULT KEY.
-*    TYPES COMPS TYPE TABLE OF ZCOMPONENT WITH DEFAULT KEY.
-  TYPES: END OF ty_deep_wo.
-
-  DATA : ls_wo TYPE ty_deep_wo.
-
-  " Read Deep Entity Data from the Request
-  io_data_provider-&amp;gt;read_entry_data(
-    IMPORTING
-      es_data = ls_wo
-  ).
-
-  " Mapping Header Data
-  ls_header = CORRESPONDING #( ls_wo ).
-
-  " Mapping Item Data
-  lt_items = ls_wo-items.
-
-  " BAPI Structures
-  DATA: lt_bapi_res_item TYPE TABLE OF  zmb21_res_item1,
-        ls_bapi_res_item TYPE zmb21_res_item1,
-        ls_bapi_header   TYPE zmb21_res_header.
-
-  " Fill BAPI Header
-
-  ls_bapi_header-bwart   = ls_header-bwart.
-  ls_bapi_header-lgort   = ls_header-lgort.
-  ls_bapi_header-werks    = ls_header-werks.
-  ls_bapi_header-kostl  = ls_header-kostl.
-  ls_bapi_header-umlgo  = ls_header-umlgo.
-  ls_bapi_header-dats = sy-datum.
-
-  " Fill BAPI Item Data
-  LOOP AT lt_items INTO ls_item.
-    CLEAR ls_bapi_res_item.
-    ls_bapi_res_item-material    = ls_item-material.
-    ls_bapi_res_item-entry_qnt   = ls_item-entry_qnt.
-    ls_bapi_res_item-entry_uom       = ls_item-entry_uom.
-    ls_bapi_res_item-werks       = ls_item-werks.
-    ls_bapi_res_item-lgort    = ls_item-lgort.
-    ls_bapi_res_item-batch       = ls_item-batch.
-    APPEND ls_bapi_res_item TO lt_bapi_res_item.
-  ENDLOOP.
-*
-  " Call BAPI
-  CALL FUNCTION 'BAPI_RESERVATION_CREATE'
-    EXPORTING
-      reservation_header = ls_bapi_header
-*     NO_COMMIT          =
-*     MOVEMENT_AUTO      =
-*               IMPORTING
-*     RESERVATION        =
-    TABLES
-      reservation_items  = lt_bapi_res_item
-      return             = lt_return.
-  .
-
-
-
-  " Check Return Messages
-  READ TABLE lt_return INTO ls_return WITH KEY type = 'E'.
-  IF sy-subrc = 0.
-    LOOP AT lt_return INTO ls_return.
-      CONCATENATE lv_message ls_return-message INTO lv_message SEPARATED BY space.
-    ENDLOOP.
-    RAISE EXCEPTION TYPE /iwbep/cx_mgw_busi_exception
-      EXPORTING
-        message = ls_return-message.
-  ELSE.
-    " Get Created Reservation Number
-    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
-      EXPORTING
-        wait = 'X'.
-
-    " Read the reservation number
-    READ TABLE lt_return INTO ls_return WITH KEY type = 'S'.
-    lv_message = ls_return-message. " Assuming success message contains Reservation Number
-
-    " Send Response Back
-*    er_deep_entity-lv_reserv_no = lv_reserv_no.
-  ENDIF.
-
-
-ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Hello ,&lt;/P&gt;&lt;P&gt;I am getting error while create reservations through the odata service error is&amp;nbsp;Call of the function BAPI_RESERVATION_CREATE failed; a field should be assigned to the parameter RESERVATION_HEADER - the types&lt;/P&gt;&lt;P&gt;here is my payload&lt;/P&gt;&lt;P&gt;&lt;!--  StartFragment   --&gt;&lt;SPAN&gt;{&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&lt;SPAN class=""&gt;"d"&lt;/SPAN&gt;:&amp;nbsp;{&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;SPAN class=""&gt;"Bwart"&lt;/SPAN&gt;:&amp;nbsp;&lt;SPAN class=""&gt;"311"&lt;/SPAN&gt;,&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;SPAN class=""&gt;"Werks"&lt;/SPAN&gt;:&amp;nbsp;&lt;SPAN class=""&gt;"1005"&lt;/SPAN&gt;,&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;SPAN class=""&gt;"Lgort"&lt;/SPAN&gt;:&amp;nbsp;&lt;SPAN class=""&gt;"FG01"&lt;/SPAN&gt;,&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;SPAN class=""&gt;"Umlgo"&lt;/SPAN&gt;:&amp;nbsp;&lt;SPAN class=""&gt;"FG01"&lt;/SPAN&gt;,&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;SPAN class=""&gt;"Dats"&lt;/SPAN&gt;:&amp;nbsp;&lt;SPAN class=""&gt;"2024-03-10T12:00"&lt;/SPAN&gt;,&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;SPAN class=""&gt;"ITEMS"&lt;/SPAN&gt;:&amp;nbsp;{&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;SPAN class=""&gt;"results"&lt;/SPAN&gt;:&amp;nbsp;[&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;{&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;SPAN class=""&gt;"Material"&lt;/SPAN&gt;:&amp;nbsp;&lt;SPAN class=""&gt;"11000003"&lt;/SPAN&gt;,&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;SPAN class=""&gt;"EntryQnt"&lt;/SPAN&gt;:&amp;nbsp;&lt;SPAN class=""&gt;"10.000"&lt;/SPAN&gt;,&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;SPAN class=""&gt;"EntryUom"&lt;/SPAN&gt;:&amp;nbsp;&lt;SPAN class=""&gt;"M"&lt;/SPAN&gt;,&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;SPAN class=""&gt;"Batch"&lt;/SPAN&gt;:&amp;nbsp;&lt;SPAN class=""&gt;""&lt;/SPAN&gt;&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;}&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;]&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;}&lt;BR /&gt;&amp;nbsp;&amp;nbsp;}&lt;BR /&gt;}&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/call-of-the-function-bapi-reservation-create-failed/qaq-p/14038900"/>
-    <published>2025-03-10T13:57:53.696000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/pass-grant-id-and-fund-to-i-journalentrytp-for-posting/qaq-p/14041717</id>
     <title>Pass Grant ID and Fund to I_JOURNALENTRYTP for posting</title>
@@ -479,5 +245,29 @@ ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Hello ,&lt;/P&gt;&lt;P&gt;I am getti
     <content>&lt;P&gt;Hi,&lt;/P&gt;&lt;P&gt;We need to display files in our read-only Business Object in RAP but the SAP Help document says that it can be done only for CRUD enabled BOs.&lt;BR /&gt;Anyone has an idea how this can be handled? Do we have some solution to this?&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShivamChadha_0-1742975543420.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/242621i5CEC9AAFD921F189/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ShivamChadha_0-1742975543420.png" alt="ShivamChadha_0-1742975543420.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Thanks in advance.&lt;/P&gt;&lt;P&gt;Best Regards,&lt;BR /&gt;Shivam Chadha&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/files-attachments-in-rap-for-read-only-business-objects/qaq-p/14056921"/>
     <published>2025-03-26T08:54:43.371000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/create-and-update-action-in-custom-table-while-implementing-cloud-badi-in/qaq-p/14057192</id>
+    <title>Create and update action in custom table while implementing cloud BADI in S4 Hana Public Cloud</title>
+    <updated>2025-03-26T11:32:16.811000+01:00</updated>
+    <author>
+      <name>Shadab_Hussain</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/870865</uri>
+    </author>
+    <content>&lt;P&gt;Hi Experts, I have implementing a cloud BADI&amp;nbsp;&lt;SPAN&gt;badi_mmim_check_matdocitem in S4 Hana public cloud system using developer extensibility. Since this BADI do not have yeild quantity I have entered while cobnfirming the production order. I want to SAVE the data into custom table and fetch the data again to validate against the quantity.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;My question is how should be update a custom table in cloud BADI. I am getting error as&amp;nbsp;&lt;SPAN&gt;Executing "MODIFY &amp;lt;dbtab&amp;gt;" from "CHECK_ITEM" violates transactional contract "FUNCTIONAL".&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/create-and-update-action-in-custom-table-while-implementing-cloud-badi-in/qaq-p/14057192"/>
+    <published>2025-03-26T11:32:16.811000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/find-me-a-bapi-fm-to-change-a-order-for-iw32-t-code/qaq-p/14057288</id>
+    <title>find me a bapi/fm to change a order for iw32 t-code</title>
+    <updated>2025-03-26T12:34:54.537000+01:00</updated>
+    <author>
+      <name>vikastanneeru</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2026244</uri>
+    </author>
+    <content>&lt;P&gt;hello experts,&lt;/P&gt;&lt;P&gt;can any one tell me is there any bapi/fm to change the order for iw32 t-code.&lt;/P&gt;&lt;P&gt;if the function module is exits tell me produce for to achieve this.&lt;/P&gt;&lt;P&gt;please help me.&lt;/P&gt;&lt;P&gt;thanks regards.&lt;/P&gt;&lt;P&gt;vikas t.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/find-me-a-bapi-fm-to-change-a-order-for-iw32-t-code/qaq-p/14057288"/>
+    <published>2025-03-26T12:34:54.537000+01:00</published>
   </entry>
 </feed>
