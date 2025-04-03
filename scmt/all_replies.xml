@@ -2,334 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2025-04-03T18:44:01.572086+00:00</updated>
+  <updated>2025-04-03T18:59:01.388245+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/using-regular-expressions-in-abap-to-extract-structured-text-segments/ba-p/14064635</id>
-    <title>Using Regular Expressions in ABAP to Extract Structured Text Segments</title>
-    <updated>2025-04-03T16:02:31.124000+02:00</updated>
-    <author>
-      <name>kunalsahi85</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/140275</uri>
-    </author>
-    <content>&lt;H3 id="toc-hId-1836475020"&gt;Introduction&lt;/H3&gt;&lt;P class=""&gt;Regular expressions (regex) are a powerful tool in many programming languages, including ABAP. They allow developers to match patterns within strings — particularly useful when dealing with unstructured or semi-structured text.&lt;/P&gt;&lt;P class=""&gt;In this blog post, we explore a practical use case where regex helps extract specific parts of long text, such as notes or order comments.&amp;nbsp;&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1639961515"&gt;Use Case: Selectively Extract Printable Text&lt;/H3&gt;&lt;P class=""&gt;Use embedded markers like the following to define printable vs non-printable content:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P class=""&gt;"Begin Print" — indicates the start of printable content&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;"Do not print" or "Internal notes" — indicates that following lines should not be printed&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;Our objective is to extract &lt;STRONG&gt;only the printable content&lt;/STRONG&gt;, even when these markers appear multiple times or are absent entirely.&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1443448010"&gt;Solution Overview&lt;/H3&gt;&lt;P class=""&gt;We'll use regex to detect these markers with flexibility (handling variations like "Do.Not.Print" or "Internal-notes"). The logic will toggle a control flag that decides whether each line is included.&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1246934505"&gt;Reusable Utility Class&lt;/H3&gt;&lt;P class=""&gt;To make this logic portable across different programs and reports, we wrap the filtering into a utility class:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_text_filter DEFINITION
-  PUBLIC
-  FINAL
-  CREATE PUBLIC.
-
-  PUBLIC SECTION.
-    TYPES: ty_line TYPE string,
-           ty_lines TYPE STANDARD TABLE OF ty_line WITH DEFAULT KEY.
-
-    CLASS-METHODS:
-      filter_printable_text
-        IMPORTING
-          it_lines TYPE ty_lines
-        RETURNING
-          VALUE(rt_filtered) TYPE ty_lines.
-ENDCLASS.
-
-
-CLASS zcl_text_filter IMPLEMENTATION.
-
-  METHOD filter_printable_text.
-
-    DATA: lv_should_print TYPE abap_bool VALUE abap_true,
-          lv_count TYPE i.
-
-    LOOP AT it_lines INTO DATA(ls_line).
-      CLEAR lv_count.
-
-      " Detect 'Begin Print'
-      FIND REGEX 'begin[^a-zA-Z0-9]*print'
-           IN ls_line IGNORING CASE MATCH COUNT lv_count.
-      IF lv_count NE 0.
-        lv_should_print = abap_true.
-        CONTINUE.
-      ENDIF.
-
-      " Detect 'Do not print' or 'Internal notes'
-      FIND REGEX 'do[^a-zA-Z0-9]*not[^a-zA-Z0-9]*print|internal[^a-zA-Z0-9]*notes'
-           IN ls_line IGNORING CASE MATCH COUNT lv_count.
-      IF lv_count NE 0.
-        lv_should_print = abap_false.
-        CONTINUE.
-      ENDIF.
-
-      IF lv_should_print = abap_true.
-        APPEND ls_line TO rt_filtered.
-      ENDIF.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-1050421000"&gt;How to Use It&lt;/H3&gt;&lt;P class=""&gt;You can now call this class in any program or report:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA: lt_input TYPE zcl_text_filter=&amp;gt;ty_lines,
-      lt_output TYPE zcl_text_filter=&amp;gt;ty_lines.
-
-lt_input = VALUE #( 
-  ( 'Do not print: internal checklist' )
-  ( 'Review pending approval' )
-  ( 'BEGIN PRINT' )
-  ( 'Maintenance Order: GM-0021' )
-  ( 'Task: Replace pump' )
-  ( 'Internal notes: not finalized' )
-  ( 'BEGIN PRINT' )
-  ( 'Final approval received' )
-  ( 'Schedule follow-up inspection' )
-).
-
-lt_output = zcl_text_filter=&amp;gt;filter_printable_text( lt_input ).&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-853907495"&gt;Sample Output&lt;/H3&gt;&lt;P class=""&gt;From the above input, the output would be:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;Maintenance Order: GM-0021
-Task: Replace pump
-Final approval received
-Schedule follow-up inspection&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-657393990"&gt;Expanded Test Cases&lt;/H3&gt;&lt;P class=""&gt;Below are various test cases this utility handles:&lt;/P&gt;&lt;H4 id="toc-hId-589963204"&gt;Test Case 1: No Control Keywords&lt;/H4&gt;&lt;P class=""&gt;&lt;STRONG&gt;Input&lt;/STRONG&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;Order: GM-1001
-Task: Inspect pressure valves
-Technician: J Singh&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Expected Output&lt;/STRONG&gt;: All lines&lt;/P&gt;&lt;HR /&gt;&lt;H4 id="toc-hId-393449699"&gt;Test Case 2: One Do Not Print Block&lt;/H4&gt;&lt;P class=""&gt;&lt;STRONG&gt;Input&lt;/STRONG&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;Do not print: Draft version
-Checklist not validated
-Awaiting assignment&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Expected Output&lt;/STRONG&gt;: No lines&lt;/P&gt;&lt;H4 id="toc-hId-196936194"&gt;Test Case 3: Begin Print Followed by Valid Section&lt;/H4&gt;&lt;P class=""&gt;&lt;STRONG&gt;Input&lt;/STRONG&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;BEGIN PRINT
-Order: GM-1002
-Task: Replace filters&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Expected Output&lt;/STRONG&gt;: Lines 2–3&lt;/P&gt;&lt;H4 id="toc-hId--497294406"&gt;Test Case 4: Multiple Blocks&lt;/H4&gt;&lt;P class=""&gt;&lt;STRONG&gt;Input&lt;/STRONG&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;Do not print: Internal log
-Old data references
-BEGIN PRINT
-Order: GM-1003
-Task: Repair conveyor belt
-Internal notes: Operator training in progress
-BEGIN PRINT
-Final test successful
-System back online&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Expected Output&lt;/STRONG&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;Order: GM-1003
-Task: Repair conveyor belt
-Final test successful
-System back online&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId--693807911"&gt;Test Case 5: Mixed Case and Spacing&lt;/H4&gt;&lt;P class=""&gt;&lt;STRONG&gt;Input&lt;/STRONG&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;do Not Print: Needs review
-Hold all tasks
-beGIN print
-Order: GM-1004
-Task: Inspect motor&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Expected Output&lt;/STRONG&gt;: Lines 4–5&lt;/P&gt;&lt;H3 id="toc-hId--596918409"&gt;Conclusion&lt;/H3&gt;&lt;P class=""&gt;This approach demonstrates the power of regex in ABAP for controlling output from long text fields. By encapsulating the logic in a reusable class, we make it easy to include in Smart Forms, Adobe Forms, or custom reports where long text segmentation is needed.&lt;/P&gt;&lt;P class=""&gt;This technique is highly flexible, supports real-world variations in input, and keeps the business logic transparent.&lt;/P&gt;&lt;P class=""&gt;Have you implemented similar solutions using regex or text parsing in ABAP? Share your approach and experiences in the comments below.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/using-regular-expressions-in-abap-to-extract-structured-text-segments/ba-p/14064635"/>
-    <published>2025-04-03T16:02:31.124000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/handling-file-routing-and-alerts-in-sap-cpi-based-on-file-type/ba-p/14064852</id>
-    <title>Handling File Routing and Alerts in SAP CPI Based on File Type</title>
-    <updated>2025-04-03T16:03:31.958000+02:00</updated>
-    <author>
-      <name>harsh__chauhan</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2006966</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Scenario Overview&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;We are dealing with files on an SFTP server:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;XML files&lt;/STRONG&gt; - To be routed to another SFTP location for further processing.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Other file types&lt;/STRONG&gt; - These should trigger an email alert notifying about the unexpected file type.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;Step 1: Setup SFTP server, File zilla and SFTP adapter&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Here, I have used free SFTP server and used file zilla to create directory and upload files.&lt;/P&gt;&lt;P&gt;Click - &lt;A href="https://sftpcloud.io/tools/free-sftp-server" target="_blank" rel="nofollow noopener noreferrer"&gt;https://sftpcloud.io/tools/free-sftp-server&lt;/A&gt;&amp;nbsp; and create&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_2-1743659803308.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246002iD64DEEA66149E18E/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_2-1743659803308.png" alt="harsh__chauhan_2-1743659803308.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Go to CPI tenant &amp;gt; Monitor &amp;gt; Manage security &amp;gt; security material &amp;gt; create &amp;gt; user cred. &amp;gt; set easy name AS YOU HAVE TO USE IT FURTHER.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;EM&gt;What Is Happening in the Configuration? &lt;/EM&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;EM&gt;In SAP CPI &amp;gt; Monitor &amp;gt; Security Material, we create a credential entry with:&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;Username &amp;amp; password from the SFTP server.&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;This allows CPI to authenticate and access the server.&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_3-1743659803323.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246001i3CC06583531697C7/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_3-1743659803323.png" alt="harsh__chauhan_3-1743659803323.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Paste username and pass from sftp server&lt;/LI&gt;&lt;LI&gt;Go to CPI tenant &amp;gt; Monitor &amp;gt; Manage security&amp;gt; connectivity test &amp;gt; SSH&amp;gt; past host from sftp server&amp;gt; click send.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_4-1743659803334.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246004i8E7E71D24A757F73/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_4-1743659803334.png" alt="harsh__chauhan_4-1743659803334.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;&lt;U&gt;&amp;nbsp;&lt;/U&gt;&lt;/EM&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;COPY and Paste in notepad with &lt;EM&gt;&lt;U&gt;known.hosts &lt;/U&gt;&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Key Point: What is a Known Host in SAP CPI?&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Definition&lt;/STRONG&gt;: A &lt;STRONG&gt;Known Host&lt;/STRONG&gt; is a trusted SFTP server whose &lt;STRONG&gt;SSH fingerprint&lt;/STRONG&gt; is stored in SAP CPI for secure authentication.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Purpose&lt;/STRONG&gt;: Ensures &lt;STRONG&gt;secure SFTP connections&lt;/STRONG&gt; by verifying the server’s identity before transferring files.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Why It’s Important&lt;/STRONG&gt;:&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Prevents &lt;STRONG&gt;man-in-the-middle attacks&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;Enhances &lt;STRONG&gt;security and compliance&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;Ensures &lt;STRONG&gt;only trusted SFTP servers&lt;/STRONG&gt; are accessed.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;How It Works&lt;/STRONG&gt;:&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;CPI checks the &lt;STRONG&gt;SFTP server’s fingerprint&lt;/STRONG&gt; against the &lt;STRONG&gt;Known Hosts file&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;If the fingerprint matches, the connection is &lt;STRONG&gt;established&lt;/STRONG&gt;; otherwise, it is &lt;STRONG&gt;blocked&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&lt;EM&gt;&lt;U&gt;&amp;nbsp;&lt;/U&gt;&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_5-1743659803344.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246005i8DB269A4AE227C0F/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_5-1743659803344.png" alt="harsh__chauhan_5-1743659803344.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;&lt;U&gt;&amp;nbsp;&lt;/U&gt;&lt;/EM&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Now upload the know.hosts file in &lt;STRONG&gt;Manage Security Material &amp;gt; Upload &amp;gt; known host (SSH)&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://download.filezilla-project.org/client/FileZilla_3.68.1_win64_sponsored2-setup.exe" target="_blank" rel="nofollow noopener noreferrer"&gt;Download FileZilla&lt;/A&gt; (if the link is not working, search "FileZilla download" on Google).&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Open &amp;gt; paste host, username, pass and port &amp;gt; quick connect &lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_6-1743659803351.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246003i31E0AEF28F8F39B9/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_6-1743659803351.png" alt="harsh__chauhan_6-1743659803351.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Right-click on the empty directory listing and select Create Directory.&lt;/LI&gt;&lt;LI&gt;Create sample files:&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;sample.xml (valid processing file)&lt;/P&gt;&lt;P&gt;sample.txt (to trigger an alert)&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;OR You can drag and drop to upload the file&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_7-1743659803361.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246008i49079B7FE5E29D89/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_7-1743659803361.png" alt="harsh__chauhan_7-1743659803361.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 2: Configuring SFTP adapter.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_8-1743659803367.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246006i3E9F7B28256D45ED/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_8-1743659803367.png" alt="harsh__chauhan_8-1743659803367.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Configure Content Modifier to Capturing File Name and Extension&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Here, we will use the &lt;STRONG&gt;Content Modifier&lt;/STRONG&gt; to extract the file name and extension from the incoming files.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Given two files: sample1.txt and sample2.xml.&lt;/LI&gt;&lt;LI&gt;${file:ext} → Captures only the &lt;STRONG&gt;extension&lt;/STRONG&gt; dynamically (e.g. txt or xml).&lt;/LI&gt;&lt;LI&gt;${file:name} → Captures only the &lt;STRONG&gt;file name&lt;/STRONG&gt; dynamically (e.g. sample1 or sample2).&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;STRONG&gt;&lt;U&gt;&amp;nbsp;SOME MORE EXAMPLES:&lt;/U&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;file:name → Returns the full name of the file, including the path (e.g., HCI\InputFile.xml).&lt;BR /&gt;file:name.ext → Returns only the file extension (e.g., xml).&lt;BR /&gt;file:name.noext → Returns the file name without the extension (e.g., HCI\InputFile).&lt;BR /&gt;file:onlyname → Returns only the file name with the extension (e.g., InputFile.xml).&lt;BR /&gt;file:onlyname.noext → Returns only the file name without the extension (e.g., InputFile).&lt;BR /&gt;file:ext → Returns only the file extension (e.g., xml).&lt;BR /&gt;file:parent → Returns the parent directory of the file path.&lt;BR /&gt;file:path → Returns the full file path.&lt;BR /&gt;file:absolute → Returns a boolean indicating if the file path is absolute.&lt;BR /&gt;file:absolute.path → Returns the absolute file path.&lt;BR /&gt;file:length or file:size → Returns the file size as a Long type.&lt;BR /&gt;file:modified → Returns the last modified date of the file as a Date type.&lt;/P&gt;&lt;P&gt;&lt;EM&gt;&lt;U&gt;Here we need only name and extension.&lt;/U&gt;&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_9-1743659803373.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246007i2ACB96D0749B5AE3/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_9-1743659803373.png" alt="harsh__chauhan_9-1743659803373.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 3: Routing Files Using Router&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The next step is to route files based on their extension using the &lt;STRONG&gt;Router&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Router Configuration:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;If the file extension is &lt;STRONG&gt;xml&lt;/STRONG&gt;, the message is routed to &lt;STRONG&gt;Route 1&lt;/STRONG&gt;.&lt;/LI&gt;&lt;LI&gt;If the file extension is &lt;STRONG&gt;not xml&lt;/STRONG&gt;, the message is routed to &lt;STRONG&gt;Route 2&lt;/STRONG&gt;.&lt;/LI&gt;&lt;LI&gt;If no conditions match, the message is sent to &lt;STRONG&gt;Route 3 (Default Route)&lt;/STRONG&gt;.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_10-1743659803378.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246009i2DBA76DF4CFA33D7/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_10-1743659803378.png" alt="harsh__chauhan_10-1743659803378.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;FTP – Receiver Side Configuration:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_11-1743659803384.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246010i42FA312C5DC6E740/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_11-1743659803384.png" alt="harsh__chauhan_11-1743659803384.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 4: Setup mail in SAP CPI (JUMP TO STEP 5 If already Configured.)&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Open&amp;nbsp;&lt;A href="https://mail.google.com/" target="_blank" rel="nofollow noopener noreferrer"&gt;https://mail.google.com/&lt;/A&gt; &amp;nbsp;&lt;/LI&gt;&lt;LI&gt;Download Certificate &amp;gt; Connection is secured &amp;gt; Certificate is valid &amp;gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_12-1743659803401.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246011i54255E51059C780B/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_12-1743659803401.png" alt="harsh__chauhan_12-1743659803401.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Details &amp;gt; export &amp;gt; save&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_13-1743659803405.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246012iA25FD0978C6E4A57/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_13-1743659803405.png" alt="harsh__chauhan_13-1743659803405.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;SSL/TLS Encryption Verification&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Gmail’s SMTP server uses &lt;STRONG&gt;SSL/TLS encryption&lt;/STRONG&gt; to secure communication.&lt;/P&gt;&lt;P&gt;When SAP CPI tries to send an email via smtp.gmail.com, it needs to &lt;STRONG&gt;verify Gmail's identity&lt;/STRONG&gt; to ensure it’s not connecting to a fraudulent or malicious server.&lt;/P&gt;&lt;P&gt;The certificate provides &lt;STRONG&gt;proof that the SMTP server is authentic&lt;/STRONG&gt; and belongs to Google.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Open &lt;A href="https://myaccount.google.com/" target="_blank" rel="nofollow noopener noreferrer"&gt;https://myaccount.google.com/&lt;/A&gt; &amp;gt; Search “ app passwords ” &amp;gt; write any name in APP NAME e.g. “GMAIL OR MAIL OR ANY ” - &amp;gt; create .&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_14-1743659803415.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246013i425C3B2E4082AC51/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_14-1743659803415.png" alt="harsh__chauhan_14-1743659803415.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Copy and paste in notepad.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_15-1743659803423.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246014i24FE8C0B10654F1C/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_15-1743659803423.png" alt="harsh__chauhan_15-1743659803423.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Go to monitor in integration suit &amp;gt; Key stores &amp;gt; add &amp;gt; Certificate &amp;gt; fill Alias Name same as APP NAME &lt;EM&gt;(not necessary, only for ease) &amp;gt; Add.&lt;/EM&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_16-1743659803437.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246015i9F10C2C2FF0B438E/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_16-1743659803437.png" alt="harsh__chauhan_16-1743659803437.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Go to Monitor &amp;gt; Security Materials &amp;gt; Create &amp;gt; Name: same as Alias name &amp;gt; username: your mail ID &amp;gt; password: which you copied in notepad (Random password Generated while creating App Name in Gmail) &amp;gt; Deploy.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_17-1743659803451.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246017i6FC017CB3350F701/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_17-1743659803451.png" alt="harsh__chauhan_17-1743659803451.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 5: Configuring Email Alerts for Missing XML Files&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;If no XML file is found, an alert email is sent notifying about the missing file.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Mail Adapter Configuration:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Address: &lt;/STRONG&gt;smtp.gmail.com:465&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Protection: &lt;/STRONG&gt;SMTPS&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Authentication: encrypted user/pass &lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Credential Name: &lt;/STRONG&gt;same as the name of you Created in Security Materials&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_18-1743659803455.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246016iB01B241CC4C0007A/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_18-1743659803455.png" alt="harsh__chauhan_18-1743659803455.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="harsh__chauhan_19-1743659803460.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246018iDA5D264DB802B06D/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="harsh__chauhan_19-1743659803460.png" alt="harsh__chauhan_19-1743659803460.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/handling-file-routing-and-alerts-in-sap-cpi-based-on-file-type/ba-p/14064852"/>
-    <published>2025-04-03T16:03:31.958000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-members/downloading-a-report-output-in-sap-without-using-spool-request/ba-p/14065480</id>
-    <title>Downloading a Report Output in SAP Without Using Spool Request</title>
-    <updated>2025-04-03T16:03:43.485000+02:00</updated>
-    <author>
-      <name>Koushik_SAP</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2056751</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Introduction to Downloading a Report Output in SAP Without Using Spool Request&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In SAP, we often need to call another report programmatically and download its output directly to the local system without sending it to the spool request. This is useful when:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;We need to automate report execution and download without user interaction.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;We do not want to store data in the spool (e.g., for security or performance reasons).&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;We need to directly save the report output as a file in a readable format (e.g., &lt;/SPAN&gt;&lt;SPAN&gt;.txt&lt;/SPAN&gt;&lt;SPAN&gt;, &lt;/SPAN&gt;&lt;SPAN&gt;.csv&lt;/SPAN&gt;&lt;SPAN&gt;, &lt;/SPAN&gt;&lt;SPAN&gt;.xlsx&lt;/SPAN&gt;&lt;SPAN&gt;).&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;SAP provides standard &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;ABAP statements and function modules&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; to execute another report and capture its output without using the spool.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Business Scenario.&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;To use material data i need download that report into pdf format without using spool request.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;The report should be downloaded as a file on the user’s local machine.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Avoid sending the report output to the spool (SP01) to reduce unnecessary spool entries.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Implementation:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;Use &lt;/SPAN&gt;&lt;SPAN&gt;SUBMIT&lt;/SPAN&gt;&lt;SPAN&gt; to execute the report and store the output in memory.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Retrieve the output using &lt;/SPAN&gt;&lt;SPAN&gt;LIST_FROM_MEMORY&lt;/SPAN&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Convert the output into an internal table using &lt;/SPAN&gt;&lt;SPAN&gt;LIST_TO_ASCI&lt;/SPAN&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Download the file using &lt;/SPAN&gt;&lt;SPAN&gt;GUI_DOWNLOAD&lt;/SPAN&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&amp;nbsp;&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;REPORT ZKOU_RP_MAIN_PROGRAM.
-DATA : g_werks type marc-werks,
-       g_matnr TYPE mara-matnr.
-SELECTION-SCREEN BEGIN OF BLOCK b WITH FRAME.
-SELECT-OPTIONS : s_werks for g_werks,
-                 s_matnr FOR g_matnr.
-SELECTION-SCREEN end of BLOCK b.
-START-OF-SELECTION.
-select mara~matnr,
-       marc~werks,
-       makt~MAKTX
-  FROM  mara INNER JOIN marc on mara~matnr = marc~matnr
-  INNER JOIN makt on mara~matnr = makt~matnr AND spras EQ -langu
-  INTO TABLE (gt_final)
-  WHERE mara~matnr in @s_matnr AND
-        marc~werks in @s_werks.
-end-OF-SELECTION.
-IF gt_final IS NOT INITIAL.
-FORMAT COLOR OFF.
-        FORMAT COLOR COL_GROUP.
-data(gv_header) = |Material No| &amp;amp;&amp;amp; |  |  &amp;amp;&amp;amp; |Plant| &amp;amp;&amp;amp;  | |  &amp;amp;&amp;amp; |Description|.
-write : / gv_header.
-FORMAT COLOR COL_TOTAL.
-LOOP AT gt_final INTO DATA(gs_final).
-data(gv_item) = gs_final-matnr &amp;amp;&amp;amp; |  |  &amp;amp;&amp;amp; gs_final-werks &amp;amp;&amp;amp;  | |  &amp;amp;&amp;amp; gs_final-maktx.
-write : / gv_item.
-ENDLOOP.
-ENDIF.
-
-*&amp;amp;---------------------------------------------------------------------*
-*&amp;amp; Report ZKOU_RP_SUB_PROGRAM
-*&amp;amp;---------------------------------------------------------------------*
-*&amp;amp;
-*&amp;amp;---------------------------------------------------------------------*
-REPORT ZKOU_RP_SUB_PROGRAM.
-
-
- types : begin of ty_str1,
-         fieldname type char20,            " Structure for declear fieldname and values of table
-         values type char20,
-   end of ty_str1.
-
-
-types : begin of Material_Details,
-        Material_Details type string,      " Structure using for Declear the table description
-       end of Material_Details.
-
-data : g_werks        type marc-werks,
-       g_matnr        type mara-matnr,
-       lt_output      type table of abaplist,
-       it_werks       type range of marc-werks,
-       it_matnr       type range of mara-matnr,
-       wa_werks       like line of it_werks,
-       wa_matnr       like line of it_matnr,
-       lt_string1     type table of char200,
-       gt_data type standard table of x255,                                  "SDOK_SDATX(raw_data).
-       lt_fin type table of ty_str1 with header line,
-       lt_fin1 type table of ty_str1 with header line,
-       ls_fin type ty_str1,
-       lt_Material_Details type table of Material_Details,
-       ls_Material_Details type  Material_Details,
-       curr_line type sy-tabix,
-       lv_file_path type string value 'C:\Users\user\Desktop\OUTPUT17.PDF'.          "Path value for local system
-
-
-select-options : s_werks for g_werks,         " Selection screen for the particlur table
-                 s_matnr for g_matnr.
-
-wa_werks-sign = 'I'.
-wa_werks-option = 'EQ'.
-wa_werks-low = s_werks-low.                     " fill the data for selction screen
-wa_werks-high = s_Werks-high.
-append wa_werks to it_werks.
-
-wa_matnr-sign = 'I'.
-wa_matnr-option = 'EQ'.
-wa_matnr-low = s_matnr-low.
-wa_matnr-high = s_matnr-high.
-append wa_matnr to it_matnr.
-
-
-
-
-submit  ZKOU_RP_MAIN_PROGRAM with  s_werks in it_werks
-                            with  s_matnr in it_matnr  exporting list to memory and  return.
-
-
-call function 'LIST_FROM_MEMORY'
-  tables
-    listobject = lt_output                               "fetching the data form memory
-  exceptions
-    not_found  = 1
-    others     = 2.
-
-IF SY-SUBRC = 0.
-  call function 'WRITE_LIST'
-*   EXPORTING
-*     WRITE_ONLY       = 'X'
-    tables
-      listobject       = LT_OUTPUT
-*   EXCEPTIONS
-*     EMPTY_LIST       = 1
-*     OTHERS           = 2
-            .
-  if sy-subrc &amp;lt;&amp;gt; 0.
-* Implement suitable error handling here
-  endif.
-
-
-ENDIF.
-
-call function 'LIST_TO_ASCI'
- tables
-   listasci                 = lt_string1
-   listobject               = lt_output                       " ascii value convert to string value
- exceptions
-   empty_list               = 1
-   list_index_invalid       = 2
-   others                   = 3
-          .
-if sy-subrc &amp;lt;&amp;gt; 0.
-
-endif.
-
-
-
-
-read table lt_string1 into data(lv_fields) index 3.
-if sy-subrc = 0.
-
- read table lt_string1 into data(lv_values) index 4.
- ls_Material_Details-Material_Details = lv_fields.
- append ls_Material_Details to lt_Material_Details.               "Moved string data to internal table data
-clear ls_Material_Details.
- ls_Material_Details-Material_Details = lv_values.
-  append ls_Material_Details to lt_Material_Details.
-
- endif.
-
-
-
-
-
-data(lo_pdf) = new cl_apoc_pdf_generator( ).
-lo_pdf-&amp;gt;create_pdf(
-exporting
-  input = lt_Material_Details
-                                                    " using this class create pdf
-  receiving
-  pdf_binary_output = data(rv_bin)
-
-  ).
-
-
-
-call function 'SCMS_XSTRING_TO_BINARY'
-  exporting
-    buffer                = rv_bin
-  tables                                           "convert the data form binary format
-    binary_tab            = gt_data
-          .
-
-call function 'GUI_DOWNLOAD'
-  exporting
-
-    filename                        = lv_file_path
-   filetype                        = 'BIN'                "Download in the pdf format
-  tables
-    data_tab                        = gt_data
-*
-          .
-if sy-subrc &amp;lt;&amp;gt; 0.
-* Implement suitable error handling here
-endif.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;Output:-&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Koushik_SAP_0-1743684760507.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246397iB2EC452A63001FEF/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Koushik_SAP_0-1743684760507.png" alt="Koushik_SAP_0-1743684760507.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Koushik_SAP_1-1743684760508.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246398i842BE36653F6258C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Koushik_SAP_1-1743684760508.png" alt="Koushik_SAP_1-1743684760508.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-members/downloading-a-report-output-in-sap-without-using-spool-request/ba-p/14065480"/>
-    <published>2025-04-03T16:03:43.485000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/re-it-doesn-t-enable-the-copy-button-in-discover/qaq-p/14065526/comment-id/4909276#M4909276</id>
-    <title>Re: It doesn't enable the copy button in discover</title>
-    <updated>2025-04-03T16:05:00.173000+02:00</updated>
-    <author>
-      <name>jmserna47</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1930728</uri>
-    </author>
-    <content>Hi, I was assigned the PI_Integration_Developer role and regenerated the instance, but unfortunately it didn't work. I don't know if it's a subaccount error. :S</content>
-    <link href="https://community.sap.com/t5/technology-q-a/re-it-doesn-t-enable-the-copy-button-in-discover/qaq-p/14065526/comment-id/4909276#M4909276"/>
-    <published>2025-04-03T16:05:00.173000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/re-abap-on-cloud-foundry-how-to-unlock-an-object/qaq-p/14065528/comment-id/4909277#M4909277</id>
-    <title>Re: ABAP on Cloud Foundry: How to unlock an object ?</title>
-    <updated>2025-04-03T16:06:01.242000+02:00</updated>
-    <author>
-      <name>marceloromeiro</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/156266</uri>
-    </author>
-    <content>&lt;P&gt;Hello all,&lt;BR /&gt;Just to add: the fiori app to remove the block is "Maintain User Sessions".&lt;/P&gt;&lt;P&gt;Best regards,&lt;/P&gt;&lt;P&gt;Marcelo R.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/re-abap-on-cloud-foundry-how-to-unlock-an-object/qaq-p/14065528/comment-id/4909277#M4909277"/>
-    <published>2025-04-03T16:06:01.242000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/how-to-find-all-cds-views-or-tables-involved-in-final-cds-view/qaq-p/14065535</id>
     <title>How to find all CDS views or tables involved in final CDS view</title>
@@ -1487,5 +1163,65 @@ endif.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;Output:-&lt;/SPAN&gt;&lt;SPA
     <content>&lt;P&gt;I don't know if it was available in 2007A but now it is available, you can do it using Printing Sequence in Report and Layout Manager&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-pld-print-several-documents-at-once/qaq-p/14065742/comment-id/4212617#M4212617"/>
     <published>2025-04-03T20:36:59.977000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/rap-list-report-aggregation-missing-only-in-deployed-version/qaq-p/14065743</id>
+    <title>RAP List Report aggregation missing only in deployed version</title>
+    <updated>2025-04-03T20:44:04.497000+02:00</updated>
+    <author>
+      <name>Pedro_Cruchinho</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1940821</uri>
+    </author>
+    <content>&lt;P&gt;I've created an RAP APP ( on adt side ) to show an list report fiori app with option to navigate for detail ( also a list report ).&lt;/P&gt;&lt;P&gt;I neeed to have totals and subtotals so I put the anotaion&amp;nbsp;&lt;SPAN&gt;@Aggregation.default: #SUM in the projection view.&lt;/SPAN&gt;&lt;BR /&gt;When I preview the APP using Service bindiing preview option I've the totals:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Pedro_Cruchinho_2-1743705074421.png" style="width: 738px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246513i5A32D51A09720395/image-dimensions/738x48/is-moderation-mode/true?v=v2" width="738" height="48" role="button" title="Pedro_Cruchinho_2-1743705074421.png" alt="Pedro_Cruchinho_2-1743705074421.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;When I go to details ( using associations ) I also have de totals:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Pedro_Cruchinho_3-1743705127248.png" style="width: 743px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246514i2DF7CB96EC404101/image-dimensions/743x117/is-moderation-mode/true?v=v2" width="743" height="117" role="button" title="Pedro_Cruchinho_3-1743705127248.png" alt="Pedro_Cruchinho_3-1743705127248.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;After I deploy the APP using BAS I lost totals in the main view:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Pedro_Cruchinho_4-1743705236245.png" style="width: 700px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246515i9AEF4B18E053939D/image-dimensions/700x84/is-moderation-mode/true?v=v2" width="700" height="84" role="button" title="Pedro_Cruchinho_4-1743705236245.png" alt="Pedro_Cruchinho_4-1743705236245.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;So I assumed that some limitation in BAS side. But if I go to the details ( in the deployed app ), I have the totals:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Pedro_Cruchinho_5-1743705329716.png" style="width: 733px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246516iD8463A4AE50CA541/image-dimensions/733x99/is-moderation-mode/true?v=v2" width="733" height="99" role="button" title="Pedro_Cruchinho_5-1743705329716.png" alt="Pedro_Cruchinho_5-1743705329716.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Since I have parameters, I'm using oDataV2 protocol.&lt;/P&gt;&lt;P&gt;Can you please help me identigying what could be the problem? Thanks&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/rap-list-report-aggregation-missing-only-in-deployed-version/qaq-p/14065743"/>
+    <published>2025-04-03T20:44:04.497000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-arm-inter-company-credit-memo-automation/qaq-p/14065744/comment-id/4212618#M4212618</id>
+    <title>Re: ARM_Inter-Company Credit Memo Automation</title>
+    <updated>2025-04-03T20:44:57.769000+02:00</updated>
+    <author>
+      <name>Harald5</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/176205</uri>
+    </author>
+    <content>Hi Sharon Yu,,Which billing type you have used for this inter-company credit memo. IG2, IG,...?</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-arm-inter-company-credit-memo-automation/qaq-p/14065744/comment-id/4212618#M4212618"/>
+    <published>2025-04-03T20:44:57.769000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/product-lifecycle-management-q-a/re-dynamic-plan-delivery-time-for-purchase-requisition-i/qaq-p/14065747/comment-id/82676#M82676</id>
+    <title>Re: Dynamic Plan Delivery Time for Purchase requisition i...</title>
+    <updated>2025-04-03T20:48:47.369000+02:00</updated>
+    <author>
+      <name>Rangaa</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/165956</uri>
+    </author>
+    <content>&lt;P&gt;Hi Caetano,&lt;/P&gt;&lt;P&gt;MD_MODIFY_SOURCE is not getting triggered at MD01N, i have used MD_MRP_PARAMETERS and it satisfies my requirement in MD01. Do we have any BADI which works similar&amp;nbsp;MD_MRP_PARAMETERS in MD01N. I have checked your blog for new BADI&amp;nbsp;&lt;SPAN&gt;PPH_SUPPLY_DEMAND_LIST&lt;/SPAN&gt; introduced after 2022 but i am working on 1909.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Br,&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/product-lifecycle-management-q-a/re-dynamic-plan-delivery-time-for-purchase-requisition-i/qaq-p/14065747/comment-id/82676#M82676"/>
+    <published>2025-04-03T20:48:47.369000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/sap-support-when-mfa-authentication-is-active/qaq-p/14065748</id>
+    <title>Sap Support when MFA authentication is active</title>
+    <updated>2025-04-03T20:50:38.484000+02:00</updated>
+    <author>
+      <name>maffio</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1965380</uri>
+    </author>
+    <content>&lt;P&gt;Hello expert.&lt;/P&gt;&lt;P&gt;In the Tinexta environment, to connect to the Datasphere environment, an MFA authentication process has been put in place. I was wondering, in such circumstances, which are the Sap best practices to enable the user devoted to you (the Sap Support User) to connect to the Datasphere environment. Now, to enable to your team to connect, we have temporally disabled the MFA authentication process, but I suppose that this cannot be a stable solution, even considering that in the future we will need your assistance for the Production environment, where we will not be authorized to disable the MFA authentication process. I hope you got my point.&lt;/P&gt;&lt;P&gt;Waiting for your reply&lt;/P&gt;&lt;P&gt;Regards&lt;/P&gt;&lt;P&gt;Andrea&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/sap-support-when-mfa-authentication-is-active/qaq-p/14065748"/>
+    <published>2025-04-03T20:50:38.484000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/product-lifecycle-management-q-a/re-dynamic-plan-delivery-time-for-purchase-requisition-i/qaq-p/14065751/comment-id/82678#M82678</id>
+    <title>Re: Dynamic Plan Delivery Time for Purchase requisition i...</title>
+    <updated>2025-04-03T20:56:49.620000+02:00</updated>
+    <author>
+      <name>Caetano</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/121014</uri>
+    </author>
+    <content>&lt;P&gt;Hello&lt;/P&gt;&lt;P&gt;Hello&amp;nbsp;&lt;/P&gt;&lt;P&gt;The following note provides a list of the Classic MRP ABAP BAdIs and the equivalent AMDP BAdIs that are called in MRP Live:&lt;/P&gt;&lt;P&gt;2268085 - S4TWL - MRP Live on SAP HANA - MD01N&lt;/P&gt;&lt;P&gt;Regards,&lt;BR /&gt;Caetano&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/product-lifecycle-management-q-a/re-dynamic-plan-delivery-time-for-purchase-requisition-i/qaq-p/14065751/comment-id/82678#M82678"/>
+    <published>2025-04-03T20:56:49.620000+02:00</published>
   </entry>
 </feed>
