@@ -2,332 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2025-05-02T10:14:01.596919+00:00</updated>
+  <updated>2025-05-02T10:29:01.366973+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/sap-cap%E4%B8%8A%E3%81%A7di-di%E3%82%B3%E3%83%B3%E3%83%86%E3%83%8A%E3%82%92%E3%82%B5%E3%82%AF%E3%83%83%E3%81%A8%E5%AE%9F%E8%A3%85-node-js-%E3%83%8F%E3%83%B3%E3%82%BA%E3%82%AA%E3%83%B3%E7%B7%A8/ba-p/14091025</id>
-    <title>SAP CAP上でDI/DIコンテナをサクッと実装: Node.js ハンズオン編</title>
-    <updated>2025-05-02T08:10:22.919000+02:00</updated>
-    <author>
-      <name>Umezuki</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/841332</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-1710067694"&gt;はじめに&lt;/H2&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/sap-cap%E4%B8%8A%E3%81%A7di-di%E3%82%B3%E3%83%B3%E3%83%86%E3%83%8A%E3%82%92%E3%82%B5%E3%82%AF%E3%83%83%E3%81%A8%E5%AE%9F%E8%A3%85-%E7%90%86%E8%AB%96%E7%B7%A8/ba-p/14087169" target="_self"&gt;理論編&lt;/A&gt;でDI/DIコンテナの概要について理解できたと思いますので、今回は実践に落とし込んでみたいと思います。ここでは、CAPやTypeScriptの使い方を知っており、VSCodeを使っている前提で進めます。&lt;/P&gt;&lt;H2 id="toc-hId-1513554189"&gt;プロジェクトのフォルダー構成&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;多くのCAPユーザーに馴染みがあり、サクッと試せるハンズオンにするため、以下の特徴を取り入れました。&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;CAPの公式サンプルである&lt;A href="https://github.com/SAP-samples/cloud-cap-samples" target="_self" rel="nofollow noopener noreferrer"&gt;bookshop&lt;/A&gt;を参考にプロジェクトを作成。&lt;/LI&gt;&lt;LI&gt;ディレクトリ構成をシンプルにするため、srvとtestディレクトリでサブディレクトリを作成しない。&lt;/LI&gt;&lt;LI&gt;DI/DIコンテナにフォーカスするため、他のデザインパターンや不要なLayerは省略。&lt;/LI&gt;&lt;LI&gt;コード量削減のためにany型などを一部使用。(実際の開発では非推奨。)&lt;/LI&gt;&lt;LI&gt;外部DBは使用せず、csvファイルデータとモックデータを使用。&lt;/LI&gt;&lt;LI&gt;レポジトリレイヤーのみをDIコンテナに登録。&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;それでは始めましょう！&lt;/P&gt;&lt;H2 id="toc-hId-1317040684"&gt;CAPプロジェクトの作成&lt;/H2&gt;&lt;P&gt;まずは、&lt;A href="https://cap.cloud.sap/docs/get-started/" target="_self" rel="nofollow noopener noreferrer"&gt;CAPのGetting Started&lt;/A&gt;に倣ってプロジェクトを作成します。&lt;/P&gt;&lt;PRE&gt;npm add -g @sap/cds-dk&lt;/PRE&gt;&lt;P&gt;上記をインストールできたら、下記のコマンドを実行してください。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;# cdsのインストールが正常に行えたかチェック
-cds
-
-# cdsプロジェクトを作成
-cds init bookshop-di
-
-# bookshopのディレクトリーのVSCodeを開く
-code bookshop-di&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Macユーザーは、下記を参考にcodeを有効化してください。&lt;/P&gt;&lt;P&gt;&lt;A href="https://cap.cloud.sap/docs/tools/cds-editors#vscode" target="_blank" rel="noopener nofollow noreferrer"&gt;Assumes you activated the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;code&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;command on macOS as documented&lt;/A&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1120527179"&gt;必要なパッケージのインストール&lt;/H2&gt;&lt;P&gt;プロジェクトで使用するパッケージをインストールします。InversifyJSというライブラリを使って依存性の注入(DI)を行います。&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;# TypeScript
-npm install -g typescript ts-node
-
-# InversifyJS
-npm install inversify reflect-metadata
-
-# Jest
-npm install --save-dev jest ts-jest @types/jest&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;必要なパッケージがインストールできましたので、各ディレクトリのコードを見ていきましょう。&lt;/P&gt;&lt;H2 id="toc-hId-924013674"&gt;ルートディレクトリ&lt;/H2&gt;&lt;P&gt;InversifyJSを使うために、&lt;SPAN&gt;experimentalDecoratorsと&lt;/SPAN&gt;&lt;SPAN&gt;emitDecoratorMetadataをtrueにした、tsconfig.jsonファイルを作成してください。&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;// tsconfig.json
-{
-  "compilerOptions": {
-    "target": "es6",
-    "module": "commonjs",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": false,
-    "forceConsistentCasingInFileNames": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
-  },
-  "include": ["srv/**/*", "test/**/*"],
-  "exclude": ["node_modules"]
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;単体テストで使用するJestに関する設定ファイルです。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// jest.config.js
-module.exports = {
-  preset: "ts-jest",
-  testEnvironment: "node",
-};&lt;/code&gt;&lt;/pre&gt;&lt;H2 id="toc-hId-727500169"&gt;dbディレクトリ&lt;/H2&gt;&lt;P&gt;&lt;A href="https://github.com/SAP-samples/cloud-cap-samples/tree/main/bookshop/db" target="_self" rel="nofollow noopener noreferrer"&gt;bookshopのエンティティとデータ&lt;/A&gt;を参考に、簡素化したものを使用します。&lt;/P&gt;&lt;P&gt;cdsファイルのエンティティはこちらです。&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;// db/schema.cds
-entity Books {
-  key ID    : Integer;
-      title : localized String(111) @mandatory;
-      stock : Integer;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;csvファイルのデータはこちらです。&lt;/P&gt;&lt;pre class="lia-code-sample language-css"&gt;&lt;code&gt;# db/data/Books.csv
-ID,title,stock
-201,Wuthering Heights,101,
-207,Jane Eyre,107&lt;/code&gt;&lt;/pre&gt;&lt;H2 id="toc-hId-530986664"&gt;srvディレクトリ&lt;/H2&gt;&lt;P&gt;Bookの型定義です。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// srv/book.ts
-export interface Book {
-  ID: number;
-  title: string;
-  stock: number;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;cdsファイルです。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// srv/catalogService.cds
-using {Books as DbBooks} from '../db/schema';
-
-service CatalogService {
-  entity Books as projection on DbBooks;
-
-  action submitOrder(book : Integer, quantity : Integer) returns Books;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;これからDIと関連する部分についてレポジトリ、ハンドラー、サービス、DIコンテナという順にコードを見ていきます。&lt;/P&gt;&lt;P&gt;まずはIBookRepositoryから解説していきます。submitOrderHandlerというビジネスロジックで使用するためのfindBookByIdとupdateBookStockを定義します。ビジネスロジックでは、findBookByIdで対象の本を取得し、注文の数量を満たす在庫があるかどうか確認し、在庫があればupdateBookStockで本の在庫量を更新するという使われ方になります。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// srv/iBookRepository.ts
-import { Book } from "./book";
-
-export interface IBookRepository {
-  findBookById(ID: number): Promise&amp;lt;Book | undefined&amp;gt;;
-  updateBookStock(ID: number, newStock: number): Promise&amp;lt;void&amp;gt;;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;次は具象クラスで、findBookByIdとupdateBookStockの実装内容を記載します。ここでは、Inversifyライブラリで提供されている&lt;A href="https://inversify.io/docs/api/decorator/" target="_self" rel="nofollow noopener noreferrer"&gt;injectableデコレーター&lt;/A&gt;を使うことで、DIコンテナがクラスから発行されたメタデータを受け取るために使われます。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// srv/bookRepository.ts
-import { IBookRepository } from "./iBookRepository";
-import { Book } from "./book";
-import { injectable } from "inversify";
-
-@injectable()
-class BookRepository implements IBookRepository {
-  async findBookById(ID: number): Promise&amp;lt;Book | undefined&amp;gt; {
-    return await SELECT.from("Books", ID, (b: Book) =&amp;gt; ({
-      ID: b.ID,
-      stock: b.stock,
-      title: b.title,
-    }));
-  }
-
-  async updateBookStock(ID: number, newStock: number): Promise&amp;lt;void&amp;gt; {
-    await UPDATE("Books", ID).with({ stock: newStock });
-  }
-}
-
-export { BookRepository };&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;次はsubmitOrderHandlerの解説です。&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;この関数内でBookRepositoryをインスタンス化せず、引数を使ってIBookRepositoryという抽象型に依存している点が肝になります。&lt;/STRONG&gt;このおかげで、submitOrderHandlerはIBookRepositoryの型を持ったどのようなRepositoryも使用できるため、ローカル環境でテストをする際にはBookRepository、単体テストの際にはMockBookRepositoryを利用できるようになります。この疎結合がテスト容易性をもたらしています。&lt;/P&gt;&lt;P&gt;Note: 開発環境と本番環境のデータ基盤の切り替えは、DIコンテナを使わずとも、&lt;A href="https://cap.cloud.sap/docs/guides/using-services#connect-and-deploy" target="_self" rel="nofollow noopener noreferrer"&gt;CAPが提供している機能を使ってpackage.jsonで切り替えられます&lt;/A&gt;。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// srv/submitOrderHandler.ts
-import { Request } from "@sap/cds";
-import { IBookRepository } from "./iBookRepository";
-
-export const submitOrderHandler =
-  (bookRepository: IBookRepository) =&amp;gt;
-  // ハンズオン用にコードをシンプルにするため、リクエストの型定義はせずにcdsのRequest型を使用。
-  async (req: Request) =&amp;gt; {
-    const { book: ID, quantity } = req.data;
-
-    const book = await bookRepository.findBookById(ID);
-    if (!book) {
-      return req.error(404, `Book #${ID} doesn't exist`);
-    }
-
-    if (quantity &amp;lt; 1) {
-      return req.error(400, `quantity has to be 1 or more`);
-    }
-    if (quantity &amp;gt; book.stock) {
-      return req.error(409, `${quantity} exceeds stock for book #${ID}`);
-    }
-    // ハンズオン用にコードをシンプルにするため、setterは省略。
-    book.stock -= quantity;
-    await bookRepository.updateBookStock(ID, book.stock);
-    return book;
-  };&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;CatalogServiceでbookRepositoryを定義し、submitOrderHandlerの引数として渡します。CAPの仕様上、catalogService.ts(とcatalogService.cds)の情報をもとにAPIを公開するようなRouteレイヤーの役割を果たすため、このサービスクラスを注入する必要がなく、併せてinjectableデコレーターもいらないと考えられます。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// srv/catalogService.ts
-import { IBookRepository } from "./iBookRepository";
-import { container } from "./inversify.config";
-import { submitOrderHandler } from "./submitOrderHandler";
-import { TYPES } from "./types";
-import cds from "@sap/cds";
-
-class CatalogService extends cds.ApplicationService {
-  async init() {
-    const bookRepository = container.get&amp;lt;IBookRepository&amp;gt;(
-      TYPES.IBookRepository
-    );
-
-    this.on("submitOrder", submitOrderHandler(bookRepository));
-  }
-}
-
-export default CatalogService;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;最後に、DIコンテナを設定します。submitOrderHandlerやCatalogServiceにBookRepositoryといった具象クラスが存在しないため、どのように呼び出すのか疑問に思われたかもしれませんが、その点についてはDIコンテナが解決します。まさに、読んで字の如く「DIコンテナ」です。&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;実際のコードが以下の2つのファイルです。まずはシンボル(一意の識別子)を定義します。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// srv/types.ts
-export const TYPES = {
-  IBookRepository: Symbol.for("IBookRepository"),
-};&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;DIコンテナでTYPES.IBookRepositoryという識別子とBookRepository クラスをバインドします。これにより、コンテナのTYPES.IBookRepositoryが要求された際にBookRepositoryという具象クラスを呼び出しています。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// srv/inversify.config.ts
-import { Container } from "inversify";
-import { IBookRepository } from "./iBookRepository";
-import { BookRepository } from "./bookRepository";
-import { TYPES } from "./types";
-
-export const container = new Container();
-container.bind&amp;lt;IBookRepository&amp;gt;(TYPES.IBookRepository).to(BookRepository);&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;補足: シンボルを使わなくてもDIコンテナを利用できます。具体的には、bindの引数であるTYPES.IBookRepositoryをBookRepositoryというクラスに書き換える、あるいは'IBookRepository'という文字列に書き換える形でも利用可能です。(興味のある方は、試してみてください。) しかしながら、前者はcontainerを呼び出すCatalogServiceがBookRepositoryの詳細を知ってしまうため、後者は一意性の保証ができないため、推奨されません。&lt;/P&gt;&lt;P&gt;&lt;A href="https://inversify.io/docs/introduction/dependency-inversion/" target="_self" rel="nofollow noopener noreferrer"&gt;'&lt;SPAN&gt;By using symbols, you can provide interface implementations in a way that the dependent class is not aware of the dependency implementation details.&lt;/SPAN&gt;'&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;以上でAPIをコールするための準備は整いましたので、下記コマンドでローカルホストを立ち上げてテストします。&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;cds-ts w&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;上記で4004ポートのサーバーを立ち上げた状態で、httpファイルで定義したPOSTリクエストを送ります。「Send Request」というテキストがhttpファイルに表示されない場合には、「Rest Client」という拡張機能をインストールしてください。&lt;/P&gt;&lt;P&gt;注意点: BookRepositoryでUPDATE処理を書いていますが、&lt;A href="https://cap.cloud.sap/docs/guides/providing-services#actions-functions" target="_self" rel="nofollow noopener noreferrer"&gt;cdsファイルで定義したactionはPOST処理&lt;/A&gt;とみなされます。&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;// test/requests.http
-###
-POST http://localhost:4004/odata/v4/catalog/submitOrder
-Content-Type: application/json
-
-{ "book":201, "quantity":5 }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;200 OKが返ってきたら成功ですので、次のパートに進みましょう。エラーが発生した際には、各ファイル名が正しいか、保存されているか確認してください。&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId-334473159"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="BAS.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/257016i91F9399230336FC1/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="BAS.png" alt="BAS.png" /&gt;&lt;/span&gt;&lt;/H2&gt;&lt;H2 id="toc-hId-137959654"&gt;testディレクトリ&lt;/H2&gt;&lt;P&gt;次は単体テストパートで、DIのメリットを享受できます。&lt;/P&gt;&lt;P&gt;まず、srv/inversify.config.tsと同じ形式でtestContainerを定義します。ただし、今回はMockBookRepositoryにバインドしている点に注意してください。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// test/inversify.test.config.ts
-import { Container } from "inversify";
-import { IBookRepository } from "../srv/iBookRepository";
-import { TYPES } from "../srv/types";
-import { MockBookRepository } from "./mockBookRepository";
-
-export const testContainer = new Container();
-testContainer
-  .bind&amp;lt;IBookRepository&amp;gt;(TYPES.IBookRepository)
-  .to(MockBookRepository);&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;MockBookRepositoryでは、下記のようなbookのモックデータを使用しています。&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// test/mockBookRepository.ts
-import { injectable } from "inversify";
-import { IBookRepository } from "../srv/iBookRepository";
-import { Book } from "../srv/book";
-
-@injectable()
-class MockBookRepository implements IBookRepository {
-  private books: Book[] = [
-    { ID: 1, title: "Test Book 1", stock: 10 },
-    { ID: 2, title: "Test Book 2", stock: 5 },
-  ];
-
-  async findBookById(ID: number): Promise&amp;lt;Book | undefined&amp;gt; {
-    return this.books.find((book) =&amp;gt; book.ID === ID);
-  }
-
-  async updateBookStock(ID: number, newStock: number): Promise&amp;lt;void&amp;gt; {
-    const book = this.books.find((book) =&amp;gt; book.ID === ID);
-    if (book) {
-      book.stock = newStock;
-    }
-  }
-}
-
-export { MockBookRepository };&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;最後に単体テストを書きますが、testContainerを使うことでsrvディレクトリで定義したBookRepositoryに依存せず、testディレクトリのMockBookRepositoryを利用している点を意識してみてください。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// test/submitOrderHandler.test.ts
-import { submitOrderHandler } from "../srv/submitOrderHandler";
-import { IBookRepository } from "../srv/iBookRepository";
-import { testContainer } from "./inversify.test.config";
-import { TYPES } from "../srv/types";
-import { Book } from "../srv/book";
-
-describe("submitOrderHandler", () =&amp;gt; {
-  let mockBookRepository: IBookRepository;
-  // ハンズオン用にコードをシンプルにするため、リクエストの型定義はせずにany型を使用。
-  let handler: (req: any) =&amp;gt; Promise&amp;lt;Book | Error&amp;gt;;
-
-  beforeEach(() =&amp;gt; {
-    mockBookRepository = testContainer.get&amp;lt;IBookRepository&amp;gt;(
-      TYPES.IBookRepository
-    );
-    handler = submitOrderHandler(mockBookRepository);
-  });
-
-  it("should return the book and update stock when order is successful", async () =&amp;gt; {
-    const req = {
-      data: { book: 1, quantity: 2 },
-      error: jest.fn(),
-    };
-
-    const result = await handler(req);
-
-    expect(result).toEqual({ ID: 1, title: "Test Book 1", stock: 8 });
-    expect(mockBookRepository.findBookById(1)).resolves.toEqual({
-      ID: 1,
-      title: "Test Book 1",
-      stock: 8,
-    });
-    expect(req.error).not.toHaveBeenCalled();
-  });
-
-  it("should return 404 error if book does not exist", async () =&amp;gt; {
-    const req = {
-      data: { book: 999, quantity: 2 },
-      error: jest.fn(),
-    };
-
-    await handler(req);
-
-    expect(req.error).toHaveBeenCalledWith(404, "Book #999 doesn't exist");
-  });
-
-  it("should return 400 error if quantity is less than 1", async () =&amp;gt; {
-    const req = {
-      data: { book: 1, quantity: 0 },
-      error: jest.fn(),
-    };
-
-    await handler(req);
-
-    expect(req.error).toHaveBeenCalledWith(400, "quantity has to be 1 or more");
-  });
-
-  it("should return 409 error if quantity exceeds stock", async () =&amp;gt; {
-    const req = {
-      data: { book: 2, quantity: 10 },
-      error: jest.fn(),
-    };
-
-    await handler(req);
-
-    expect(req.error).toHaveBeenCalledWith(409, "10 exceeds stock for book #2");
-  });
-});&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;最後に、ターミナルにてjestコマンドを実行してテストが成功すれば、ハンズオン終了です。&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;npx jest&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Unit Test.png" style="width: 650px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/256824iD874C48E345223D8/image-size/large?v=v2&amp;amp;px=999" role="button" title="Unit Test.png" alt="Unit Test.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId--58553851"&gt;&lt;SPAN&gt;まとめ&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;今回のハンズオンではSAP CAP上でDI/DIコンテナを活用し、TypeScriptを用いたプロジェクトを構築しました。結果として、レポジトリレイヤーとハンドラレイヤーが疎結合になり、テスト容易性が向上しました。&lt;/P&gt;&lt;P&gt;次のステップとしては、&lt;A href="https://github.com/SAP-samples/cloud-cap-samples" target="_self" rel="nofollow noopener noreferrer"&gt;bookshop&lt;/A&gt;のAuthorsなどのEntityの追加、DDDやClean Architectureへの拡張、カスタムロジックの追加などを試してみてください。&lt;/P&gt;&lt;H2 id="toc-hId-92187001"&gt;&lt;SPAN&gt;参考リンク&lt;/SPAN&gt;&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://cap.cloud.sap/docs/get-started/" target="_self" rel="nofollow noopener noreferrer"&gt;&lt;SPAN&gt;CAP - Getting Started&lt;/SPAN&gt;&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://cap.cloud.sap/docs/node.js/typescript" target="_self" rel="nofollow noopener noreferrer"&gt;&lt;SPAN&gt;CAP - Using TypeScript&lt;/SPAN&gt;&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://github.com/SAP-samples/cloud-cap-samples" target="_self" rel="nofollow noopener noreferrer"&gt;GitHub - cloud-sap-samples &amp;gt; bookshop&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/sap-cap%E4%B8%8A%E3%81%A7di-di%E3%82%B3%E3%83%B3%E3%83%86%E3%83%8A%E3%82%92%E3%82%B5%E3%82%AF%E3%83%83%E3%81%A8%E5%AE%9F%E8%A3%85-node-js-%E3%83%8F%E3%83%B3%E3%82%BA%E3%82%AA%E3%83%B3%E7%B7%A8/ba-p/14091025"/>
-    <published>2025-05-02T08:10:22.919000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blogs-by-sap/sap-cap%E4%B8%8A%E3%81%A7di-di%E3%82%B3%E3%83%B3%E3%83%86%E3%83%8A%E3%82%92%E3%82%B5%E3%82%AF%E3%83%83%E3%81%A8%E5%AE%9F%E8%A3%85-%E7%90%86%E8%AB%96%E7%B7%A8/ba-p/14087169</id>
-    <title>SAP CAP上でDI/DIコンテナをサクッと実装: 理論編</title>
-    <updated>2025-05-02T08:10:32.197000+02:00</updated>
-    <author>
-      <name>Umezuki</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/841332</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-1709324008"&gt;はじめに&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;本記事は、第一章の理論編と&lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/sap-cap%E4%B8%8A%E3%81%A7di-di%E3%82%B3%E3%83%B3%E3%83%86%E3%83%8A%E3%82%92%E3%82%B5%E3%82%AF%E3%83%83%E3%81%A8%E5%AE%9F%E8%A3%85-node-js-%E3%83%8F%E3%83%B3%E3%82%BA%E3%82%AA%E3%83%B3%E7%B7%A8/ba-p/14091025" target="_self"&gt;第二章のハンズオン編&lt;/A&gt;に分けて、CAP上でDI（依存性の注入）およびDIコンテナ（IoCコンテナ）を活用する方法を説明します。Side-by-Sideアプリケーション開発において、テスト容易性、保守性、モジュール性を向上させるアーキテクチャ設計の参考になれば幸いです。&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;注意点:本記事ではDI/DIコンテナの利点を述べますが、コード量の増加、構造の複雑化、パフォーマンスのオーバーヘッドなどのデメリットもあるため、要件に合わせて取捨選択してください。&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1512810503"&gt;対象読者&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;本記事はCAPの基礎知識がある前提で進めますので、CAPの基礎を学びたい方は&lt;A href="https://cap.cloud.sap/docs/guides/" target="_self" rel="nofollow noopener noreferrer"&gt;SAP CAP Cookbook&lt;/A&gt;を参考にしてください。DI/DIコンテナを初めて使用する方、CAPプロジェクトでの活用方法を知りたい方、実際に手を動かして試してみたい方向けの内容となります。&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1316296998"&gt;シンプルなアプリ設計の問題点&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;シンプルなレイヤードアーキテクチャを意識したCAPアプリの開発では、一般的に次の実装にします。&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;レポジトリの作成。&lt;/LI&gt;&lt;LI&gt;ハンドラでビジネスロジックを記述。&lt;/LI&gt;&lt;LI&gt;cdsファイルでサービスを定義し、それをもとにサービスクラスの詳細を記述。&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;この場合、ハンドラ内でレポジトリクラスをインスタンス化する、つまりハンドラがレポジトリクラスに依存する形となります。&lt;/P&gt;&lt;P&gt;Bookデータを全て取得するコードを例に上記のイメージを掴みましょう。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;import { Book } from "./book";
-
-class BookRepository {
-  async findAllBooks(): Promise&amp;lt;Book[]&amp;gt; {
-    return await SELECT.from("Books");
-  }
-}
-
-export { BookRepository };&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;たしかに、readBooksHandlerがBookRepositoryという具象クラスに依存しています。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;import { BookRepository } from "./bookRepository";
-
-export const readBooksHandler = () =&amp;gt; async () =&amp;gt; {
-  // readBooksHandler内でBookRepositoryをインスタンス化している。
-  const bookRepository = new BookRepository();
-  const allBooks = await bookRepository.findAllBooks();
-  return allBooks;
-};&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;モックへ置き換えたい場合は、手動でBookRepositoryをメンテナンスしなければいけません。&lt;/P&gt;&lt;H2 id="toc-hId-1119783493"&gt;DI（Dependency Injection）とは？&lt;/H2&gt;&lt;P&gt;上記の問題を解決するために、DI（Dependency Injection）というオブジェクトの依存関係を外部から注入するデザインパターンがあり、日本語では「依存性の注入」と呼ばれます。&lt;/P&gt;&lt;P&gt;先ほどはreadBooksHandlerがBookRepositoryという具象クラスに依存しましたが、IBookRepositoryという抽象型に依存する形に変更します。これにより、IBookRepositoryを実装した具象クラスであれば、BookRepositoryクラスでもMockBookRepositoryクラスでも利用できるようになります。その結果、テスト容易性が向上します。実装方法を見てみましょう。&lt;/P&gt;&lt;P&gt;まずはIBookRepositoryを定義します。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;import { Book } from "./book";
-
-export interface IBookRepository {
-  findAllBooks(): Promise&amp;lt;Book[]&amp;gt;;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;BookRepositoryはIBookRepositoryを実装したクラスに書き換えます。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;import { IBookRepository } from "./iBookRepository";
-import { Book } from "./book";
-
-class BookRepository implements IBookRepository {
-  async findAllBooks(): Promise&amp;lt;Book[]&amp;gt; {
-    return await SELECT.from("Books");
-  }
-}
-
-export { BookRepository };&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;IBookRepositoryを型に持つbookRepositoryを引数にとります。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;import { IBookRepository } from "./iBookRepository";
-
-export const readBooksHandler =
-  (bookRepository: IBookRepository) =&amp;gt;
-  async () =&amp;gt; {
-    const books = await bookRepository.findAllBooks();
-    return books;
-  };&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;CatalogService内でBookRepositoryをインスタンス化します。これにより、モックを使用したい場合にはMockBookRepositoryへ書き換えるだけでよくなりました。&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;import { BookRepository } from "./bookRepository copy";
-import { readBooksHandler } from "./readBooksHandler";
-import cds from "@sap/cds";
-
-class CatalogService extends cds.ApplicationService {
-  async init() {
-    const bookRepository = new BookRepository();
-
-    // モックを使用したい時は、下記のbookRepositoryを使う。
-    // const bookRepository = new MockBookRepository();
-
-    this.on("READ", "Books", readBooksHandler(bookRepository));
-  }
-}
-
-export default CatalogService;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;補足:&lt;SPAN&gt;今回はsubmitOrderHandlerを関数として定義していますが、クラスとして定義する場合には、コンストラクタの引数としてIBookRepositoryを抽象型として持つオブジェクトを受け取ることで、DIを実現できます。&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId-923269988"&gt;DIコンテナの必要性&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;DIを使うことでハンドラとレポジトリが疎結合となり、モックへの差し替えが容易になりました。しかし、ハンドラのインスタンス化や依存関係の解決をハンドラの呼び出し先であるサービスクラスが担う必要が出てきました。これは、各レイヤー自体あるいはレイヤー間の&lt;/SPAN&gt;&lt;SPAN&gt;依存関係が複雑になった際に&lt;/SPAN&gt;&lt;SPAN&gt;管理が煩雑になることを意味し、エラーの原因となり得ます。そこで利用するのがDIコンテナです。依存オブジェクトのインスタンス化と依存関係の解決に関するコードをDIコンテナの設定ファイルに集約でき、差し替えも即座にできるようになります。&lt;/SPAN&gt;&lt;SPAN&gt;詳細はハンズオン編をご覧ください。&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId-726756483"&gt;まとめ&lt;/H2&gt;&lt;P&gt;本記事では、シンプルなアプリ設計の問題点と、それを解決するためのDI/DIコンテナの有用性について説明しました。次は、「&lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/sap-cap%E4%B8%8A%E3%81%A7di-di%E3%82%B3%E3%83%B3%E3%83%86%E3%83%8A%E3%82%92%E3%82%B5%E3%82%AF%E3%83%83%E3%81%A8%E5%AE%9F%E8%A3%85-node-js-%E3%83%8F%E3%83%B3%E3%82%BA%E3%82%AA%E3%83%B3%E7%B7%A8/ba-p/14091025" target="_self"&gt;SAP CAP上でDI/DIコンテナをサクッと実装: Node.js ハンズオン編&lt;/A&gt;」を参照しながら、実際にコードを書いてみてください。&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blogs-by-sap/sap-cap%E4%B8%8A%E3%81%A7di-di%E3%82%B3%E3%83%B3%E3%83%86%E3%83%8A%E3%82%92%E3%82%B5%E3%82%AF%E3%83%83%E3%81%A8%E5%AE%9F%E8%A3%85-%E7%90%86%E8%AB%96%E7%B7%A8/ba-p/14087169"/>
-    <published>2025-05-02T08:10:32.197000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/creating-custom-post-processing-of-the-output-payment-file-sap-s4-hana/qaq-p/14091656</id>
-    <title>Creating Custom Post-processing of the Output Payment File- SAP S4 HANA PUBLIC CLOUD(ABAP CLOUD)</title>
-    <updated>2025-05-02T08:11:22.766000+02:00</updated>
-    <author>
-      <name>RameshYekambram</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1787261</uri>
-    </author>
-    <content>&lt;P&gt;Hi All,&lt;/P&gt;&lt;P&gt;We are currently implementing custom post-processing logic for the output payment file generation.&lt;BR /&gt;However, we're facing an issue when a single payment includes multiple invoices.&lt;/P&gt;&lt;P&gt;The behavior we're experiencing is:&lt;/P&gt;&lt;P&gt;Three separate output files are being generated.&lt;/P&gt;&lt;P&gt;File 1 includes details of only the first invoice.&lt;/P&gt;&lt;P&gt;File 2 includes the first and second invoices.&lt;/P&gt;&lt;P&gt;File 3 includes all three invoices.&lt;/P&gt;&lt;P&gt;Our objective is to generate a single output file that contains all invoices related to the payment.&lt;/P&gt;&lt;P&gt;We have attempted debugging the process, but the BAdI (Business Add-In) we’re using is not getting triggered during this execution, even though the output files are being generated.&lt;/P&gt;&lt;P&gt;Has anyone encountered this issue before or have any insight on:&lt;/P&gt;&lt;P&gt;Why the BAdI might not be triggered?&lt;/P&gt;&lt;P&gt;How we can ensure that all invoice details are captured once in a single output file?&lt;/P&gt;&lt;P&gt;We referred the below link to Creating Custom Post-processing of the Output Payment File:&lt;/P&gt;&lt;P&gt;&lt;A href="https://learning.sap.com/learning-journeys/exploring-localization-as-a-self-service-with-sap-s-4hana-cloud-public-edition/creating-custom-post-processing-of-the-output-payment-file_fa31d25b-c161-4f02-a0b2-b8338533bd94" target="_blank" rel="noopener noreferrer"&gt;https://learning.sap.com/learning-journeys/exploring-localization-as-a-self-service-with-sap-s-4hana-cloud-public-edition/creating-custom-post-processing-of-the-output-payment-file_fa31d25b-c161-4f02-a0b2-b8338533bd94&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Any guidance or suggestions would be greatly appreciated.&lt;/P&gt;&lt;P&gt;Thanks in advance!&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/creating-custom-post-processing-of-the-output-payment-file-sap-s4-hana/qaq-p/14091656"/>
-    <published>2025-05-02T08:11:22.766000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-can-t-set-series-when-creating-a-project-management-o/qaq-p/14091662/comment-id/4214917#M4214917</id>
     <title>Re: Can't set series when creating a Project Management o...</title>
@@ -432,7 +110,7 @@ export default CatalogService;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;補足:&lt;SPAN&
       <name>Stephan_Kreipl</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1862906</uri>
     </author>
-    <content>&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="2505_Banner_2.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/252105iDF8431662F0ADC48/image-size/large?v=v2&amp;amp;px=999" role="button" title="2505_Banner_2.png" alt="2505_Banner_2.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;SAP Integrated Business Planning 2505 is now generally available, and it's packed with powerful enhancements that will help you streamline operations, optimize inventory, and gain deeper insights through advanced analytics. Here are a few examples of what you can look forward to:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;AI-Assisted Formula Generation&lt;/STRONG&gt;:&amp;nbsp;Save time and reduce errors with intelligent formula suggestions, allowing you to focus on strategic planning.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Detailed Forecast Insights&lt;/STRONG&gt;:&amp;nbsp;Gain real-time, actionable insights directly within your planning user interface, empowering you to make data-driven decisions with confidence.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Improved Alert Management&lt;/STRONG&gt;:&amp;nbsp;Stay proactive with enhanced alert features, ensuring you never miss critical updates and always stay ahead of potential issues.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Discover how these innovations can transform your planning efficiency and drive better business outcomes:&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1837333160"&gt;&lt;SPAN&gt;Demand&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=FIRST-LAST#;INNO=29AB2E7D6B131EEF8EC21F53968E1844" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Direct Access to Forecast Insights in Planning UIs&lt;/SPAN&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Empower planners with instant access to detailed forecast information, boosting productivity and agility. This innovation eliminates time-consuming searches and IT dependence, offering immediate insights into forecast models, algorithms, and best-fit results. Planners can make swift, informed decisions with visibility into parameter values, forecast errors, outlier correction, and product lifecycle logic. Seamlessly integrated into the SAP IBP add-in for Microsoft Excel and Planners Workspaces, this feature enhances usability and efficiency with actionable, readily available insights.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="2505_ForecastDetails.png" style="width: 577px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/254724i3FC07F963A0357DB/image-size/large?v=v2&amp;amp;px=999" role="button" title="2505_ForecastDetails.png" alt="2505_ForecastDetails.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1640819655"&gt;&lt;SPAN&gt;Planning UIs&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=FIRST-LAST#;INNO=83698900039D1EEFA1FCB3389F0339BC" target="_blank" rel="noopener noreferrer"&gt;AI-Assisted Generation of SAP IBP Formulas&lt;/A&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In the SAP Integrated Business Planning, add-in for Microsoft Excel, planners can now effortlessly generate SAP IBP formulas with the help of AI-assisted planning.&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;SAP IBP formulas enable planners to incorporate custom calculations into their planning views using SAP IBP data.&amp;nbsp;By leveraging the new Planning Assistance, users can now describe the desired formulas in natural language, and the system will automatically generate the corresponding SAP IBP formulas. This AI feature eliminates the need to understand the technical intricacies, such as functions and parameters, required for setting up these formulas, streamlining the planning process significantly.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;This feature is currently only available for early adopters. If you want to use it, contact SAP and request the activation using the&lt;/SPAN&gt; &lt;EM&gt;SCM-IBP-XLS-UI&lt;/EM&gt; &lt;SPAN&gt;component.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FbROc8ew6EDI%3Ffeature%3Doembed&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DbROc8ew6EDI&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2FbROc8ew6EDI%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="200" height="112" scrolling="no" title="AI-Assisted Generation of SAP Integrated Business Planning Formulas in SAP IBP 2505 | Demo" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=FIRST-LAST#;INNO=B73262CB7CD41EDDB4C7648655082799" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Experience Improved Efficiency and Enhanced Control with Alert Grouping in &lt;EM&gt;Planner Workspaces&lt;/EM&gt;&lt;/SPAN&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;SAP IBP 2505 introduces an enhanced alert grouping feature, empowering planners to manage plan exceptions more effectively and navigate to relevant data effortlessly:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Hierarchical Tree Structure&lt;/STRONG&gt;:&amp;nbsp;View alerts in an intuitive, three-level hierarchy based on selected grouping attributes, remaining attributes, and time periods, making it easier to pinpoint issues.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Interactive Navigation&lt;/STRONG&gt;:&amp;nbsp;Drill down into each level for context-specific, filtered information, enabling swift and targeted resolution.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Flexible Alert Snoozing&lt;/STRONG&gt;:&amp;nbsp;Snooze alerts at any grouping level for greater control and flexibility in handling exceptions on your terms.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FLomo933u0Uc%3Ffeature%3Doembed&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DLomo933u0Uc&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2FLomo933u0Uc%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="200" height="112" scrolling="no" title="Alert Grouping in Planner Workspaces in SAP IBP 2505 | Demo" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1444306150"&gt;&lt;SPAN&gt;Analytics Stories&amp;nbsp;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=CURRENT-LAST#;INNO=571FEA0A0D121EEFA2F8EAD5AE392E8F" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Analytics Stories with Optimized Story Experience&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Empower users to create compelling data analysis visualizations within SAP Integrated Business Planning: Analytics Stories now harnesses the power of the &lt;EM&gt;Optimized Story Experience&lt;/EM&gt;, delivering improvements to the user interface, enhanced navigation, and additional features.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The usability enhancements focus on both story design and data analysis. With an improved story design, users can effortlessly build and modify stories, gaining a deeper understanding of the intricate relationships between filters and widgets. The enhanced data analysis allows for intuitive selection based on dependencies across dimensions.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Features include cascading dimension filters, improved data selection (for example, selection with wildcards and dynamic selections), new responsive views based on screen size, and integration with Microsoft PowerPoint. A filter panel for quick visualization of relationships between selections and data is also available.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="2505_AnalyticsStories.png" style="width: 640px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/254723i6F4490BE82502802/image-size/large?v=v2&amp;amp;px=999" role="button" title="2505_AnalyticsStories.png" alt="2505_AnalyticsStories.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1247792645"&gt;&lt;SPAN&gt;Foundation&amp;nbsp;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=FIRST-LAST#;INNO=000D3AAC9DD21EDC8BBEFF167965E0FC" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Automated Correction of Order and Stock Inconsistencies in RTI Reconciliation&amp;nbsp;&lt;/SPAN&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Enhance decision-making with increased data accuracy through a new automation for resolving order and stock discrepancies in RTI reconciliation. By minimizing manual intervention, this feature ensures seamless alignment between execution and planning systems, maintaining data accuracy with ease.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Key capabilities include the ability to flexibly define automation profiles within a dedicated app, the option to consider planning filters in automation rules, and multiple choices for executing corrections. Corrections can be performed either as part of the reconciliation job run or through a separate correction job, offering enhanced efficiency and customization for users.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="2505_RTI_Reconciliation.png" style="width: 586px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/254722i181528DF24959DF6/image-size/large?v=v2&amp;amp;px=999" role="button" title="2505_RTI_Reconciliation.png" alt="2505_RTI_Reconciliation.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1051279140"&gt;&lt;SPAN&gt;Inventory&amp;nbsp;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=FIRST-LAST#;INNO=F7330ADF6F421EDF9EE78F377A2292F5" target="_blank" rel="noopener noreferrer"&gt;Budget Analytics and Time-Varying Service Level for Inventory&lt;/A&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Prevent over-investment in lower-priority areas and ensure that resources are directed to where they are needed most by identifying misalignments between budgeted and actual inventory targets and maintaining stock availability and budget compliance. Inventory budgeting analytics enable businesses to strategically allocate their inventory budget across aggregate levels.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The new time-varying service level feature allows businesses to set different inventory targets based on changing demand patterns, seasons, or business priorities across different time horizons enabling more precise control over inventory levels, ensuring optimal stock positioning through time. &amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;With enhanced financial controls for safety stock targets and improved flexibility in customer satisfaction goals, businesses can reduce safety stocks amidst budget constraints and adjust target service levels according to strategic, seasonal, or business priorities.&amp;nbsp;Check out the video below that showcases how the sample Best Practice process integrates budgetary constraints into your sales, inventory, and operations&amp;nbsp;planning processes.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FJWKusRW-QXU%3Ffeature%3Doembed&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DJWKusRW-QXU&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2FJWKusRW-QXU%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="200" height="112" scrolling="no" title="Inventory Budget Entitlement for SAP Integrated Business Planning in SAP IBP 2505 | Demo" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/P&gt;&lt;H3 id="toc-hId-854765635"&gt;&lt;SPAN&gt;MRO for IBP&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=FIRST-LAST#;INNO=2F9E8060E8181EEFA3AF6F8E36E7D38B" target="_blank" rel="noopener noreferrer"&gt;Effortlessly Reduce Obsolete Inventory and Unnecessary Part Spend with MRO Inventory Balancing Operator&lt;/A&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The new &lt;EM&gt;MRO Inventory Balancing Operator&lt;/EM&gt; matches surplus and shortage inventories based on customizable settings, addressing the challenges of intermittent part usage and reducing slow-moving and obsolete stock.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;By recommending strategic transfers between locations, the operator helps businesses significantly cut unnecessary part spend and minimize waste. Balance inventory based on your preferred parameters, such as distance and cost, while transferring parts in full lots to prevent excessive shipment volumes. Experience improved efficiency and cost savings with this intuitive, customizable feature.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FNe7BkL0lZDY%3Ffeature%3Doembed&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNe7BkL0lZDY&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2FNe7BkL0lZDY%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="200" height="112" scrolling="no" title="MRO Inventory Balancing Operator in SAP IBP 2505 | Demo" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/P&gt;&lt;H3 id="toc-hId-226004663" id="toc-hId-658252130"&gt;More Information&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://gateway.on24.com/wcc/eh/3582337/" target="_blank" rel="nofollow noopener noreferrer"&gt;SAP IBP What’s New Webinars 2505&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/viewer/product/SAP_INTEGRATED_BUSINESS_PLANNING/2505/en-US?task=whats_new_task" target="_blank" rel="noopener noreferrer"&gt;2505 What’s New: Help Portal Documentation&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/supply-chain-management-blogs-by-sap/what-s-new-sap-best-practices-for-sap-integrated-business-planning-2505/ba-p/13940851" target="_blank"&gt;What’s New in Best Practices&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://pages.community.sap.com/topics/integrated-business-planning" target="_blank" rel="noopener noreferrer"&gt;SAP IBP Community Page&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=CURRENT-LAST#Q1%202024" target="_blank" rel="noopener noreferrer"&gt;SAP IBP Roadmap&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://influence.sap.com/sap/ino/#/campaign/21" target="_self" rel="noopener noreferrer"&gt;SAP Customer Influence Portal for SAP IBP&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/c-khhcw49343/SAP+Integrated+Business+Planning+for+Supply+Chain/pd-p/67838200100800006742" target="_self"&gt;Questions? Ask here&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
+    <content>&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="2505_Banner_2.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/252105iDF8431662F0ADC48/image-size/large?v=v2&amp;amp;px=999" role="button" title="2505_Banner_2.png" alt="2505_Banner_2.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;SAP Integrated Business Planning 2505 is now generally available, and it's packed with powerful enhancements that will help you streamline operations, optimize inventory, and gain deeper insights through advanced analytics. Here are a few examples of what you can look forward to:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;AI-Assisted Formula Generation&lt;/STRONG&gt;:&amp;nbsp;Save time and reduce errors with intelligent formula suggestions, allowing you to focus on strategic planning.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Detailed Forecast Insights&lt;/STRONG&gt;:&amp;nbsp;Gain real-time, actionable insights directly within your planning user interface, empowering you to make data-driven decisions with confidence.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Improved Alert Management&lt;/STRONG&gt;:&amp;nbsp;Stay proactive with enhanced alert features, ensuring you never miss critical updates and always stay ahead of potential issues.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Discover how these innovations can transform your planning efficiency and drive better business outcomes:&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1837333160"&gt;&lt;SPAN&gt;Demand&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=FIRST-LAST#;INNO=29AB2E7D6B131EEF8EC21F53968E1844" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Direct Access to Forecast Insights in Planning UIs&lt;/SPAN&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Empower planners with instant access to detailed forecast information, boosting productivity and agility. This innovation eliminates time-consuming searches and IT dependence, offering immediate insights into forecast models, algorithms, and best-fit results. Planners can make swift, informed decisions with visibility into parameter values, forecast errors, outlier correction, and product lifecycle logic. Seamlessly integrated into the SAP IBP add-in for Microsoft Excel and Planners Workspaces, this feature enhances usability and efficiency with actionable, readily available insights.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="2505_ForecastDetails.png" style="width: 577px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/254724i3FC07F963A0357DB/image-size/large?v=v2&amp;amp;px=999" role="button" title="2505_ForecastDetails.png" alt="2505_ForecastDetails.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1640819655"&gt;&lt;SPAN&gt;Planning UIs&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=FIRST-LAST#;INNO=83698900039D1EEFA1FCB3389F0339BC" target="_blank" rel="noopener noreferrer"&gt;AI-Assisted Generation of SAP IBP Formulas&lt;/A&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In the SAP Integrated Business Planning, add-in for Microsoft Excel, planners can now effortlessly generate SAP IBP formulas with the help of AI-assisted planning.&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;SAP IBP formulas enable planners to incorporate custom calculations into their planning views using SAP IBP data.&amp;nbsp;By leveraging the new Planning Assistance, users can now describe the desired formulas in natural language, and the system will automatically generate the corresponding SAP IBP formulas. This AI feature eliminates the need to understand the technical intricacies, such as functions and parameters, required for setting up these formulas, streamlining the planning process significantly.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;This feature is currently only available for early adopters. If you want to use it, contact SAP and request the activation using the&lt;/SPAN&gt; &lt;EM&gt;SCM-IBP-XLS-UI&lt;/EM&gt; &lt;SPAN&gt;component.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FbROc8ew6EDI%3Ffeature%3Doembed&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DbROc8ew6EDI&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2FbROc8ew6EDI%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="200" height="112" scrolling="no" title="Learn about AI-Assisted Generation of SAP Integrated Business Planning Formulas" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=FIRST-LAST#;INNO=B73262CB7CD41EDDB4C7648655082799" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Experience Improved Efficiency and Enhanced Control with Alert Grouping in &lt;EM&gt;Planner Workspaces&lt;/EM&gt;&lt;/SPAN&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;SAP IBP 2505 introduces an enhanced alert grouping feature, empowering planners to manage plan exceptions more effectively and navigate to relevant data effortlessly:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Hierarchical Tree Structure&lt;/STRONG&gt;:&amp;nbsp;View alerts in an intuitive, three-level hierarchy based on selected grouping attributes, remaining attributes, and time periods, making it easier to pinpoint issues.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Interactive Navigation&lt;/STRONG&gt;:&amp;nbsp;Drill down into each level for context-specific, filtered information, enabling swift and targeted resolution.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Flexible Alert Snoozing&lt;/STRONG&gt;:&amp;nbsp;Snooze alerts at any grouping level for greater control and flexibility in handling exceptions on your terms.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FLomo933u0Uc%3Ffeature%3Doembed&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DLomo933u0Uc&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2FLomo933u0Uc%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="200" height="112" scrolling="no" title="Alert Grouping in Planner Workspaces in SAP IBP 2505 | Demo" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1444306150"&gt;&lt;SPAN&gt;Analytics Stories&amp;nbsp;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=CURRENT-LAST#;INNO=571FEA0A0D121EEFA2F8EAD5AE392E8F" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Analytics Stories with Optimized Story Experience&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Empower users to create compelling data analysis visualizations within SAP Integrated Business Planning: Analytics Stories now harnesses the power of the &lt;EM&gt;Optimized Story Experience&lt;/EM&gt;, delivering improvements to the user interface, enhanced navigation, and additional features.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The usability enhancements focus on both story design and data analysis. With an improved story design, users can effortlessly build and modify stories, gaining a deeper understanding of the intricate relationships between filters and widgets. The enhanced data analysis allows for intuitive selection based on dependencies across dimensions.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Features include cascading dimension filters, improved data selection (for example, selection with wildcards and dynamic selections), new responsive views based on screen size, and integration with Microsoft PowerPoint. A filter panel for quick visualization of relationships between selections and data is also available.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="2505_AnalyticsStories.png" style="width: 640px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/254723i6F4490BE82502802/image-size/large?v=v2&amp;amp;px=999" role="button" title="2505_AnalyticsStories.png" alt="2505_AnalyticsStories.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1247792645"&gt;&lt;SPAN&gt;Foundation&amp;nbsp;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=FIRST-LAST#;INNO=000D3AAC9DD21EDC8BBEFF167965E0FC" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Automated Correction of Order and Stock Inconsistencies in RTI Reconciliation&amp;nbsp;&lt;/SPAN&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Enhance decision-making with increased data accuracy through a new automation for resolving order and stock discrepancies in RTI reconciliation. By minimizing manual intervention, this feature ensures seamless alignment between execution and planning systems, maintaining data accuracy with ease.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Key capabilities include the ability to flexibly define automation profiles within a dedicated app, the option to consider planning filters in automation rules, and multiple choices for executing corrections. Corrections can be performed either as part of the reconciliation job run or through a separate correction job, offering enhanced efficiency and customization for users.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="2505_RTI_Reconciliation.png" style="width: 586px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/254722i181528DF24959DF6/image-size/large?v=v2&amp;amp;px=999" role="button" title="2505_RTI_Reconciliation.png" alt="2505_RTI_Reconciliation.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1051279140"&gt;&lt;SPAN&gt;Inventory&amp;nbsp;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=FIRST-LAST#;INNO=F7330ADF6F421EDF9EE78F377A2292F5" target="_blank" rel="noopener noreferrer"&gt;Budget Analytics and Time-Varying Service Level for Inventory&lt;/A&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Prevent over-investment in lower-priority areas and ensure that resources are directed to where they are needed most by identifying misalignments between budgeted and actual inventory targets and maintaining stock availability and budget compliance. Inventory budgeting analytics enable businesses to strategically allocate their inventory budget across aggregate levels.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The new time-varying service level feature allows businesses to set different inventory targets based on changing demand patterns, seasons, or business priorities across different time horizons enabling more precise control over inventory levels, ensuring optimal stock positioning through time. &amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;With enhanced financial controls for safety stock targets and improved flexibility in customer satisfaction goals, businesses can reduce safety stocks amidst budget constraints and adjust target service levels according to strategic, seasonal, or business priorities.&amp;nbsp;Check out the video below that showcases how the sample Best Practice process integrates budgetary constraints into your sales, inventory, and operations&amp;nbsp;planning processes.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FJWKusRW-QXU%3Ffeature%3Doembed&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DJWKusRW-QXU&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2FJWKusRW-QXU%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="200" height="112" scrolling="no" title="Learn about Inventory Budget Entitlement for SAP Integrated Business Planning" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/P&gt;&lt;H3 id="toc-hId-854765635"&gt;&lt;SPAN&gt;MRO for IBP&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=FIRST-LAST#;INNO=2F9E8060E8181EEFA3AF6F8E36E7D38B" target="_blank" rel="noopener noreferrer"&gt;Effortlessly Reduce Obsolete Inventory and Unnecessary Part Spend with MRO Inventory Balancing Operator&lt;/A&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The new &lt;EM&gt;MRO Inventory Balancing Operator&lt;/EM&gt; matches surplus and shortage inventories based on customizable settings, addressing the challenges of intermittent part usage and reducing slow-moving and obsolete stock.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;By recommending strategic transfers between locations, the operator helps businesses significantly cut unnecessary part spend and minimize waste. Balance inventory based on your preferred parameters, such as distance and cost, while transferring parts in full lots to prevent excessive shipment volumes. Experience improved efficiency and cost savings with this intuitive, customizable feature.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FNe7BkL0lZDY%3Ffeature%3Doembed&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNe7BkL0lZDY&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2FNe7BkL0lZDY%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="200" height="112" scrolling="no" title="Learn about MRO Inventory Balancing Operator for SAP Integrated Business Planning" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/P&gt;&lt;H3 id="toc-hId-226004663" id="toc-hId-658252130"&gt;More Information&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://gateway.on24.com/wcc/eh/3582337/" target="_blank" rel="nofollow noopener noreferrer"&gt;SAP IBP What’s New Webinars 2505&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/viewer/product/SAP_INTEGRATED_BUSINESS_PLANNING/2505/en-US?task=whats_new_task" target="_blank" rel="noopener noreferrer"&gt;2505 What’s New: Help Portal Documentation&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/supply-chain-management-blogs-by-sap/what-s-new-sap-best-practices-for-sap-integrated-business-planning-2505/ba-p/13940851" target="_blank"&gt;What’s New in Best Practices&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://pages.community.sap.com/topics/integrated-business-planning" target="_blank" rel="noopener noreferrer"&gt;SAP IBP Community Page&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://roadmaps.sap.com/board?PRODUCT=67838200100800006742&amp;amp;range=CURRENT-LAST#Q1%202024" target="_blank" rel="noopener noreferrer"&gt;SAP IBP Roadmap&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://influence.sap.com/sap/ino/#/campaign/21" target="_self" rel="noopener noreferrer"&gt;SAP Customer Influence Portal for SAP IBP&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/c-khhcw49343/SAP+Integrated+Business+Planning+for+Supply+Chain/pd-p/67838200100800006742" target="_self"&gt;Questions? Ask here&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
     <link href="https://community.sap.com/t5/supply-chain-management-blogs-by-sap/sap-integrated-business-planning-sap-ibp-2505-available-now/ba-p/14072023"/>
     <published>2025-05-02T09:00:00.031000+02:00</published>
   </entry>
@@ -1849,5 +1527,41 @@ data(lv_xsd)  = lo_fdp_util-&amp;gt;get_xsd_v2( ).               " In XSD schema
     <content>Hello, thank you for your question. It has been forwarded to the experts. Kind regards, Henrike</content>
     <link href="https://community.sap.com/t5/financial-management-q-a/re-bill-of-exchange-payment-request-print-out-in-france-public-cloud/qaq-p/14091913/comment-id/250800#M250800"/>
     <published>2025-05-02T12:13:53.787000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/re-update-crystal-reports-to-use-later-version-of-micros/qaq-p/14091915/comment-id/4912612#M4912612</id>
+    <title>Re: Update Crystal Reports to use later version of Micros...</title>
+    <updated>2025-05-02T12:16:14.637000+02:00</updated>
+    <author>
+      <name>mark_brill91</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/879933</uri>
+    </author>
+    <content>Sorry, I was specifically asking regarding this topic in question. Sp26 states that to install CR for VS you need to 'The prerequisites Microsoft_VC120_CRT_x86.msm, Microsoft_VC140_CRT_x86.msm and Microsoft_VC140_MFC_x86.msm should be added when using CR Runtime Merge Modules, or used vcredist_x86.exe from Visual C++ Redistributable Packages for Visual Studio 2013 and Visual Studio 2015.' And there is no subsequent note that 2013 was later removed as a requirement. And then I found this post about Tracelog using it. So my question is does Tracelog still use it, a year later and after 2013 left support. If not - great. If so... what does Tracelog do? What's the downside of us not installing 2013 since Crystal as a whole seem to work without it?</content>
+    <link href="https://community.sap.com/t5/technology-q-a/re-update-crystal-reports-to-use-later-version-of-micros/qaq-p/14091915/comment-id/4912612#M4912612"/>
+    <published>2025-05-02T12:16:14.637000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/financial-management-q-a/re-don-t-want-to-run-ct-in-few-consolidation-units/qaq-p/14091916/comment-id/250801#M250801</id>
+    <title>Re: Don't want to run CT in few Consolidation Units</title>
+    <updated>2025-05-02T12:18:18.893000+02:00</updated>
+    <author>
+      <name>HenrikeGrötecke</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/47173</uri>
+    </author>
+    <content>Hello, thank you for your question. It has been forwarded to the experts. Kind regards, Henrike</content>
+    <link href="https://community.sap.com/t5/financial-management-q-a/re-don-t-want-to-run-ct-in-few-consolidation-units/qaq-p/14091916/comment-id/250801#M250801"/>
+    <published>2025-05-02T12:18:18.893000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/re-linked-analysis-not-working/qaq-p/14091918/comment-id/4912613#M4912613</id>
+    <title>Re: Linked Analysis not working</title>
+    <updated>2025-05-02T12:21:50.587000+02:00</updated>
+    <author>
+      <name>Torbjorn</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1902179</uri>
+    </author>
+    <content>&lt;P&gt;Hi &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/45817"&gt;@rdum&lt;/a&gt;,&lt;/P&gt;&lt;P&gt;Did you manage to find a solution to this issue? I realize that I'm late to the party, but I do have the samme issue myself so curious about potential solutions to this &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Regards,&lt;/P&gt;&lt;P&gt;Torbjorn&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/re-linked-analysis-not-working/qaq-p/14091918/comment-id/4912613#M4912613"/>
+    <published>2025-05-02T12:21:50.587000+02:00</published>
   </entry>
 </feed>
