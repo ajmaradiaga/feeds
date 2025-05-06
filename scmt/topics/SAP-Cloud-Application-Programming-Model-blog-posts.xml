@@ -2,134 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Cloud-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - SAP Cloud Application Programming Model</title>
-  <updated>2025-05-06T11:00:43.046131+00:00</updated>
+  <updated>2025-05-06T14:00:46.020078+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Cloud Application Programming Model/pd-p/9f13aee1-834c-4105-8e43-ee442775e5ce" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Cloud Application Programming Model blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/sap-cap-with-prostgres-serice-in-btp/ba-p/14060856</id>
-    <title>SAP CAP With Prostgres Serice in BTP</title>
-    <updated>2025-03-30T19:15:17.575000+02:00</updated>
-    <author>
-      <name>satya-dev</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/151998</uri>
-    </author>
-    <content>&lt;P&gt;&lt;SPAN&gt;There are already several blogs on using PostgreSQL with SAP Cloud Application Programming Model (CAP). Notably, &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/144369"&gt;@mike_zaschka&lt;/a&gt; has shared an excellent blog on this topic. However, I wanted to provide a more comprehensive guide using the updated &lt;/SPAN&gt;&lt;SPAN&gt;cap-js/postgre&lt;/SPAN&gt;&lt;SPAN&gt; package instead of &lt;/SPAN&gt;&lt;SPAN&gt;cds-pg&lt;/SPAN&gt;&lt;SPAN&gt;, leveraging the PostgreSQL Trial service in SAP BTP.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In this blog, I will cover the following topics:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN&gt;Setting up a CAP server with PostgreSQL instead of SAP HANA&lt;/SPAN&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN&gt;Building and deploying the service in SAP BTP Cloud Foundry&lt;/SPAN&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN&gt;Performing CRUD operations via Postman&lt;/SPAN&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN&gt;Installing pgAdmin and connecting it to the deployed PostgreSQL database service&lt;/SPAN&gt;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-1707275122"&gt;&lt;SPAN&gt;Step 1: Setting Up the CAP Project with PostgreSQL&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;1. Create a new project folder and initialize a CAP project:&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;mkdir BookShopPostgre &amp;amp;&amp;amp; cd BookShopPostgre
-cds init&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;2. Add a &lt;/SPAN&gt;&lt;SPAN&gt;data-model.cds&lt;/SPAN&gt;&lt;SPAN&gt; file inside the &lt;/SPAN&gt;&lt;SPAN&gt;db&lt;/SPAN&gt;&lt;SPAN&gt; folder with the following content:&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;using { Currency, managed, sap } from '@sap/cds/common';
-namespace com.satya;
-
-entity Books : managed {
-  key ID   : Integer;
-  title    : localized String(111)  @mandatory;
-  descr    : localized String(1111);
-  author   : Association to Authors @mandatory;
-  genre    : Association to Genres;
-  stock    : Integer;
-  price    : Price;
-  currency : Currency;
-  image    : LargeBinary @Core.MediaType: 'image/png';
-}
-
-entity Authors : managed {
-  key ID       : Integer;
-  name         : String(111) @mandatory;
-  dateOfBirth  : Date;
-  dateOfDeath  : Date;
-  placeOfBirth : String;
-  placeOfDeath : String;
-  books        : Association to many Books on books.author = $self;
-}
-
-/** Hierarchically organized Code List for Genres */
-entity Genres : sap.common.CodeList {
-  key ID   : Integer;
-  parent   : Association to Genres;
-  children : Composition of many Genres on children.parent = $self;
-}
-
-type Price : Decimal(9,2);&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;3. Add `cat-service.cds` inside srv and define the service and expose entities as below -&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;using { com.satya as my } from '../db/data-model';
-
-service CatalogService @(path:'/browse') {
-
-  entity Books as projection on my.Books;
-  entity Authors as projection on my.Authors;
-  entity Genres as projection on my.Genres;
-    
-  }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;4. Add the MTA configuration by running:&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;cds add mta&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;This will generate the &lt;/SPAN&gt;&lt;SPAN&gt;mta.yaml&lt;/SPAN&gt;&lt;SPAN&gt; file in the root directory. You need to configure it to include the database module and define PostgreSQL resources.&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;_schema-version: 3.3.0
-ID: BooKShopPostgre
-version: 1.0.0
-description: "Bookshop app with postgre db"
-parameters:
-  enable-parallel-deployments: true
-build-parameters:
-  before-all:
-    - builder: custom
-      commands:
-        - npm ci
-        - npx cds build --production
-        
-modules:
-  - name: BooKShopPostgre-srv
-    type: nodejs
-    path: gen/srv
-    parameters:
-      buildpack: nodejs_buildpack
-      readiness-health-check-type: http
-      readiness-health-check-http-endpoint: /health
-    build-parameters:
-      builder: npm
-    provides:
-      - name: srv-api # required by consumers of CAP services (e.g. approuter)
-        properties:
-          srv-url: ${default-url}
-    requires:
-      - name: BooKShopPostgre-auth
-      - name: BooKShopPostgre-postgres
-
-  - name: BooKShopPostgre-postgres-deployer
-    type: nodejs
-    path: gen/pg
-    parameters:
-      buildpack: nodejs_buildpack
-      no-route: true
-      no-start: true
-      tasks:
-        - name: deploy-to-postgresql
-          command: npm start
-    requires:
-      - name: BooKShopPostgre-postgres
-
-resources:
-  - name: BooKShopPostgre-auth
-    type: org.cloudfoundry.managed-service
-    parameters:
-      service: xsuaa
-      service-plan: application
-      path: ./xs-security.json
-      config:
-        xsappname: BooKShopPostgreApp
-        tenant-mode: dedicated
-  - name: BooKShopPostgre-postgres
-    type: org.cloudfoundry.managed-service
-    parameters:
-      service-name: Postgres-DB
-      service: postgresql-db
-      service-plan: trial&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;5. PostgreSQL requires additional deployment configurations. To package the database artifacts correctly, create a script named &lt;/SPAN&gt;&lt;SPAN&gt;pg-build.sh&lt;/SPAN&gt;&lt;SPAN&gt; with the following content:&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;#!/bin/bash
-mkdir -p gen/pg/db
-cds compile '*' &amp;gt; gen/pg/db/csn.json
-cp package-lock.json gen/pg/package-lock.json&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;This script compiles the CDS files and moves the database artifacts to the &lt;/SPAN&gt;&lt;SPAN&gt;gen&lt;/SPAN&gt;&lt;SPAN&gt; folder.&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1510761617"&gt;&lt;SPAN&gt;Step 2: Configuring and Deploying to SAP BTP Cloud Foundry&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;1. Before building, ensure that your &lt;/SPAN&gt;&lt;SPAN&gt;mta.yaml&lt;/SPAN&gt;&lt;SPAN&gt; file is updated to execute &lt;/SPAN&gt;&lt;SPAN&gt;pg-build.sh&lt;/SPAN&gt;&lt;SPAN&gt; before packaging the MTA archive.&lt;BR /&gt;&lt;BR /&gt;2.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;Create a PostgreSQL service instance in your SAP BTP trial account.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyadev_0-1743349531031.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/244550iD09F786E23CFA57B/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyadev_0-1743349531031.png" alt="satyadev_0-1743349531031.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;3. Before proceeding with the build process, update the &lt;/SPAN&gt;&lt;SPAN&gt;mta.yaml&lt;/SPAN&gt;&lt;SPAN&gt; file to execute &lt;/SPAN&gt;&lt;SPAN&gt;pg-build.sh&lt;/SPAN&gt;&lt;SPAN&gt; beforehand. This ensures that the script runs, and the compiled artifacts are copied to the &lt;/SPAN&gt;&lt;SPAN&gt;gen&lt;/SPAN&gt;&lt;SPAN&gt; folder before packaging the MTA archive.&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;parameters:
-  enable-parallel-deployments: true
-build-parameters:
-  before-all:
-    - builder: custom
-      commands:
-        - npm ci
-        - npx cds build --production
-        - ./pg-build.sh 
-...&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;4.&amp;nbsp;&lt;SPAN&gt;Build the MTA archive:&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;mbt build&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;This will generate a &lt;/SPAN&gt;&lt;SPAN&gt;gen&lt;/SPAN&gt;&lt;SPAN&gt; folder containing the PostgreSQL database artifacts.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;5.&amp;nbsp;&lt;SPAN&gt;Deploy the application:&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;cf deploy mta_archives/BookShopPostgre_1.0.0.mtar&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1314248112"&gt;&lt;SPAN&gt;Step 3: Performing CRUD Operations via Postman&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Once the service is deployed, you can test it using Postman:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Create a book entry using the following request:&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyadev_1-1743350212156.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/244551i6BC78E52A92F47E5/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyadev_1-1743350212156.png" alt="satyadev_1-1743350212156.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Fetch all books:&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;The service should return the stored book entries, confirming that CRUD operations are working correctly.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1117734607"&gt;&lt;SPAN&gt;Step 4: Connecting to PostgreSQL via pgAdmin&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;To inspect the database, we use pgAdmin, similar to SAP HANA Cockpit.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1050303821"&gt;&lt;SPAN&gt;Steps to Connect:&lt;/SPAN&gt;&lt;/H3&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN&gt;Install pgAdmin4.&lt;/SPAN&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN&gt;Enable SSH tunneling and run the following command:&lt;/SPAN&gt;&lt;/P&gt;&lt;PRE&gt;&lt;SPAN&gt;cf ssh -L 63306:&amp;lt;postgres-host&amp;gt;:&amp;lt;postgres-port&amp;gt; BookShopPostgre-srv&lt;/SPAN&gt;&lt;/PRE&gt;&lt;P&gt;&lt;SPAN&gt;Replace &lt;/SPAN&gt;&lt;SPAN&gt;&amp;lt;postgres-host&amp;gt;&lt;/SPAN&gt;&lt;SPAN&gt; and &lt;/SPAN&gt;&lt;SPAN&gt;&amp;lt;postgres-port&amp;gt;&lt;/SPAN&gt;&lt;SPAN&gt; with values from your PostgreSQL service credentials.&lt;/SPAN&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN&gt;Open pgAdmin4 and configure the server connection:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Host&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;SPAN&gt;: &lt;/SPAN&gt;&lt;SPAN&gt;localhost&lt;/SPAN&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Port&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;SPAN&gt;: &lt;/SPAN&gt;&lt;SPAN&gt;63306&lt;/SPAN&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Username&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;SPAN&gt;: Use the database username from your credentials&lt;/SPAN&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Password&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;SPAN&gt;: Use the corresponding password&lt;/SPAN&gt;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN&gt;Once connected, use the Query Tool to run SQL queries, inspect tables, and validate the deployed artifacts.&lt;/SPAN&gt;&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;image for reference.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyadev_2-1743350776861.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/244552i72CDB029774F3641/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyadev_2-1743350776861.png" alt="satyadev_2-1743350776861.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;#&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyadev_0-1743351377590.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/244553i21F4BD597B453224/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyadev_0-1743351377590.png" alt="satyadev_0-1743351377590.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;1. Open pgAdmin4 and configure the server as shown below.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyadev_2-1743351797463.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/244555iC0924F72A2D336EB/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyadev_2-1743351797463.png" alt="satyadev_2-1743351797463.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;2. Select the Query Tool to execute the SQL statement as shown below&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyadev_3-1743351911575.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/244556i20DA3316DEBC23F9/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyadev_3-1743351911575.png" alt="satyadev_3-1743351911575.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;3. Run the SQL and view the results&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyadev_4-1743351971105.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/244557iDBD303E94C65A8F6/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyadev_4-1743351971105.png" alt="satyadev_4-1743351971105.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class=""&gt;Similar to SAP HANA Database Explorer, you can run SQL queries and view all deployed artifacts.&lt;/P&gt;&lt;P class=""&gt;Let me know if you encounter any issues.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Please find the complete code in the GitHub repository: &lt;/SPAN&gt;&lt;A href="https://github.com/satyadwivedi/BooKShopPostgre" target="_blank" rel="noopener nofollow noreferrer"&gt;&lt;SPAN&gt;BookShopPostgre&lt;/SPAN&gt;&lt;/A&gt;&lt;/P&gt;&lt;P class=""&gt;Happy coding! &lt;span class="lia-unicode-emoji" title=":party_popper:"&gt;🎉&lt;/span&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/sap-cap-with-prostgres-serice-in-btp/ba-p/14060856"/>
-    <published>2025-03-30T19:15:17.575000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/blog-series-on-my-cpi-camel-learning-journey-part5-mpl-custom-app/ba-p/14060938</id>
     <title>Blog series on my CPI + Camel learning journey - Part5 - MPL custom app</title>
@@ -1657,5 +1533,62 @@ export default CatalogService;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;No
     <content>&lt;P&gt;&lt;SPAN&gt;When Sandra first shared her &lt;/SPAN&gt;&lt;A href="https://community.sap.com/t5/learner-stories/from-a-failed-exam-to-a-successful-career-sandra-s-inspiring-journey-in/ba-p/13578397" target="_blank"&gt;&lt;SPAN&gt;story&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt; with us in December 2023, she was already making waves in the SAP Community. An ABAP developer and systems engineer from Mexico, she turned an early career setback—failing an ABAP certification exam—into motivation. What followed was a passionate journey of learning, teaching, and deepening her connection to the SAP ecosystem. Today, Sandra is not only a certified expert in her field, but she has also been named an SAP Champion, in recognition of her contributions to the global community.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;New Certifications, New Confidence&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Since our last conversation, Sandra has earned two new SAP Certifications to her resumé including &lt;/SPAN&gt;&lt;A href="https://learning.sap.com/certifications/sap-certified-associate-back-end-developer-abap-cloud?url_id=text-sapcommunity-prdteng-learnerstory" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;SAP Certified Associate – Back-End Developer - ABAP Cloud&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;.&amp;nbsp; “Earning these certifications was a major personal achievement for me, especially because I had developed a fear of certifications after failing the ABAP 7.50 exam in the past.”&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;These milestones didn’t just mark progress in her skills; they also rebuilt her confidence. Her commitment to learning and helping others thrive has become a central part of her identity. Through her YouTube channel, &lt;/SPAN&gt;&lt;A href="https://www.youtube.com/channel/UC8D5JKi6nMeLL7VgRPLPO4g" target="_blank" rel="noopener nofollow noreferrer"&gt;&lt;I&gt;&lt;SPAN&gt;Mundo ABAPer&lt;/SPAN&gt;&lt;/I&gt;&lt;/A&gt;&lt;SPAN&gt;, she continues to empower Spanish-speaking developers with technical insights, learning hacks, and encouragement.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;“I’m passionate about continuous learning, developing efficient solutions for my customers, and helping others that are starting as SAP developers, to make their journey easier.”&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;From Learner to Leader&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="Sandra Solis Blue.png" style="width: 407px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/257993i4D98532445D917ED/image-dimensions/407x286/is-moderation-mode/true?v=v2" width="407" height="286" role="button" title="Sandra Solis Blue.png" alt="Sandra Solis Blue.png" /&gt;&lt;/span&gt;Sandra’s contributions extend far beyond certifications. She was featured in SAP Advocate Antonio Maradiaga “&lt;/SPAN&gt;&lt;A href="https://www.youtube.com/watch?v=2YNtyXlDPj0" target="_blank" rel="noopener nofollow noreferrer"&gt;&lt;SPAN&gt;Code Talk&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;” podcast, where they discussed ABAP in Spanish. She won &lt;/SPAN&gt;&lt;A href="https://community.sap.com/t5/devtoberfest/gh-p/Devtoberfest?url_id=text-sapcommunity-prdteng-learnerstory" target="_blank"&gt;&lt;SPAN&gt;Devtoberfest by SAP TechEd&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt; for a second time—an accolade that allowed her to attend &lt;/SPAN&gt;&lt;A href="https://www.sap.com/events/teched.html?url_id=text-sapcommunity-prdteng-learnerstory" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;SAP TechEd&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt; in Florida in 2024. And in 2025, Sandra became an &lt;/SPAN&gt;&lt;A href="https://community.sap.com/t5/sap-community-leaders-finder/sandra-solis/ba-p/14000317" target="_blank"&gt;&lt;SPAN&gt;SAP Champion&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;, an honor that reflects not only her technical expertise but also her dedication to knowledge-sharing, mentorship, and inclusion within the community.&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;“My learning journey is a part of why I became an SAP Champion,” she admits. “By sharing not just my successes but also my struggles, I was able to connect with others and encourage them to keep going.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;“My goal was always to build a supportive and inclusive learning environment, and I think SAP recognized that passion for community and knowledge-sharing.”&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Building for the Future&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Looking ahead, Sandra has her eyes set on the &lt;/SPAN&gt;&lt;A href="https://learning.sap.com/certifications/sap-certified-associate-backend-developer-sap-cloud-programming-model?url_id=text-sapcommunity-prdteng-learnerstory" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;SAP Cloud Application Programming Model&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt; certification and plans to expand her YouTube channel into a sustainable platform for education and inspiration. Her dream? To combine her technical knowledge with her love of content creation and make it her full-time work.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Whatever her future brings, Sandra will always be a firm advocate of the &lt;/SPAN&gt;&lt;A href="https://learning.sap.com/?url_id=text-sapcommunity-prdteng-LSC-learnerstory" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;SAP Learning site&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;: “It’s a great opportunity to improve your skills and advance your career, regardless of where you’re starting from,” she shares. “Even if you are new to SAP, there are a lot of paths and journeys for beginners, you don’t need to be an expert.”&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Her advice to anyone starting their SAP journey is simple but powerful: “Start where you are, use what you have, and do what you can.”&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Start your SAP Learning Journey today&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Did you feel inspired by Sandra’s story? Then kick-start your own success story with SAP today. Benefit from &lt;/SPAN&gt;&lt;A href="https://learning.sap.com/?url_id=text-sapcommunity-prdteng-LSC-learnerstory" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;tailored and self-paced learning opportunities that meet you when and where you learn best&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;. &lt;/SPAN&gt;&lt;SPAN&gt;Get certified to demonstrate your expertise and boost your career.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/learner-stories/empowering-through-learning-sandra-s-path-to-sap-champion/ba-p/14091290"/>
     <published>2025-05-05T16:22:19.035000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/monitoring-events-in-cap-with-the-cds-event-monitoring-plugin/ba-p/14094152</id>
+    <title>Monitoring Events in CAP with the CDS Event Monitoring Plugin</title>
+    <updated>2025-05-06T13:28:46.886000+02:00</updated>
+    <author>
+      <name>arminhatting</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/40753</uri>
+    </author>
+    <content>&lt;H2 id="toc-hId-1710158118"&gt;Introduction&lt;/H2&gt;&lt;P&gt;In event-driven applications built with SAP CAP, it’s often necessary to track and manage the flow of events across various topics. The &lt;STRONG&gt;CDS Event Monitoring Plugin&lt;/STRONG&gt; provides a practical solution for recording, viewing, and retrying events. It integrates directly with CAP projects, storing event data in a CDS entity and exposing it via a service that can be customized as needed.&lt;/P&gt;&lt;P&gt;This post gives an overview of what the plugin does, how to set it up, and how to extend it for specific requirements.&lt;/P&gt;&lt;P&gt;Link:&amp;nbsp;&lt;A href="https://www.npmjs.com/package/cds-event-monitoring?activeTab=readme" target="_self" rel="nofollow noopener noreferrer"&gt;cds-event-monitoring&lt;/A&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1642727332"&gt;Features&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Monitors multiple messaging topics&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Stores event payloads in a CDS entity (customizable)&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Provides a CDS service (EventMonitoringService) with actions for resending messages&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Supports dead-message queue (DMQ) monitoring&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Includes optional event filtering and retention settings&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-1317131108"&gt;Installation&lt;/H2&gt;&lt;P&gt;To install the plugin, run:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;npm add cds-event-monitoring&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Then, configure it in your .cdsrc.json or package.json under the cds.requires section:&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;"cds": {
+  "requires": {
+    "event-monitoring": {
+      "retentionInDays": 7,
+      "topics": ["my/namespace/topic"],
+      "dead-message-queues": ["my/namespace/dmq"]
+    }
+  }
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Configuration Options:&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%" height="30px"&gt;&lt;STRONG&gt;Option&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="30px"&gt;&lt;STRONG&gt;Type&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="30px"&gt;&lt;STRONG&gt;Description&lt;/STRONG&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%" height="30px"&gt;topics&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="30px"&gt;Array of Strings&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="30px"&gt;List of messaging topics to monitor&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%" height="85px"&gt;retentionInDays&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="85px"&gt;Integer&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="85px"&gt;Retains event data for the given number of days; deletion is triggered when new data arrives&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%" height="57px"&gt;ignoreIdenticalEvents&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="57px"&gt;Boolean&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="57px"&gt;If true, repeated events with the same payload are ignored&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%" height="57px"&gt;dead-message-queues&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="57px"&gt;Array of Strings&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="57px"&gt;Optional list of DMQs to consume and track&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;H2 id="toc-hId-1120617603"&gt;Default Service&lt;/H2&gt;&lt;P&gt;The plugin provides a CDS service called EventMonitoringService. This exposes the stored events and allows users to resend them or push new messages to topics.&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;service EventMonitoringService {
+
+  action resendAll(topic : String, startTimestamp : Timestamp, endTimestamp : Timestamp);
+  action resendDeadMessageQueue(queue : String);
+  action sendToTopic(topic : String, message : LargeString);
+
+  entity Events as projection on EventData actions {
+    action resend();
+    action resendToTopic(topic : String);
+  };
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;These actions make it easier to manually or programmatically manage event flow.&lt;/P&gt;&lt;H2 id="toc-hId-924104098"&gt;Extending the Service&lt;/H2&gt;&lt;P&gt;The service can be extended to include additional roles or logic. For example:&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;using {EventMonitoringService} from 'cds-event-monitoring/srv';
+
+extend EventMonitoringService with @(requires: 'admin');&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;You can also override the service implementation in JavaScript or TypeScript:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;const cds = require('@sap/cds');
+const EventServiceHandler = require('cds-event-monitoring/srv');
+
+module.exports = class EventServiceExt extends EventServiceHandler {
+  async init() {
+    const messaging = await cds.connect.to('messaging');
+
+    // Extend messaging logic
+    messaging.on('*', (msg) =&amp;gt; {
+      const { data, event } = msg;
+      console.log(data);
+      console.log(event);
+    });
+
+    return super.init();
+  }
+};&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This allows you to inject custom behavior without modifying the plugin itself.&lt;/P&gt;&lt;H2 id="toc-hId-727590593"&gt;Database Extension&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;If you want to store specific fields in separate database columns (for example for searching purposes) you can do so, by extending the cds entity&amp;nbsp;&lt;/SPAN&gt;EventData&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;using { event.monitoring.EventData } from 'cds-event-monitoring/db';
+
+extend EventData with {
+  description : String;
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;As long as the incoming event contains a matching field in the payload:&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{
+  "data": {
+    "description": "Sample description"
+  }
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;…the new field will be filled automatically.&lt;/P&gt;&lt;H2 id="toc-hId-531077088"&gt;Fiori Annotations&lt;/H2&gt;&lt;P&gt;The plugin includes basic Fiori annotations for the Events entity. These can be used to build a monitoring UI using standard Fiori Elements. You can extend the service with additional Fiori Annotations. A working example is available in the testProject/app folder in the repository.&lt;/P&gt;&lt;H2 id="toc-hId-334563583"&gt;Final Thoughts&lt;/H2&gt;&lt;P&gt;If you're working with messaging in a CAP-based project, give the CDS Event Monitoring Plugin a try. It's straightforward to set up and can help you track and manage events more effectively during development and in production scenarios.&lt;/P&gt;&lt;P&gt;As the plugin is still at an early stage, I'm looking forward to improving it. If you run into any issues, have suggestions for improvement, or can think of a feature that would make your job easier, please open a bug or contribute directly via the GitHub repository.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/monitoring-events-in-cap-with-the-cds-event-monitoring-plugin/ba-p/14094152"/>
+    <published>2025-05-06T13:28:46.886000+02:00</published>
   </entry>
 </feed>
