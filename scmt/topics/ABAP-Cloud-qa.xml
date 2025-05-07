@@ -2,164 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Cloud-qa.xml</id>
   <title>SAP Community - ABAP Cloud</title>
-  <updated>2025-05-07T14:00:01.776488+00:00</updated>
+  <updated>2025-05-07T17:00:01.449863+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Cloud/pd-p/9ada5ac7-3f77-49de-b5c9-9019df1d1e09" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Cloud Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/rap-can-t-read-entities-with-tky-enabling-draft/qaq-p/14079783</id>
-    <title>RAP Can't read entities with %tky enabling draft</title>
-    <updated>2025-04-18T10:42:20.758000+02:00</updated>
-    <author>
-      <name>Daniela_Piras</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1746004</uri>
-    </author>
-    <content>&lt;P&gt;Hi all!&lt;/P&gt;&lt;P&gt;I'm following SAP course "&lt;A class="" title="Building Apps with the ABAP RESTful Application Programming Model" href="https://learning.sap.com/courses/building-apps-with-the-abap-restful-application-programming-model" target="_blank" rel="noopener noreferrer"&gt;Building Apps with the ABAP RESTful Application Programming Model&lt;/A&gt;" but I'm trying to use OData V4 instead of V2.&lt;/P&gt;&lt;P&gt;I learnt that I need to activate the draft to enable Create option in the preview, so I create draft tables, entities and I adapted my behavior definition adding "with draft", total etag etc.&lt;/P&gt;&lt;P&gt;Before adding the draft, the following code worked, I had no syntax errors and I was able to activate the behavior implementation and open the preview:&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD calculateBookingID.
-
-    DATA: max_booking TYPE /dmo/booking_id,
-          update      TYPE TABLE FOR UPDATE zdp_cds_travel\\Booking.
-
-    READ ENTITIES OF zdp_cds_travel IN LOCAL MODE
-      ENTITY Travel BY \_Booking
-      FIELDS ( TravelUUID )
-      WITH CORRESPONDING #( keys )
-      RESULT DATA(travels).
-
-    LOOP AT travels INTO DATA(travel).
-
-      max_booking = '0000'.
-      READ ENTITIES OF zdp_cds_travel IN LOCAL MODE
-        ENTITY Travel BY \_Booking
-          FIELDS ( BookingID )
-        WITH VALUE #( ( %tky = travel-%tky  ) )
-        RESULT DATA(bookings).
-
-      LOOP AT bookings INTO DATA(booking)
-          WHERE BookingID IS INITIAL.
-
-        max_booking += 10.
-
-        APPEND VALUE #( %tky        = booking-%tky
-                        BookingID   = max_booking )
-          TO update.
-
-      ENDLOOP.
-
-    ENDLOOP.
-
-    MODIFY ENTITIES OF zdp_cds_travel IN LOCAL MODE
-      ENTITY Booking
-      UPDATE FIELDS ( BookingID )
-      WITH update
-      REPORTED DATA(reported_update).
-
-    reported = CORRESPONDING #( DEEP reported_update ).
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;After enabling the draft, line 18 rose this error:&lt;BR /&gt;The type of "TRAVEL-%TKY" cannot be converted to the type of "%TKY"&lt;/P&gt;&lt;P&gt;If I comment the draft, it works again.&lt;/P&gt;&lt;P&gt;Here the behavior definition:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed;// implementation in class zbp_dp_cds_travel unique;
-//strict; // ( 2 );
-with draft;
-
-define behavior for zdp_cds_travel alias Travel
-implementation in class zbp_dp_i_travel unique
-persistent table ztdp_travel
-draft table ztdp_travel_d
-lock master
-total etag LastChangedAt
-authorization master ( instance )
-etag master LocalLastChangedAt //Optimistic Locking
-{
-  create;
-  update;
-  delete;
-  field ( numbering : managed, readonly ) TravelUUID;
-  field ( readonly ) TravelID, TotalPrice;
-  field ( readonly ) LastChangedAt, LastChangedBy, CreatedAt, CreatedBy, LocalLastChangedAt;
-  field ( mandatory ) AgencyID, CustomerID;
-  association _Booking { create; }
-
-  action ( features : instance ) acceptTravel result [1] $self;
-  action ( features : instance ) rejectTravel result [1] $self;
-  internal action recalcTotalPrice;
-
-  determination setInitialStatus on modify { create; }
-  determination calculateTotalPrice on modify { field BookingFee, CurrencyCode; }
-  determination calculateTravelID on save { create; }
-
-  validation validateAgency on save { field AgencyID; create; }
-  validation validateCustomer on save { field CustomerID; create; }
-  validation validateDates on save { field BeginDate, EndDate; create; }
-
-  mapping for ztdp_travel
-    {
-      TravelUUID         = travel_uuid;
-      TravelID           = travel_id;
-      AgencyID           = agency_id;
-      CustomerID         = customer_id;
-      BeginDate          = begin_date;
-      EndDate            = end_date;
-      BookingFee         = booking_fee;
-      TotalPrice         = total_price;
-      CurrencyCode       = currency_code;
-      Description        = description;
-      CreatedBy          = created_by;
-      CreatedAt          = created_at;
-      LastChangedBy      = last_changed_by;
-      LastChangedAt      = last_changed_at;
-      LocalLastChangedAt = local_last_changed_at;
-    }
-
-}
-
-define behavior for zdp_cds_booking alias Booking
-implementation in class zbp_dp_i_booking unique
-persistent table ztdp_book
-draft table ztdp_book_d
-lock dependent by _Travel
-authorization dependent by _Travel
-etag master LocalLastChangedAt  //Optimistic Locking
-{
-  update;
-  delete;
-  field ( numbering : managed, readonly ) BookingUUID;
-  association _Travel;
-
-  field ( readonly ) TravelUUID, BookingID;
-  field ( readonly ) CreatedBy, LastChangedBy, LocalLastChangedAt;
-
-  determination calculateBookingID on modify { create; }
-  determination calculateTotalPrice on modify { field FlightPrice, CurrencyCode; }
-
-  mapping for ztdp_book
-    {
-      BookingUUID        = booking_uuid;
-      TravelUUID         = travel_uuid;
-      BookingID          = booking_id;
-      BookingDate        = booking_date;
-      CustomerID         = customer_id;
-      CarrierID          = carrier_id;
-      ConnectionID       = connection_id;
-      FlightDate         = flight_date;
-      FlightPrice        = flight_price;
-      CurrencyCode       = currency_code;
-      CreatedBy          = created_by;
-      LastChangedBy      = last_changed_by;
-      LocalLastChangedAt = local_last_changed_at;
-    }
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;Any suggestions?&lt;/P&gt;&lt;P&gt;Thanks&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/rap-can-t-read-entities-with-tky-enabling-draft/qaq-p/14079783"/>
-    <published>2025-04-18T10:42:20.758000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/print-queue-s-4-output-management-is-not-working-for-zpl-printers/qaq-p/14080855</id>
-    <title>Print Queue S/4 output management is not working for zpl printers</title>
-    <updated>2025-04-19T20:14:34.042000+02:00</updated>
-    <author>
-      <name>Bharath_Ramireddy</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1475193</uri>
-    </author>
-    <content>&lt;P&gt;Hi All,&lt;BR /&gt;&lt;BR /&gt;I am SAP form service by adobe to render PDF and using Print queue to transmit spool on to the system.&lt;BR /&gt;&lt;BR /&gt;The spool generates without errors for PDF and XML device types and when it is ZPL the spool is generated with errors.&lt;BR /&gt;&lt;BR /&gt;Process on how i am generating this spool.&lt;BR /&gt;-&amp;gt; In Maintain print queue Firor app we are maintain print queue name, format, printer destination, etc.&lt;BR /&gt;-&amp;gt; I am calling ADS REST API to render PDF&amp;nbsp;&lt;BR /&gt;-&amp;gt; Once the PDF is rendered, I am using class cl_print_queue_util which is storing the data at this app and transmits spool on to the system.&lt;BR /&gt;&lt;BR /&gt;But spool only generates without error for PDF and XML devices type and for ZPL spool generated with errors&lt;BR /&gt;&lt;BR /&gt;can anyone help here?&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;Note: XDC was also assigned for that ZPL device type.&lt;BR /&gt;&lt;BR /&gt;&lt;/STRONG&gt;Regards,&lt;BR /&gt;Bharath&amp;nbsp;&lt;STRONG&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/print-queue-s-4-output-management-is-not-working-for-zpl-printers/qaq-p/14080855"/>
-    <published>2025-04-19T20:14:34.042000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/how-we-can-create-more-then-one-local-class-after-we-global-class-in-abap/qaq-p/14082584</id>
     <title>How we can create more then one local class after we global class in ABAP Cloud ,</title>
@@ -441,5 +287,47 @@ ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;My question is, how do i im
     <content>&lt;P&gt;We have a requirement where we have to Distribute production data (customers) to quality system.&lt;/P&gt;&lt;P&gt;The approach we followed is by DRF. The IDOCs are now successfully reaching the quality system but now we have to create a process code in order to handle the IDOC.&amp;nbsp;&lt;/P&gt;&lt;P&gt;We were planning to create a FM in which we will map each field in IDOC segment to standard tables like KNA1, KNVV, KNVK etc. This will take time and will not be efficient for large number of IDOCs.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Please let me know the correct approach for this situation?&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/distribution-of-customer-to-lower-environments-production-to-quality/qaq-p/14094333"/>
     <published>2025-05-06T12:22:29.616000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/include-type-not-available-on-s-4-hana/qaq-p/14095487</id>
+    <title>INCLUDE TYPE not available on S/4 HANA?</title>
+    <updated>2025-05-07T16:05:07.970000+02:00</updated>
+    <author>
+      <name>AustinKloske</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1702051</uri>
+    </author>
+    <content>&lt;P&gt;I am trying to extend SAPs service consumption models to include navigations in my partner namespace structures. It seems 'INCLUDE TYPE is no longer recognized syntax in S/4 HANA 2023.&lt;/P&gt;&lt;P&gt;After using 'INCLUDE TYPE', a structure literally called 'include' that needs to be referenced as "ls_struct-include-field_name" is created.&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;I have imported various API Hub edmx files as service consumption models to create my initial classes. Is there a work around to not having access to the old 'INCLUDE TYPE / INCLUDE STRUCTURE' in recent versions of ABAP cloud?&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;TYPES:
+      BEGIN OF tys_product_type,
+        product TYPE c LENGTH 40,
+        etag TYPE string,
+      END OF tys_product_type.
+
+TYPES:
+     BEGIN OF tys_extended_product_type,
+        product_description        TYPE tyt_product_description_type,
+        product_ewmwarehouse       TYPE tyt_product_ewmwarehouse_type,
+        INCLUDE TYPE tys_product_type,
+     END OF tys_extended_product_type.
+
+----
+"Usage
+ls_entity_key TYPE tys_extended_product_type
+ls_entity_key = VALUE #( include-product  = zif_api_hub~mv_doc_num ).
+
+&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/include-type-not-available-on-s-4-hana/qaq-p/14095487"/>
+    <published>2025-05-07T16:05:07.970000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/update-permitted-usages-3-tier-extensibility-model/qaq-p/14095507</id>
+    <title>Update permitted usages - 3 Tier extensibility model</title>
+    <updated>2025-05-07T16:27:02.173000+02:00</updated>
+    <author>
+      <name>AustinKloske</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1702051</uri>
+    </author>
+    <content>&lt;P&gt;In our S/4 HANA 2023 FPS02 system,&amp;nbsp;&lt;STRONG&gt;INHERITING FROM /iwbep/cl_v4_abs_pm_model_prov&amp;nbsp;&lt;/STRONG&gt;is not permitted in tier 1 (ABAP version ABAP CLOUD).&lt;/P&gt;&lt;P&gt;Following &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/how-to-use-the-odata-client-proxy-in-sap-s-4-hana-or-how-to-use-the-odata/ba-p/13425200" target="_self"&gt;SAPs guide on using client proxys&lt;/A&gt;&amp;nbsp;in on-premise systems, All of our consumption models for client proxy inherit from this interface. Therefore, all our client proxy classes need to be put into a Tier 2 software component.&amp;nbsp;&lt;/P&gt;&lt;P&gt;I can see that in BTP ABAP systems, usage of&amp;nbsp;&lt;STRONG&gt;/iwbep/cl_v4_abs_pm_model_prov&amp;nbsp;&lt;/STRONG&gt;is allowed.&amp;nbsp;&lt;/P&gt;&lt;P&gt;So, how do we update our on-premise system to get new permissions on what objects are allowed for use without moving usage into Tier 2 wrappers?&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/update-permitted-usages-3-tier-extensibility-model/qaq-p/14095507"/>
+    <published>2025-05-07T16:27:02.173000+02:00</published>
   </entry>
 </feed>
