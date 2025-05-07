@@ -2,113 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2025-05-07T05:00:03.568179+00:00</updated>
+  <updated>2025-05-07T08:00:04.418810+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/using-regular-expressions-in-abap-to-extract-structured-text-segments/ba-p/14064635</id>
-    <title>Using Regular Expressions in ABAP to Extract Structured Text Segments</title>
-    <updated>2025-04-03T16:02:31.124000+02:00</updated>
-    <author>
-      <name>kunalsahi85</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/140275</uri>
-    </author>
-    <content>&lt;H3 id="toc-hId-1836475020"&gt;Introduction&lt;/H3&gt;&lt;P class=""&gt;Regular expressions (regex) are a powerful tool in many programming languages, including ABAP. They allow developers to match patterns within strings — particularly useful when dealing with unstructured or semi-structured text.&lt;/P&gt;&lt;P class=""&gt;In this blog post, we explore a practical use case where regex helps extract specific parts of long text, such as notes or order comments.&amp;nbsp;&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1639961515"&gt;Use Case: Selectively Extract Printable Text&lt;/H3&gt;&lt;P class=""&gt;Use embedded markers like the following to define printable vs non-printable content:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P class=""&gt;"Begin Print" — indicates the start of printable content&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;"Do not print" or "Internal notes" — indicates that following lines should not be printed&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;Our objective is to extract &lt;STRONG&gt;only the printable content&lt;/STRONG&gt;, even when these markers appear multiple times or are absent entirely.&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1443448010"&gt;Solution Overview&lt;/H3&gt;&lt;P class=""&gt;We'll use regex to detect these markers with flexibility (handling variations like "Do.Not.Print" or "Internal-notes"). The logic will toggle a control flag that decides whether each line is included.&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1246934505"&gt;Reusable Utility Class&lt;/H3&gt;&lt;P class=""&gt;To make this logic portable across different programs and reports, we wrap the filtering into a utility class:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_text_filter DEFINITION
-  PUBLIC
-  FINAL
-  CREATE PUBLIC.
-
-  PUBLIC SECTION.
-    TYPES: ty_line TYPE string,
-           ty_lines TYPE STANDARD TABLE OF ty_line WITH DEFAULT KEY.
-
-    CLASS-METHODS:
-      filter_printable_text
-        IMPORTING
-          it_lines TYPE ty_lines
-        RETURNING
-          VALUE(rt_filtered) TYPE ty_lines.
-ENDCLASS.
-
-
-CLASS zcl_text_filter IMPLEMENTATION.
-
-  METHOD filter_printable_text.
-
-    DATA: lv_should_print TYPE abap_bool VALUE abap_true,
-          lv_count TYPE i.
-
-    LOOP AT it_lines INTO DATA(ls_line).
-      CLEAR lv_count.
-
-      " Detect 'Begin Print'
-      FIND REGEX 'begin[^a-zA-Z0-9]*print'
-           IN ls_line IGNORING CASE MATCH COUNT lv_count.
-      IF lv_count NE 0.
-        lv_should_print = abap_true.
-        CONTINUE.
-      ENDIF.
-
-      " Detect 'Do not print' or 'Internal notes'
-      FIND REGEX 'do[^a-zA-Z0-9]*not[^a-zA-Z0-9]*print|internal[^a-zA-Z0-9]*notes'
-           IN ls_line IGNORING CASE MATCH COUNT lv_count.
-      IF lv_count NE 0.
-        lv_should_print = abap_false.
-        CONTINUE.
-      ENDIF.
-
-      IF lv_should_print = abap_true.
-        APPEND ls_line TO rt_filtered.
-      ENDIF.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-1050421000"&gt;How to Use It&lt;/H3&gt;&lt;P class=""&gt;You can now call this class in any program or report:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA: lt_input TYPE zcl_text_filter=&amp;gt;ty_lines,
-      lt_output TYPE zcl_text_filter=&amp;gt;ty_lines.
-
-lt_input = VALUE #( 
-  ( 'Do not print: internal checklist' )
-  ( 'Review pending approval' )
-  ( 'BEGIN PRINT' )
-  ( 'Maintenance Order: GM-0021' )
-  ( 'Task: Replace pump' )
-  ( 'Internal notes: not finalized' )
-  ( 'BEGIN PRINT' )
-  ( 'Final approval received' )
-  ( 'Schedule follow-up inspection' )
-).
-
-lt_output = zcl_text_filter=&amp;gt;filter_printable_text( lt_input ).&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-853907495"&gt;Sample Output&lt;/H3&gt;&lt;P class=""&gt;From the above input, the output would be:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;Maintenance Order: GM-0021
-Task: Replace pump
-Final approval received
-Schedule follow-up inspection&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-657393990"&gt;Expanded Test Cases&lt;/H3&gt;&lt;P class=""&gt;Below are various test cases this utility handles:&lt;/P&gt;&lt;H4 id="toc-hId-589963204"&gt;Test Case 1: No Control Keywords&lt;/H4&gt;&lt;P class=""&gt;&lt;STRONG&gt;Input&lt;/STRONG&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;Order: GM-1001
-Task: Inspect pressure valves
-Technician: J Singh&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Expected Output&lt;/STRONG&gt;: All lines&lt;/P&gt;&lt;HR /&gt;&lt;H4 id="toc-hId-393449699"&gt;Test Case 2: One Do Not Print Block&lt;/H4&gt;&lt;P class=""&gt;&lt;STRONG&gt;Input&lt;/STRONG&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;Do not print: Draft version
-Checklist not validated
-Awaiting assignment&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Expected Output&lt;/STRONG&gt;: No lines&lt;/P&gt;&lt;H4 id="toc-hId-196936194"&gt;Test Case 3: Begin Print Followed by Valid Section&lt;/H4&gt;&lt;P class=""&gt;&lt;STRONG&gt;Input&lt;/STRONG&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;BEGIN PRINT
-Order: GM-1002
-Task: Replace filters&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Expected Output&lt;/STRONG&gt;: Lines 2–3&lt;/P&gt;&lt;H4 id="toc-hId--497294406"&gt;Test Case 4: Multiple Blocks&lt;/H4&gt;&lt;P class=""&gt;&lt;STRONG&gt;Input&lt;/STRONG&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;Do not print: Internal log
-Old data references
-BEGIN PRINT
-Order: GM-1003
-Task: Repair conveyor belt
-Internal notes: Operator training in progress
-BEGIN PRINT
-Final test successful
-System back online&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Expected Output&lt;/STRONG&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;Order: GM-1003
-Task: Repair conveyor belt
-Final test successful
-System back online&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId--693807911"&gt;Test Case 5: Mixed Case and Spacing&lt;/H4&gt;&lt;P class=""&gt;&lt;STRONG&gt;Input&lt;/STRONG&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;do Not Print: Needs review
-Hold all tasks
-beGIN print
-Order: GM-1004
-Task: Inspect motor&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Expected Output&lt;/STRONG&gt;: Lines 4–5&lt;/P&gt;&lt;H3 id="toc-hId--596918409"&gt;Conclusion&lt;/H3&gt;&lt;P class=""&gt;This approach demonstrates the power of regex in ABAP for controlling output from long text fields. By encapsulating the logic in a reusable class, we make it easy to include in Smart Forms, Adobe Forms, or custom reports where long text segmentation is needed.&lt;/P&gt;&lt;P class=""&gt;This technique is highly flexible, supports real-world variations in input, and keeps the business logic transparent.&lt;/P&gt;&lt;P class=""&gt;Have you implemented similar solutions using regex or text parsing in ABAP? Share your approach and experiences in the comments below.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/using-regular-expressions-in-abap-to-extract-structured-text-segments/ba-p/14064635"/>
-    <published>2025-04-03T16:02:31.124000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/downloading-a-report-output-in-sap-without-using-spool-request/ba-p/14065480</id>
     <title>Downloading a Report Output in SAP Without Using Spool Request</title>
@@ -1917,5 +1814,17 @@ ENDCLASS. &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Explanatio
   EXPORTING purchase_order_id = '12345'.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Output in Database:&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;PO ID&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Supplier&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Total Amount&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Status&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;12345&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;ABC Ltd&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;5000&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;FORCED_APPROVAL&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":white_heavy_check_mark:"&gt;✅&lt;/span&gt;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Message:&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;I&gt;&lt;SPAN&gt;"Purchase Order Approved with Privileged Access"&lt;/SPAN&gt;&lt;/I&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;6.Code Explanation: How It Works&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Step&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Code Component&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Purpose&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;1&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;ZI_PURCHASE_ORDER&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;Defines the PO table structure.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;2&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;@PrivilegedAccess&lt;/SPAN&gt;&lt;SPAN&gt; in behavior definition&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;Restricts &lt;/SPAN&gt;&lt;SPAN&gt;override_approval&lt;/SPAN&gt;&lt;SPAN&gt; action to privileged users only.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;3&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;approve&lt;/SPAN&gt;&lt;SPAN&gt; method&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;Allows regular users to approve POs.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;4&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;override_approval&lt;/SPAN&gt;&lt;SPAN&gt; method&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;Allows only &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;privileged users&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; to approve POs in special cases.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;5&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;Fiori App Action Execution&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;SPAN&gt;Users interact with the Fiori UI to trigger the actions.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;7.&lt;/STRONG&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Key Learnings&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="196.083px" height="50px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Feature&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="487.365px" height="50px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Explanation&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="196.083px" height="50px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;@PrivilegedAccess&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="487.365px" height="50px"&gt;&lt;P&gt;&lt;SPAN&gt;Grants special permissions to execute restricted actions.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="196.083px" height="50px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Use Case&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="487.365px" height="50px"&gt;&lt;P&gt;&lt;SPAN&gt;Allows Managers to override standard approval processes.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="196.083px" height="50px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Security Considerations&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="487.365px" height="50px"&gt;&lt;P&gt;&lt;SPAN&gt;Ensures only privileged users can perform critical actions.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="196.083px" height="50px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Business Benefit&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="487.365px" height="50px"&gt;&lt;P&gt;&lt;SPAN&gt;Provides flexibility while maintaining strict security and compliance.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;STRONG&gt;8.&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Conclusion&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The &lt;/SPAN&gt;&lt;SPAN&gt;@PrivilegedAccess&lt;/SPAN&gt;&lt;SPAN&gt; annotation in RAP &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;enables secure and controlled access&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; to business-critical actions while maintaining the standard approval process for regular users. It is useful for &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;managing exceptions, handling administrative actions, and ensuring compliance with business rules&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/application-development-and-automation-blog-posts/introduction-to-privilegedaccess-annotation-in-rap-with-real-time-scenario/ba-p/14090149"/>
     <published>2025-05-05T10:37:47.676000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/supply-chain-management-blog-posts-by-members/guideline-to-analyze-any-existing-custom-transactions-to-move-fiori-app-or/ba-p/14095000</id>
+    <title>Guideline to analyze any existing custom transactions to move Fiori App or Embedded Analytics</title>
+    <updated>2025-05-07T08:32:57.391000+02:00</updated>
+    <author>
+      <name>ashraf_usmani</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/233880</uri>
+    </author>
+    <content>&lt;P&gt;Migrating SAP Custom Reports to Fiori or SAC: A Step-by-Step Guide for SAP Developers&lt;BR /&gt;As organizations continue to evolve, the need to modernize SAP custom reports has become increasingly important. The adoption of SAP Fiori and SAP Analytics Cloud (SAC) offers a significant opportunity to enhance business intelligence and user experience.&lt;BR /&gt;This guide is designed to provide SAP developers with a structured approach to analyzing and migrating custom reports to these modern platforms. The following steps will outline the key considerations and best practices for a successful migration.&lt;BR /&gt;We need perform below activity for identification:&lt;/P&gt;&lt;P&gt;Step 1:&amp;nbsp; Assessment of T-Code&lt;/P&gt;&lt;P&gt;Identify Report Property: Get the report name, program name, program type (report, module pool.), author, user and data sources&lt;BR /&gt;Categorized: Identify Business use and core module example: Sales reports, financial reports…etc.&lt;BR /&gt;Check the complexity of the program&lt;BR /&gt;Step 2: Analyze Report Usage&lt;/P&gt;&lt;P&gt;Check the uses and frequency using SAP workload analysis example ST06N or STAD&lt;BR /&gt;Step 3: Technical Analysis&lt;/P&gt;&lt;P&gt;Data Sources: Identify the data sources used by report example tables, view, function modulus, CDS views…etc. This is essential for determine the feasibility of migration to Fiori or SAC.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Report complexity: check the complexity of the report logics example simple read and write or complex logics changing the business documents example sales order, purchase order…etc.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Output Format: Analyze the output format of the report example ALV Grid, classic list, custom module pool screen or smart forms…etc.&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Performance Analysis: Check the performance of reports using trace enable execution via ST05 or performance check. Identify Key ABAP constructs like SELECT statements, LOOPs, AT NEW Statements and any custom function module used.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Data retrieval logic: Analyze how data fetched form database, are there any complex joins, sub-queries, nested select statements these may need optimization when moving Fiori/SAC&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Event Handling: Check any interactive element in the reports example user input, drill downs.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Check the Fiori Suitability: If report consist of data entry or modification can be easily migrated to Fiori app.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;For analytical reports: report with interactive charts, graphs and drill-down functionality can be migrated to Fiori using Analytical list Pages (ALPs) or Overview (OVP)&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Check the SAC Suitability: Reports contain analytical report and dashboard, complex calculations, aggregation and visualization are ideal for SAC.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Check the data visualization if report contains advanced data visualization techniques choose SAC&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Check the report are used for planning and forecasting then use SAC.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Check Report if highly customized or unusual requirement that are replicate in Fiori/SAC may not compatible for migration&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;Check the Data Modeling CDS VDM is optimized for performance&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;Check the security model for authorization models.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Step 4: Flow Chart&lt;/P&gt;&lt;P&gt;Check existing report and design flow chart diagram for report functionality&lt;BR /&gt;Step 5: Documentation&lt;/P&gt;&lt;P&gt;Perform the documentation for migration process.&lt;/P&gt;&lt;P&gt;In conclusion, migrating SAP custom reports to Fiori or SAP Analytics Cloud (SAC) requires a thorough assessment and analysis of the existing reports. By following the five-step process outlined above, SAP developers can effectively evaluate the feasibility of migration and determine the best approach for each report.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/supply-chain-management-blog-posts-by-members/guideline-to-analyze-any-existing-custom-transactions-to-move-fiori-app-or/ba-p/14095000"/>
+    <published>2025-05-07T08:32:57.391000+02:00</published>
   </entry>
 </feed>
