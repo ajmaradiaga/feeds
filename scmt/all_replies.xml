@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2025-05-11T21:44:01.110784+00:00</updated>
+  <updated>2025-05-11T21:59:01.624660+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
@@ -1278,38 +1278,135 @@ ENDENHANCEMENT.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/848404</uri>
     </author>
     <content>&lt;P&gt;what I think is that you use READ ENTITIES OF zc_exchange_bank IN LOCAL MODE, you're attempting to read from the RAP transactional buffer. However for custom entities that get data from external sources this buffer is initially empty. The data you see in your Fiori UI comes directly from your query implementation class but those instances never get automatically stored in the transactional buffer unless explicit CUD operations are performed on them.&lt;BR /&gt;I think you need to bypass the buffer reading attempt and work directly with the key values that are already provided to your method. use these keys (ForexType, SapDate, CurrencyCode) directly to perform your Z-table insert, then populate the RESULT parameter to update the UI with new status values.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD SetExchange.
-  " Prepare tables for Z-table insertion
-  DATA: ztable_data TYPE TABLE OF ztable_exchange_log.
   
-  " Loop through selected records
-  LOOP AT keys INTO DATA(ls_key).
-    " 1. Prepare data for Z-table from keys
-    APPEND VALUE #(
-      forex_type    = ls_key-%key-ForexType
-      sap_date      = ls_key-%key-SapDate
-      currency_code = ls_key-%key-CurrencyCode
-      processed_by  = sy-uname
-      processed_on  = sy-datum
-      processed_at  = sy-uzeit
-    ) TO ztable_data.
-    
-    " Prepare result for UI update
-    APPEND VALUE #(
-      %key = ls_key-%key
-      %data = VALUE #( StatusCode = '1'  
-                       StatusIcon = 'sap-icon://accept' )
-    ) TO result.
+  " Data structures for Z-table 
+  DATA: ztable_data TYPE TABLE OF ztable_exchange_log,
+        failed      TYPE RESPONSE FOR FAILED zc_exchange_bank,
+        reported    TYPE RESPONSE FOR REPORTED zc_exchange_bank.
+  
+  " Key structure matching entity primary keys
+  TYPES: BEGIN OF ts_entity_key,
+           ForexType    TYPE c LENGTH 1,
+           SapDate      TYPE d,
+           CurrencyCode TYPE c LENGTH 5,
+         END OF ts_entity_key.
+  
+  " Tables for fetching process
+  DATA: keys_for_fetch TYPE TABLE OF ts_entity_key,
+        full_data      TYPE TABLE OF zc_exchange_bank_type.
+  
+  " Extract keys from selected entries
+  LOOP AT keys ASSIGNING FIELD-SYMBOL(&amp;lt;key&amp;gt;).
+    APPEND VALUE #( 
+      ForexType    = &amp;lt;key&amp;gt;-%key-ForexType
+      SapDate      = &amp;lt;key&amp;gt;-%key-SapDate
+      CurrencyCode = &amp;lt;key&amp;gt;-%key-CurrencyCode
+    ) TO keys_for_fetch.
   ENDLOOP.
   
-  " Save to Z-table with error handling
+  " Fetch complete data from web service via query implementation
+  IF keys_for_fetch IS NOT INITIAL.
+    TRY.
+        DATA(query_impl) = cl_abap_get_instance=&amp;gt;get_instance( 'ZCL_RAP_EXCHANGE' ).
+        
+        CALL METHOD query_impl-&amp;gt;('GET_DATA_BY_KEYS')
+          EXPORTING
+            it_keys    = keys_for_fetch
+          RECEIVING
+            rt_result  = full_data.
+            
+      CATCH cx_root INTO DATA(error).
+        " Handle fetch errors
+        LOOP AT keys ASSIGNING &amp;lt;key&amp;gt;.
+          INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky ) INTO TABLE failed-exchange.
+          INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky
+                          %msg = NEW zcx_rap_error( 
+                                   severity = if_abap_behv_message=&amp;gt;severity-error
+                                   textid   = 'FETCH_ERROR'
+                                   text     = '' ) 
+                        ) INTO TABLE reported-exchange.
+        ENDLOOP.
+        failed   = failed.
+        reported = reported.
+        RETURN.
+    ENDTRY.
+  ENDIF.
+  
+  " Process data and prepare Z-table records and UI updates
+  LOOP AT keys ASSIGNING &amp;lt;key&amp;gt;.
+    READ TABLE full_data ASSIGNING FIELD-SYMBOL(&amp;lt;entity&amp;gt;) 
+      WITH KEY ForexType    = &amp;lt;key&amp;gt;-%key-ForexType
+               SapDate      = &amp;lt;key&amp;gt;-%key-SapDate
+               CurrencyCode = &amp;lt;key&amp;gt;-%key-CurrencyCode.
+               
+    IF sy-subrc = 0.
+      " Prepare Z-table entry with key and non-key fields
+      APPEND VALUE #(
+        forex_type    = &amp;lt;key&amp;gt;-%key-ForexType
+        sap_date      = &amp;lt;key&amp;gt;-%key-SapDate
+        currency_code = &amp;lt;key&amp;gt;-%key-CurrencyCode
+        isim          = &amp;lt;entity&amp;gt;-Isim          
+        sapdate_ui    = &amp;lt;entity&amp;gt;-SapDate_UI    
+        processed_on  = sy-datum
+        processed_by  = sy-uname
+        status        = 'COMPLETED'
+      ) TO ztable_data.
+      
+      " Prepare UI update data
+      APPEND VALUE #(
+        %tky  = &amp;lt;key&amp;gt;-%tky
+        %data = VALUE #( 
+                  StatusCode = '1'                 
+                  StatusIcon = 'sap-icon://accept'  
+                )
+      ) TO result.
+    ELSE
+      " Handle missing data
+      INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky ) INTO TABLE failed-exchange.
+      INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky
+                      %msg = NEW zcx_rap_error( 
+                               severity = if_abap_behv_message=&amp;gt;severity-error
+                               textid   = 'NOT_FOUND' 
+                               text     = 'Entity data not found' )
+                    ) INTO TABLE reported-exchange.
+    ENDIF.
+  ENDLOOP.
+  
+  " Save data to Z-table
   IF ztable_data IS NOT INITIAL.
     TRY.
         INSERT ztable_exchange_log FROM TABLE @ztable_data.
         IF sy-subrc &amp;lt;&amp;gt; 0.
-          " Handle insertion errors
- ENDIF.
+          " Handle database insert errors
+          CLEAR result.
+          LOOP AT keys ASSIGNING &amp;lt;key&amp;gt;.
+            INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky ) INTO TABLE failed-exchange.
+            INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky
+                            %msg = NEW zcx_rap_error( 
+                                     severity = if_abap_behv_message=&amp;gt;severity-error
+                                     textid   = 'DB_ERROR'
+                                     text     = 'Failed to save to database' )
+                          ) INTO TABLE reported-exchange.
+          ENDLOOP.
+        ENDIF.
+      CATCH cx_root INTO DATA(db_error).
+        " Handle database exceptions
+        CLEAR result.
+        LOOP AT keys ASSIGNING &amp;lt;key&amp;gt;.
+          INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky ) INTO TABLE failed-exchange.
+          INSERT VALUE #( %tky = &amp;lt;key&amp;gt;-%tky
+                          %msg = NEW zcx_rap_error( 
+                                   severity = if_abap_behv_message=&amp;gt;severity-error
+                                   textid   = 'EXCEPTION'
+                                   text     = '' )
+                        ) INTO TABLE reported-exchange.
+        ENDLOOP.
     ENDTRY.
   ENDIF.
+
+  " Set framework response parameters
+  failed   = failed.
+  reported = reported.
 ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/re-actions-in-behavior-definition-for-cds-custom-entity/qaq-p/14098528/comment-id/4913555#M4913555"/>
     <published>2025-05-11T23:34:23.862000+02:00</published>
