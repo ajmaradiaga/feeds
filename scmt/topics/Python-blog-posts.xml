@@ -2,230 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/Python-blog-posts.xml</id>
   <title>SAP Community - Python</title>
-  <updated>2025-05-15T11:11:43.654153+00:00</updated>
+  <updated>2025-05-16T11:11:39.337030+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/Python/pd-p/f220d74d-56e2-487e-8e6c-a8cb3def2378" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Python blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/sap-ai-core-consolidate-logs-with-sap-cloud-logging/ba-p/13982996</id>
-    <title>SAP AI Core: Consolidate Logs with SAP Cloud Logging</title>
-    <updated>2025-01-13T18:42:10.928000+01:00</updated>
-    <author>
-      <name>felixbartler</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/4997</uri>
-    </author>
-    <content>&lt;P&gt;SAP AI Core is the platform for managing AI workloads on the Business Technology Platform (BTP). It is often used to run machine learning workloads and serves as a backend service for applications, such as those built with CAP. Consolidating the logs from AI workloads with the logs of the applications that use them provides an advantage for operations and debugging. In this blog, we’ll show how to send logs from AI Core deployments to the SAP Cloud Logging service for a unified view.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="felixbartler_0-1736599334506.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/210877iF22E7F1C39AB93B4/image-size/large?v=v2&amp;amp;px=999" role="button" title="felixbartler_0-1736599334506.png" alt="felixbartler_0-1736599334506.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1079341509"&gt;Background on SAP Cloud Logging:&lt;/H2&gt;&lt;P&gt;SAP Cloud Logging is a service on the SAP Business Technology Platform (BTP) that enables the collection, storage, and analysis of observability data, such as logs, metrics, and traces, from environments like Cloud Foundry, Kyma, Kubernetes, and others. By consolidating this data, it provides a unified view that simplifies monitoring and troubleshooting across your applications and services.&lt;/P&gt;&lt;P&gt;One of its key strengths is the&lt;STRONG&gt; seamless integration with Cloud Foundry and Kyma&lt;/STRONG&gt;. When the Cloud Logging service is bound to a Cloud Foundry application instance, it automatically collects the application's logs, making the setup process straightforward and reducing manual configuration.&lt;/P&gt;&lt;P&gt;For me the most important advantage is its user interface, based on the open-source &lt;STRONG&gt;OpenSearch&lt;/STRONG&gt; project. It provides powerful tools for searching, filtering, and analyzing logs.&lt;/P&gt;&lt;H2 id="toc-hId-882828004"&gt;Ingesting Data to SAP Cloud Logging:&lt;/H2&gt;&lt;P&gt;SAP Cloud Logging offers two primary methods for ingesting observability data:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;OpenTelemetry API&lt;/STRONG&gt;: SAP Cloud Logging supports the OpenTelemetry standard, a comprehensive framework for collecting logs, traces, and metrics across multiple programming languages. This framework provides extensive tracing capabilities and offers options for both automatic and manual instrumentation. Automatic instrumentation can often be applied without modifying existing code, while manual instrumentation allows for finer control within the codebase. However, in environments like AI Core, which do not natively support auto-instrumentation, one can choose to implement OpenTelemetry instrumentation manually within workloads.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;JSON mTLS API&lt;/STRONG&gt;: Another option is to use the JSON API endpoint provided by SAP Cloud Logging, which accepts log data in JSON format. This method is simpler to implement compared to OpenTelemetry and is particularly useful in scenarios where a quick or lightweight setup is preferred. Logs can be sent directly to the endpoint via HTTP requests, providing a straightforward integration option. Additionally, tools like Fluent Bit can be configured to forward logs to this endpoint with minimal effort, although this might require adjustments to deployment configurations or Dockerfiles. Alternatively, one can create a custom solution, such as a small Python script, to send logs directly to the endpoint for a streamlined and efficient approach.&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;In the following sections, I will demonstrate a simple Python-based method for sending logs to the JSON API endpoint, offering a easy-to-copy solution for integrating AI Core workloads with SAP Cloud Logging. I do encourage to look at pre-built alternatives though.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Restriction:&lt;/STRONG&gt; Collecting the logs from within the Python Environment limits us to those logs created on the application level, we cannot access some logs generated at the platform level..&lt;/P&gt;&lt;H2 id="toc-hId-686314499"&gt;Prerequisites:&lt;/H2&gt;&lt;P&gt;For the example in this blog we need a) an instance of AI Core and b) an instance of SAP Cloud Logging. Both are services on the BTP and there is very good documentation on how to set them up. For both services we need a service key, you can create them using the BTP Cockpit. After obtaining the keys, let's have a look at the service key for Cloud Logging:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{
-    "client-ca": "-----BEGIN CERTIFICATE-----\n[REDACTED CLIENT CERTIFICATE DATA]\n-----END CERTIFICATE-----\n",
-    "dashboards-endpoint": "dashboards-[REDACTED]-cloud.logs.services.sap.hana.ondemand.com",
-    "dashboards-password": "[REDACTED_PASSWORD]",
-    "dashboards-username": "[REDACTED_USERNAME]",
-    "ingest-mtls-cert": "-----BEGIN CERTIFICATE-----\n[REDACTED MTLS CERTIFICATE DATA]\n-----END CERTIFICATE-----\n",
-    "ingest-mtls-endpoint": "ingest-mtls-[REDACTED]-cloud.logs.services.sap.hana.ondemand.com",
-    "ingest-mtls-key": "-----BEGIN PRIVATE KEY-----\n[REDACTED PRIVATE KEY DATA]\n-----END PRIVATE KEY-----\n"
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;It contains all the necessary credentials to ingest logs. The dashboard credentials can be used to log in to the OpenSearch UI. For our example later, we use the&amp;nbsp;&lt;EM&gt;ingest-mtls-...&lt;/EM&gt; credentials, so have them ready &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-489800994"&gt;Cloud Logging Handler:&lt;/H2&gt;&lt;P&gt;Now, let's take a look at a code sample for sending logs. I chose to use a logging handler based on Python's standard logging module:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from concurrent.futures import ThreadPoolExecutor
-import gzip
-import os
-import json
-import logging
-import requests
-
-from cloud_logging_handler.secret_utils import mtls_client_cert_from_env, mtls_endpoint_from_env
-
-executor = ThreadPoolExecutor(max_workers=1)
-
-class CloudLoggingHandler(logging.Handler):
-    def __init__(self):
-        super().__init__()
-        self.endpoint = mtls_endpoint_from_env()
-        self.client_cert = mtls_client_cert_from_env()
-        self.executor = executor
-
-    def emit(self, record):
-        try:
-            # Prepare log message payload
-            log_message_formatted = self.format(record)
-            payload = {
-                "msg": log_message_formatted,
-                "date": record.created,
-                "filename": record.filename,
-                "level": record.levelname,
-                "thread": record.threadName,
-                "deployment_id": os.environ.get("HOSTNAME", "")[:16],  # a env variable set by ai core gives us some info on the deployment_id
-                "deployment_name": os.environ.get("DEPLOYMENT_NAME", "")  # a env variable set us to give the workload a name
-            }
-            # Submit the background task to the ThreadPoolExecutor
-            self.executor.submit(self._send_log, payload)
-        except Exception as e:
-            logging.error(e)
-
-    def _send_log(self, payload):
-        try:
-            json_bytes = json.dumps(payload).encode('utf-8')    
-            gzipped_data = gzip.compress(json_bytes)    # Convert payload to gzipped JSON
-            
-            # Send the log to the ingest-mtls endpoint
-            response = requests.put(
-                self.endpoint,
-                data=gzipped_data,
-                headers={'Content-Encoding': 'gzip'},
-                cert=self.client_cert   # hand in client certificate paths
-            )
-            response.raise_for_status()
-        except Exception as e:
-            logging.error(e)&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;I implemented a &lt;STRONG&gt;custom logging handler&lt;/STRONG&gt; that sends log data to a cloud logging service over HTTP. This handler is designed to meet the specific API requirements of the cloud logging service, such as gzipping the request payload and authenticating using mTLS.&lt;/P&gt;&lt;P&gt;Cloud Logging supports handling &lt;STRONG&gt;JSON logs with custom attributes&lt;/STRONG&gt;, making it easier to filter logs. By default, I included several attributes that are available in Python logs, such as &lt;EM&gt;log_level &lt;/EM&gt;and &lt;EM&gt;thread&lt;/EM&gt;. However, you can also add custom attributes, such as &lt;EM&gt;deployment_id &lt;/EM&gt;or &lt;EM&gt;deployment_name &lt;/EM&gt;for AI Core, to further enrich your log data.&lt;/P&gt;&lt;P&gt;Since the request can take a few milliseconds to complete and I don't want to block the main application flow, I decided to handle the requests asynchronously using a background thread with a &lt;EM&gt;ThreadPoolExecutor&lt;/EM&gt;.&lt;/P&gt;&lt;P&gt;However, there are some potential risks regarding &lt;STRONG&gt;thread safety&lt;/STRONG&gt; with this approach. I recommend testing it thoroughly in your own environment, as I’ve experienced crashes when using it with FastAPI. For Flask, using multiple workers can cause issues as well, although it works fine with just one worker. There are additional optimizations that could be made, such as sharing a connection between requests, but for my use case, this solution was sufficiently fast.&lt;EM&gt; If you do not care about performance you can also keep it synchronous or even send out logs only in certain time intervals.&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;A unique requirement for cloud logging in our case is the use of&lt;STRONG&gt; mTLS authentication&lt;/STRONG&gt;. This necessitates supplying both a client certificate and its associated key. We retrieve these from the service key of the cloud logging service instance. To handle this, I created a helper function that reads the certificate and key from environment variables and writes them to temporary files for use by the requests library.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import tempfile
-import os
-
-endpoint = os.environ["CLOUD_LOGGING_INGEST_MTLS_ENDPOINT"]
-cert = os.environ["CLOUD_LOGGING_INGEST_MTLS_CERT"]
-key = os.environ["CLOUD_LOGGING_INGEST_MTLS_KEY"]
-
-
-def mtls_client_cert_from_env():
-    """takes care of loading the env variables and storing the certificates in a temporary file"""
-    cert_str = os.environ["CLOUD_LOGGING_INGEST_MTLS_CERT"]
-    key_str = os.environ["CLOUD_LOGGING_INGEST_MTLS_KEY"]
-
-    # Create temporary files to store the cert and key
-    with tempfile.NamedTemporaryFile(delete=False) as cert_file, tempfile.NamedTemporaryFile(delete=False) as key_file:
-        cert_file.write(cert_str.encode('utf-8'))
-        key_file.write(key_str.encode('utf-8'))
-        cert_file_path = cert_file.name
-        key_file_path = key_file.name
-
-    return (cert_file_path, key_file_path)
-
-def mtls_endpoint_from_env():
-    """return endpoint from env variable"""
-    return "https://" + os.environ["CLOUD_LOGGING_INGEST_MTLS_ENDPOINT"]&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Make sure to set the environment variables with the values from the service key.&lt;/P&gt;&lt;P&gt;Here’s an example of how the CloudLoggingHandler can be added to any project using the following syntax:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import logging
-from cloud_logging_handler.cloud_logging_handler import CloudLoggingHandler  # Import the custom CloudLoggingHandler
-
-# Create a logger instance
-logger = logging.getLogger(__name__)
-
-# Set the logging level
-logger.setLevel(logging.INFO)
-
-# Add the CloudLoggingHandler to the logger
-cloud_handler = CloudLoggingHandler()
-logger.addHandler(cloud_handler)
-
-# Example log statements
-logger.info("This is an info message")
-logger.error("This is an error message")&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Let's have a look at a full example with AI Core.&lt;/P&gt;&lt;H2 id="toc-hId-293287489"&gt;Example deployment on AI Core:&lt;/H2&gt;&lt;P&gt;For AI Core we go with creating a sample Scenario including a minimalistic deployment.&lt;/P&gt;&lt;P&gt;The &lt;STRONG&gt;template&lt;/STRONG&gt; for our endeavor can look like this:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;apiVersion: ai.sap.com/v1alpha1
-kind: ServingTemplate
-metadata:
-  name: cloudloggingsample
-  annotations:
-    scenarios.ai.sap.com/description: "cloudloggingsample"
-    scenarios.ai.sap.com/name: "cloudloggingsample"
-    executables.ai.sap.com/description: "cloudloggingsample"
-    executables.ai.sap.com/name: "cloudloggingsample"
-  labels:
-    scenarios.ai.sap.com/id: "cloudloggingsample"
-    ai.sap.com/version: "1.0"
-spec:
-  template:
-    apiVersion: "serving.kserve.io/v1beta1"
-    metadata:
-      annotations: |
-        autoscaling.knative.dev/metric: concurrency
-        autoscaling.knative.dev/target: 1
-        autoscaling.knative.dev/targetBurstCapacity: 0
-      labels: |
-        ai.sap.com/resourcePlan: starter
-    spec: |
-      predictor:
-        imagePullSecrets:
-          - name: felixdockersecrect
-        minReplicas: 1
-        maxReplicas: 5
-        containers:
-        - name: kserve-container
-          image: docker.io/bfwork/cloudloggingsample
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 8080
-              protocol: TCP
-          env: 
-            - name: CLOUD_LOGGING_INGEST_MTLS_ENDPOINT
-              valueFrom:
-                secretKeyRef:
-                  name: cloud-logging-secret
-                  key: CLOUD_LOGGING_INGEST_MTLS_ENDPOINT
-            - name: CLOUD_LOGGING_INGEST_MTLS_CERT
-              valueFrom:
-                secretKeyRef:
-                  name: cloud-logging-secret
-                  key: CLOUD_LOGGING_INGEST_MTLS_CERT
-            - name: CLOUD_LOGGING_INGEST_MTLS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: cloud-logging-secret
-                  key: CLOUD_LOGGING_INGEST_MTLS_KEY
-            - name: DEPLOYMENT_NAME
-              value: "CLOUD_LOGGING_SAMPLE"&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; To pass the Cloud Logging credentials to the container, we reference a secret. For more information on how to work with environment variables in AI Core, &lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/sap-ai-core-templating-environment-variables/ba-p/13718059" target="_self"&gt;check out this blog&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;Aside from that, this is a simple serving template, which exposes the server on port 8080.&lt;/P&gt;&lt;P&gt;You can create the secret to reference in AI Launchpad as follows:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="felixbartler_1-1736602650599.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/210879i8BD421062BDF952C/image-size/large?v=v2&amp;amp;px=999" role="button" title="felixbartler_1-1736602650599.png" alt="felixbartler_1-1736602650599.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Don't forget to encode the values using base64. I've included a utility script in the sample repository to assist with this.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="felixbartler_2-1736602720495.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/210880iC1CA25AC284A48FA/image-size/medium?v=v2&amp;amp;px=400" role="button" title="felixbartler_2-1736602720495.png" alt="felixbartler_2-1736602720495.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;With the credentials and template in place, let's take a look at the serving code:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import random
-import logging
-from flask import Flask, jsonify
-from cloud_logging_handler.cloud_logging_handler import CloudLoggingHandler
-
-logger = logging.getLogger("SampleAIApp")
-logger.setLevel(logging.DEBUG)
-
-# Set up the custom Cloud Logging handler
-cloud_logging_handler = CloudLoggingHandler()  
-logger.addHandler(cloud_logging_handler)
-
-logger.info("Init Server!!")
-
-# Initialize FastAPI app
-app = Flask(__name__)
-
-
-@app.route("/v2/predict/", methods=['POST'])
-def predict():
-    logger.info(f"Request to /v2/predict/")
-    logger.info(f"Input Data Recieved, preparing prediction")
-    
-    prediction = round(random.uniform(0, 1), 2)     # Perform inference using the loaded model
-    logger.info(f"Successfully predicted a value: {prediction}")
-    
-    return jsonify({"prediction": prediction })   # Return the prediction as JSON response
-    
-@app.route("/v2/hello/", methods=['POST'])
-def hello():
-    logger.info(f"Request to /v2/hello/")
-    logger.info("Hello World!!")
-    return jsonify({"world": "hello"})
-
-
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8080)    # should not be used in production&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Here, we bring everything together: we start a server on port 8080, &lt;STRONG&gt;integrate our custom logging handler&lt;/STRONG&gt;, and expose a few sample endpoints. Additionally, we use the logging module extensively to generate some sample logs.&lt;/P&gt;&lt;P&gt;Wrapping it into a Docker container concludes our development efforts:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;FROM python:3.7 as base
-
-COPY requirements.txt requirements.txt
-RUN pip3 install -r requirements.txt
-
-
-FROM base as final
-#
-# Creates directory within your Docker image
-RUN mkdir -p /app/src/
-RUN mkdir -p /app/model/
-RUN mkdir -p /app/data/
-#
-# Copies file from your Local system TO path in Docker image
-COPY . /app/src/
-#
-# Enable permission to execute anything inside the folder app
-RUN chgrp -R 65534 /app &amp;amp;&amp;amp; \
-    chmod -R 777 /app
-
-WORKDIR /app
-
-# for serving default command
-CMD [ "python3", "/app/src/serve.py"]&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Now we can create a deployment and send some requests to the inference endpoint.&lt;/P&gt;&lt;H2 id="toc-hId-96773984"&gt;Result - Analyze Logs in Open Search:&lt;/H2&gt;&lt;P&gt;Finally, let's take a look at the result. The major advantage of using Cloud Logging is the ability to leverage the powerful OpenSearch UI for querying logs. This improves the developer experience, especially in large-scale projects, as it allows us to use a single tool across multiple environments.&lt;/P&gt;&lt;P&gt;Our logs are stored under the logs-json-* index. In the UI, under the "Discover" section, we can select a timeframe and choose which attributes we want to display:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="felixbartler_4-1736602876283.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/210882iF9C054228DB8BE1B/image-size/large?v=v2&amp;amp;px=999" role="button" title="felixbartler_4-1736602876283.png" alt="felixbartler_4-1736602876283.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;It looks great! All the different fields we've submitted—such as the message, deployment name, thread, log level, and even the deployment ID are there. This allows us to&lt;STRONG&gt; filter logs by specific deployments&lt;/STRONG&gt;, which is really useful.&lt;/P&gt;&lt;P&gt;I must admit, using the OpenSearch UI is far more satisfying than the AI Launchpad Deployment Log viewer&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":smiling_face_with_smiling_eyes:"&gt;😊&lt;/span&gt;&lt;/P&gt;&lt;P&gt;I hope you found this helpful. Checkout the &lt;A href="https://github.com/fyx99/AI-Core-and-SAP-Cloud-Logging" target="_self" rel="nofollow noopener noreferrer"&gt;full code example&lt;/A&gt;. If you have any questions, feel free to leave a comment!&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-ai-core-consolidate-logs-with-sap-cloud-logging/ba-p/13982996"/>
-    <published>2025-01-13T18:42:10.928000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/text-embedding-service-in-sap-hana-cloud-predictive-analysis-library-pal/ba-p/14025121</id>
     <title>Text Embedding Service in SAP HANA Cloud Predictive Analysis Library (PAL)</title>
@@ -1547,5 +1327,147 @@ return result[['OrderDate', 'SalesAmount', 'SalesAmount_SMA']]&lt;/SPAN&gt;&lt;/
     <content>&lt;P&gt;&lt;U&gt;&lt;EM&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;Introduction&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/EM&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;Today, enterprises are creating agents, either to automate some manual processes or to optimize existing once. No matter what is the use case, we have already entered the &lt;STRONG&gt;Economy&lt;/STRONG&gt; &lt;STRONG&gt;of&lt;/STRONG&gt; &lt;STRONG&gt;Agents&lt;/STRONG&gt;. This is similar to last several decades where software engineers, developers or consultants developed production grade applications.&lt;/P&gt;&lt;P&gt;Software development evolved over decades which gave us some time to adapt to it and accept new solutions/frameworks. Also the pace with which we were developing applications was slow as compared to the pace with which agentic solutions are being developed.&lt;/P&gt;&lt;P&gt;The critical difference between traditional software solutions/applications and agentic solutions is the very nature. Traditional software solutions are deterministic in nature as opposed to agentic solutions which are non deterministic in nature to an extent.&lt;/P&gt;&lt;P&gt;Quality Gate for traditional software development has evolved over years of iterations and given us some robust test automation tools and frameworks. The harsh truth is - &lt;STRONG&gt;we still find production bugs&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;Now, imagine a non deterministic agentic software application for which testing is hard to define or predict at times. This may lead to totally unpredictable production bugs or unexpected behaviour. This might cost us time&amp;nbsp;and money, that too - exponentially.&lt;/P&gt;&lt;P&gt;That is the reason, evaluation of Agentic solutions is very important and should be considered top priority for enterprises to ensure we produce good quality of Agentic applications.&lt;/P&gt;&lt;P&gt;This blog is not to scare you, but to give you a spark to think and act.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;So, gear up! and let's start&amp;nbsp;&lt;SPAN class="lia-unicode-emoji"&gt;&lt;span class="lia-unicode-emoji" title=":rocket:"&gt;🚀&lt;/span&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;I will breakdown the article into following parts&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;What is agent evaluation?&lt;/LI&gt;&lt;LI&gt;Types of agent evaluation&lt;/LI&gt;&lt;LI&gt;Evaluation Tools&lt;/LI&gt;&lt;LI&gt;Evaluation framework (Block Diagram)&lt;/LI&gt;&lt;LI&gt;Why OpenTelemetry?&lt;/LI&gt;&lt;LI&gt;Code walkthrough&lt;/LI&gt;&lt;LI&gt;Available Agentic Evaluation frameworks&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;U&gt;&lt;EM&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;What is Agent Evaluation?&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/EM&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;Agent evaluation is validating the output of an agent. This differs slightly from the typical software development testing. In a software testing, we know what is a input and what is the expected output.&lt;/P&gt;&lt;P&gt;But in case of agentic solutions, as the response is given by the underlying LLM, the output varies due to lot of factors such as prompts, LLM used etc.&lt;/P&gt;&lt;P&gt;So, agentic AI testing is done in a different way. It is based on some pre-defined metrics such as response times, underlying tools used by the agent, token consumption, cost of total response etc. to name a few.&lt;/P&gt;&lt;P&gt;Based on the evaluation results, the respective developer can tweak the solution either by enhancing the prompts, changing the underlying LLM, introducing additional tool which will reduce the over all response time and token consumption, but also ensuring the expected output is provided.&lt;/P&gt;&lt;P&gt;Agent evaluation is a evolving space and a lot of advancements are being done to streamline it.&lt;/P&gt;&lt;H2 id="toc-hId-1706525418"&gt;&lt;U&gt;&lt;EM&gt;&lt;STRONG&gt;Types of Agent Evaluation&lt;/STRONG&gt;&lt;/EM&gt;&lt;/U&gt;&lt;/H2&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Code based evaluation:&amp;nbsp;&lt;/STRONG&gt;It is a pro-code type of evaluation and you will get a glimpse of it in this tutorial/POC. In code based evaluation, code is injected in the Agentic AI application which captures the metric data when the agent it executing any request. &lt;STRONG&gt;It is well suited to validate objectivity of the solution&lt;/STRONG&gt;. By that, I mean it is well suited to validate the quantitative attributes of the agentic solution, for example - latency, response time, token consumption etc.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;LLM as a judge:&lt;/STRONG&gt; This is kind of low-code type of evaluation. This is not covered in this tutorial/POC. As the name suggests, here LLM is a reviewer. It validates the correctness of the output provided by the agentic application.&amp;nbsp;&lt;STRONG&gt;It is well suited to validate subjectivity of the solution&lt;/STRONG&gt;. By that, I mean it is well suited to validate the qualitative attributes of the agentic solution, for example - correctness of output response, reasoning, planning etc.&lt;/LI&gt;&lt;/OL&gt;&lt;H2 id="toc-hId-1510011913"&gt;&lt;U&gt;&lt;EM&gt;&lt;STRONG&gt;Evaluation Tools&lt;/STRONG&gt;&lt;/EM&gt;&lt;/U&gt;&lt;/H2&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;&lt;STRONG&gt;Pre-requisite:&lt;/STRONG&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;For running this observability stack on your local machine, you should have docker desktop installed. Once done, install below docker images.&lt;/SPAN&gt;&lt;/DIV&gt;&lt;OL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Prometheus&lt;/STRONG&gt;:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;Time series data store for collecting metric data and alerting.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Grafana Tempo&lt;/STRONG&gt;:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;A distributed tracing backend that simplifies storing and visualizing trace data.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;OpenTelemetry Collector&lt;/STRONG&gt;:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;Acts as a central hub for receiving traces and exporting telemetry data to observability backends.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Grafana&lt;/STRONG&gt;:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;Grafana is an interactive data visualization and monitoring platform that allows users to query, visualize, and understand data from various source.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;/DIV&gt;&lt;P&gt;&lt;U&gt;&lt;EM&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;Evaluation Framework (Block Diagram)&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/EM&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;EM&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Figure-1" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/253746i61E17436952466DB/image-size/large?v=v2&amp;amp;px=999" role="button" title="agent_evaluation.png" alt="Figure-1" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Figure-1&lt;/span&gt;&lt;/span&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/EM&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;EM&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;Why OpenTelemetry?&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/EM&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;A very obvious question after looking at the above block diagram is "Why OpenTelemetry?"&lt;/P&gt;&lt;P&gt;OpenTelemetry is an open standard for collecting and exporting telemetry data like metrics and traces.&lt;/P&gt;&lt;P&gt;I would summarize in &lt;STRONG&gt;5&amp;nbsp;important points:&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Vendor neutral&lt;/STRONG&gt; and can integrate with any backend for visualization&lt;/LI&gt;&lt;LI&gt;Provides &lt;STRONG&gt;diverse language support&lt;/STRONG&gt; (Python, Node.js etc)&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Batch processing&lt;/STRONG&gt; which helps to speed up the trace collection&lt;/LI&gt;&lt;LI&gt;Provides &lt;STRONG&gt;standard&lt;/STRONG&gt; format for collection of observability data&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Powerful tracing&lt;/STRONG&gt;&lt;SPAN&gt; providing parent-child relationship and context propagation&lt;/SPAN&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;SPAN&gt;If you want to deep dive into open telemetry, I have added a link in the reference section.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;EM&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;Code Walkthrough&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/EM&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;Till now we have discussed the theory and block diagram, now it's time to deep dive in the code. The &lt;STRONG&gt;Agent Evaluation&lt;/STRONG&gt; section of the &lt;A href="https://github.com/avinashvaidya09/multi_agent_system_demo/blob/main/README.md" target="_self" rel="nofollow noopener noreferrer"&gt;README&lt;/A&gt; details out each and every step to help you get started. I would like to mention some important files in this section for you to give extra attention when you are browsing the code&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;A href="https://github.com/avinashvaidya09/multi_agent_system_demo/tree/main/observability" target="_self" rel="nofollow noopener noreferrer"&gt;observability&lt;/A&gt; folder has all the config files for open telemetry collector, tempo and prometheus.&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;A href="https://github.com/avinashvaidya09/multi_agent_system_demo/blob/main/mas_autogen/app/utils/agent_observability.py" target="_self" rel="nofollow noopener noreferrer"&gt;agent_observability.py&lt;/A&gt;&amp;nbsp;&lt;/SPAN&gt;- This singleton class is the core of observability. This holds all the methods for capturing the metrics and traces. I have created decorators which are applied on the actual functions to capture traces. Custom attributes like&amp;nbsp;request_size_in_bytes, agent_name, response_time are captured. You can add more attributes here such as token_consumption etc.&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://github.com/avinashvaidya09/multi_agent_system_demo/blob/main/mas_autogen/app/utils/prompt_config.py" target="_self" rel="nofollow noopener noreferrer"&gt;agent_service.py&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;- In this file, you will see the decorator applied to the &lt;STRONG&gt;"/chat"&lt;/STRONG&gt; endpoint method.&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://github.com/avinashvaidya09/multi_agent_system_demo/blob/main/mas_autogen/app/functions/weather_functions.py" target="_self" rel="nofollow noopener noreferrer"&gt;weather_functions.py&lt;/A&gt; - In this file, you will see the decorator applied to all the weather functions.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;I have applied the tracing only to weather agent, but can be extended to finance agent.&lt;/P&gt;&lt;P&gt;But there are over the shelf evaluation frameworks available which can be leveraged and provide certain level of customizations. The next section talks about it.&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;EM&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;Available Agentic Evaluation Frameworks&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/EM&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;I have listed few agentic AI evaluations frameworks available and are good starting point to start learning and understanding the importance of agent evaluation.&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;LangSmith -&amp;nbsp;&lt;A href="https://www.langchain.com/langsmith" target="_blank" rel="noopener nofollow noreferrer"&gt;https://www.langchain.com/langsmith&lt;/A&gt;&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;Phoenix - &lt;A href="https://docs.arize.com/phoenix" target="_blank" rel="noopener nofollow noreferrer"&gt;https://docs.arize.com/phoenix&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;DeepEval -&amp;nbsp;&lt;A href="https://www.deepeval.com" target="_blank" rel="noopener nofollow noreferrer"&gt;https://www.deepeval.com&lt;/A&gt;&amp;nbsp;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;U&gt;&lt;EM&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/EM&gt;&lt;/U&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Drawing from my experience, I must emphasize that these insights can serve as a starting point, though their applicability may vary based on specific scenarios.&amp;nbsp;This project will surely give you a starting point from design and development of Agentic AI evaluation.&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;Along with the theory, my intention is to showcase a fully functional prototype which is publicly available on -&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://github.com/avinashvaidya09/multi_agent_system_demo/tree/main" target="_self" rel="nofollow noopener noreferrer"&gt;GitHub&lt;/A&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;&lt;STRONG&gt;Disclaimer&lt;/STRONG&gt;: This is not an official reference application or documentation. The thoughts outlined in this blog are based on my experience and learnings about Agentic AI and agent evaluation.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;&lt;EM&gt;Feel free to “like“, “Share“, “Add a Comment” and to get more updates about my next blogs follow me!&lt;/EM&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;&lt;EM&gt;&lt;U&gt;&lt;FONT size="5"&gt;References&lt;/FONT&gt;&lt;/U&gt;&lt;/EM&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;A href="https://opentelemetry.io/docs/languages/python/" target="_blank" rel="noopener nofollow noreferrer"&gt;https://opentelemetry.io/docs/languages/python/&lt;/A&gt;&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://grafana.com/blog/2021/05/04/get-started-with-distributed-tracing-and-grafana-tempo-using-foobar-a-demo-written-in-python/" target="_blank" rel="noopener nofollow noreferrer"&gt;https://grafana.com/blog/2021/05/04/get-started-with-distributed-tracing-and-grafana-tempo-using-foobar-a-demo-written-in-python/&lt;/A&gt;&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://prometheus.io/" target="_blank" rel="noopener nofollow noreferrer"&gt;https://prometheus.io/&lt;/A&gt;&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://opentelemetry.io/docs/what-is-opentelemetry/" target="_blank" rel="noopener nofollow noreferrer"&gt;https://opentelemetry.io/docs/what-is-opentelemetry/&lt;/A&gt;&amp;nbsp;&lt;/LI&gt;&lt;/OL&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/agentic-ai-evaluation-observability-traceability-amp-metrics-that-matter/ba-p/14056316"/>
     <published>2025-05-14T13:56:33.273000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/sap-datasphere-cli-amp-python-automation-add-1000-users-in-datasphere-space/ba-p/14101128</id>
+    <title>SAP Datasphere CLI &amp; Python Automation : ADD 1000+ Users in Datasphere space in few seconds</title>
+    <updated>2025-05-16T09:59:17.308000+02:00</updated>
+    <author>
+      <name>vikasparmar88</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1528256</uri>
+    </author>
+    <content>&lt;P&gt;&lt;SPAN&gt;This blog is part of a blog series from SAP Datasphere CLI &amp;amp; Python Automation with the focus on SAP Datasphere &amp;amp; Python capabilities:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="4"&gt;&lt;A class="" href="https://community.sap.com/t5/technology-blog-posts-by-members/sap-datasphere-cli-amp-python-automation-extract-all-artifacts-of/ba-p/14087857" target="_blank"&gt;SAP Datasphere CLI &amp;amp; Python Automation : Extract All Artifacts of Datasphere in CSV files.&lt;/A&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-1382837983" id="toc-hId-1601303401"&gt;&lt;FONT size="6"&gt;Introduction&lt;/FONT&gt;&lt;/H1&gt;&lt;P&gt;Managing users in SAP Datasphere can take a lot of time, especially when there are hundreds or thousands of users. Adding them one by one is slow and tiring. This blog explains an easy way to automate the process using Python and SAP Datasphere CLI. With this method, you can add over 1000 users in just a few seconds, saving time and effort.&lt;/P&gt;&lt;H1 id="topic-title" id="toc-hId-1404789896"&gt;Install or Update the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN class=""&gt;SAP Datasphere&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Command Line Interface&lt;/H1&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/SAP_DATASPHERE/d0ecd6f297ac40249072a44df0549c1a/f7d5eddf20a34a1aa48d8e2c68a44e28.html/" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/SAP_DATASPHERE/d0ecd6f297ac40249072a44df0549c1a/f7d5eddf20a34a1aa48d8e2c68a44e28.html/&lt;/A&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1208276391"&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Step-by-Step Process&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/H1&gt;&lt;P&gt;&lt;STRONG&gt;Step 1: Prepare Login.Json file&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Create OAuth Client with Purpose as Interactive Usage and Redirect URL as&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;EM&gt;&lt;A href="http://localhost:8080" target="_blank" rel="noopener nofollow noreferrer"&gt;http://localhost:8080&lt;/A&gt;&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;Get the Refresh Token and access Token by executing below command&amp;nbsp;&lt;/EM&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;datasphere config secrets show&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Get the value of all below fields from the OAuth Client and prepare the Login.json file.&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{
+"client_id": "",
+"client_secret": "",
+"authorization_url": "",
+"token_url": "",
+"access_token": "",
+"refresh_token": ""
+}&lt;/code&gt;&lt;/pre&gt;&lt;H1 id="toc-hId-1382837983" id="toc-hId-1011762886"&gt;&lt;FONT size="4"&gt;Step-2: Prepare USERS.CSV File for Input:&lt;/FONT&gt;&lt;/H1&gt;&lt;P&gt;&lt;FONT size="4"&gt;There are 3 columns in CSV file.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;1) &lt;STRONG&gt;Space&lt;/STRONG&gt; : Space Name&amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;2) &lt;STRONG&gt;User&lt;/STRONG&gt; : User ID in Datasphere&amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;3) &lt;STRONG&gt;Role&lt;/STRONG&gt; : Scope Role name, required for user.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;As shown below, There are 1357 users need to be assigned to Datasphere space with given role in Datasphere.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-05-14 132712.png" style="width: 361px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/260915iC37BF11D608DEDB0/image-dimensions/361x385?v=v2" width="361" height="385" role="button" title="Screenshot 2025-05-14 132712.png" alt="Screenshot 2025-05-14 132712.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H1 id="toc-hId-1382837983" id="toc-hId-815249381"&gt;&lt;FONT size="4"&gt;Step-3:&amp;nbsp;Space_User_Role_Json&lt;STRONG&gt;.py file with below code&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/H1&gt;&lt;P&gt;&lt;STRONG&gt;The Code: Automating User Assignments&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The following Python script simplifies bulk user assignments by:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Reading user-role mappings from a CSV file.&lt;/LI&gt;&lt;LI&gt;Dynamically creating JSON files containing space-user-role mappings.&lt;/LI&gt;&lt;LI&gt;Executing SAP Datasphere CLI commands to automate user additions.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;dsp host&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;: give URL of Datasphere Tenant.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;secrets_file&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;: Give Path of Login.json file.&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import subprocess  # For OS commands on DSP CLI
+import json  # For handling the JSON file format
+import pandas as pd  # For reading the CSV file
+import os  # For creating directories dynamically
+import sys  # For accessing command-line arguments
+
+def create_json_file(space_name, user_role_data, directory):
+    """
+    Create a JSON file for the given space name and associated user-role data, saving it to the specified directory.
+
+    Args:
+        space_name (str): The name of the space.
+        user_role_data (list): A list of dictionaries containing user and role mappings.
+        directory (str): The directory where the file should be saved.
+    """
+    # Define the JSON structure
+    data = [
+        {
+            "id": user_role["User"],
+            "roles": [user_role["Role"]]  # Roles are explicitly wrapped in a list
+        }
+        for user_role in user_role_data
+    ]
+
+
+    # Specify the file name and path
+    file_name = f"{space_name}.json"
+    file_path = os.path.join(directory, file_name)
+
+    # Ensure the directory exists
+    os.makedirs(directory, exist_ok=True)
+
+    # Convert `data` to a JSON string with the desired format
+    json_content = json.dumps(data, indent=2, separators=(',', ': '))
+
+    # Remove unncessary new lines and spaces for Role
+    json_content = json_content.replace("[\n", "[").replace("\n    ]","]").replace("[      ","[")
+
+    # Create the JSON file with the updated content
+    with open(file_path, "w") as json_file:
+        json_file.write(json_content)
+
+    print(f"JSON file created successfully for space : {space_name}")
+    return file_path
+
+def manage_spaces(csv_file_path):
+    """
+    Reads a CSV file to verify columns, then processes spaces, users, and roles to create JSON files
+    and execute Datasphere CLI commands.
+
+    Args:
+        csv_file_path (str): The path to the CSV file containing Space, User, and Role columns.
+    """
+    try:
+        # Check if the argument is passed
+        if not csv_file_path:
+            raise ValueError("csv_file_path argument is required.")
+        
+        # Check if the argument is a string and contains ".csv"
+        if not isinstance(csv_file_path, str) or not csv_file_path.endswith(".csv"):
+            raise ValueError("The csv_file_path must be a string and end with '.csv'.")
+        
+        print(f"Argument received: {csv_file_path}")
+        
+        # Login to Datasphere using host and secrets file
+        dsp_host = '&amp;lt;DATASPHERE URL&amp;gt;'
+        secrets_file = '&amp;lt;PATH&amp;gt;/Login.json'
+        command = f'datasphere login --host {dsp_host} --secrets-file {secrets_file}'
+        subprocess.run(command, shell=True)  # Execute the login command
+
+        # Replace forward slashes with backslashes for consistency
+        csv_file_path = csv_file_path.replace("/", "\\")
+        print(f"Formatted csv_file_path: {csv_file_path}")
+        
+        # Read the CSV file
+        data = pd.read_csv(csv_file_path)
+
+        # Validate columns
+        required_columns = ['Space', 'User', 'Role']
+        if not set(required_columns).issubset(data.columns):
+            raise ValueError("CSV file must contain 'Space', 'User', and 'Role' columns.")
+
+        # Extract unique spaces
+        spaces = data['Space'].unique()
+
+        # Process each space
+        for space in spaces:
+            
+            #For each space find users and their role given in csv file
+            space_data = data[data['Space'] == space]
+            user_role_data = space_data[['User', 'Role']].to_dict(orient='records')
+            
+            # Check if the space exists
+            check_space_command = f'datasphere spaces read --space {space}'
+            result = subprocess.run(check_space_command, shell=True, capture_output=True, text=True)
+            
+            # Create JSON file for each space
+            path = csv_file_path.rsplit('\\', 1)[0] + "\\"
+            json_file_path = create_json_file(space, user_role_data, path)
+              
+            # Add users to the space using the generated JSON file
+            add_users_command = f'datasphere spaces users add --space "{space}" --file-path "{json_file_path}"'
+            print(f"Adding Users to {space} space now...")
+            try:
+                result = subprocess.run(add_users_command, shell=True, capture_output=True, text=True)
+                if result.returncode == 0:
+                    print(f"Successfully added users to space '{space}' using file '{json_file_path}'.")
+                else:
+                    print(f"Failed to add users to space '{space}'. Error: {result.stderr}")
+            except Exception as e:
+                print(f"An error occurred while adding users to space '{space}': {e}")
+
+    except FileNotFoundError:
+        print(f"CSV file '{csv_file_path}' not found.")
+    except ValueError as ve:
+        print(f"Argument error: {ve}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+# Check if the script is run with the required argument
+if len(sys.argv) &amp;gt; 1:
+    manage_spaces(sys.argv[1])
+else:
+    print("Please provide the CSV file path as an argument when running the script.")&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 4: Open command prompt and execute the&amp;nbsp;&lt;FONT size="4"&gt;Space_User_Role_Json.py&amp;nbsp;&lt;/FONT&gt;file&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Give the path of USERS.csv file as argument&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;python Space_User_Role_Json.py('C:/DataSphere/USERS.csv')&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Execution will take few seconds to complete and Once it's done you can see all users ( User count 1356 in my case ) are added to respective space with role assigned in USERS.csv file.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vikasparmar88_2-1747214928113.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/260980iACEA161A6FA8D830/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vikasparmar88_2-1747214928113.png" alt="vikasparmar88_2-1747214928113.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;!--    StartFragment     --&gt;&lt;/P&gt;&lt;H1 id="toc-hId-1382837983" id="toc-hId-618735876"&gt;&lt;FONT size="6"&gt;Conculsion&lt;/FONT&gt;&lt;/H1&gt;&lt;P&gt;With this automation, SAP Datasphere user management becomes seamless and scalable. Python scripting combined with Datasphere CLI simplifies user assignments and minimizes human effort. Whether managing hundreds or thousands of users, this method enhances efficiency while maintaining structured access control.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;If you have questions or noticed a scenario I didn’t cover, feel free to leave a comment below the blog post.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Thank&lt;/P&gt;&lt;P&gt;Vikas Parmar&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Datasphere/pd-p/73555000100800002141" class="lia-product-mention" data-product="16-1"&gt;SAP Datasphere&lt;/a&gt;&amp;nbsp; &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+HANA/pd-p/73554900100700000996" class="lia-product-mention" data-product="639-1"&gt;SAP HANA&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/c-khhcw49343/OData/pd-p/551580658536717501828021060147962" class="lia-product-mention" data-product="323-1"&gt;OData&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SQL/pd-p/122888716930844301706258287775555" class="lia-product-mention" data-product="326-1"&gt;SQL&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/c-khhcw49343/Python/pd-p/f220d74d-56e2-487e-8e6c-a8cb3def2378" class="lia-product-mention" data-product="126-1"&gt;Python&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;!--    EndFragment     --&gt;&lt;/P&gt;&lt;P&gt;&lt;!--    EndFragment     --&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/sap-datasphere-cli-amp-python-automation-add-1000-users-in-datasphere-space/ba-p/14101128"/>
+    <published>2025-05-16T09:59:17.308000+02:00</published>
   </entry>
 </feed>
