@@ -2,168 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2025-05-19T20:14:01.455456+00:00</updated>
+  <updated>2025-05-19T20:29:01.259708+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/dynamic-configuration-in-sap-integration-suite-one-tenant-multiple/ba-p/14105598</id>
-    <title>Dynamic Configuration in SAP Integration Suite: One Tenant, Multiple Environments</title>
-    <updated>2025-05-19T16:08:53.681000+02:00</updated>
-    <author>
-      <name>jantuma</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/35810</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-1601426626"&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;In today's business landscape, efficiency and cost optimization are paramount. For many organizations leveraging SAP technologies, this often means consolidating resources where possible. SAP Integration Suite is a powerful platform, but licensing and infrastructure costs can lead customers to explore strategies like utilizing a single tenant to handle integrations connected to different backend SAP landscapes – typically Development (DEV), Test (TEST), and even Production (PROD) for specific, lower-impact scenarios.&lt;/P&gt;&lt;P&gt;This approach presents a challenge: How do you configure a&amp;nbsp;&lt;EM&gt;single integration flow artifact&lt;/EM&gt;, deployed on this single tenant, to dynamically connect to the&amp;nbsp;&lt;EM&gt;correct&lt;/EM&gt;&amp;nbsp;SAP system (DEV, TEST, or PROD) for each specific execution? We want to avoid maintaining multiple copies of the iflow logic or resorting to cumbersome manual configuration changes.&lt;/P&gt;&lt;P&gt;In this blog post, we will explore a practical and robust pattern to implement dynamic configuration in your SAP Integration Suite iflows. The core idea is to have&amp;nbsp;&lt;STRONG&gt;one central configuration mechanism&lt;/STRONG&gt;&amp;nbsp;(a Groovy script with a configuration map in our example) driven by&amp;nbsp;&lt;STRONG&gt;one simple property (ENV)&lt;/STRONG&gt;, allowing&amp;nbsp;&lt;STRONG&gt;a single iflow artifact&lt;/STRONG&gt;&amp;nbsp;to serve multiple backend environments when deployed as different instances configured for each environment.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The Problem: One Iflow Artifact, Multiple Backend Destinations&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;By default, when you configure a receiver adapter in SAP Integration Suite (like an HTTP or OData adapter), you typically specify a static endpoint URL and select a specific Credential Name (alias) from your tenant's Security Material.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jantuma_0-1747663212686.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263186iD75E44F62A5D4CEC/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="jantuma_0-1747663212686.png" alt="jantuma_0-1747663212686.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;This works perfectly if your iflow&amp;nbsp;&lt;EM&gt;always&lt;/EM&gt;&amp;nbsp;connects to the same target system. However, consider the scenario where you want to deploy the&amp;nbsp;&lt;EM&gt;same&lt;/EM&gt;&amp;nbsp;integration flow artifact onto a single tenant, but need one&amp;nbsp;&lt;EM&gt;deployed instance&lt;/EM&gt;&amp;nbsp;of it to talk to your SAP S/4HANA DEV system, another instance to talk to the TEST system, and maybe even a third instance to talk to PROD.&lt;/P&gt;&lt;P&gt;The goal is to maintain&amp;nbsp;&lt;STRONG&gt;just one source iflow artifact&lt;/STRONG&gt;. We want to avoid:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Creating and maintaining separate iflow artifacts for each environment (e.g.,&amp;nbsp;MyIflow_DEV,&amp;nbsp;MyIflow_TEST,&amp;nbsp;MyIflow_PROD), leading to duplicated logic.&lt;/LI&gt;&lt;LI&gt;Manually changing the adapter configuration on the deployed iflow instance whenever you want to point it to a different environment.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;We need a way for the single iflow artifact to behave differently at runtime based on which environment it is intended for in that specific execution.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The Solution: Dynamic Configuration Driven by an Environment Property&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The solution centers around using a message property as an environment identifier to dynamically look up connection details from a central configuration source within the iflow itself.&lt;/P&gt;&lt;P&gt;The pattern involves these key steps:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Identify the target environment&lt;/STRONG&gt;&amp;nbsp;for the current execution. We will store this as a message property, for example,&amp;nbsp;ENV.&lt;/LI&gt;&lt;LI&gt;Based on the value of the&amp;nbsp;ENV&amp;nbsp;property (e.g., "DEV", "TEST", or "PROD"),&amp;nbsp;&lt;STRONG&gt;look up the necessary environment-specific configuration details&lt;/STRONG&gt;&amp;nbsp;(like the SAP system URL and the required Credential Alias) from a defined source.&lt;/LI&gt;&lt;LI&gt;Use the looked-up URL and Credential Alias to&amp;nbsp;&lt;STRONG&gt;dynamically configure the receiver adapter&lt;/STRONG&gt;&amp;nbsp;just before the outbound call.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;This way, the core integration logic resides in&amp;nbsp;&lt;STRONG&gt;a single, maintainable iflow artifact&lt;/STRONG&gt;. The differentiation between environments is handled by setting the&amp;nbsp;ENV&amp;nbsp;property for each specific deployed instance and using a lookup mechanism.&lt;/P&gt;&lt;H1 id="toc-hId-1404913121"&gt;&lt;STRONG&gt;Implementation Steps&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;Let's walk through how to implement this pattern using a simple example iflow.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;1. The Integration Flow Structure&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Here is the basic iflow diagram illustrating the components involved:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jantuma_0-1747663263518.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263188iFC939B9F3B646CFE/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="jantuma_0-1747663263518.png" alt="jantuma_0-1747663263518.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Start Timer:&lt;/STRONG&gt;&amp;nbsp;Triggers the integration flow execution (can be any other sender adapter).&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Init Variables:&lt;/STRONG&gt;&amp;nbsp;Reads the environment identifier configured for&amp;nbsp;&lt;EM&gt;this specific deployed instance&lt;/EM&gt;&amp;nbsp;and sets it as a message property (ENV).&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Global Config:&lt;/STRONG&gt;&amp;nbsp;Contains the core logic to map the&amp;nbsp;ENV&amp;nbsp;property value (e.g., "DEV") to the specific SAP system URL and Credential Alias. This acts as our central configuration store within the iflow design.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Call SAP:&lt;/STRONG&gt;&amp;nbsp;This is the receiver adapter (HTTP, OData, etc.) which is configured to use the dynamic properties set in the previous step.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;End:&lt;/STRONG&gt;&amp;nbsp;The integration flow completes.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;2. Setting the Environment Identifier (ENV&amp;nbsp;Property) per Deployment Instance&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This step is crucial and explains how a single iflow artifact is configured differently for DEV, TEST, or PROD runs on the same tenant. We use&amp;nbsp;&lt;STRONG&gt;Externalized Parameters&lt;/STRONG&gt;&amp;nbsp;for this.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;In your&amp;nbsp;&lt;EM&gt;single&lt;/EM&gt;&amp;nbsp;iflow artifact's design, go to the "Externalized Parameters" tab. Define a parameter that will hold the environment identifier value:&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Name:&lt;/STRONG&gt;&amp;nbsp;ENV&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Type:&lt;/STRONG&gt;&amp;nbsp;java.lang.String&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Default Value:&lt;/STRONG&gt;&amp;nbsp;(Optional, but setting a default like "DEV" can be helpful during initial testing)&lt;/LI&gt;&lt;/UL&gt;&lt;LI&gt;Add a&amp;nbsp;&lt;STRONG&gt;Content Modifier&lt;/STRONG&gt;&amp;nbsp;step right after your Start event (or wherever you initialize properties). Name it "Init Variables".&lt;/LI&gt;&lt;LI&gt;In the "Message Properties" tab of the Content Modifier, configure a new property that reads the value of the&amp;nbsp;EnvIdentifier&amp;nbsp;externalized parameter:&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Name:&lt;/STRONG&gt;&amp;nbsp;ENV&amp;nbsp;(This specific name is what our Groovy script will look for)&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Type:&lt;/STRONG&gt;&amp;nbsp;java.lang.String&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Value:&lt;/STRONG&gt;&amp;nbsp;By “{{“ “}}” define a parameter that will hold the environment identifier value, for example ENV.&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jantuma_1-1747663263523.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263190iB015A0ACB0C4270A/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="jantuma_1-1747663263523.png" alt="jantuma_1-1747663263523.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Now, here's how you differentiate the behavior without changing the iflow artifact itself:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;You deploy your&amp;nbsp;&lt;EM&gt;single&lt;/EM&gt;&amp;nbsp;iflow artifact to your SAP Integration Suite tenant.&lt;/LI&gt;&lt;LI&gt;During the deployment process, or by selecting the deployed iflow instance and going to its "Configure" tab, you provide the specific value for the&amp;nbsp;EnvIdentifier&amp;nbsp;parameter.&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;To target the DEV system, you deploy an instance and set&amp;nbsp;ENV&amp;nbsp;to&amp;nbsp;DEV.&lt;/LI&gt;&lt;LI&gt;To target the TEST system, you deploy&amp;nbsp;&lt;EM&gt;another instance of the same artifact&lt;/EM&gt;&amp;nbsp;and set&amp;nbsp;ENV to&amp;nbsp;TEST.&lt;/LI&gt;&lt;LI&gt;To target the PROD system, you deploy&amp;nbsp;&lt;EM&gt;a third instance of the same artifact&lt;/EM&gt;&amp;nbsp;and set&amp;nbsp;ENV&amp;nbsp;to&amp;nbsp;PROD.&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jantuma_2-1747663263524.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263189i1356F7B1C2B2A1E8/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="jantuma_2-1747663263524.png" alt="jantuma_2-1747663263524.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;When each specific&amp;nbsp;&lt;EM&gt;deployed instance&lt;/EM&gt;&amp;nbsp;of the iflow runs, the "Init Variables" step will set the&amp;nbsp;ENV&amp;nbsp;message property to the value (DEV,&amp;nbsp;TEST, or&amp;nbsp;PROD) that was configured for&amp;nbsp;&lt;EM&gt;that particular instance&lt;/EM&gt;&amp;nbsp;during deployment.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;3. The Global Config (Script collection)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The "Global Config" step contains the central lookup logic. It reads the&amp;nbsp;ENV&amp;nbsp;property and finds the corresponding connection details.&lt;/P&gt;&lt;P&gt;Create a new package called “Global Config”.&amp;nbsp;&lt;/P&gt;&lt;P&gt;In the package create a new Script collection artifact.&lt;/P&gt;&lt;P&gt;Inside the newly created collection create a new groovy script and paste the following code into the script editor:&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;/*
- * Groovy Script to determine environment-specific SAP configuration
- * based on a message property 'ENV'.
- *
- * It retrieves 'ENV', looks up URL and Credential Alias from a map,
- * and sets them as message properties GC_SAP_URL and GC_SAP_CREDEDITAL.
- *
- * Includes robust error handling for missing or invalid ENV property
- * and missing configuration entries.
- */
-
-import com.sap.gateway.ip.core.customdev.util.Message;
-
-def Message processData(Message message) {
-
-    def properties = message.getProperties();
-
-    // 1. Retrieve the ENV property - Assumed to be set earlier from an Externalized Parameter
-    def ENV_raw = properties.get("ENV");
-
-    if (ENV_raw == null || ENV_raw.toString().trim().isEmpty()) {
-        def errorMessage = "Message property 'ENV' is missing or empty. Cannot determine environment configuration. Ensure the 'EnvIdentifier' externalized parameter is set for this deployed instance.";
-        println("Error: " + errorMessage); // Log error to trace
-        throw new Exception(errorMessage); // Stop processing with a clear error message
-    }
-
-    // Trim and convert to uppercase for consistent lookup
-    def ENV = ENV_raw.toString().trim().toUpperCase();
-    println("Info: Retrieved ENV property: " + ENV); // Log the found ENV
-
-    // 2. Define the central configuration map - Contains details for all environments
-    // IMPORTANT: Hardcoded here, consider Value Mapping for larger configs
-    def config = [
-        DEV: [
-            SAP_URL: "https://dev.sap.com/your/service/path", // Replace with actual DEV URL
-            SAP_CREDEDITAL: "DEV_USER_CREDENTIAL" // Replace with actual DEV Credential Alias
-        ],
-        TEST: [
-            SAP_URL: "https://test.sap.com/your/service/path", // Replace with actual TEST URL
-            SAP_CREDEDITAL: "TEST_USER_CREDENTIAL" // Replace with actual TEST Credential Alias
-        ],
-        PROD: [
-            SAP_URL: "https://prod.sap.com/your/service/path", // Replace with actual PROD URL
-            SAP_CREDEDITAL: "PROD_USER_CREDENTIAL" // Replace with actual PROD Credential Alias
-        ]
-        // Add more environments as needed, ensuring corresponding Credential Aliases exist in Security Material
-        // e.g., QA: [ SAP_URL: "https://qa.sap.com/your/service/path", SAP_CREDEDITAL: "QA_USER_CREDENTIAL" ]
-    ];
-
-    // 3. Lookup configuration based on ENV and add error handling
-    def envConfig = config.get(ENV); // Using get() returns null if key doesn't exist
-
-    if (envConfig == null) {
-        def errorMessage = "Environment '" + ENV + "' not found in the script's configuration map. Please check the 'ENV' property value or the script's configuration. Valid environments are: " + config.keySet().join(", ");
-        println("Error: " + errorMessage);
-        throw new Exception(errorMessage);
-    }
-    println("Info: Found configuration block for environment: " + ENV);
-
-    // 4. Retrieve specific configuration values and add error handling for missing/empty keys
-    def sapUrl = envConfig.get("SAP_URL");
-    def sapCredential = envConfig.get("SAP_CREDEDITAL");
-
-    if (sapUrl == null || sapUrl.toString().trim().isEmpty()) {
-        def errorMessage = "Configuration key 'SAP_URL' is missing or empty for environment '" + ENV + "'.";
-        println("Error: " + errorMessage);
-        throw new Exception(errorMessage);
-    }
-     println("Info: Found SAP_URL: " + sapUrl);
-
-    if (sapCredential == null || sapCredential.toString().trim().isEmpty()) {
-        def errorMessage = "Configuration key 'SAP_CREDEDITAL' is missing or empty for environment '" + ENV + "'.";
-        println("Error: " + errorMessage);
-        throw new Exception(errorMessage);
-    }
-    println("Info: Found SAP_CREDEDITAL: " + sapCredential);
-
-
-    // 5. Set message properties used by the outbound adapter
-    // Use distinct property names (e.g., GC_ prefix for Global Config)
-    message.setProperty("GC_SAP_URL", sapUrl);
-    message.setProperty("GC_SAP_CREDEDITAL", sapCredential);
-
-    println("Info: Successfully set properties GC_SAP_URL and GC_SAP_CREDEDITAL for environment " + ENV + ".");
-
-    return message;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Explanation of the Groovy Script:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Reads the&amp;nbsp;ENV&amp;nbsp;property value that was set based on the deployed instance's configuration.&lt;/LI&gt;&lt;LI&gt;Contains a&amp;nbsp;&lt;STRONG&gt;central&amp;nbsp;config&amp;nbsp;map&lt;/STRONG&gt;&amp;nbsp;that holds the connection details (URL and Credential Alias) for&amp;nbsp;&lt;EM&gt;all&lt;/EM&gt;&amp;nbsp;environments (DEV, TEST, PROD, etc.). This map is the&amp;nbsp;&lt;EM&gt;single source of truth&lt;/EM&gt;&amp;nbsp;for environment-specific connection details within this iflow artifact.&lt;/LI&gt;&lt;LI&gt;Looks up the configuration details specifically for the environment indicated by the&amp;nbsp;ENV&amp;nbsp;property.&lt;/LI&gt;&lt;LI&gt;Sets these retrieved URL and Credential Alias values as new message properties (GC_SAP_URL,&amp;nbsp;GC_SAP_CREDEDITAL).&lt;/LI&gt;&lt;LI&gt;Includes robust error handling.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Important:&lt;/STRONG&gt;&amp;nbsp;Ensure that the Credential Aliases defined in the script's&amp;nbsp;config&amp;nbsp;map exist and are correctly configured in your SAP Integration Suite tenant's "Security Material -&amp;gt; Security Artifacts".&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;4. Call script collection script&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Now we add reference to created Script Collection with Global Config script.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jantuma_3-1747663361873.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263194i676492546FD1135E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="jantuma_3-1747663361873.png" alt="jantuma_3-1747663361873.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Add a Groovy Script step after "Init Variables" and choose script from our Script Collection.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jantuma_4-1747663361876.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263193iD1A18EAAB9B6FC9B/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="jantuma_4-1747663361876.png" alt="jantuma_4-1747663361876.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;5. Configuring the Receiver Adapter (Call SAP)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Configure your outbound adapter ("Call SAP") to use the message properties set by the Groovy script dynamically at runtime.&lt;/P&gt;&lt;P&gt;For an HTTP Receiver adapter:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;In the&amp;nbsp;&lt;STRONG&gt;Address&lt;/STRONG&gt;&amp;nbsp;field, enter&amp;nbsp;${property.GC_SAP_URL}.&lt;/LI&gt;&lt;LI&gt;In the&amp;nbsp;&lt;STRONG&gt;Authentication&lt;/STRONG&gt;&amp;nbsp;section:&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;Choose&amp;nbsp;&lt;STRONG&gt;Credential Name&lt;/STRONG&gt;.&lt;/LI&gt;&lt;LI&gt;In the&amp;nbsp;&lt;STRONG&gt;Credential Name&lt;/STRONG&gt;&amp;nbsp;field, enter&amp;nbsp;${property.GC_SAP_CREDEDITAL}.&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jantuma_5-1747663361882.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263195i7CBBED6892D6BFEF/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="jantuma_5-1747663361882.png" alt="jantuma_5-1747663361882.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;This configuration tells the adapter to fetch the necessary connection details from the message properties&amp;nbsp;&lt;EM&gt;just before&lt;/EM&gt;&amp;nbsp;making the outbound call, ensuring it connects to the correct backend system for that specific iflow execution.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1208399616"&gt;&lt;STRONG&gt;Benefits of this Approach&lt;/STRONG&gt;&lt;/H1&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Cost Efficiency:&lt;/STRONG&gt;&amp;nbsp;Successfully run integrations for multiple backend landscapes on a single SAP Integration Suite tenant by deploying multiple instances of the&amp;nbsp;&lt;EM&gt;same&lt;/EM&gt;&amp;nbsp;iflow artifact.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Simplified Development:&lt;/STRONG&gt;&amp;nbsp;Develop and maintain only&amp;nbsp;&lt;STRONG&gt;one core iflow artifact&lt;/STRONG&gt;&amp;nbsp;and&amp;nbsp;&lt;STRONG&gt;one central configuration map&lt;/STRONG&gt;&amp;nbsp;within that artifact (or linked Value Mapping) for your integration logic, regardless of how many environments it connects to.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Easier Maintenance:&lt;/STRONG&gt;&amp;nbsp;Updates to the core logic are made in one place. Configuration changes (like updating a URL or adding a new environment) require modifying only the central configuration map (in the script or Value Mapping) and redeploying the&amp;nbsp;&lt;EM&gt;single&lt;/EM&gt;&amp;nbsp;iflow artifact.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Controlled Deployment:&lt;/STRONG&gt;&amp;nbsp;Differentiate deployed instances solely by setting an externalized parameter during deployment or configuration, allowing for clear identification (e.g., naming deployed instances "MyIflow - DEV", "MyIflow - TEST").&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Reduced Error Potential:&lt;/STRONG&gt;&amp;nbsp;Avoid manual, error-prone configuration changes on deployed artifacts by driving configuration from a controlled parameter.&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-1011886111"&gt;&lt;STRONG&gt;Considerations and Alternatives&lt;/STRONG&gt;&lt;/H1&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Configuration Location:&lt;/STRONG&gt;&amp;nbsp;While the&amp;nbsp;config&amp;nbsp;map is hardcoded in the Groovy script for simplicity, for larger or more frequently changing configurations, storing this map in a&amp;nbsp;&lt;STRONG&gt;Value Mapping&lt;/STRONG&gt;&amp;nbsp;artifact is highly recommended. The Groovy script would then read from the Value Mapping. This externalizes the configuration lookup data from the script code itself, allowing updates without script modification.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Complexity:&lt;/STRONG&gt;&amp;nbsp;This pattern adds a layer of indirection compared to static configuration. Evaluate if the benefits outweigh the complexity for your specific use case.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Extensibility:&lt;/STRONG&gt;&amp;nbsp;This pattern is easily extended to dynamically configure other environment-specific parameters (e.g., directory paths, filenames, specific header values) by adding them to the&amp;nbsp;config&amp;nbsp;map and retrieving them in the script.&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-815372606"&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;Handling connections to multiple backend environments (DEV, TEST, PROD) from a single SAP Integration Suite tenant is a common requirement driven by cost and efficiency goals. By maintaining&amp;nbsp;&lt;STRONG&gt;one core integration flow artifact&lt;/STRONG&gt;, implementing&amp;nbsp;&lt;STRONG&gt;a central configuration lookup&lt;/STRONG&gt;&amp;nbsp;driven by&amp;nbsp;&lt;STRONG&gt;a simple environment property (ENV)&lt;/STRONG&gt;, and leveraging&amp;nbsp;&lt;STRONG&gt;externalized parameters&lt;/STRONG&gt;&amp;nbsp;to set this property on different deployed instances, you can create flexible, maintainable, and cost-effective integration solutions.&lt;/P&gt;&lt;P&gt;This pattern allows your single iflow artifact to dynamically adapt its outbound connections at runtime, proving that one tenant can indeed effectively serve multiple landscapes with a smart configuration strategy.&lt;/P&gt;&lt;P&gt;Give this pattern a try in your next multi-environment integration scenario!&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/dynamic-configuration-in-sap-integration-suite-one-tenant-multiple/ba-p/14105598"/>
-    <published>2025-05-19T16:08:53.681000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-no-payment-medium-created-due-to-invalid-bank-or-bran/qaq-p/14105624/comment-id/4216205#M4216205</id>
-    <title>Re: No payment medium created due to invalid bank or bran...</title>
-    <updated>2025-05-19T16:10:47.944000+02:00</updated>
-    <author>
-      <name>Jeremy_Deo</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2024362</uri>
-    </author>
-    <content>&lt;P&gt;Hello dear user,&lt;/P&gt;&lt;P&gt;And thank you for asking your question in the SAP Community blog.&lt;/P&gt;&lt;P&gt;If you followed SAP Note 3478710 and maintained the branch data using the "Manage Banks - Master Data" app, but you're still seeing the error, here are a few things to double-check:&lt;/P&gt;&lt;P&gt;Key things to review:&lt;/P&gt;&lt;P&gt;1. Complete Branch Info&lt;/P&gt;&lt;OL&gt;&lt;UL&gt;&lt;LI&gt;In “Manage Banks,” make sure the branch number, BIC/SWIFT, and any country-specific fields (like Fedwire ID in the US) are fully filled in.&lt;/LI&gt;&lt;/UL&gt;&lt;/OL&gt;&lt;P&gt;2. Business Partner Bank Details&lt;/P&gt;&lt;OL&gt;&lt;UL&gt;&lt;LI&gt;Go to “Maintain Business Partner,” check the bank data under “Payment Transactions.”&lt;/LI&gt;&lt;LI&gt;The bank key should match the one you maintained, with correct country and account number.&lt;/LI&gt;&lt;/UL&gt;&lt;/OL&gt;&lt;P&gt;3. Bank Account Assignment&lt;/P&gt;&lt;OL&gt;&lt;UL&gt;&lt;LI&gt;In “Manage Bank Accounts,” ensure the correct bank branch is assigned to your house bank account, and linked to the right company code.&lt;/LI&gt;&lt;/UL&gt;&lt;/OL&gt;&lt;P&gt;4. Context of the Error&lt;/P&gt;&lt;OL&gt;&lt;UL&gt;&lt;LI&gt;Is it happening during a payment run, file generation, or something else? That can hint at missing fields like IBAN or incorrect payment method config.&lt;/LI&gt;&lt;/UL&gt;&lt;/OL&gt;&lt;P&gt;5. Check for Note Updates&lt;/P&gt;&lt;OL&gt;&lt;UL&gt;&lt;LI&gt;Make sure you’re looking at the latest version of Note 3478710. SAP may have added new steps or corrections.&lt;/LI&gt;&lt;/UL&gt;&lt;/OL&gt;&lt;P&gt;I hope this will help find a solution to your problem.&lt;/P&gt;&lt;P&gt;Best regards,&lt;/P&gt;&lt;P&gt;Jeremy&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-no-payment-medium-created-due-to-invalid-bank-or-bran/qaq-p/14105624/comment-id/4216205#M4216205"/>
-    <published>2025-05-19T16:10:47.944000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/re-data-purging-process-in-bw4hana/qaq-p/14105626/comment-id/4914439#M4914439</id>
-    <title>Re: Data Purging Process in BW4HANA</title>
-    <updated>2025-05-19T16:16:21.127000+02:00</updated>
-    <author>
-      <name>SHYAMALA_V</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2129849</uri>
-    </author>
-    <content>&lt;P&gt;Hi Roland,&lt;/P&gt;&lt;P&gt;Thanks for your input.&lt;/P&gt;&lt;P&gt;We are performing house keeping activities&amp;nbsp; yearly to clean up the data in CL table.&lt;/P&gt;&lt;P&gt;However we must purge the historical data in Active table of ADSO as a part of compliance based on retention period.&amp;nbsp;&lt;/P&gt;&lt;P&gt;So, based on above suggestion, do we need to go for selective deletion for ACT table to drop the table for all ADSO's.&lt;/P&gt;&lt;P&gt;Thanks,&lt;/P&gt;&lt;P&gt;Shyamala.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/re-data-purging-process-in-bw4hana/qaq-p/14105626/comment-id/4914439#M4914439"/>
-    <published>2025-05-19T16:16:21.127000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/budget-query/qaq-p/14105628</id>
-    <title>BUDGET QUERY</title>
-    <updated>2025-05-19T16:18:43.332000+02:00</updated>
-    <author>
-      <name>ERN_KLION</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/854857</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Good afternoon, esteemed experts. I am looking to create a query for the Budget section that compares the actual budget and the amount when a purchase order is generated. The idea is to validate whether it falls within a certain range — for example, from 1 to 200, or from 200 to 400 as an excess over the budget. The issue is that the query returns too many results. Do you have any ideas on how to structure it?&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp; SELECT&lt;/P&gt;&lt;P&gt;&amp;nbsp; *&lt;/P&gt;&lt;P&gt;&amp;nbsp; FROM(&lt;/P&gt;&lt;P&gt;&amp;nbsp; SELECT&lt;/P&gt;&lt;P&gt;&amp;nbsp; T1.AcctCode,&lt;/P&gt;&lt;P&gt;&amp;nbsp; T1.OcrCode,&lt;/P&gt;&lt;P&gt;&amp;nbsp; SUM(T1.LineTotal) Total&lt;/P&gt;&lt;P&gt;&amp;nbsp; FROM ODRF T0&lt;/P&gt;&lt;P&gt;&amp;nbsp; INNER JOIN DRF1 T1 ON T1.DocEntry = T0.DocEntry&lt;/P&gt;&lt;P&gt;&amp;nbsp; WHERE T0.DocEntry = &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1421311"&gt;@List&lt;/a&gt;_of_cols_val_tab_del AND T0.ObjType = '22' AND T0.DocType = 'S'&lt;/P&gt;&lt;P&gt;&amp;nbsp; GROUP BY&lt;/P&gt;&lt;P&gt;&amp;nbsp; T1.AcctCode,&lt;/P&gt;&lt;P&gt;&amp;nbsp; T1.OcrCode&lt;/P&gt;&lt;P&gt;&amp;nbsp; )A&lt;/P&gt;&lt;P&gt;&amp;nbsp; INNER JOIN (&lt;/P&gt;&lt;P&gt;&amp;nbsp; SELECT&lt;/P&gt;&lt;P&gt;&amp;nbsp; T0.AbsId,&lt;/P&gt;&lt;P&gt;&amp;nbsp; T0.OcrCode,&lt;/P&gt;&lt;P&gt;&amp;nbsp; T1.AcctCode,&lt;/P&gt;&lt;P&gt;&amp;nbsp; T2.DebLTotal&lt;/P&gt;&lt;P&gt;&amp;nbsp; FROM OBGS T0&lt;/P&gt;&lt;P&gt;&amp;nbsp; INNER JOIN OBGT T1 ON T1.Instance = T0.AbsId&lt;/P&gt;&lt;P&gt;&amp;nbsp; INNER JOIN BGT1 T2 ON T2.BudgId = T1.AbsId AND T2.Line_ID = (MONTH(@FechaPRESUPUESTO)-1)&lt;/P&gt;&lt;P&gt;&amp;nbsp; WHERE YEAR(T0.FinancYear) = YEAR(@FechaPRESUPUESTO)&lt;/P&gt;&lt;P&gt;&amp;nbsp; )B ON B.AcctCode = A.AcctCode AND B.OcrCode = A.OcrCode&lt;/P&gt;&lt;P&gt;&amp;nbsp; INNER JOIN(&lt;/P&gt;&lt;P&gt;&amp;nbsp; SELECT&lt;/P&gt;&lt;P&gt;&amp;nbsp; Account,&lt;/P&gt;&lt;P&gt;&amp;nbsp; ProfitCode,&lt;/P&gt;&lt;P&gt;&amp;nbsp; SUM(Debit-Credit) Used&lt;/P&gt;&lt;P&gt;&amp;nbsp; FROM JDT1 T0&lt;/P&gt;&lt;P&gt;&amp;nbsp; WHERE (YEAR(T0.RefDate) = YEAR(@FechaPRESUPUESTO)) AND (MONTH(T0.RefDate) = MONTH(@FechaPRESUPUESTO))&lt;/P&gt;&lt;P&gt;&amp;nbsp; GROUP BY&lt;/P&gt;&lt;P&gt;&amp;nbsp; Account,&lt;/P&gt;&lt;P&gt;&amp;nbsp; ProfitCode&lt;/P&gt;&lt;P&gt;&amp;nbsp; )C ON C.Account = A.AcctCode AND C.ProfitCode = A.OcrCode&lt;/P&gt;&lt;P&gt;&amp;nbsp; WHERE (A.Total + ISNULL(C.Used,'0')) &amp;gt; B.DebLTotal&lt;/P&gt;&lt;P&gt;)&lt;/P&gt;&lt;P&gt;BEGIN&lt;/P&gt;&lt;P&gt;&amp;nbsp; SET @CuentaOC = (&lt;/P&gt;&lt;P&gt;&amp;nbsp; SELECT&lt;/P&gt;&lt;P&gt;&amp;nbsp; TOP 1 CAST(D.AcctName AS VARCHAR(20)) + ' - ' + CAST(A.OcrCode AS VARCHAR(10))&lt;/P&gt;&lt;P&gt;&amp;nbsp; FROM(&lt;/P&gt;&lt;P&gt;&amp;nbsp; SELECT&lt;/P&gt;&lt;P&gt;&amp;nbsp; T1.AcctCode,&lt;/P&gt;&lt;P&gt;&amp;nbsp; T1.OcrCode,&lt;/P&gt;&lt;P&gt;&amp;nbsp; SUM(T1.LineTotal) Total&lt;/P&gt;&lt;P&gt;&amp;nbsp; FROM ODRF T0&lt;/P&gt;&lt;P&gt;&amp;nbsp; INNER JOIN DRF1 T1 ON T1.DocEntry = T0.DocEntry&lt;/P&gt;&lt;P&gt;&amp;nbsp; WHERE T0.DocEntry = &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1421311"&gt;@List&lt;/a&gt;_of_cols_val_tab_del AND T0.ObjType = '22' AND T0.DocType = 'S'&lt;/P&gt;&lt;P&gt;&amp;nbsp; GROUP BY&lt;/P&gt;&lt;P&gt;&amp;nbsp; T1.AcctCode,&lt;/P&gt;&lt;P&gt;&amp;nbsp; T1.OcrCode&lt;/P&gt;&lt;P&gt;&amp;nbsp; )A&lt;/P&gt;&lt;P&gt;&amp;nbsp; INNER JOIN (&lt;/P&gt;&lt;P&gt;&amp;nbsp; SELECT&lt;/P&gt;&lt;P&gt;&amp;nbsp; T0.AbsId,&lt;/P&gt;&lt;P&gt;&amp;nbsp; T0.OcrCode,&lt;/P&gt;&lt;P&gt;&amp;nbsp; T1.AcctCode,&lt;/P&gt;&lt;P&gt;&amp;nbsp; T2.DebLTotal&lt;/P&gt;&lt;P&gt;&amp;nbsp; FROM OBGS T0&lt;/P&gt;&lt;P&gt;&amp;nbsp; INNER JOIN OBGT T1 ON T1.Instance = T0.AbsId&lt;/P&gt;&lt;P&gt;&amp;nbsp; INNER JOIN BGT1 T2 ON T2.BudgId = T1.AbsId AND T2.Line_ID = (MONTH(@FechaPRESUPUESTO)-1)&lt;/P&gt;&lt;P&gt;&amp;nbsp; WHERE YEAR(T0.FinancYear) = YEAR(@FechaPRESUPUESTO)&lt;/P&gt;&lt;P&gt;&amp;nbsp; )B ON B.AcctCode = A.AcctCode AND B.OcrCode = A.OcrCode&lt;/P&gt;&lt;P&gt;&amp;nbsp; INNER JOIN(&lt;/P&gt;&lt;P&gt;&amp;nbsp; SELECT&lt;/P&gt;&lt;P&gt;&amp;nbsp; Account,&lt;/P&gt;&lt;P&gt;&amp;nbsp; ProfitCode,&lt;/P&gt;&lt;P&gt;&amp;nbsp; SUM(Debit-Credit) Used&lt;/P&gt;&lt;P&gt;&amp;nbsp; FROM JDT1 T0&lt;/P&gt;&lt;P&gt;&amp;nbsp; WHERE (YEAR(T0.RefDate) = YEAR(@FechaPRESUPUESTO)) AND (MONTH(T0.RefDate) = MONTH(@FechaPRESUPUESTO))&lt;/P&gt;&lt;P&gt;&amp;nbsp; GROUP BY&lt;/P&gt;&lt;P&gt;&amp;nbsp; Account,&lt;/P&gt;&lt;P&gt;&amp;nbsp; ProfitCode&lt;/P&gt;&lt;P&gt;&amp;nbsp; )C ON C.Account = A.AcctCode AND C.ProfitCode = A.OcrCode&lt;/P&gt;&lt;P&gt;&amp;nbsp; INNER JOIN OACT D ON D.AcctCode = A.AcctCode&lt;/P&gt;&lt;P&gt;&amp;nbsp; WHERE (A.Total + ISNULL(C.Used,'0')) &amp;gt; B.DebLTotal&lt;/P&gt;&lt;P&gt;&amp;nbsp; )&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/budget-query/qaq-p/14105628"/>
-    <published>2025-05-19T16:18:43.332000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/joule-for-sap-s-4hana-cloud-private-edition-a-comprehensive-setup-guide/bc-p/14105629#M60543</id>
-    <title>Re: Joule for SAP S/4HANA Cloud Private Edition - A Comprehensive Setup Guide</title>
-    <updated>2025-05-19T16:20:20.914000+02:00</updated>
-    <author>
-      <name>Samir_Rai</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1469807</uri>
-    </author>
-    <content>&lt;P&gt;Hi,&amp;nbsp;&lt;/P&gt;&lt;P&gt;You may check the formation in the global account and ensure the Private cloud capability is deployed. If the private cloud system is not added, you may include the system in the formation.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Best regards,&lt;/P&gt;&lt;P&gt;Samir&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/joule-for-sap-s-4hana-cloud-private-edition-a-comprehensive-setup-guide/bc-p/14105629#M60543"/>
-    <published>2025-05-19T16:20:20.914000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/sap-cloud-alm-scopes-and-working-with-api/ba-p/14105630</id>
-    <title>SAP Cloud ALM - Scopes and working with API</title>
-    <updated>2025-05-19T16:20:33.760000+02:00</updated>
-    <author>
-      <name>jirifridrich</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/146600</uri>
-    </author>
-    <content>&lt;P&gt;SAP Cloud ALM provides API to perform actions such as read or create various objects - Projects, Tasks, Defects etc. Visit &lt;A href="https://api.sap.com/" target="_self" rel="noopener noreferrer"&gt;SAP Accelerator Business Hub&lt;/A&gt;&amp;nbsp;and search for 'SAP Cloud ALM' to get to individual services provided by the API.&lt;/P&gt;&lt;P&gt;What can be sometimes frustrating is when you encounter authentication or authorization issues.&amp;nbsp;This blog post should help you understand the official SAP documentation and give you a small example on how to overcome these obstacles.&lt;/P&gt;&lt;P&gt;Let's say we want to read and create Tasks in SAP Cloud ALM. Then we follow &lt;A href="https://api.sap.com/api/CALM_TKM/tryout" target="_self" rel="noopener noreferrer"&gt;this documentation&lt;/A&gt; on the SAP Accelerator Business Hub and we can see we have GET / POST / PATCH / DELETE options.&lt;/P&gt;&lt;P data-unlink="true"&gt;This documentation on &lt;A href="https://help.sap.com/docs/cloud-alm/apis/task-api" target="_self" rel="noopener noreferrer"&gt;SAP Help&lt;/A&gt; will tell us how to construct the URL:&lt;BR /&gt;&lt;SPAN&gt;https://&amp;lt;customer-tenant&amp;gt;.&amp;lt;region&amp;gt;.alm.cloud.sap/&lt;STRONG&gt;api/calm-tasks/v1/tasks&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;BR /&gt;And finally, this documentation on &lt;A href="https://help.sap.com/docs/cloud-alm/apis/enabling-sap-cloud-alm-api" target="_self" rel="noopener noreferrer"&gt;SAP Help&lt;/A&gt; describes how to set properly authorized credentials for our client.&lt;/P&gt;&lt;P data-unlink="true"&gt;Equipped with this information, let's get to it!&lt;BR /&gt;In BTP Cockpit, locate to your SAP Cloud ALM subbaccount and in Instances and Subscriptions select 'Create'&lt;/P&gt;&lt;P data-unlink="true"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jirifridrich_0-1747662450392.png" style="width: 774px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263173i945341A8F6C2A37C/image-dimensions/774x176/is-moderation-mode/true?v=v2" width="774" height="176" role="button" title="jirifridrich_0-1747662450392.png" alt="jirifridrich_0-1747662450392.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P data-unlink="true"&gt;We are creating a new Instance. For the demonstration purpose, we create an Instance to work with Tasks only. We name it &lt;EM&gt;sap-cloud-alm-create-task.&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jirifridrich_1-1747662536007.png" style="width: 716px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263174iADB40E7B86B6C53E/image-dimensions/716x664/is-moderation-mode/true?v=v2" width="716" height="664" role="button" title="jirifridrich_1-1747662536007.png" alt="jirifridrich_1-1747662536007.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The most important part - we need to authorize this Instance for a restricted scope of activities. The list of all available API scopes is listed&amp;nbsp;&lt;A href="https://help.sap.com/docs/cloud-alm/apis/api-scopes" target="_self" rel="noopener noreferrer"&gt;here&lt;/A&gt;. We are authorizing the Instance to read and write Tasks. Don't forget to fill the &lt;STRONG&gt;'xsappname'&lt;/STRONG&gt; attribut the same as the Instance name!&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jirifridrich_2-1747662654188.png" style="width: 683px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263178iDF3AF248C36D41AD/image-dimensions/683x639/is-moderation-mode/true?v=v2" width="683" height="639" role="button" title="jirifridrich_2-1747662654188.png" alt="jirifridrich_2-1747662654188.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Create your Instance and now we need to assign Service Bindings, which is the actual credentials. Let's create one. We will call it &lt;EM&gt;postman-call&amp;nbsp;&lt;/EM&gt;and we will use these credentials to call SAP Cloud ALM from Postman.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jirifridrich_5-1747663027761.png" style="width: 748px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263185iE13BE114F9704A8C/image-dimensions/748x230/is-moderation-mode/true?v=v2" width="748" height="230" role="button" title="jirifridrich_5-1747663027761.png" alt="jirifridrich_5-1747663027761.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Don't fill any json and continue with 'Create'.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jirifridrich_3-1747662833154.png" style="width: 715px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263182iF7615889054D9739/image-dimensions/715x779/is-moderation-mode/true?v=v2" width="715" height="779" role="button" title="jirifridrich_3-1747662833154.png" alt="jirifridrich_3-1747662833154.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;OAuth2 credentials were generated for us. Now go to Postman and use these credentials. Select OAuth 2.0 as the Auth Type and configure the token mechanism.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jirifridrich_6-1747663308587.png" style="width: 758px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263192iF49C2D4F97E18B9F/image-dimensions/758x199/is-moderation-mode/true?v=v2" width="758" height="199" role="button" title="jirifridrich_6-1747663308587.png" alt="jirifridrich_6-1747663308587.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jirifridrich_7-1747663411516.png" style="width: 752px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263197iD8A6AF5867A8B2C9/image-dimensions/752x362/is-moderation-mode/true?v=v2" width="752" height="362" role="button" title="jirifridrich_7-1747663411516.png" alt="jirifridrich_7-1747663411516.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The token which we will obtain is authorized as per the scope we set up in the Instance configuration. We can try various operations to ensure that we are able to create a Task, but not able to view a Project.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jirifridrich_10-1747663609003.png" style="width: 771px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263203iF06BC83FE4EC2195/image-dimensions/771x399/is-moderation-mode/true?v=v2" width="771" height="399" role="button" title="jirifridrich_10-1747663609003.png" alt="jirifridrich_10-1747663609003.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jirifridrich_9-1747663563619.png" style="width: 771px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263201iA6882407AD35D46F/image-dimensions/771x349/is-moderation-mode/true?v=v2" width="771" height="349" role="button" title="jirifridrich_9-1747663563619.png" alt="jirifridrich_9-1747663563619.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Hopefully this short guide will help you to put together the pieces. The functionality is well documented, but may be a little scattered around various places.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/sap-cloud-alm-scopes-and-working-with-api/ba-p/14105630"/>
-    <published>2025-05-19T16:20:33.760000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/rio-de-janeiro-blog-posts/sitrio2025-clean-core-para-funcionais-como-proceder/ba-p/14104712</id>
     <title>#SITRIO2025 Clean Core para Funcionais - Como proceder?</title>
@@ -1295,5 +1137,91 @@ def Message processData(Message message) {
     <content>&lt;P&gt;Within this new version of docgen, how do we can achieve that?&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/human-capital-management-blog-posts-by-members/how-to-use-dynamic-pictures-on-document-generation/bc-p/14105954#M6780"/>
     <published>2025-05-19T22:05:28.877000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/ai-core-internal-server-error-when-calling-document-grounding-api/qaq-p/14105968</id>
+    <title>AI Core: Internal server error when calling document grounding api</title>
+    <updated>2025-05-19T22:13:59.942000+02:00</updated>
+    <author>
+      <name>MioYasutake</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/789</uri>
+    </author>
+    <content>&lt;P&gt;Hi community,&lt;/P&gt;&lt;P&gt;I am trying to create a collection in AI Core resource group where grounding is enabled. I have posted the following request, but received "&lt;STRONG&gt;Internal server error when calling document grounding api&lt;/STRONG&gt; (status code: 500).&amp;nbsp;&lt;/P&gt;&lt;P&gt;If anyone knows how to resolve this issue, please let me know.&lt;/P&gt;&lt;P&gt;Reference:&amp;nbsp;&lt;A href="https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/create-collection" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/create-collection&lt;/A&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;### Create Collection
+POST {{baseUrl}}/v2/lm/document-grounding/vector/collections
+Authorization: Bearer {{token_response.response.body.access_token}}
+AI-Resource-Group: {{resourceGroupId}}
+
+{
+    "title": "test",
+    "embeddingConfig": {
+        "modelName": "text-embedding-ada-002"
+    },
+    "metadata": [
+        { "key": "purpose", "value": ["demo"] },
+        { "key": "project", "value": ["test"] }
+    ]
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="MioYasutake_0-1747685431276.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263429i1F068557DE2F9D2E/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="MioYasutake_0-1747685431276.png" alt="MioYasutake_0-1747685431276.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/ai-core-internal-server-error-when-calling-document-grounding-api/qaq-p/14105968"/>
+    <published>2025-05-19T22:13:59.942000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/crm-and-cx-q-a/re-cannot-connect-to-the-service-instance-the-service-is-currently-not/qaq-p/14105970/comment-id/456126#M456126</id>
+    <title>Re: Cannot connect to the Service Instance. The service is currently not available.</title>
+    <updated>2025-05-19T22:14:49.958000+02:00</updated>
+    <author>
+      <name>fioriuser93</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1434338</uri>
+    </author>
+    <content>Receiving the same error. Please inform if issue was resolved in any way.</content>
+    <link href="https://community.sap.com/t5/crm-and-cx-q-a/re-cannot-connect-to-the-service-instance-the-service-is-currently-not/qaq-p/14105970/comment-id/456126#M456126"/>
+    <published>2025-05-19T22:14:49.958000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-fi-postings-with-statistical-wbs-and-cross-company-co/qaq-p/14105975/comment-id/4216223#M4216223</id>
+    <title>Re: FI postings with Statistical WBS and Cross company co...</title>
+    <updated>2025-05-19T22:18:50.801000+02:00</updated>
+    <author>
+      <name>Jeremy_Deo</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2024362</uri>
+    </author>
+    <content>&lt;P&gt;Hello again dear user,&lt;/P&gt;&lt;P&gt;I'm afraid I haven't heard of such documentation or KBA about this topic.&lt;/P&gt;&lt;P&gt;Best regards,&lt;/P&gt;&lt;P&gt;Jeremy&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-fi-postings-with-statistical-wbs-and-cross-company-co/qaq-p/14105975/comment-id/4216223#M4216223"/>
+    <published>2025-05-19T22:18:50.801000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-q-a/re-email-notifications-token-for-employee-title/qaq-p/14105977/comment-id/43614#M43614</id>
+    <title>Re: Email Notifications: Token for Employee Title</title>
+    <updated>2025-05-19T22:19:30.769000+02:00</updated>
+    <author>
+      <name>DavidSomelofske</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1427721</uri>
+    </author>
+    <content>&lt;P&gt;You will have to test based on your individual configuration but the standard field is salutation.&amp;nbsp; &amp;nbsp;Make sure it is configured properly.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-q-a/re-email-notifications-token-for-employee-title/qaq-p/14105977/comment-id/43614#M43614"/>
+    <published>2025-05-19T22:19:30.769000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-q-a/re-how-to-check-all-active-employees-are-assigned-a-vali/qaq-p/14105981/comment-id/43615#M43615</id>
+    <title>Re: How to check all active employees are assigned a vali...</title>
+    <updated>2025-05-19T22:27:30.522000+02:00</updated>
+    <author>
+      <name>pboulicaut</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/27536</uri>
+    </author>
+    <content>Do you know if validation mode user import can be scheduled thru provioning ? These is to automate these check rather than having manual admin steps</content>
+    <link href="https://community.sap.com/t5/human-capital-management-q-a/re-how-to-check-all-active-employees-are-assigned-a-vali/qaq-p/14105981/comment-id/43615#M43615"/>
+    <published>2025-05-19T22:27:30.522000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-shift-factor-behavior-when-only-early-completion-is-d/qaq-p/14105983/comment-id/4216224#M4216224</id>
+    <title>Re: Shift Factor Behavior When Only Early Completion Is D...</title>
+    <updated>2025-05-19T22:28:58.605000+02:00</updated>
+    <author>
+      <name>Vaibhav-Mishra</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/158120</uri>
+    </author>
+    <content>&lt;P&gt;Hello&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2018237"&gt;@Ndah&lt;/a&gt;&amp;nbsp;,&lt;/P&gt;&lt;P&gt;If the shift factor is blank, then the system will consider it 0%. Test the shift factor in the quality server using various data combinations. Please document your expected results in MS Excel. Keep the maintenance cycle at 100 days. 100 days makes the calculation simple.&amp;nbsp;&lt;BR /&gt;Do not believe any 'source.'&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Vaibhav&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-shift-factor-behavior-when-only-early-completion-is-d/qaq-p/14105983/comment-id/4216224#M4216224"/>
+    <published>2025-05-19T22:28:58.605000+02:00</published>
   </entry>
 </feed>
