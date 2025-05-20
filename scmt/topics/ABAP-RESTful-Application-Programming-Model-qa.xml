@@ -2,123 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-RESTful-Application-Programming-Model-qa.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2025-05-20T05:00:06.299261+00:00</updated>
+  <updated>2025-05-20T08:00:06.174404+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/unmanaged-rap-query-implementation-filter-calls-identification-in-if-rap/qaq-p/14093218</id>
-    <title>Unmanaged RAP Query Implementation: Filter calls identification in if_rap_query_provider~select</title>
-    <updated>2025-05-05T11:57:54.046000+02:00</updated>
-    <author>
-      <name>maxstreifeneder1</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1962728</uri>
-    </author>
-    <content>&lt;P class=""&gt;&lt;STRONG&gt;Hi ABAP experts,&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;I'm fairly new to RAP and currently trying to understand how to implement if_rap_query_provider~select in an unmanaged RAP Query scenario using a custom CDS entity.&lt;/P&gt;&lt;P class=""&gt;Fetching the actual data (including pagination) works fine so far — and once a filter has been selected, I'm able to apply it correctly to my data selection.&lt;/P&gt;&lt;P class=""&gt;However, I'm struggling to figure out how to distinguish between the user opening a filter dropdown in a Fiori Elements List Report and clicking the &lt;STRONG&gt;Go&lt;/STRONG&gt; button to load the full list. Both actions seem to trigger the select method.&lt;/P&gt;&lt;P class=""&gt;I've already inspected the io_request object in quite some detail, but I couldn't find anything that clearly indicates whether the request is just for value help (e.g., to fill a dropdown) or for loading the actual list data.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Context:&lt;/STRONG&gt; The filter dropdowns don't show distinct values, and I'm trying to understand what's going wrong.&lt;/P&gt;&lt;P class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="filter_values.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/257557iF9C4DDFD421D492B/image-size/medium?v=v2&amp;amp;px=400" role="button" title="filter_values.png" alt="filter_values.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;If anyone has come across this before or knows what to look for in the request — any pointers would be super helpful!&lt;BR /&gt;&lt;BR /&gt;Here's some (AI supported anonymized and thus not runnable) code:&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;Custom CDS Entity:&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Sample: Delivery Status (Custom CDS Entity)'
-@ObjectModel.query.implementedBy: 'ABAP:ZCL_CUSTOM_DELIVERY_STATUS'
-define custom entity ZCE_DELIVERY_STATUS
-{
-  @Consumption.filter: { selectionType: #INTERVAL }
-  key date       : dats;
-  key id         : string;
-  key report     : string;
-  key company    : bukrs;
-  key vendor     : lifnr;
-  object_id      : string;
-  entity         : string;
-  description    : string;
-  project_id     : string;
-  project_name   : string;
-  icon           : string;
-  status         : string;
-  delivery_date  : date;
-  report_label   : string;
-  criticality    : abap_int1;
-
-  _items : association [1..*] to ZV_ITEMS
-    on _items.vendor = $projection.vendor
-    and _items.company = $projection.company;
-
-  _operations : association [1..*] to ZV_OPERATIONS
-    on _operations.vendor = $projection.vendor
-    and _operations.company = $projection.company;
-}&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_custom_delivery_status IMPLEMENTATION.
-
-  METHOD if_rap_query_provider~select.
-
-    DATA: lt_filter   = io_request-&amp;gt;get_filter( )-&amp;gt;get_as_ranges( ).
-
-    DATA(top)              = io_request-&amp;gt;get_paging( )-&amp;gt;get_page_size( ).
-    DATA(skip)             = io_request-&amp;gt;get_paging( )-&amp;gt;get_offset( ).
-    DATA(requested_fields) = io_request-&amp;gt;get_requested_elements( ).
-
-    " Build filters
-    DATA lt_company_range TYPE RANGE OF zce_delivery_status-company.
-    DATA lt_vendor_range  TYPE RANGE OF zce_delivery_status-vendor.
-    DATA lt_project_range TYPE RANGE OF zce_delivery_status-project_id.
-
-    build_range( EXPORTING iv_name = 'COMPANY' it_filter = lt_filter
-                 CHANGING  ct_range = lt_company_range ).
-    build_range( EXPORTING iv_name = 'VENDOR'  it_filter = lt_filter
-                 CHANGING  ct_range = lt_vendor_range ).
-    build_range( EXPORTING iv_name = 'PROJECT_ID' it_filter = lt_filter
-                 CHANGING  ct_range = lt_project_range ).
-
-    " Optional date range handling
-    READ TABLE lt_filter WITH KEY name = 'DATE' INTO DATA(ls_date_pair).
-    IF sy-subrc = 0 AND ls_date_pair-range IS NOT INITIAL.
-      READ TABLE ls_date_pair-range INTO DATA(ls_date_range) INDEX 1.
-      IF sy-subrc = 0.
-        DATA(lv_date_from) = ls_date_range-low.
-        DATA(lv_date_to)   = ls_date_range-high.
-        IF lv_date_to IS INITIAL.
-          lv_date_to = lv_date_from.
-        ENDIF.
-        " Use lv_date_from / lv_date_to in downstream filtering
-      ENDIF.
-    ENDIF.
-
-    IF io_request-&amp;gt;is_data_requested( ).
-      " Replace with actual data retrieval logic
-      CALL FUNCTION 'Z_FETCH_DELIVERY_DATA'
-        EXPORTING
-          iv_company_range = lt_company_range
-          iv_vendor_range  = lt_vendor_range
-        IMPORTING
-          et_data          = lt_all_data.
-
-      " Apply additional filters (example for report and vendor)
-      READ TABLE lt_filter WITH KEY name = 'REPORT' INTO DATA(ls_report).
-      READ TABLE lt_filter WITH KEY name = 'VENDOR' INTO DATA(ls_vendor).
-
-      SELECT * FROM lt_all_data
-        WHERE report IN _report-range
-          AND vendor IN _vendor-range
-        INTO TABLE _result.
-
-      IF top &amp;lt; 0.
-        top = 1.
-      ENDIF.
-
-      IF lines( lt_result ) &amp;gt; 1.
-        LOOP AT lt_result INTO DATA(ls_row) FROM skip + 1 TO skip + top.
-          APPEND ls_row TO lt_page.
-        ENDLOOP.
-      ELSE.
-        lt_page = lt_result.
-      ENDIF.
-
-      io_response-&amp;gt;set_data( lt_page ).
-    ENDIF.
-
-    IF io_request-&amp;gt;is_total_numb_of_rec_requested( ).
-      io_response-&amp;gt;set_total_number_of_records( lines( lt_result ) ).
-    ENDIF.
-
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P class=""&gt;&lt;BR /&gt;Thanks a lot in advance &lt;span class="lia-unicode-emoji" title=":folded_hands:"&gt;🙏&lt;/span&gt;&lt;BR /&gt;Cheers Max&lt;BR /&gt;&lt;BR /&gt;PS: Code is part of a very early PoC and is not supposed to be robust, right, clean or anything similar &lt;span class="lia-unicode-emoji" title=":winking_face:"&gt;😉&lt;/span&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/unmanaged-rap-query-implementation-filter-calls-identification-in-if-rap/qaq-p/14093218"/>
-    <published>2025-05-05T11:57:54.046000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/what-architecture-porgraming-modell-to-use-when-creating-a-custom-adobe/qaq-p/14093429</id>
     <title>What Architecture / Porgraming Modell to use when creating a custom Adobe Form</title>
@@ -442,8 +329,20 @@ association to parent ROOT as_root on CHILD.rootuuid = ROOT.uuid
       <name>santoshsk926</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/647224</uri>
     </author>
-    <content>&lt;P&gt;Dear Community,&lt;/P&gt;&lt;P&gt;I am unable to login to my BTP ABAP instance and system shows below error in Eclipse.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="santoshsk926_0-1747644201995.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/262895i2146DB2413F4046D/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="santoshsk926_0-1747644201995.png" alt="santoshsk926_0-1747644201995.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Same is the case in BTP account as well.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="santoshsk926_1-1747644245562.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/262896i0BB79782E996A863/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="santoshsk926_1-1747644245562.png" alt="santoshsk926_1-1747644245562.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Please let me know if its a global issue or a local issue in my account.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <content>&lt;P&gt;Dear Community,&lt;/P&gt;&lt;P&gt;I am unable to login to my BTP ABAP instance and system shows below error in Eclipse.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="santoshsk926_0-1747644201995.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/262895i2146DB2413F4046D/image-size/medium?v=v2&amp;amp;px=400" role="button" title="santoshsk926_0-1747644201995.png" alt="santoshsk926_0-1747644201995.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Same is the case in BTP account as well.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="santoshsk926_1-1747644245562.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/262896i0BB79782E996A863/image-size/medium?v=v2&amp;amp;px=400" role="button" title="santoshsk926_1-1747644245562.png" alt="santoshsk926_1-1747644245562.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Please let me know if its a global issue or a local issue in my account.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/btp-trail-abap-instance-unavailable/qaq-p/14105140"/>
     <published>2025-05-19T10:46:11.821000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/getting-error-in-eclipse-adt-quot-business-catalog-is-not-supported-in-the/qaq-p/14106258</id>
+    <title>Getting error in Eclipse ADT "Business Catalog is not supported in the selected project"</title>
+    <updated>2025-05-20T09:29:01.136000+02:00</updated>
+    <author>
+      <name>AkbarHussain</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1717905</uri>
+    </author>
+    <content>&lt;P&gt;Hello Experts,&lt;/P&gt;&lt;P&gt;I am working on an SAP RAP (Restful ABAP Programming Model) application in Eclipse ADT. I need to schedule Background Job. While trying to create a &lt;STRONG&gt;Business Catalog&lt;/STRONG&gt; using the context menu (New &amp;gt; Other Repository Object &amp;gt; Business Catalog), I get the following error:&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;&lt;STRONG&gt;"Business Catalog is not supported in the selected project"&lt;/STRONG&gt;&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;P&gt;I am not sure why this is happening, as I expected to add a catalog and create/assign Role to get Job template in Application Job screen.&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId-1988701567"&gt;&lt;STRONG&gt;What I’ve Done:&lt;/STRONG&gt;&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Using Eclipse ADT (latest version) connected to an on-premise S/4HANA system.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;I have created Application Job object and added sub object,&amp;nbsp; then created a class and created Application Job Catalog Entries and assigned class to it and then created Application Job Template (save and activated all).&lt;/LI&gt;&lt;LI&gt;I am unable to see custom template which I created in Application Job tile.&lt;/LI&gt;&lt;LI&gt;Upon further investigation, I got to know that we need to setup Authorizations for that I need to create Business catalog and Role for Authorization.&lt;/LI&gt;&lt;LI&gt;Right clicked on package and clicked on ABAP repository object but unable to find Business catalog. Then I selected my DEV system client from Eclipse, right clicked on it New -&amp;gt;other -&amp;gt;cloud Identity and access management -&amp;gt;Double clicked on Business Catalog, getting above error.&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId-1792188062"&gt;&lt;STRONG&gt;Question:&lt;/STRONG&gt;&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Why am I getting this error?&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Is there a specific project type or system requirement for creating Business Catalogs in Eclipse ADT?&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Do I need to configure something in the backend to enable this functionality?&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Any help or guidance would be much appreciated!&lt;/P&gt;&lt;P&gt;Thanks,&lt;BR /&gt;Akbar Hussain&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/getting-error-in-eclipse-adt-quot-business-catalog-is-not-supported-in-the/qaq-p/14106258"/>
+    <published>2025-05-20T09:29:01.136000+02:00</published>
   </entry>
 </feed>
