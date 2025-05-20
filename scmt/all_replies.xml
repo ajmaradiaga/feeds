@@ -2,151 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2025-05-20T17:14:01.126217+00:00</updated>
+  <updated>2025-05-20T17:29:01.044190+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/authenticating-github-actions-workflows-deploying-to-the-sap-btp-cloud/ba-p/14075047</id>
-    <title>Authenticating GitHub Actions Workflows Deploying to the SAP BTP Cloud Foundry Environment with JWTs</title>
-    <updated>2025-05-20T15:59:54.291000+02:00</updated>
-    <author>
-      <name>SebastianRies</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/806307</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-1579257161"&gt;Abstract&lt;/H1&gt;&lt;P&gt;When building CI/CD pipelines, developers are responsible for managing the credentials used by these pipelines for authentication to external systems. This traditionally requires developers to take care of the lifecycle of the credentials, including secure storage and regular rotation of the credentials, which comes with repeated efforts and might be error-prone.&lt;/P&gt;&lt;P&gt;This blog post demonstrates how to authenticate to the SAP BTP, Cloud Foundry environment from a GitHub Actions workflow using GitHub-issued short-lived JSON Web Tokens (JWTs), thereby eliminating the need for manual secret management and enabling secure, efficient CI/CD workflows. In particular, it provides a step-by-step guide to configuring the SAP Cloud Identity Services and the SAP BTP, Cloud Foundry environment, along with a practical example showing how to deploy an application to the Cloud Foundry environment using a GitHub Actions workflow.&lt;/P&gt;&lt;P&gt;While the blog post gives an example in the context of GitHub and GitHub Actions, the concepts can be applied to other environments providing environment-issued JWTs to their workloads or pipelines as well.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1382743656"&gt;Overview&lt;/H1&gt;&lt;P&gt;In modern computing environments, workloads running in those environments can retrieve short-lived credentials representing the workload's identity (and conveying workload-related attributes) via means built into the environment without the need for a developer-managed secret. In the context of GitHub, this pattern enables GitHub Actions workflows to retrieve short-lived JWTs from GitHub’s OpenID Connect Provider containing information about the context in which the workflow is running (e.g., GitHub organization and repository).&lt;/P&gt;&lt;P&gt;With the recent enhancements of the SAP BTP, Cloud Foundry environment and the SAP Cloud Identity Services, the GitHub-issued JWTs can be used to authenticate workflows when deploying to Cloud Foundry, eliminating the need for providing (and managing) a password.&lt;/P&gt;&lt;P&gt;The setup of the main components and their interactions is as follows (see also diagram below):&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;SAP Cloud Identity Services:&lt;UL&gt;&lt;LI&gt;Federation with GitHub's OpenID Connect Provider as Corporate Identity Provider&lt;/LI&gt;&lt;LI&gt;User account representing GitHub Actions workflows (e.g., for all workflows running in a certain GitHub organization and repository)&lt;/LI&gt;&lt;LI&gt;'SAP Business Technology Platform' Application configured for token-based login with GitHub-issued JWTs&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;SAP BTP, Cloud Foundry environment:&lt;UL&gt;&lt;LI&gt;SAP Cloud Identity Services configured as 'custom identity provider for platform users' on the global account&lt;/LI&gt;&lt;LI&gt;User representing the GitHub Actions workflows added with role 'Space Developer' in the space that is targeted by the deployment&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;GitHub/GitHub Actions:&lt;UL&gt;&lt;LI&gt;GitHub acts as OpenID Connect Provider issuing JWTs available to GitHub Actions workflows.&lt;/LI&gt;&lt;LI&gt;GitHub Actions workflows use CF CLI (&amp;gt;= v8.12.0) for authenticating and deploying to the SAP BTP, Cloud Foundry environment.&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="workload-cf-access.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/262825iBB61B87A74F24C49/image-size/large?v=v2&amp;amp;px=999" role="button" title="workload-cf-access.png" alt="workload-cf-access.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Note: In this blog post, &lt;FONT face="courier new,courier"&gt;github.example.com&lt;/FONT&gt; refers to a fictional GitHub Enterprise server. Please adjust these references to match your own GitHub server or CI/CD environment.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1186230151"&gt;Prerequisites&lt;/H1&gt;&lt;P&gt;To follow the steps provided in this blog post, you need to have access to the SAP BTP, Cloud Foundry environment (see:&amp;nbsp;&lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/getting-started-in-cloud-foundry-environment" target="_blank" rel="noopener noreferrer"&gt;Getting Started in the Cloud Foundry Environment | SAP Help Portal&lt;/A&gt;) and administrative access to a tenant in SAP Cloud Identity Services (see: &lt;A href="https://help.sap.com/docs/cloud-identity-services/cloud-identity-services/get-your-tenant" target="_blank" rel="noopener noreferrer"&gt;Get Your Tenant | SAP Help Portal&lt;/A&gt;). Furthermore, you need to be able to set up a GitHub repository that can run GitHub Actions workflows.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-989716646"&gt;Configuration Steps&lt;/H1&gt;&lt;H2 id="toc-hId-922285860"&gt;Step 1: Configure SAP Cloud Identity Services&lt;/H2&gt;&lt;P&gt;Open the admin console of your SAP Cloud Identity Services tenant in the browser.&lt;/P&gt;&lt;H3 id="toc-hId-854855074"&gt;Step 1.1: Create a (Helper) User for GitHub Actions Workflows&lt;/H3&gt;&lt;P&gt;When defining the attributes of the (helper) user for GitHub Actions workflows, consider this proposal:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Use the first name and last name to give a human-readable hint on the environment in which the GitHub Actions workflows represented by this user are running.&lt;/LI&gt;&lt;LI&gt;Use the 'email' attribute as a unique identifier. The email attribute will serve two purposes:&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;It serves as a unique identifier for the (helper) user in the SAP Cloud Foundry Identity Services and in the SAP BTP, Cloud Foundry environment.&lt;/LI&gt;&lt;LI&gt;It is used as part of the mapping of the GitHub-issued JWT to the user.&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;Following this proposal, create a user that represents the GitHub Actions workflows running in a given GitHub organization and repository as described below:&lt;/P&gt;&lt;P&gt;Go to 'Users &amp;amp; Authorizations' -&amp;gt; 'User Management' -&amp;gt; Click '+ Add', and configure the required parameters as:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;First name: &lt;FONT face="courier new,courier"&gt;&amp;lt;orgName&amp;gt;/&amp;lt;repositoryName&amp;gt;&lt;/FONT&gt; (e.g., &lt;FONT face="courier new,courier"&gt;myOrg/myRepo&lt;/FONT&gt;, where &lt;FONT face="courier new,courier"&gt;myOrg/myRepo&lt;/FONT&gt; refers to the GitHub organization and repository running the GitHub Actions workflow which you want to deploy to CF)&lt;/LI&gt;&lt;LI&gt;Last name: &lt;FONT face="courier new,courier"&gt;&amp;lt;githubServerDomain&amp;gt;&lt;/FONT&gt; (e.g., &lt;FONT face="courier new,courier"&gt;github.example.com&lt;/FONT&gt;)&lt;/LI&gt;&lt;LI&gt;Email: &lt;FONT face="courier new,courier"&gt;repo/&amp;lt;orgName&amp;gt;/&amp;lt;repoName&amp;gt;@&amp;lt;emailDomain&amp;gt;&lt;/FONT&gt; (e.g., &lt;FONT face="courier new,courier"&gt;repo/myOrg/myRepo@github.example.com&lt;/FONT&gt;, make sure to choose an appropriate email domain)&lt;/LI&gt;&lt;LI&gt;Login Name: &lt;FONT face="courier new,courier"&gt;&amp;lt;leave empty - no value required&amp;gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;User Type: &lt;FONT face="courier new,courier"&gt;Public&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;Account Activation: select &lt;FONT face="courier new,courier"&gt;Set status active&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-658341569"&gt;Step 1.2: Create a Group for GitHub CI/CD Users and Add the User&lt;/H3&gt;&lt;P&gt;Go to 'Users &amp;amp; Authorizations' → 'Groups'&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Create a group with 'Name' and 'Display Name': &lt;FONT face="courier new,courier"&gt;GitHub CI/CD&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;Note: No application-specific setting required.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;On the newly created group, under 'user members' click '+ Add' and add the previously created user to this group.&lt;/P&gt;&lt;H3 id="toc-hId-461828064"&gt;Step 1.3: Add GitHub as Corporate Identity Provider&lt;/H3&gt;&lt;H4 id="toc-hId-394397278"&gt;Add Identity Provider for GitHub&lt;/H4&gt;&lt;P&gt;Go to 'Identity Providers' → 'Corporate Identity Providers' → Click '+ Create'&lt;/P&gt;&lt;P&gt;Create a new Identity Provider with Display Name &lt;FONT face="courier new,courier"&gt;&amp;lt;githubServerDomain&amp;gt;&lt;/FONT&gt; (e.g., &lt;FONT face="courier new,courier"&gt;github.example.com&lt;/FONT&gt;) and type 'OpenID Connect Compliant'.&lt;/P&gt;&lt;P&gt;Do the following steps on the 'list items' belonging to the newly created corporate identity provider.&lt;/P&gt;&lt;H4 id="toc-hId-197883773"&gt;Configure the Discovery URL (OpenID Connect Configuration Endpoint)&lt;/H4&gt;&lt;P&gt;Go to the list item 'Trust' → 'OpenID Connect Configuration' and provide the discovery URL of the OpenID Connect Provider of the GitHub environment. The discovery URL is specific to your GitHub environment:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;For on-premise GitHub servers the discovery URL follows the pattern: &lt;FONT face="courier new,courier"&gt;https://&amp;lt;githubServerDomain&amp;gt;/_services/token/.well-known/openid-configuration&lt;/FONT&gt;, e.g., &lt;FONT face="courier new,courier"&gt;&lt;A href="https://github.example.com/_services/token/.well-known/openid-configuration" target="_blank" rel="nofollow noopener noreferrer"&gt;https://github.example.com/_services/token/.well-known/openid-configuration&lt;/A&gt;&lt;/FONT&gt; (adjust to your environment) – see: &lt;A href="https://docs.github.com/en/enterprise-server@3.16/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect#understanding-the-oidc-token" target="_blank" rel="noopener nofollow noreferrer"&gt;About security hardening with OpenID Connect - GitHub Enterprise Server 3.16 Docs&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;For Cloud-based GitHub offerings (e.g., Enterprise Cloud version or Free, Pro, &amp;amp; Team version) it is: &lt;FONT face="courier new,courier"&gt;&lt;A href="https://token.actions.githubusercontent.com/.well-known/openid-configuration" target="_blank" rel="nofollow noopener noreferrer"&gt;https://token.actions.githubusercontent.com/.well-known/openid-configuration&lt;/A&gt;&lt;/FONT&gt; -- see &lt;A href="https://docs.github.com/en/enterprise-server@3.16/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect#understanding-the-oidc-token" target="_blank" rel="noopener nofollow noreferrer"&gt;About security hardening with OpenID Connect - GitHub Enterprise Cloud Docs and About security hardening with OpenID Connect - GitHub Docs&lt;/A&gt; and &lt;A href="https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect#understanding-the-oidc-token" target="_blank" rel="noopener nofollow noreferrer"&gt;About security hardening with OpenID Connect - GitHub Docs&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;After providing the discovery URL, click 'Load' and 'Save'.&lt;/P&gt;&lt;H4 id="toc-hId--496346827"&gt;Configure Token to User Mapping via 'Enriched Token Claims'&lt;/H4&gt;&lt;P&gt;Go to the list item 'Trust' → 'Enriched Token Claims' and add the following claim-value pair:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Claim: &lt;FONT face="courier new,courier"&gt;NameID&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;Value: &lt;FONT face="courier new,courier"&gt;repo/${repository}@&amp;lt;emailDomain&amp;gt;&lt;/FONT&gt; (e.g., &lt;FONT face="courier new,courier"&gt;repo/${repository}@github.example.com&lt;/FONT&gt;)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This enables the mapping of the incoming GitHub-issued JWT using the &lt;FONT face="courier new,courier"&gt;repository&lt;/FONT&gt; claim provided in the token to a user with an email address with the pattern &lt;FONT face="courier new,courier"&gt;repo/&amp;lt;orgName&amp;gt;/&amp;lt;repoName&amp;gt;@&amp;lt;emailDomain&amp;gt;&lt;/FONT&gt;.&lt;/P&gt;&lt;P&gt;For additional information see:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/cloud-identity-services/cloud-identity-services/enrich-token-claims-coming-from-corporate-idp?version=Cloud&amp;amp;q=enrich" target="_blank" rel="noopener noreferrer"&gt;Enrich Token Claims Coming from Corporate IdP&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://docs.github.com/en/enterprise-cloud@latest/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect#understanding-the-oidc-token" target="_blank" rel="noopener nofollow noreferrer"&gt;About security hardening with OpenID Connect - GitHub Enterprise Cloud Docs&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId--692860332"&gt;Configure 'Identity Federation' to Restrict the GitHub IdP to GitHub CI/CD Users Only&lt;/H4&gt;&lt;P&gt;Go to the list item 'Single Sign On' → 'Identity Federation'.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Enable 'Use Identity Authentication user store'&lt;/LI&gt;&lt;LI&gt;Enable 'Allow Identity Authentication users only'&lt;/LI&gt;&lt;LI&gt;Add restriction based on group membership by clicking 'Add' next to 'Assigned User Groups' and selecting the previously created user group &lt;FONT face="courier new,courier"&gt;GitHub CI/CD&lt;/FONT&gt;.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--595970830"&gt;Step 1.4: Configure 'SAP Business Technology Platform' Application&lt;/H3&gt;&lt;P&gt;Go to the tile 'Applications &amp;amp; Resources' → 'Applications'.&lt;/P&gt;&lt;P&gt;Select the application named 'SAP Business Technology Platform' (representing the SAP BTP, Cloud Foundry environment in your tenant). Note: If the application 'SAP Business Technology Platform' does not show up in the list of applications, you need to establish trust between the BTP Global Account and your SAP Cloud Identity Services tenant first (see step 2 below) and then complete this step.&lt;/P&gt;&lt;P&gt;Go to the list item 'Trust' → 'Conditional Authentication' and click 'Add Rule', and add a new rule with:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Identity Provider: &lt;FONT face="courier new,courier"&gt;github.example.com&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;Email domain: &lt;FONT face="courier new,courier"&gt;&amp;lt;emailDomain&amp;gt;&lt;/FONT&gt; e.g., &lt;FONT face="courier new,courier"&gt;github.example.com&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;Group: &lt;FONT face="courier new,courier"&gt;GitHub CI/CD&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Finally, click 'OK' on the new rule, and click 'Save' on 'Conditional Authentication' (top right corner).&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId--499081328"&gt;Step 2: Configure SAP BTP, Cloud Foundry environment&lt;/H2&gt;&lt;P&gt;Open the SAP BTP cockpit in the browser.&lt;/P&gt;&lt;P&gt;In the following it is assumed that you already have a global account and subaccount on SAP Business Technology Platform (SAP BTP), as well as access to the SAP BTP, Cloud Foundry environment, such that an authorized user can successfully deploy an application. If this is not the case, please see the documentation at: &lt;A href="https://help.sap.com/docs/btp?version=Cloud" target="_blank" rel="noopener noreferrer"&gt;SAP Business Technology Platform (SAP BTP) | SAP Help Portal&lt;/A&gt; and &lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/getting-started-with-enterprise-account-in-cloud-foundry-environment?version=Cloud" target="_blank" rel="noopener noreferrer"&gt;Getting Started with an Enterprise Account in the Cloud Foundry Environment | SAP Help Portal&lt;/A&gt;.&lt;/P&gt;&lt;H3 id="toc-hId--988997840"&gt;Step 2.1: Establish Trust for Platform Users (Global Account)&lt;/H3&gt;&lt;P&gt;Establish trust between your global account and your SAP Cloud Identity Services tenant as 'Custom Identity Provider for Platform Users' (see &lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/establish-trust-and-federation-of-custom-identity-providers-for-platform-users?version=Cloud#procedure" target="_blank" rel="noopener noreferrer"&gt;Establish Trust and Federation of Custom Identity Providers for Platform Users&lt;/A&gt;).&lt;/P&gt;&lt;P&gt;Note: Remember to complete step 1.4, if not yet done.&lt;/P&gt;&lt;H3 id="toc-hId--1185511345"&gt;Step 2.2: Add (Helper) User to Space&lt;/H3&gt;&lt;P&gt;Select a subaccount and navigate to 'Cloud Foundry-&amp;gt;Spaces'. Then, select the space that the GitHub Actions workflow should have access to (create a new space first, if required).&lt;/P&gt;&lt;P&gt;Add the (helper) user as member to the space with role 'Space Developer':&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Go to 'Space Members' and click 'Add Members'&lt;/LI&gt;&lt;LI&gt;Add a new user with the parameters:&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;email: &lt;FONT face="courier new,courier"&gt;&amp;lt;email-address-of-helper-user&amp;gt;&lt;/FONT&gt;, .e.g, &lt;FONT face="courier new,courier"&gt;repo/myOrg/myRepo@github.example.com&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;origin: &lt;FONT face="courier new,courier"&gt;&amp;lt;origin of the custom platform IdP from the trust configuration above&amp;gt;&lt;/FONT&gt; - e.g., &lt;FONT face="courier new,courier"&gt;myTenant-platform&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;role: &lt;FONT face="courier new,courier"&gt;Space Developer&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;Note: The role 'Space Developer' enables the user to push to this space.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--795218836"&gt;Push an Application using a GitHub Actions Workflow&lt;/H1&gt;&lt;H2 id="toc-hId--1285135348"&gt;Step 3: Create a GitHub Repository and Push an Application&lt;/H2&gt;&lt;P&gt;For pushing an application using a GitHub Actions workflow, you need a repository (e.g., &lt;FONT face="courier new,courier"&gt;myOrg/myRepo&lt;/FONT&gt;) on a GitHub server (e.g. &lt;FONT face="courier new,courier"&gt;github.example.com&lt;/FONT&gt;) which contains a GitHub Actions workflow that fetches a short-lived JWT from GitHub and uses this token for authentication in the login to the SAP BTP, Cloud Foundry environment.&lt;/P&gt;&lt;H3 id="toc-hId--1775051860"&gt;Step 3.1: Create a GitHub Repository with a Hello World Sample&lt;/H3&gt;&lt;P&gt;A GitHub repository with a simple 'Hello World Sample' may look as described below. Note: Make sure that the GitHub repository has GitHub Actions enabled and make sure that the configuration of GitHub, SAP Cloud Identity Services, and SAP BTP, Cloud Foundry environment fit together.&lt;/P&gt;&lt;P&gt;The 'Hello World Sample' GitHub repository may have the following structure and contain the following files:&lt;/P&gt;&lt;PRE&gt;&amp;lt;repository-root-directory&amp;gt;/
-├── manifest.yml
-├── .github/
-│   └── workflows/
-│       └── deploy.yml
-└── resources/
-    └── hello.json&lt;/PRE&gt;&lt;P&gt;The &lt;FONT face="courier new,courier"&gt;manifest.yml&lt;/FONT&gt; defines an application manifest for deploying to the Cloud Foundry environment. The manifest given below, will deploy a &lt;FONT face="courier new,courier"&gt;staticfile_buildbpack&lt;/FONT&gt; serving the &lt;FONT face="courier new,courier"&gt;hello.json&lt;/FONT&gt; file.&lt;/P&gt;&lt;P&gt;&lt;FONT face="courier new,courier"&gt;manifest.yml&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;applications:
-- name: github-cf-access
-  disk_quota: 1G
-  instances: 1
-  memory: 256M
-  random-route: true
-  path:
-    ./resources
-  buildpacks:
-    - staticfile_buildpack&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The &lt;FONT face="courier new,courier"&gt;resources/hello.json&lt;/FONT&gt; file contains some sample content to deploy.&lt;/P&gt;&lt;P&gt;&lt;FONT face="courier new,courier"&gt;resources/hello.json&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{
-    "hello": "from GitHub Actions"
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Finally, the &lt;FONT face="courier new,courier"&gt;deploy.yml&lt;/FONT&gt; contains the definition of the GitHub Actions workflow that pushes the application to the SAP BTP, Cloud Foundry environment.&lt;/P&gt;&lt;P&gt;Notes:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;When requesting the JWT from GitHub, make sure to request a token where the audience claim equals the 'issuer' of the SAP Cloud Identity Services tenant which is configured as 'custom identity provider for platform users'.&lt;/LI&gt;&lt;LI&gt;Authentication to the SAP BTP, Cloud Foundry environment with a JWT requires at least Cloud Foundry CLI version v8.12.0.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Before running the script below, review it, and adjust the GitHub Actions runner, if needed. Note: There is no need to adjust the inputs, as they actual values can be provided when running the workflow via the UI.&lt;/P&gt;&lt;P&gt;&lt;FONT face="courier new,courier"&gt;.github/workflows/deploy.yml&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;  name: Deploy
-
-  on:
-    workflow_dispatch:
-      inputs:
-        cfApiEndpointUrl:
-          description: 'Cloud Foundry environment API endpoint'
-          default: '&amp;lt;e.g., https://api.cf.eu10.hana.ondemand.com&amp;gt;'
-          required: true
-          type: string
-        cfOrg:
-          description: 'CF org name'
-          default: '&amp;lt;e.g., myCfOrg&amp;gt;'
-          required: true
-        cfSpace:
-          description: 'CF space name'
-          default: '&amp;lt;e.g., myCfSpace&amp;gt;'
-          required: true
-        userOrigin:
-          description: 'The "origin-identifier" of your custom platform IdP (see origin of the space user)'
-          default: '&amp;lt;e.g., myTenant-platform&amp;gt;'
-          required: true
-          type: string
-        tenantIssuerUri:
-          description: 'Issuer URI of your SAP Cloud Identity Services tenant'
-          default: '&amp;lt;e.g., https://myTenant.accounts.ondemand.com&amp;gt;'
-          required: true
-  
-  jobs:
-    deploy:
-      runs-on: [ ubuntu-latest ]
-      permissions:
-        id-token: write # This is required for requesting the JWT
-        contents: read  # This is required for actions/checkout
-      steps:
-        - name: Show provided parameters
-          run: |
-            echo "Provided parameters:"
-            echo '${{ toJson(inputs) }}' | jq -r 'to_entries | .[] | "- \(.key): \(.value)"'
-
-        - name: Check out repository code
-          uses: actions/checkout@v4
-  
-        - name: Download CF CLI
-          run: |
-            cf_version="8.12.0"
-            mkdir .cfcli
-            curl -L "https://github.com/cloudfoundry/cli/releases/download/v${cf_version}/cf8-cli_${cf_version}_linux_x86-64.tgz" | tar -zvx -C .cfcli
-            echo "$(pwd)/.cfcli" &amp;gt;&amp;gt; "$GITHUB_PATH"
-
-        - name: Get short-lived GitHub-issued JWT
-          id: get-github-jwt
-          run: |
-            githubJwt=$(curl -s -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" -H "Accept: application/json; api-version=2.0" -H "Content-Type: application/json" "$ACTIONS_ID_TOKEN_REQUEST_URL&amp;amp;audience=${{inputs.tenantIssuerUri}}" | jq -r '.value')
-            echo $githubJwt | jq -R 'split(".") | .[0],.[1] | @base64d | fromjson'
-            echo "githubJwt=$githubJwt" &amp;gt;&amp;gt; $GITHUB_OUTPUT
-
-        - name: Set Cloud Foundry API
-          run: |
-            cf api ${{inputs.cfApiEndpointUrl}}
-            
-        - name: Login to Cloud Foundry environment
-          run: |
-            cf auth --assertion ${{steps.get-github-jwt.outputs.githubJwt}} --origin ${{inputs.userOrigin}}
-
-        - name: Target Cloud Foundry org and space
-          run: |
-            cf target -o '${{inputs.cfOrg}}' -s '${{inputs.cfSpace}}'
-  
-        - name: Deploy to Cloud Foundry environment
-          run: |          
-            cf push --strategy rolling
-  
-        - name: Logout from Cloud Foundry environment
-          if: always()
-          run: |
-            cf logout&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--1971565365"&gt;Step 3.2: Deploy to SAP BTP, Cloud Foundry environment using GitHub Actions&lt;/H3&gt;&lt;P&gt;In order to run the GitHub Actions workflow go to 'Actions' -&amp;gt; 'Deploy' and click 'Run workflow' and override the provided default values in the 'run workflow UI' with your specific parameters. Finally, click the green 'Run workflow' button.&lt;/P&gt;&lt;P&gt;Once the workflow has been successfully executed:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Check the logs of the GitHub Actions workflow&lt;/LI&gt;&lt;LI&gt;Access the deployed application at: &lt;FONT face="courier new,courier"&gt;https://&amp;lt;app-domain&amp;gt;/hello.json&lt;/FONT&gt; (the domain under which the application is available can be found in the workflow's logs at the end of the step 'Deploy to Cloud Foundry environment').&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--1413089165"&gt;Additional Notes&lt;/H1&gt;&lt;UL&gt;&lt;LI&gt;As now GitHub Actions workflows can deploy to the SAP BTP, Cloud Foundry environment, make sure to control access to your GitHub repository and execution of GitHub Actions workflows accordingly.&lt;/LI&gt;&lt;LI&gt;You might consider adjusting the configuration given above according to your needs, e.g., adjust the email address pattern or email domain of the (helper) user and/or adjust the mapping of the GitHub-issued JWT to the user account in SAP Cloud Identity Services. Note: The character set supported in email addresses is limited.&lt;/LI&gt;&lt;LI&gt;While this blog post demonstrates how to authenticate to the SAP BTP, Cloud Foundry environment with a GitHub-issued JWT from a GitHub Actions workflow, you can adopt the approach to authenticate to the SAP BTP, Cloud Foundry environment also with JWTs issued by other environments after establishing trust to your SAP Cloud Identity Services tenant and managing the user’s authorizations in the Cloud Foundry environment.&lt;/LI&gt;&lt;LI&gt;If you have other use cases in which you like to authenticate workloads to SAP Cloud Identity Services, but you actually need an SAP Cloud Identity Services-issued access token to authenticate to a protected API (instead of login to the Cloud Foundry environment), then have a look at SAP Cloud Identity Services' functionality to authenticate applications with JWTs as described at &lt;A href="https://help.sap.com/docs/cloud-identity-services/cloud-identity-services/auth-configure-jwt-for-oauth-client-authentication" target="_blank" rel="noopener noreferrer"&gt;Configure JWT for OAuth Client Authentication | SAP Help Portal&lt;/A&gt;.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--1609602670"&gt;Conclusion&lt;/H1&gt;&lt;P&gt;By using GitHub-issued, short-lived JWTs and integrating GitHub Actions workflows with SAP Cloud Identity Services and the SAP BTP, Cloud Foundry environment, developers can enhance security, simplify automation, and streamline CI/CD workflows. Especially, this approach eliminates the need for managing long-lived credentials and reduces operational overhead.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--1806116175"&gt;Additional links&lt;/H1&gt;&lt;H2 id="toc-hId-1998934609"&gt;SAP Cloud Identity Services&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/cloud-identity-services#discover_task-about-this-service" target="_blank" rel="noopener noreferrer"&gt;SAP Cloud Identity Services&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-1802421104"&gt;GitHub&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://docs.github.com/en/actionst" target="_blank" rel="noopener nofollow noreferrer"&gt;GitHub Actions documentation&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://docs.github.com/en/enterprise-server@3.16/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect" target="_blank" rel="noopener nofollow noreferrer"&gt;About security hardening with OpenID Connect&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/authenticating-github-actions-workflows-deploying-to-the-sap-btp-cloud/ba-p/14075047"/>
-    <published>2025-05-20T15:59:54.291000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/re-%E5%85%B3%E4%BA%8E%E6%9C%88%E5%BA%A6%E7%BB%93%E7%AE%97%E8%AF%B7%E6%B1%82%E5%A4%84%E7%90%86/qaq-p/14106927/comment-id/4914560#M4914560</id>
-    <title>Re: 关于月度结算请求处理</title>
-    <updated>2025-05-20T16:00:08.010000+02:00</updated>
-    <author>
-      <name>erickgoulardt</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1394847</uri>
-    </author>
-    <content>Dear Colleague, I hope you find yourself well! Thank you for joining the community. As soon as possible, a technical expert will contact you to clarify your question. I am adjusting the tags to redirect the issue to the right team. Best Regards, Erick Goulardt SAP Support</content>
-    <link href="https://community.sap.com/t5/technology-q-a/re-%E5%85%B3%E4%BA%8E%E6%9C%88%E5%BA%A6%E7%BB%93%E7%AE%97%E8%AF%B7%E6%B1%82%E5%A4%84%E7%90%86/qaq-p/14106927/comment-id/4914560#M4914560"/>
-    <published>2025-05-20T16:00:08.010000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/can-the-ldap-system-be-used-for-user-details-but-ignored-not-shown-in/qaq-p/14106928</id>
-    <title>Can the LDAP system be used for user details but ignored/not shown in provisioning requests</title>
-    <updated>2025-05-20T16:02:31.576000+02:00</updated>
-    <author>
-      <name>DredtheRed</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/866932</uri>
-    </author>
-    <content>&lt;P&gt;Hello,&lt;BR /&gt;&lt;BR /&gt;I would like to ignore the LDAP connector in provisioning requests (model user, terminations etc.) but still use the connector for user details.&lt;BR /&gt;&lt;BR /&gt;Currently, the LDAP system is selectable for systems and termination requests.&amp;nbsp; (It is read only for the implementation.)&lt;BR /&gt;&lt;BR /&gt;is this possible?&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/can-the-ldap-system-be-used-for-user-details-but-ignored-not-shown-in/qaq-p/14106928"/>
-    <published>2025-05-20T16:02:31.576000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/financial-management-q-a/re-camt-053-and-camt-052-in-sap-ecc/qaq-p/14106930/comment-id/251177#M251177</id>
-    <title>Re: CAMT.053 and CAMT.052 in SAP ECC</title>
-    <updated>2025-05-20T16:05:08.480000+02:00</updated>
-    <author>
-      <name>bjansen</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/586938</uri>
-    </author>
-    <content>Use CAMT053 and post on a daily basis only.</content>
-    <link href="https://community.sap.com/t5/financial-management-q-a/re-camt-053-and-camt-052-in-sap-ecc/qaq-p/14106930/comment-id/251177#M251177"/>
-    <published>2025-05-20T16:05:08.480000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/sap-delta-token-unavailable-exception/ba-p/14097985</id>
     <title>SAP - Delta Token Unavailable Exception</title>
@@ -1382,7 +1241,7 @@ srv.on('massOperations', async req =&amp;gt; {
       <name>SAP31200</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1820473</uri>
     </author>
-    <content>Hi Former member,</content>
+    <content>&lt;P&gt;Hi Former member,&lt;BR /&gt;I'm facing the same problem, but I can't make change the fiscal year closing in OAAR, can you give me more instructions please?&amp;nbsp;&lt;BR /&gt;Thanks.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-how-to-closed-fiscal-year-of-specific-depreciation-area/qaq-p/14107098/comment-id/4216324#M4216324"/>
     <published>2025-05-20T19:11:02.649000+02:00</published>
   </entry>
@@ -1421,5 +1280,53 @@ srv.on('massOperations', async req =&amp;gt; {
     <content>Hi Former member, How did you do to make the depreciation areas in the same year closing?</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-how-to-closed-fiscal-year-of-specific-depreciation-area/qaq-p/14107101/comment-id/4216325#M4216325"/>
     <published>2025-05-20T19:12:10.919000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/financial-management-blog-posts-by-sap/how-to-prepare-for-the-move-to-sap-global-trade-services-edition-for-sap/bc-p/14107102#M9090</id>
+    <title>Re: How to Prepare for the move to SAP Global Trade Services, edition for SAP HANA in 5 Steps</title>
+    <updated>2025-05-20T19:14:39.005000+02:00</updated>
+    <author>
+      <name>JaySchwendemann</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/263</uri>
+    </author>
+    <content>&lt;P&gt;What about support of add-ons (or non-support) I did not find this in SAP notes nor does it seem part of the readiness check per se?&lt;/P&gt;&lt;P&gt;Cheers&lt;/P&gt;&lt;P&gt;Jens&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/financial-management-blog-posts-by-sap/how-to-prepare-for-the-move-to-sap-global-trade-services-edition-for-sap/bc-p/14107102#M9090"/>
+    <published>2025-05-20T19:14:39.005000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/how-to-create-a-new-org-unit-without-affecting-the-current-set-up-in/qaq-p/14107103</id>
+    <title>How to create a new org unit without affecting the current set up in development customizing?</title>
+    <updated>2025-05-20T19:16:22.382000+02:00</updated>
+    <author>
+      <name>SAPSupport</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/121003</uri>
+    </author>
+    <content>&lt;P&gt;Knowing that after creating a organizational unit it cannot be deleted, would be possible to create a new organizational unit, like a company code, without affecting the current organizational unit?&lt;/P&gt;&lt;P&gt;For example, being able to test a new organization without affecting what is already set up in the development customizing tenant?&lt;/P&gt;&lt;BR /&gt;------------------------------------------------------------------------------------------------------------------------------------------------&lt;BR /&gt;&lt;B&gt;Learn more about the SAP Support user and program &lt;A target="_blank" href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/maximizing-the-power-of-sap-community-at-product-support/ba-p/13501276"&gt;here&lt;/A&gt;.&lt;/B&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/how-to-create-a-new-org-unit-without-affecting-the-current-set-up-in/qaq-p/14107103"/>
+    <published>2025-05-20T19:16:22.382000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-how-to-create-a-new-org-unit-without-affecting-the-cu/qaq-p/14107104/comment-id/4216327#M4216327</id>
+    <title>Re: How to create a new org unit without affecting the cu...</title>
+    <updated>2025-05-20T19:16:28.987000+02:00</updated>
+    <author>
+      <name>SAPSupport</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/121003</uri>
+    </author>
+    <content>&lt;P&gt;Hello,&lt;/P&gt;&lt;P&gt;In a 3-system landscape this can be achieved using Parallel Line. The Parallel Line offers you a separate workspace in SAP Central Business Configuration and two additional tenants for configuration and testing in SAP S/4HANA Cloud Public Edition. The main line focuses on maintaining innovation and keeping the productive environment up-to-date with SAP's latest features. With a separate parallel line, you can develop and test configuration enhancements without affecting the main line. The Parallel Line needs to be requested through " SAP for Me".&lt;/P&gt;&lt;P&gt;Please refer to &lt;A href="https://help.sap.com/docs/SAP_S4HANA_CLOUD/b249d650b15e4b3d9fc2077ee921abd0/ba3c2949cab04efbb7136bcab7e69ff0.html?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;Parallel Line in SAP S/4HANA Cloud Public Edition | SAP Help Portal&amp;nbsp;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Best regards,&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-how-to-create-a-new-org-unit-without-affecting-the-cu/qaq-p/14107104/comment-id/4216327#M4216327"/>
+    <published>2025-05-20T19:16:28.987000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/re-archiving-asset-accounting-difference-between-testr/qaq-p/14107105/comment-id/4216328#M4216328</id>
+    <title>Re: Archiving asset accounting - Difference between testr...</title>
+    <updated>2025-05-20T19:27:54.738000+02:00</updated>
+    <author>
+      <name>Patrick2k</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1857998</uri>
+    </author>
+    <content>I have the same issue, did anyone find a solution?</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/re-archiving-asset-accounting-difference-between-testr/qaq-p/14107105/comment-id/4216328#M4216328"/>
+    <published>2025-05-20T19:27:54.738000+02:00</published>
   </entry>
 </feed>
