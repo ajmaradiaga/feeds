@@ -2,366 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SD-(Sales-and-Distribution)-qa.xml</id>
   <title>SAP Community - SD (Sales and Distribution)</title>
-  <updated>2025-05-20T23:13:47.393253+00:00</updated>
+  <updated>2025-05-21T11:14:08.843113+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SD (Sales and Distribution)/pd-p/209057551571413566377230676804921" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SD (Sales and Distribution) Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/dynamic-table-reading-in-sap-abap-amp-pricing-integration/qaq-p/14092153</id>
-    <title>Dynamic Table Reading in SAP ABAP &amp; Pricing Integration</title>
-    <updated>2025-05-02T16:08:29.296000+02:00</updated>
-    <author>
-      <name>dnkadir</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2059889</uri>
-    </author>
-    <content>&lt;P&gt;In SAP projects—especially in pricing scenarios—table structures can get pretty dynamic. In this article, I’ll walk you through a method called get_data_price_service that reads various pricing condition tables at runtime, along with its supporting CDS view ZCRSD_CDS018. Our goal? Process pricing data flexibly within SAP and prepare it for external integrations like Salesforce.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1710098537"&gt;&lt;span class="lia-unicode-emoji" title=":direct_hit:"&gt;🎯&lt;/span&gt; What Are We Trying to Do?&lt;/H2&gt;&lt;P class=""&gt;Our goal is to:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P class=""&gt;Dynamically determine which &lt;STRONG&gt;SAP condition tables&lt;/STRONG&gt; to use (e.g., A960, A961, etc.)&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;Read data from these tables at runtime&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;Transform and structure the result into something like ZCRSD_S063&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;Send it to external systems if needed (Salesforce)&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;To link pricing condition types (like ZL01, ZP00) to their respective tables, we first define a CDS view.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;define view ZCRSD_CDS018
-  as select from t685       as b
-    inner join   zcrsd_t062 as c on c.kosul_turu = b.kschl
-    inner join   t682i      as a on a.kozgf = b.kozgf
-{
-  a.kolnr,
-  a.kotabnr,
-  b.kozgf,
-  c.kosul_turu
-}
-where
-      b.kvewe = 'A'
-  and b.kappl = 'V'
-  and a.kvewe = 'A'
-  and a.kappl = 'V'&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-1642667751"&gt;&lt;span class="lia-unicode-emoji" title=":wrench:"&gt;🔧&lt;/span&gt; What Does This Do?&lt;/H3&gt;&lt;P class=""&gt;This view fetches:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P class=""&gt;&lt;STRONG&gt;Condition types&lt;/STRONG&gt; from ZCRSD_T062 (e.g., ZL01, ZP01)&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;Joins with T685 and T682I to retrieve &lt;STRONG&gt;KOZGF&lt;/STRONG&gt;, then &lt;STRONG&gt;KOLNR/KOTABNR&lt;/STRONG&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;In the end, it tells us &lt;STRONG&gt;which condition type corresponds to which condition table&lt;/STRONG&gt;, e.g., A960&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;This mapping is critical for dynamic data fetching.&lt;/P&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1317071527"&gt;&lt;span class="lia-unicode-emoji" title=":laptop_computer:"&gt;💻&lt;/span&gt; ABAP Method: get_data_price_service&lt;/H2&gt;&lt;P class=""&gt;This method:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P class=""&gt;Reads the CDS view to fetch all KOTABNR values&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;Builds dynamic SQL queries using these KOTABNRs (A{KOTABNR} style)&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;Reads table fields dynamically using DDIF_FIELDINFO_GET&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;Constructs a valid SELECT statement, even avoiding reserved SQL keywords&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;Filters by KAPPL and KSCHL, retrieves valid data&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;Transforms the results into a structured output (ZCRSD_S063-like)&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;Optionally sends the data to external systems like Salesforce&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  METHOD get_data_price_service.
-
-    TYPES: BEGIN OF ty_knumh,
-             knumh TYPE konh-knumh,
-           END OF ty_knumh.
-
-    DATA: lt_knumh TYPE STANDARD TABLE OF ty_knumh WITH EMPTY KEY,
-          ls_knumh TYPE ty_knumh.
-
-    DATA: lt_output TYPE zcrsd_tt024,
-          ls_output TYPE zcrsd_s063.
-
-
-    FIELD-SYMBOLS: &amp;lt;fs_line2&amp;gt;  TYPE any,
-                   &amp;lt;knumh_val&amp;gt; TYPE any,
-                   &amp;lt;fs_colval&amp;gt; TYPE any.
-
-    DATA: lt_components  TYPE cl_abap_structdescr=&amp;gt;component_table,
-          lr_structdescr TYPE REF TO cl_abap_structdescr,
-          lr_tabledescr  TYPE REF TO cl_abap_tabledescr,
-          lr_data        TYPE REF TO data,
-          ls_component   TYPE cl_abap_structdescr=&amp;gt;component,
-          lr_fieldcat    TYPE TABLE OF dd03p,
-          lv_dyn_table   TYPE tabname,
-          lt_all_fields  TYPE SORTED TABLE OF fieldname WITH UNIQUE KEY table_line,
-          lt_t685        TYPE STANDARD TABLE OF zcrsd_cds018,
-          lt_data_final  TYPE REF TO data,
-          lt_result      TYPE STANDARD TABLE OF string,
-          lv_sql         TYPE string,
-          lv_fields      TYPE string.
-
-    FIELD-SYMBOLS: &amp;lt;fs_result&amp;gt; TYPE STANDARD TABLE,
-                   &amp;lt;fs_line&amp;gt;   TYPE REF TO data,
-                   &amp;lt;dyn_table&amp;gt; TYPE STANDARD TABLE,
-                   &amp;lt;dyn_wa&amp;gt;    TYPE any,
-                   &amp;lt;field&amp;gt;     TYPE any.
-
-    DATA: lr_stmt              TYPE REF TO cl_sql_statement,
-          lr_sql               TYPE REF TO cl_sql_result_set,
-          lv_line              TYPE string,
-          lv_safe_col          TYPE string,
-          lv_clean_col         TYPE string,
-          lt_reserved_keywords TYPE STANDARD TABLE OF string,
-          lv_keyword           TYPE string,
-          lv_where             TYPE string.
-
-    lt_reserved_keywords = VALUE string_table(
-     ( `WITH` ) ( `GROUP` ) ( `ORDER` ) ( `USER` ) ( `VALUE` ) ( `SELECT` ) ( `FROM` ) ).
-
-    SELECT * FROM zcrsd_cds018 INTO TABLE &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1398638"&gt;@LT&lt;/a&gt;_t685.
-
-    LOOP AT lt_t685 INTO DATA(ls_table).
-      lv_dyn_table = |A{ ls_table-kotabnr }|.
-
-      CALL FUNCTION 'DDIF_FIELDINFO_GET'
-        EXPORTING
-          tabname   = lv_dyn_table
-        TABLES
-          dfies_tab = lr_fieldcat
-        EXCEPTIONS
-          OTHERS    = 1.
-
-      LOOP AT lr_fieldcat INTO DATA(ls_field).
-        IF ls_field-fieldname IS INITIAL.
-          CONTINUE.
-        ENDIF.
-        INSERT ls_field-fieldname INTO TABLE lt_all_fields.
-      ENDLOOP.
-    ENDLOOP.
-
-    LOOP AT lt_all_fields INTO DATA(lv_fieldname).
-      CLEAR ls_component.
-      LOOP AT lt_reserved_keywords INTO lv_keyword.
-        IF lv_fieldname = lv_keyword.
-          lv_fieldname = |FIELD_{ lv_fieldname }|.
-          EXIT.
-        ENDIF.
-      ENDLOOP.
-      ls_component-name = lv_fieldname.
-      ls_component-type = cl_abap_elemdescr=&amp;gt;get_c( 100 ).
-      APPEND ls_component TO lt_components.
-    ENDLOOP.
-
-    lr_structdescr = cl_abap_structdescr=&amp;gt;create( lt_components ).
-    lr_tabledescr  = cl_abap_tabledescr=&amp;gt;create( lr_structdescr ).
-
-    CREATE DATA lt_data_final TYPE HANDLE lr_tabledescr.
-    ASSIGN lt_data_final-&amp;gt;* TO &amp;lt;fs_result&amp;gt;.
-
-    LOOP AT lt_t685 INTO DATA(ls_k).
-      lv_dyn_table = |A{ ls_k-kotabnr }|.
-
-      CALL FUNCTION 'DDIF_FIELDINFO_GET'
-        EXPORTING
-          tabname   = lv_dyn_table
-        TABLES
-          dfies_tab = lr_fieldcat
-        EXCEPTIONS
-          OTHERS    = 1.
-
-      REFRESH lt_result.
-      CLEAR lv_fields.
-
-      LOOP AT lt_all_fields INTO DATA(lv_col).
-        DATA(has_column) = abap_false.
-        READ TABLE lr_fieldcat TRANSPORTING NO FIELDS WITH KEY fieldname = lv_col.
-        IF sy-subrc = 0.
-          has_column = abap_true.
-        ENDIF.
-
-        CLEAR: lv_safe_col, lv_clean_col.
-        lv_safe_col = lv_col.
-        lv_clean_col = lv_col.
-        CONDENSE lv_clean_col.
-
-        TRY.
-            IF lv_clean_col IS NOT INITIAL AND strlen( lv_clean_col ) &amp;gt; 0.
-              REPLACE ALL OCCURRENCES OF ' ' IN lv_clean_col WITH ''.
-            ENDIF.
-          CATCH cx_sy_replace_infinite_loop.
-        ENDTRY.
-
-        TRANSLATE lv_clean_col TO UPPER CASE.
-        lv_safe_col = lv_clean_col.
-
-        LOOP AT lt_reserved_keywords INTO lv_keyword.
-          IF lv_col = lv_keyword.
-            lv_safe_col = |FIELD_{ lv_col }|.
-            EXIT.
-          ENDIF.
-        ENDLOOP.
-
-        IF has_column = abap_true.
-          CONCATENATE lv_col 'AS' '"' lv_safe_col '"' INTO lv_line SEPARATED BY space.
-        ELSE.
-          CONCATENATE 'NULL' 'AS' '"' lv_safe_col '"' INTO lv_line SEPARATED BY space.
-        ENDIF.
-
-        APPEND lv_line TO lt_result.
-      ENDLOOP.
-
-      LOOP AT lt_result INTO DATA(lv_piece).
-        IF lv_fields IS INITIAL.
-          lv_fields = lv_piece.
-        ELSE.
-          CONCATENATE lv_fields ',' lv_piece INTO lv_fields SEPARATED BY space.
-        ENDIF.
-      ENDLOOP.
-
-      DATA(lv_kschl) = |{ ls_k-kosul_turu ALPHA = OUT }|.
-      CONDENSE lv_kschl NO-GAPS.
-      lv_kschl = to_upper( val = lv_kschl ).
-
-      DATA has_kappl TYPE abap_bool VALUE abap_false.
-      READ TABLE lr_fieldcat WITH KEY fieldname = 'KAPPL' TRANSPORTING NO FIELDS.
-      IF sy-subrc = 0.
-        has_kappl = abap_true.
-      ENDIF.
-
-      DATA has_kschl TYPE abap_bool VALUE abap_false.
-      READ TABLE lr_fieldcat WITH KEY fieldname = 'KSCHL' TRANSPORTING NO FIELDS.
-      IF sy-subrc = 0.
-        has_kschl = abap_true.
-      ENDIF.
-
-      lv_where = |kappl = 'V' AND kschl = '{ lv_kschl }'|.
-
-      IF lv_where IS NOT INITIAL.
-        CONCATENATE 'SELECT' lv_fields 'FROM' lv_dyn_table 'WHERE' lv_where INTO lv_sql SEPARATED BY space.
-      ELSE.
-        CONCATENATE 'SELECT' lv_fields 'FROM' lv_dyn_table INTO lv_sql SEPARATED BY space.
-      ENDIF.
-
-      TRY.
-          lr_stmt = NEW cl_sql_statement( ).
-          lr_sql = lr_stmt-&amp;gt;execute_query( lv_sql ).
-
-          CREATE DATA lr_data TYPE HANDLE lr_tabledescr.
-          ASSIGN lr_data-&amp;gt;* TO &amp;lt;dyn_table&amp;gt;.
-
-          lr_sql-&amp;gt;set_param_table( REF #( &amp;lt;dyn_table&amp;gt; ) ).
-          lr_sql-&amp;gt;next_package( ).
-
-          LOOP AT &amp;lt;dyn_table&amp;gt; ASSIGNING &amp;lt;dyn_wa&amp;gt;.
-            APPEND &amp;lt;dyn_wa&amp;gt; TO &amp;lt;fs_result&amp;gt;.
-          ENDLOOP.
-        CATCH cx_sql_exception INTO DATA(lx).
-          MESSAGE lx-&amp;gt;get_text( ) TYPE 'E'.
-      ENDTRY.
-    ENDLOOP.
-
-
-    LOOP AT &amp;lt;fs_result&amp;gt; ASSIGNING &amp;lt;fs_line2&amp;gt;.
-      ASSIGN COMPONENT 'DATAB' OF STRUCTURE &amp;lt;fs_line2&amp;gt; TO FIELD-SYMBOL(&amp;lt;lv_datab&amp;gt;).
-      ASSIGN COMPONENT 'DATBI' OF STRUCTURE &amp;lt;fs_line2&amp;gt; TO FIELD-SYMBOL(&amp;lt;lv_datbi&amp;gt;).
-
-      IF sy-subrc = 0 AND ( &amp;lt;lv_datab&amp;gt; &amp;gt; sy-datum OR &amp;lt;lv_datbi&amp;gt; &amp;lt; sy-datum ).
-        DELETE &amp;lt;fs_result&amp;gt; INDEX sy-tabix.
-      ELSE.
-        ASSIGN COMPONENT 'KNUMH' OF STRUCTURE &amp;lt;fs_line2&amp;gt; TO &amp;lt;knumh_val&amp;gt;.
-        IF sy-subrc = 0 AND &amp;lt;knumh_val&amp;gt; IS NOT INITIAL.
-          ls_knumh-knumh = &amp;lt;knumh_val&amp;gt;.
-          APPEND ls_knumh TO lt_knumh.
-        ENDIF.
-      ENDIF.
-    ENDLOOP.
-
-    DELETE ADJACENT DUPLICATES FROM lt_knumh.
-
-    IF lt_knumh IS NOT INITIAL.
-      SELECT * FROM zcrsd_cds023
-        INTO TABLE &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1407137"&gt;@DATA&lt;/a&gt;(lt_konh)
-        FOR ALL ENTRIES IN &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1398638"&gt;@LT&lt;/a&gt;_knumh
-        WHERE knumh = &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1398638"&gt;@LT&lt;/a&gt;_knumh-knumh.
-    ENDIF.
-
-    SORT lt_konh BY kotabnr ASCENDING.
-
-    SELECT * FROM zcrsd_cds024
-      INTO TABLE &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1407137"&gt;@DATA&lt;/a&gt;(lt_konp)
-        FOR ALL ENTRIES IN &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1398638"&gt;@LT&lt;/a&gt;_konh
-        WHERE knumh = &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1398638"&gt;@LT&lt;/a&gt;_konh-knumh.
-
-    LOOP AT &amp;lt;fs_result&amp;gt; ASSIGNING FIELD-SYMBOL(&amp;lt;fs&amp;gt;).
-      LOOP AT lt_all_fields INTO DATA(lv_colname).
-        DATA lv_knumh TYPE knumh.
-        ASSIGN COMPONENT lv_colname OF STRUCTURE &amp;lt;fs&amp;gt; TO &amp;lt;fs_colval&amp;gt;.
-        IF sy-subrc = 0.
-          CASE lv_colname.
-            WHEN 'ALAND'.
-              ls_output-ulke = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'AUART_SD'.
-              ls_output-satis_belge_tur = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'AUGRU'.
-              ls_output-siparis_neden = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'BONUS'.
-              ls_output-prim_grubu = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'DATAB'.
-              ls_output-gecerlilik_bas = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'DATBI'.
-              ls_output-gecerlilik_bit = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'KAPPL'.
-              ls_output-kappl = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'KBSTAT'.
-              ls_output-kbstat = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'KFRST'.
-              ls_output-kfrst = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'KNUMH'.
-              ls_output-sap_kosul_kayit_no = &amp;lt;fs_colval&amp;gt;.
-              lv_knumh = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'KONDM'.
-              ls_output-fiyat_grubu = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'KSCHL'.
-              ls_output-kosul_turu = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'KUKLA'.
-              ls_output-musteri_siniflama = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'KUNAG'.
-              ls_output-siparis_veren = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'KUNNR'.
-              ls_output-musteri_no = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'LLAND'.
-              ls_output-teslim_alan_ulke = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'MATKL'.
-              ls_output-mal_grubu = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'MATNR'.
-              ls_output-malzeme_no = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'PLTYP'.
-              ls_output-fiyat_listesi = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'PSTYV'.
-              ls_output-kalem_tipi = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'SPART'.
-              ls_output-bolum = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'TAXK1'.
-              ls_output-musteri_vergi_sinif = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'TAXM1'.
-              ls_output-malzeme_vergi_sinif = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'UPMAT'.
-              ls_output-upmat = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'VKORG'.
-              ls_output-satis_org = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'VTWEG'.
-              ls_output-dagitim_kanal = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'WAERK'.
-              ls_output-para_birimi = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'ZTERM'.
-              ls_output-odeme_kosul_anahtar = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'ZZKDKG1'.
-              ls_output-satis_kosullari = &amp;lt;fs_colval&amp;gt;.
-            WHEN 'ZZMSTAE'.
-              ls_output-kalite = &amp;lt;fs_colval&amp;gt;.
-          ENDCASE.
-        ENDIF.
-
-      ENDLOOP.
-      READ TABLE lt_konh INTO DATA(ls_konh) WITH KEY knumh = lv_knumh.
-      IF sy-subrc = 0.
-        ls_output-tablo_adi = ls_konh-kotabnr.
-      ENDIF.
-
-      READ TABLE lt_konp INTO DATA(ls_konp) WITH KEY knumh = lv_knumh.
-      IF sy-subrc = 0.
-        ls_output-kosul_tutar_or_yuzde_orani = ls_konp-kbetr.
-        ls_output-kosul_birim_pb_or_yuzde = ls_konp-konwa.
-        ls_output-kosul_para_birim = ls_konp-kpein.
-        ls_output-kosul_birim = ls_konp-kmein.
-      ENDIF.
-
-      APPEND ls_output TO lt_output.
-      CLEAR: ls_output, lv_knumh.
-    ENDLOOP.
-
-    rt_price_data = lt_output.
-
-    IF iv_send = 'X'.
-      send_data(
-        EXPORTING
-          it_datas = lt_output ).
-    ENDIF.
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;H2 id="toc-hId-1120558022"&gt;&lt;span class="lia-unicode-emoji" title=":outbox_tray:"&gt;📤&lt;/span&gt; Integration &amp;amp; Outcome&lt;/H2&gt;&lt;P class=""&gt;With this approach:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P class=""&gt;You don’t need to hardcode table names&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;You get flexible, type-safe field access&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;One method can prepare and send pricing data to anywhere&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-924044517"&gt;🧾 Conclusion&lt;/H2&gt;&lt;P class=""&gt;If you're building dynamic pricing logic in SAP, this method gives you full control. Combined with a solid CDS view, you ensure your integration is:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P class=""&gt;&lt;STRONG&gt;Dynamic&lt;/STRONG&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;&lt;STRONG&gt;Scalable&lt;/STRONG&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;&lt;STRONG&gt;Maintainable&lt;/STRONG&gt;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;Use this setup to supercharge your integration between SAP and systems like Salesforce.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/dynamic-table-reading-in-sap-abap-amp-pricing-integration/qaq-p/14092153"/>
-    <published>2025-05-02T16:08:29.296000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/packaging-instruction-creation-and-assignment/qaq-p/14094128</id>
-    <title>Packaging Instruction creation and assignment</title>
-    <updated>2025-05-06T09:34:37.004000+02:00</updated>
-    <author>
-      <name>amitkumar23</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1813653</uri>
-    </author>
-    <content>&lt;P&gt;Hi Experts,&lt;/P&gt;&lt;P&gt;I am SD consultant. I am getting frequent requests in my project to create packaging instruction and assign. Should I refer the request to IM/WM team or shall I go ahead and do the needful without checking with IM/WM team.&lt;/P&gt;&lt;P&gt;Thanks in advance&lt;/P&gt;&lt;P&gt;Amit&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/packaging-instruction-creation-and-assignment/qaq-p/14094128"/>
-    <published>2025-05-06T09:34:37.004000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/sap-prd-query/qaq-p/14094471</id>
     <title>SAP PRD QUERY</title>
@@ -577,5 +221,29 @@ where
     <content>&lt;P&gt;When we generate Billing Request using DP90 with reference to Service order, we found a scenario where Service material/product Net value become "0" by adding custom Condition type with 100 % Discount which is copying from Non Billable below line items automatically.&lt;/P&gt;&lt;P&gt;Scenario's:&amp;nbsp;&lt;/P&gt;&lt;P&gt;1. If the line item (20, 30 etc) under the Service product line item(10) are with Net value "0" means those are Non billable items and Discount pricing condition type(YKBM) is applicable to it, then same Discount condition is setting up to Service product and Net value become "0"&lt;/P&gt;&lt;P&gt;2. If one of the Secondary line items are Billable then the Service produce(line item 10) Net value become Base price and no Discount condition type is copying to line item 10(Service product).&lt;/P&gt;&lt;P&gt;Experts please help us whether this functionality is standard or do we need to configure anything to make correction of this functionality by changing like Flat rate for line item 10 with service product will never be "0" even though the other line items are all zero&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/billing-request-dp90-reference-to-service-order-zero-net-value-on-service/qaq-p/14106921"/>
     <published>2025-05-20T15:57:38.338000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/rap-event-trigger-via-sap-gui-tcode/qaq-p/14107294</id>
+    <title>RAP event trigger via SAP GUI tcode</title>
+    <updated>2025-05-21T06:15:52.240000+02:00</updated>
+    <author>
+      <name>jitendra_it</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/45184</uri>
+    </author>
+    <content>&lt;P&gt;Hello Experts,&lt;/P&gt;&lt;P&gt;I am working on to consume RAP event from sales order creation. As per requirement, standard event should trigger from sales order creation via EML, Sales order app and SAP GUI related tcode(VA01) as well.&lt;/P&gt;&lt;P&gt;As far as I know RAP event doesn't trigger from SAP GUI tcode. Can anyone help here if there is any way to trigger standard rap event from SAP GUI tcode VA01 ?&lt;/P&gt;&lt;P&gt;Thanks.&lt;/P&gt;&lt;P&gt;Regards,&lt;/P&gt;&lt;P&gt;Jitendra&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/rap-event-trigger-via-sap-gui-tcode/qaq-p/14107294"/>
+    <published>2025-05-21T06:15:52.240000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/crm-and-cx-q-a/approval-strategy-for-sales-order/qaq-p/14107387</id>
+    <title>Approval Strategy for Sales Order</title>
+    <updated>2025-05-21T08:36:37.724000+02:00</updated>
+    <author>
+      <name>Tural-Hajiyev</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1458785</uri>
+    </author>
+    <content>&lt;P&gt;Dear SCN's&lt;/P&gt;&lt;P&gt;I need your help. The customer has a requirement: if a sales order has a discount of 9% or less, a 1-step approval strategy should be applied to the order. If a sales order has a discount of more than 9%, a 2-step approval strategy should be applied to the order.&amp;nbsp;Is it possible to implement a Sales Order approval strategy according to this requirement and how?&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SD+%252528Sales+and+Distribution%252529/pd-p/209057551571413566377230676804921" class="lia-product-mention" data-product="1080-1"&gt;SD (Sales and Distribution)&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+S%25252F4HANA/pd-p/73554900100800000266" class="lia-product-mention" data-product="799-1"&gt;SAP S/4HANA&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/crm-and-cx-q-a/approval-strategy-for-sales-order/qaq-p/14107387"/>
+    <published>2025-05-21T08:36:37.724000+02:00</published>
   </entry>
 </feed>
