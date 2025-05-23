@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-HANA-Cloud-blog-posts.xml</id>
   <title>SAP Community - SAP HANA Cloud</title>
-  <updated>2025-05-23T17:01:01.902580+00:00</updated>
+  <updated>2025-05-23T20:01:13.071630+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP HANA Cloud/pd-p/73554900100800002881" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP HANA Cloud blog posts in SAP Community</subtitle>
@@ -2561,7 +2561,7 @@ def setup():
         port=443,
     )
 
-    return anthropic, conn&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 5: Extracting Metadata from RDF via SPARQL&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;You need a &lt;STRONG&gt;structured understanding&lt;/STRONG&gt; of your data &lt;STRONG&gt;before&lt;/STRONG&gt; you can generate SQL queries. From SAP HANA Cloud, we extract RDF metadata triples relevant to user queries by executing SPARQL queries through the stored procedure interface. The results are parsed from XML into Python data structures. This metadata describes table schemas, columns, and relationships useful for downstream query construction.&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def extract_metadata(question, conn):
+    return anthropic, conn&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 5: Extracting Triples from RDF&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This retrieves RDF triples. The results are parsed from XML into Python data structures.&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def extract_triples(question, conn):
     sparql_query = """
     SELECT ?s ?p ?o
     WHERE {
@@ -2571,29 +2571,29 @@ def setup():
     """
     resp = cursor.callproc('SPARQL_EXECUTE', (sparql_query, 'metadata headers', '?', None))
     # Parse XML response to get triple metadata
-    return metadata&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 6: Analyzing Metadata with AI&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The extracted metadata, combined with the user’s natural language question, is fed into Anthropic Claude (via Gen AI Hub SDK and LangChain integrations). A prompt template guides the LLM to identify tables, columns, filters, joins, and groupings needed for SQL generation.&lt;/P&gt;&lt;P&gt;The LLM understands complex RDF metadata and the user’s intent. It identifies the schema and specific SQL components required for query construction. This step bridges natural language understanding and formal query syntax.&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def analyze_metadata(metadata, question, anthropic):
+    return metadata&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 6: Analyzing Triples with AI&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The extracted triples, combined with the user’s natural language question, are fed into Anthropic Claude (via Gen AI Hub SDK and LangChain integrations).&lt;/P&gt;&lt;P&gt;The LLM is guided by a prompt template to understand complex RDF triples and the user’s intent. While RDF data is graph-based, the LLM infers a pseudo-tabular schema from recurring subject-predicate structures.&amp;nbsp;This step bridges natural language understanding and formal query syntax.&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def analyze_triples(metadata, question, anthropic):
     # Reduce metadata to manageable size
     # Format metadata and question into prompt
     # Send to Anthropic Claude for structured analysis
     # Parse response into components: tables, columns, filters, joins, group_by
-    return components&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 7: Generating SQL Queries&lt;BR /&gt;&lt;/STRONG&gt;SQL queries are dynamically constructed against the RDF graph exposed as a virtual table (SPARQL_TABLE).&amp;nbsp;The generated SQL matches the SPARQL graph structure. Only valid columns (subject, predicate, object) are used. Filters and grouping are incorporated based on the prior analysis. The result is executable on SAP HANA Cloud.&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def generate_sql(components):
+    return components&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 7: Embedding SPARQL results into SQL form for post-processing&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Execute that SPARQL query against the RDF graph. These results can be exposed as a virtual table SPARQL_TABLE, allowing you to treat the SPARQL results as if they were rows in a SQL table. This enables a hybrid querying approach combining semantic graph querying and relational SQL querying.&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def generate_sql(components):
     # Compose SELECT clause with allowed columns (subject, predicate, object)
     # Compose FROM clause using SPARQL_TABLE function for graph access
     # Apply WHERE filters and GROUP BY clauses as identified
-    return sql_query&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 8: Executing SQL and Returning Results&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The constructed SQL is executed via the DB cursor. Results are structured in tabular form for easy further processing or presentation.&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def execute_sql(sql_query, conn):
+    return sql&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 8: Executing SQL and Returning Results&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The constructed SQL is executed via the DB cursor. Results are structured in tabular form for easy further processing or presentation.&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def execute_sql(sql_query, conn):
     cursor.execute(sql_query)
     rows = cursor.fetchall()
     df = pd.DataFrame(rows, columns=[desc[0] for desc in cursor.description])
-    return df&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 9: Generating Natural Language Responses&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Finally, the SQL query results are fed back into the LLM to generate a concise and coherent natural language answer.&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def generate_response_structured(question, results, anthropic):
+    return df&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 9: Generating Natural Language Responses&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Finally, SQL results can be fed back into the LLM to generate a concise and coherent natural language answer.&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def generate_response_structured(question, results, anthropic):
     prompt = f"""
     Convert the following query results into a natural language response...
     Question: {question}
     Results: {results.to_string()}
     """
     response = anthropic.invoke(prompt)
-    return response.content&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 10: End-to-End Query Processing&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The whole pipeline ties together in this step by:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Extracting metadata&lt;/LI&gt;&lt;LI&gt;Analyzing metadata&lt;/LI&gt;&lt;LI&gt;Generating SQL query&lt;/LI&gt;&lt;LI&gt;Executing SQL query&lt;/LI&gt;&lt;LI&gt;Producing natural language results from the executed SQL query&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def process_question(question, conn, anthropic):
-    metadata = extract_metadata(question, conn)
-    components = analyze_metadata(metadata, question, anthropic)
+    return response.content&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 10: End-to-End Query Processing&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The whole pipeline ties together in this step by:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Extracting triples&lt;/LI&gt;&lt;LI&gt;Analyzing triples&lt;/LI&gt;&lt;LI&gt;Generating SPARQL-based SQL query&lt;/LI&gt;&lt;LI&gt;Producing natural language results from the executed SQL query&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def process_question(question, conn, anthropic):
+    metadata = extract_triples(question, conn)
+    components = analyze_triples(metadata, question, anthropic)
     sql_query = generate_sql(components)
     results = execute_sql(sql_query, conn)
     response = generate_response_structured(question, results, anthropic)
