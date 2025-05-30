@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-HANA-Cloud-blog-posts.xml</id>
   <title>SAP Community - SAP HANA Cloud</title>
-  <updated>2025-05-30T11:01:11.968100+00:00</updated>
+  <updated>2025-05-30T14:01:22.271565+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP HANA Cloud/pd-p/73554900100800002881" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP HANA Cloud blog posts in SAP Community</subtitle>
@@ -2547,33 +2547,28 @@ def setup():
     """
     # Execute SPARQL query via stored procedure
     # Parse response XML into triple dicts (subject, predicate, object)
-    # Return list of triples as dictionaries or empty list if none found&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 6: Analyzing Triples with AI&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The extracted triples, combined with the user’s natural language question, are fed into Anthropic Claude (via Gen AI Hub SDK and LangChain integrations).&lt;/P&gt;&lt;P&gt;The LLM is guided by a prompt template to understand complex RDF triples and the user’s intent. While RDF data is graph-based, the LLM infers a pseudo-tabular schema from recurring subject-predicate structures.&amp;nbsp;This step bridges natural language understanding and formal query syntax.&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def analyze_triples(metadata, question, anthropic):
-    # Reduce metadata to manageable size
-    # Format metadata and question into prompt
-    # Send to Anthropic Claude for structured analysis
-    # Parse response into components: tables, columns, filters, joins, group_by
-    return components&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 7: Embedding SPARQL results into SQL form for post-processing&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Using the generated components in the previous step, execute the corresponding SPARQL query against the RDF graph. SAP HANA Cloud exposes SPARQL query results as virtual tables via the SPARQL_TABLE function, allowing you to work with the graph data using familiar SQL syntax. This hybrid querying approach combines the power of semantic graph querying with the convenience of relational SQL querying. The SQL layer is optional and primarily aids integration with existing SQL-based tools and applications.&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def generate_sql(components):
-    # Compose SELECT clause with allowed columns (subject, predicate, object)
-    # Compose FROM clause using SPARQL_TABLE function for graph access
-    # Apply WHERE filters and GROUP BY clauses as identified
-    return sql&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 8: Executing SQL and Returning Results&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The constructed SQL is executed via the DB cursor. Results are structured in tabular form for easy further processing or presentation.&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def execute_sql(sql_query, conn):
-    cursor.execute(sql_query)
-    rows = cursor.fetchall()
-    df = pd.DataFrame(rows, columns=[desc[0] for desc in cursor.description])
-    return df&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 9: Generating Natural Language Responses&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Finally, SQL results can be fed back into the LLM to generate a concise and coherent natural language answer.&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def generate_response_structured(question, results, anthropic):
-    prompt = f"""
-    Convert the following query results into a natural language response...
+    # Return list of triples as dictionaries or empty list if none found&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 6: Analyzing Triples with AI and Generating Natural Language Responses&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The extracted triples, combined with the user’s natural language question, are fed into Anthropic Claude (via Gen AI Hub SDK and LangChain integrations)&amp;nbsp;to generate a concise and coherent natural language answer.&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def generate_response_structured(question: str, results: pd.DataFrame, anthropic) -&amp;gt; str:
+    if results.empty:
+        return "No results found for your query."
+    
+    prompt_template = """Convert the following query results into a natural language response to the user's question. 
+    Keep the response concise but informative. Include relevant numbers and comparisons where appropriate.
+    
     Question: {question}
-    Results: {results.to_string()}
+    
+    Results:
+    {results}
+    
+    Response:
     """
+    
+    prompt = PromptTemplate.from_template(prompt_template).invoke({
+        "question": question,
+        "results": results.to_string()
+    })
+    
     response = anthropic.invoke(prompt)
-    return response.content&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 10: End-to-End Query Processing&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The whole pipeline ties together in this step by:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Extracting triples&lt;/LI&gt;&lt;LI&gt;Analyzing triples&lt;/LI&gt;&lt;LI&gt;Querying via SPARQL_TABLE function and working with SQL&lt;/LI&gt;&lt;LI&gt;Producing natural language results&amp;nbsp;&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def process_question(question, conn, anthropic, graphname):
-    schema = extract_triples(conn, graphname)
-    components = analyze_triples(metadata, question, anthropic)
-    sql_query = generate_sql(components)
-    results = execute_sql(sql_query, conn)
-    response = generate_response_structured(question, results, anthropic)
-    return response&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The output, adjusted to show only natural language:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="LLM Output 1.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/265030i01290E04BD2FA406/image-size/large?v=v2&amp;amp;px=999" role="button" title="LLM Output 1.png" alt="LLM Output 1.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="LLM Output 2.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/265031iDD1BFB17DE0F4342/image-size/large?v=v2&amp;amp;px=999" role="button" title="LLM Output 2.png" alt="LLM Output 2.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;This end-to-end system enables users to ask complex questions over RDF graphs stored in SAP HANA Cloud — all with natural language.&lt;/P&gt;&lt;P&gt;This pipeline showcases a powerful synergy of&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Semantic data&lt;/STRONG&gt; managed with RDF and SPARQL&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Enterprise-grade persistence and querying&lt;/STRONG&gt; on SAP HANA Cloud&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Generative AI&lt;/STRONG&gt; that interprets user intent and translates it into precise data queries&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Natural language explanations&lt;/STRONG&gt; that make complex data accessible&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;AI-assisted analytics and querying on complex RDF datasets is suitable for financial statements, geographical data, and more—delivering real-time insights.&lt;/P&gt;&lt;P&gt;Leave any comments below!&lt;/P&gt;</content>
+    return response.content&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The output, adjusted to show only natural language:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="LLM Output 1.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/265030i01290E04BD2FA406/image-size/large?v=v2&amp;amp;px=999" role="button" title="LLM Output 1.png" alt="LLM Output 1.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="LLM Output 2.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/265031iDD1BFB17DE0F4342/image-size/large?v=v2&amp;amp;px=999" role="button" title="LLM Output 2.png" alt="LLM Output 2.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;This end-to-end system enables users to ask complex questions over RDF graphs stored in SAP HANA Cloud — all with natural language.&lt;/P&gt;&lt;P&gt;This pipeline showcases a powerful synergy of&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Semantic data&lt;/STRONG&gt; managed with RDF and SPARQL&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Enterprise-grade persistence and querying&lt;/STRONG&gt; on SAP HANA Cloud&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Generative AI&lt;/STRONG&gt; that interprets user intent and translates it into precise data queries&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Natural language explanations&lt;/STRONG&gt; that make complex data accessible&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;AI-assisted analytics and querying on complex RDF datasets is suitable for financial statements, geographical data, and more—delivering real-time insights.&lt;/P&gt;&lt;P&gt;Leave any comments below!&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/semantic-querying-with-sap-hana-cloud-knowledge-graph-using-rdf-sparql-and/ba-p/14109200"/>
     <published>2025-05-22T12:40:07.914000+02:00</published>
   </entry>
