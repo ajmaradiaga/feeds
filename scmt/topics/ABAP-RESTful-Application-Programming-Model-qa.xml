@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-RESTful-Application-Programming-Model-qa.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2025-06-05T05:00:07.342727+00:00</updated>
+  <updated>2025-06-05T08:00:06.319818+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model Q&amp;A in SAP Community</subtitle>
@@ -935,7 +935,93 @@ CLASS zcl_mfgordoperationstdworktime IMPLEMENTATION.
         RAISE EXCEPTION lx_rap_query.
     ENDTRY.
   ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;As you see here, I do&lt;/P&gt;&lt;P&gt;- read the value of $top by&amp;nbsp;io_request-&amp;gt;get_paging( )-&amp;gt;get_page_size( )&lt;BR /&gt;- read the value of $skip by&amp;nbsp;io_request-&amp;gt;get_paging( )-&amp;gt;get_offset( )&lt;BR /&gt;- check and provide total count ant the end by&amp;nbsp;io_request-&amp;gt;is_total_numb_of_rec_requested( )&lt;/P&gt;&lt;P&gt;Why am I not able to use $count, $top and $skip anyway?&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;As you see here, I do&lt;/P&gt;&lt;P&gt;- read the value of $top by&amp;nbsp;io_request-&amp;gt;get_paging( )-&amp;gt;get_page_size( )&lt;BR /&gt;- read the value of $skip by&amp;nbsp;io_request-&amp;gt;get_paging( )-&amp;gt;get_offset( )&lt;BR /&gt;- check and provide total count ant the end by&amp;nbsp;io_request-&amp;gt;is_total_numb_of_rec_requested( )&lt;/P&gt;&lt;P&gt;Why am I not able to use $count, $top and $skip anyway?&lt;/P&gt;&lt;P&gt;This is a simplified version of my root view. Please note that the custom entity is used as association&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;define root view entity ZI_PP_PRODUCTIONORDERPOOL
+  as select from           I_ManufacturingOrder
+
+   composition [0..*] of ZI_PP_components   as _Components
+  association [1..1] to Z_CE_MFGORDOPERATIONWORKTIME as _WorkTime      on  _WorkTime.ManufacturingOrder = $projection.ManufacturingOrder
+                                                                        and _WorkTime.ManufacturingOrderOperation          = $projection.ManufacturingOrderOperation
+
+{
+
+        &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1692417"&gt;@search&lt;/a&gt;.defaultSearchElement: true
+  key   I_ManufacturingOrder.ManufacturingOrder                                                    as ManufacturingOrder,
+
+        @ObjectModel.text.element: ['OperationText']
+  key   cast( _Operation.ManufacturingOrderOperation as ptrv_web_interface_vornr preserving type ) as ManufacturingOrderOperation,
+
+...
+
+_Components
+_WorkTime&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Projection View looks like this&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Arbeitsplatzvorratsliste Projection View'
+@AccessControl.authorizationCheck: #CHECK
+@Metadata.allowExtensions: true
+@Search.searchable: true
+define root view  entity ZC_PP_PRODUCTIONORDERPOOL as projection on ZI_PP_PRODUCTIONORDERPOOL {
+    key ManufacturingOrder,
+    key ManufacturingOrderOperation,
+    key Sequence,
+    ProductionOrder,
+    ProductionPlant,
+  
+  ...
+  ...  
+    
+    /* Associations */
+    _Components : redirected to composition child ZC_PP_PRODUCTIONORDERPOOL_C,
+    _WorkTime  &amp;lt;&amp;lt;-- this is my Custom entity
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;And finally, metadata extension&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CORE
+@UI.headerInfo: {
+                  typeNamePlural: 'Auftragsvorgänge',
+                  typeName: 'Auftragsvorgang',
+                  title : { value : 'ManufacturingOrder',
+                            type : #STANDARD },
+                  description: { value : 'ManufacturingOrderOperation',
+                                 type: #STANDARD}
+                   }
+
+@UI.lineItem: [{criticality: 'XY'}]
+annotate view ZC_PP_PRODUCTIONORDERPOOL with
+{
+
+  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.facet: [
+  // Header
+       { type: #FIELDGROUP_REFERENCE,
+         purpose: #HEADER,
+         position:10,
+         label: 'Vorgang',
+         targetQualifier: 'OperationDetails'
+       },
+       // Field Group for Material components
+       {
+         id : 'Components',
+         label: 'Komponenten',
+         purpose: #STANDARD,
+         type: #LINEITEM_REFERENCE,
+         position: 10,
+         targetElement: '_Components'
+       },
+       // Field group for Custom entity
+       {
+         id:'WorkTime',
+         label: 'Arbeitszeit',
+         purpose:#STANDARD,
+         type:#LINEITEM_REFERENCE,
+         position: 40,
+         targetElement: '_WorkTime'
+       }               
+    ]
+
+
+  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.selectionField: [{ position: 10 }]
+  @Consumption.valueHelpDefinition: [{ entity : {name: 'I_Plant', element: 'Plant'  } }]
+  ProductionPlant;
+
+...
+...
+  
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/custom-entity-count-skip-top-not-supported/qaq-p/14118959"/>
     <published>2025-06-04T16:00:15.691000+02:00</published>
   </entry>
