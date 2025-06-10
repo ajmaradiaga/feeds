@@ -2,120 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Integration-Suite-blog-posts.xml</id>
   <title>SAP Community - SAP Integration Suite</title>
-  <updated>2025-06-10T17:01:20.831722+00:00</updated>
+  <updated>2025-06-10T20:01:15.795827+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Integration Suite/pd-p/73554900100800003241" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Integration Suite blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/dynamic-configuration-in-sap-integration-suite-one-tenant-multiple/ba-p/14105598</id>
-    <title>Dynamic Configuration in SAP Integration Suite: One Tenant, Multiple Environments</title>
-    <updated>2025-05-19T16:08:53.681000+02:00</updated>
-    <author>
-      <name>jantuma</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/35810</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-1601426626"&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;In today's business landscape, efficiency and cost optimization are paramount. For many organizations leveraging SAP technologies, this often means consolidating resources where possible. SAP Integration Suite is a powerful platform, but licensing and infrastructure costs can lead customers to explore strategies like utilizing a single tenant to handle integrations connected to different backend SAP landscapes – typically Development (DEV), Test (TEST), and even Production (PROD) for specific, lower-impact scenarios.&lt;/P&gt;&lt;P&gt;This approach presents a challenge: How do you configure a&amp;nbsp;&lt;EM&gt;single integration flow artifact&lt;/EM&gt;, deployed on this single tenant, to dynamically connect to the&amp;nbsp;&lt;EM&gt;correct&lt;/EM&gt;&amp;nbsp;SAP system (DEV, TEST, or PROD) for each specific execution? We want to avoid maintaining multiple copies of the iflow logic or resorting to cumbersome manual configuration changes.&lt;/P&gt;&lt;P&gt;In this blog post, we will explore a practical and robust pattern to implement dynamic configuration in your SAP Integration Suite iflows. The core idea is to have&amp;nbsp;&lt;STRONG&gt;one central configuration mechanism&lt;/STRONG&gt;&amp;nbsp;(a Groovy script with a configuration map in our example) driven by&amp;nbsp;&lt;STRONG&gt;one simple property (ENV)&lt;/STRONG&gt;, allowing&amp;nbsp;&lt;STRONG&gt;a single iflow artifact&lt;/STRONG&gt;&amp;nbsp;to serve multiple backend environments when deployed as different instances configured for each environment.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The Problem: One Iflow Artifact, Multiple Backend Destinations&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;By default, when you configure a receiver adapter in SAP Integration Suite (like an HTTP or OData adapter), you typically specify a static endpoint URL and select a specific Credential Name (alias) from your tenant's Security Material.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jantuma_0-1747663212686.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263186iD75E44F62A5D4CEC/image-size/large?v=v2&amp;amp;px=999" role="button" title="jantuma_0-1747663212686.png" alt="jantuma_0-1747663212686.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;This works perfectly if your iflow&amp;nbsp;&lt;EM&gt;always&lt;/EM&gt;&amp;nbsp;connects to the same target system. However, consider the scenario where you want to deploy the&amp;nbsp;&lt;EM&gt;same&lt;/EM&gt;&amp;nbsp;integration flow artifact onto a single tenant, but need one&amp;nbsp;&lt;EM&gt;deployed instance&lt;/EM&gt;&amp;nbsp;of it to talk to your SAP S/4HANA DEV system, another instance to talk to the TEST system, and maybe even a third instance to talk to PROD.&lt;/P&gt;&lt;P&gt;The goal is to maintain&amp;nbsp;&lt;STRONG&gt;just one source iflow artifact&lt;/STRONG&gt;. We want to avoid:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Creating and maintaining separate iflow artifacts for each environment (e.g.,&amp;nbsp;MyIflow_DEV,&amp;nbsp;MyIflow_TEST,&amp;nbsp;MyIflow_PROD), leading to duplicated logic.&lt;/LI&gt;&lt;LI&gt;Manually changing the adapter configuration on the deployed iflow instance whenever you want to point it to a different environment.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;We need a way for the single iflow artifact to behave differently at runtime based on which environment it is intended for in that specific execution.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The Solution: Dynamic Configuration Driven by an Environment Property&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The solution centers around using a message property as an environment identifier to dynamically look up connection details from a central configuration source within the iflow itself.&lt;/P&gt;&lt;P&gt;The pattern involves these key steps:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Identify the target environment&lt;/STRONG&gt;&amp;nbsp;for the current execution. We will store this as a message property, for example,&amp;nbsp;ENV.&lt;/LI&gt;&lt;LI&gt;Based on the value of the&amp;nbsp;ENV&amp;nbsp;property (e.g., "DEV", "TEST", or "PROD"),&amp;nbsp;&lt;STRONG&gt;look up the necessary environment-specific configuration details&lt;/STRONG&gt;&amp;nbsp;(like the SAP system URL and the required Credential Alias) from a defined source.&lt;/LI&gt;&lt;LI&gt;Use the looked-up URL and Credential Alias to&amp;nbsp;&lt;STRONG&gt;dynamically configure the receiver adapter&lt;/STRONG&gt;&amp;nbsp;just before the outbound call.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;This way, the core integration logic resides in&amp;nbsp;&lt;STRONG&gt;a single, maintainable iflow artifact&lt;/STRONG&gt;. The differentiation between environments is handled by setting the&amp;nbsp;ENV&amp;nbsp;property for each specific deployed instance and using a lookup mechanism.&lt;/P&gt;&lt;H1 id="toc-hId-1404913121"&gt;&lt;STRONG&gt;Implementation Steps&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;Let's walk through how to implement this pattern using a simple example iflow.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;1. The Integration Flow Structure&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Here is the basic iflow diagram illustrating the components involved:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jantuma_0-1747663263518.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263188iFC939B9F3B646CFE/image-size/large?v=v2&amp;amp;px=999" role="button" title="jantuma_0-1747663263518.png" alt="jantuma_0-1747663263518.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Start Timer:&lt;/STRONG&gt;&amp;nbsp;Triggers the integration flow execution (can be any other sender adapter).&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Init Variables:&lt;/STRONG&gt;&amp;nbsp;Reads the environment identifier configured for&amp;nbsp;&lt;EM&gt;this specific deployed instance&lt;/EM&gt;&amp;nbsp;and sets it as a message property (ENV).&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Global Config:&lt;/STRONG&gt;&amp;nbsp;Contains the core logic to map the&amp;nbsp;ENV&amp;nbsp;property value (e.g., "DEV") to the specific SAP system URL and Credential Alias. This acts as our central configuration store within the iflow design.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Call SAP:&lt;/STRONG&gt;&amp;nbsp;This is the receiver adapter (HTTP, OData, etc.) which is configured to use the dynamic properties set in the previous step.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;End:&lt;/STRONG&gt;&amp;nbsp;The integration flow completes.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;2. Setting the Environment Identifier (ENV&amp;nbsp;Property) per Deployment Instance&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This step is crucial and explains how a single iflow artifact is configured differently for DEV, TEST, or PROD runs on the same tenant. We use&amp;nbsp;&lt;STRONG&gt;Externalized Parameters&lt;/STRONG&gt;&amp;nbsp;for this.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;In your&amp;nbsp;&lt;EM&gt;single&lt;/EM&gt;&amp;nbsp;iflow artifact's design, go to the "Externalized Parameters" tab. Define a parameter that will hold the environment identifier value:&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Name:&lt;/STRONG&gt;&amp;nbsp;ENV&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Type:&lt;/STRONG&gt;&amp;nbsp;java.lang.String&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Default Value:&lt;/STRONG&gt;&amp;nbsp;(Optional, but setting a default like "DEV" can be helpful during initial testing)&lt;/LI&gt;&lt;/UL&gt;&lt;LI&gt;Add a&amp;nbsp;&lt;STRONG&gt;Content Modifier&lt;/STRONG&gt;&amp;nbsp;step right after your Start event (or wherever you initialize properties). Name it "Init Variables".&lt;/LI&gt;&lt;LI&gt;In the "Message Properties" tab of the Content Modifier, configure a new property that reads the value of the&amp;nbsp;EnvIdentifier&amp;nbsp;externalized parameter:&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Name:&lt;/STRONG&gt;&amp;nbsp;ENV&amp;nbsp;(This specific name is what our Groovy script will look for)&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Type:&lt;/STRONG&gt;&amp;nbsp;java.lang.String&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Value:&lt;/STRONG&gt;&amp;nbsp;By “{{“ “}}” define a parameter that will hold the environment identifier value, for example ENV.&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jantuma_1-1747663263523.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263190iB015A0ACB0C4270A/image-size/large?v=v2&amp;amp;px=999" role="button" title="jantuma_1-1747663263523.png" alt="jantuma_1-1747663263523.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Now, here's how you differentiate the behavior without changing the iflow artifact itself:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;You deploy your&amp;nbsp;&lt;EM&gt;single&lt;/EM&gt;&amp;nbsp;iflow artifact to your SAP Integration Suite tenant.&lt;/LI&gt;&lt;LI&gt;During the deployment process, or by selecting the deployed iflow instance and going to its "Configure" tab, you provide the specific value for the&amp;nbsp;EnvIdentifier&amp;nbsp;parameter.&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;To target the DEV system, you deploy an instance and set&amp;nbsp;ENV&amp;nbsp;to&amp;nbsp;DEV.&lt;/LI&gt;&lt;LI&gt;To target the TEST system, you deploy&amp;nbsp;&lt;EM&gt;another instance of the same artifact&lt;/EM&gt;&amp;nbsp;and set&amp;nbsp;ENV to&amp;nbsp;TEST.&lt;/LI&gt;&lt;LI&gt;To target the PROD system, you deploy&amp;nbsp;&lt;EM&gt;a third instance of the same artifact&lt;/EM&gt;&amp;nbsp;and set&amp;nbsp;ENV&amp;nbsp;to&amp;nbsp;PROD.&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jantuma_2-1747663263524.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263189i1356F7B1C2B2A1E8/image-size/large?v=v2&amp;amp;px=999" role="button" title="jantuma_2-1747663263524.png" alt="jantuma_2-1747663263524.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;When each specific&amp;nbsp;&lt;EM&gt;deployed instance&lt;/EM&gt;&amp;nbsp;of the iflow runs, the "Init Variables" step will set the&amp;nbsp;ENV&amp;nbsp;message property to the value (DEV,&amp;nbsp;TEST, or&amp;nbsp;PROD) that was configured for&amp;nbsp;&lt;EM&gt;that particular instance&lt;/EM&gt;&amp;nbsp;during deployment.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;3. The Global Config (Script collection)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The "Global Config" step contains the central lookup logic. It reads the&amp;nbsp;ENV&amp;nbsp;property and finds the corresponding connection details.&lt;/P&gt;&lt;P&gt;Create a new package called “Global Config”.&amp;nbsp;&lt;/P&gt;&lt;P&gt;In the package create a new Script collection artifact.&lt;/P&gt;&lt;P&gt;Inside the newly created collection create a new groovy script and paste the following code into the script editor:&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;/*
- * Groovy Script to determine environment-specific SAP configuration
- * based on a message property 'ENV'.
- *
- * It retrieves 'ENV', looks up URL and Credential Alias from a map,
- * and sets them as message properties GC_SAP_URL and GC_SAP_CREDEDITAL.
- *
- * Includes robust error handling for missing or invalid ENV property
- * and missing configuration entries.
- */
-
-import com.sap.gateway.ip.core.customdev.util.Message;
-
-def Message processData(Message message) {
-
-    def properties = message.getProperties();
-
-    // 1. Retrieve the ENV property - Assumed to be set earlier from an Externalized Parameter
-    def ENV_raw = properties.get("ENV");
-
-    if (ENV_raw == null || ENV_raw.toString().trim().isEmpty()) {
-        def errorMessage = "Message property 'ENV' is missing or empty. Cannot determine environment configuration. Ensure the 'EnvIdentifier' externalized parameter is set for this deployed instance.";
-        println("Error: " + errorMessage); // Log error to trace
-        throw new Exception(errorMessage); // Stop processing with a clear error message
-    }
-
-    // Trim and convert to uppercase for consistent lookup
-    def ENV = ENV_raw.toString().trim().toUpperCase();
-    println("Info: Retrieved ENV property: " + ENV); // Log the found ENV
-
-    // 2. Define the central configuration map - Contains details for all environments
-    // IMPORTANT: Hardcoded here, consider Value Mapping for larger configs
-    def config = [
-        DEV: [
-            SAP_URL: "https://dev.sap.com/your/service/path", // Replace with actual DEV URL
-            SAP_CREDEDITAL: "DEV_USER_CREDENTIAL" // Replace with actual DEV Credential Alias
-        ],
-        TEST: [
-            SAP_URL: "https://test.sap.com/your/service/path", // Replace with actual TEST URL
-            SAP_CREDEDITAL: "TEST_USER_CREDENTIAL" // Replace with actual TEST Credential Alias
-        ],
-        PROD: [
-            SAP_URL: "https://prod.sap.com/your/service/path", // Replace with actual PROD URL
-            SAP_CREDEDITAL: "PROD_USER_CREDENTIAL" // Replace with actual PROD Credential Alias
-        ]
-        // Add more environments as needed, ensuring corresponding Credential Aliases exist in Security Material
-        // e.g., QA: [ SAP_URL: "https://qa.sap.com/your/service/path", SAP_CREDEDITAL: "QA_USER_CREDENTIAL" ]
-    ];
-
-    // 3. Lookup configuration based on ENV and add error handling
-    def envConfig = config.get(ENV); // Using get() returns null if key doesn't exist
-
-    if (envConfig == null) {
-        def errorMessage = "Environment '" + ENV + "' not found in the script's configuration map. Please check the 'ENV' property value or the script's configuration. Valid environments are: " + config.keySet().join(", ");
-        println("Error: " + errorMessage);
-        throw new Exception(errorMessage);
-    }
-    println("Info: Found configuration block for environment: " + ENV);
-
-    // 4. Retrieve specific configuration values and add error handling for missing/empty keys
-    def sapUrl = envConfig.get("SAP_URL");
-    def sapCredential = envConfig.get("SAP_CREDEDITAL");
-
-    if (sapUrl == null || sapUrl.toString().trim().isEmpty()) {
-        def errorMessage = "Configuration key 'SAP_URL' is missing or empty for environment '" + ENV + "'.";
-        println("Error: " + errorMessage);
-        throw new Exception(errorMessage);
-    }
-     println("Info: Found SAP_URL: " + sapUrl);
-
-    if (sapCredential == null || sapCredential.toString().trim().isEmpty()) {
-        def errorMessage = "Configuration key 'SAP_CREDEDITAL' is missing or empty for environment '" + ENV + "'.";
-        println("Error: " + errorMessage);
-        throw new Exception(errorMessage);
-    }
-    println("Info: Found SAP_CREDEDITAL: " + sapCredential);
-
-
-    // 5. Set message properties used by the outbound adapter
-    // Use distinct property names (e.g., GC_ prefix for Global Config)
-    message.setProperty("GC_SAP_URL", sapUrl);
-    message.setProperty("GC_SAP_CREDEDITAL", sapCredential);
-
-    println("Info: Successfully set properties GC_SAP_URL and GC_SAP_CREDEDITAL for environment " + ENV + ".");
-
-    return message;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Explanation of the Groovy Script:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Reads the&amp;nbsp;ENV&amp;nbsp;property value that was set based on the deployed instance's configuration.&lt;/LI&gt;&lt;LI&gt;Contains a&amp;nbsp;&lt;STRONG&gt;central&amp;nbsp;config&amp;nbsp;map&lt;/STRONG&gt;&amp;nbsp;that holds the connection details (URL and Credential Alias) for&amp;nbsp;&lt;EM&gt;all&lt;/EM&gt;&amp;nbsp;environments (DEV, TEST, PROD, etc.). This map is the&amp;nbsp;&lt;EM&gt;single source of truth&lt;/EM&gt;&amp;nbsp;for environment-specific connection details within this iflow artifact.&lt;/LI&gt;&lt;LI&gt;Looks up the configuration details specifically for the environment indicated by the&amp;nbsp;ENV&amp;nbsp;property.&lt;/LI&gt;&lt;LI&gt;Sets these retrieved URL and Credential Alias values as new message properties (GC_SAP_URL,&amp;nbsp;GC_SAP_CREDEDITAL).&lt;/LI&gt;&lt;LI&gt;Includes robust error handling.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Important:&lt;/STRONG&gt;&amp;nbsp;Ensure that the Credential Aliases defined in the script's&amp;nbsp;config&amp;nbsp;map exist and are correctly configured in your SAP Integration Suite tenant's "Security Material -&amp;gt; Security Artifacts".&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;4. Call script collection script&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Now we add reference to created Script Collection with Global Config script.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jantuma_3-1747663361873.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263194i676492546FD1135E/image-size/large?v=v2&amp;amp;px=999" role="button" title="jantuma_3-1747663361873.png" alt="jantuma_3-1747663361873.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Add a Groovy Script step after "Init Variables" and choose script from our Script Collection.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jantuma_4-1747663361876.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263193iD1A18EAAB9B6FC9B/image-size/large?v=v2&amp;amp;px=999" role="button" title="jantuma_4-1747663361876.png" alt="jantuma_4-1747663361876.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;5. Configuring the Receiver Adapter (Call SAP)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Configure your outbound adapter ("Call SAP") to use the message properties set by the Groovy script dynamically at runtime.&lt;/P&gt;&lt;P&gt;For an HTTP Receiver adapter:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;In the&amp;nbsp;&lt;STRONG&gt;Address&lt;/STRONG&gt;&amp;nbsp;field, enter&amp;nbsp;${property.GC_SAP_URL}.&lt;/LI&gt;&lt;LI&gt;In the&amp;nbsp;&lt;STRONG&gt;Authentication&lt;/STRONG&gt;&amp;nbsp;section:&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;Choose&amp;nbsp;&lt;STRONG&gt;Credential Name&lt;/STRONG&gt;.&lt;/LI&gt;&lt;LI&gt;In the&amp;nbsp;&lt;STRONG&gt;Credential Name&lt;/STRONG&gt;&amp;nbsp;field, enter&amp;nbsp;${property.GC_SAP_CREDEDITAL}.&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jantuma_5-1747663361882.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/263195i7CBBED6892D6BFEF/image-size/large?v=v2&amp;amp;px=999" role="button" title="jantuma_5-1747663361882.png" alt="jantuma_5-1747663361882.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;This configuration tells the adapter to fetch the necessary connection details from the message properties&amp;nbsp;&lt;EM&gt;just before&lt;/EM&gt;&amp;nbsp;making the outbound call, ensuring it connects to the correct backend system for that specific iflow execution.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1208399616"&gt;&lt;STRONG&gt;Benefits of this Approach&lt;/STRONG&gt;&lt;/H1&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Cost Efficiency:&lt;/STRONG&gt;&amp;nbsp;Successfully run integrations for multiple backend landscapes on a single SAP Integration Suite tenant by deploying multiple instances of the&amp;nbsp;&lt;EM&gt;same&lt;/EM&gt;&amp;nbsp;iflow artifact.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Simplified Development:&lt;/STRONG&gt;&amp;nbsp;Develop and maintain only&amp;nbsp;&lt;STRONG&gt;one core iflow artifact&lt;/STRONG&gt;&amp;nbsp;and&amp;nbsp;&lt;STRONG&gt;one central configuration map&lt;/STRONG&gt;&amp;nbsp;within that artifact (or linked Value Mapping) for your integration logic, regardless of how many environments it connects to.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Easier Maintenance:&lt;/STRONG&gt;&amp;nbsp;Updates to the core logic are made in one place. Configuration changes (like updating a URL or adding a new environment) require modifying only the central configuration map (in the script or Value Mapping) and redeploying the&amp;nbsp;&lt;EM&gt;single&lt;/EM&gt;&amp;nbsp;iflow artifact.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Controlled Deployment:&lt;/STRONG&gt;&amp;nbsp;Differentiate deployed instances solely by setting an externalized parameter during deployment or configuration, allowing for clear identification (e.g., naming deployed instances "MyIflow - DEV", "MyIflow - TEST").&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Reduced Error Potential:&lt;/STRONG&gt;&amp;nbsp;Avoid manual, error-prone configuration changes on deployed artifacts by driving configuration from a controlled parameter.&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-1011886111"&gt;&lt;STRONG&gt;Considerations and Alternatives&lt;/STRONG&gt;&lt;/H1&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Configuration Location:&lt;/STRONG&gt;&amp;nbsp;While the&amp;nbsp;config&amp;nbsp;map is hardcoded in the Groovy script for simplicity, for larger or more frequently changing configurations, storing this map in a&amp;nbsp;&lt;STRONG&gt;Value Mapping&lt;/STRONG&gt;&amp;nbsp;artifact is highly recommended. The Groovy script would then read from the Value Mapping. This externalizes the configuration lookup data from the script code itself, allowing updates without script modification.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Complexity:&lt;/STRONG&gt;&amp;nbsp;This pattern adds a layer of indirection compared to static configuration. Evaluate if the benefits outweigh the complexity for your specific use case.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Extensibility:&lt;/STRONG&gt;&amp;nbsp;This pattern is easily extended to dynamically configure other environment-specific parameters (e.g., directory paths, filenames, specific header values) by adding them to the&amp;nbsp;config&amp;nbsp;map and retrieving them in the script.&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-815372606"&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;Handling connections to multiple backend environments (DEV, TEST, PROD) from a single SAP Integration Suite tenant is a common requirement driven by cost and efficiency goals. By maintaining&amp;nbsp;&lt;STRONG&gt;one core integration flow artifact&lt;/STRONG&gt;, implementing&amp;nbsp;&lt;STRONG&gt;a central configuration lookup&lt;/STRONG&gt;&amp;nbsp;driven by&amp;nbsp;&lt;STRONG&gt;a simple environment property (ENV)&lt;/STRONG&gt;, and leveraging&amp;nbsp;&lt;STRONG&gt;externalized parameters&lt;/STRONG&gt;&amp;nbsp;to set this property on different deployed instances, you can create flexible, maintainable, and cost-effective integration solutions.&lt;/P&gt;&lt;P&gt;This pattern allows your single iflow artifact to dynamically adapt its outbound connections at runtime, proving that one tenant can indeed effectively serve multiple landscapes with a smart configuration strategy.&lt;/P&gt;&lt;P&gt;Give this pattern a try in your next multi-environment integration scenario!&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/dynamic-configuration-in-sap-integration-suite-one-tenant-multiple/ba-p/14105598"/>
-    <published>2025-05-19T16:08:53.681000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/handling-free-form-text-in-sap-cpi-segmenting-long-text-into-132-character/ba-p/14104623</id>
-    <title>Handling Free-Form Text in SAP CPI: Segmenting Long Text into 132-Character Chunks with Groovy</title>
-    <updated>2025-05-20T16:14:04.527000+02:00</updated>
-    <author>
-      <name>Arpit_Verma</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1480338</uri>
-    </author>
-    <content>&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In &lt;STRONG&gt;Application-to-Application (A2A)&lt;/STRONG&gt; integrations, it’s common to encounter scenarios where the &lt;STRONG&gt;sender system is non-SAP&lt;/STRONG&gt; (like Coupa, Salesforce, etc.) and the &lt;STRONG&gt;receiver is an SAP ECC or S/4HANA system&lt;/STRONG&gt;. One specific challenge that often arises is handling &lt;STRONG&gt;free-form text&lt;/STRONG&gt;.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Non-SAP platforms&lt;/STRONG&gt; may allow free-form text of &lt;STRONG&gt;unlimited length&lt;/STRONG&gt;.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;SAP systems&lt;/STRONG&gt;, however, have &lt;STRONG&gt;strict character limits&lt;/STRONG&gt;—for example, &lt;STRONG&gt;132 characters per segment&lt;/STRONG&gt; in IDocs or BAPI text fields.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This blog explains how to dynamically split long text strings into SAP-compatible segments using a &lt;STRONG&gt;Groovy UDF (User Defined Function)&lt;/STRONG&gt; in &lt;STRONG&gt;SAP Cloud Integration (CPI)&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Scenario Overview&lt;/STRONG&gt;&lt;/P&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Component&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Description&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Sender&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Non-SAP system (e.g., Coupa, STIBO)&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Receiver&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;SAP ECC or S/4HANA&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Problem&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Free-form text exceeds SAP's 132-character limit&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Solution&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Use a Groovy script in message mapping to split long text into 132-character segments&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&lt;STRONG&gt;Why 132 Characters?&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In SAP systems, particularly in IDocs like ORDERS05, fields like E1EDKT1/E1EDKT2-TDLINE are limited to &lt;STRONG&gt;132 characters&lt;/STRONG&gt; per line. Any text longer than that must be broken into multiple lines—each forming a new segment.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Solution:&lt;BR /&gt;Groovy UDF in Message Mapping&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;We created a Groovy script that:&lt;/SPAN&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN&gt;Accepts any length of input text&lt;/SPAN&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN&gt;Dynamically breaks it into lines no longer than 132 characters&lt;/SPAN&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN&gt;Adds each line as a new segment in the target SAP structure&lt;/SPAN&gt;&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;SPAN&gt;This approach avoids hard-coding or static loops and adapts to any input length&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;DIV&gt;&lt;PRE&gt;&lt;SPAN&gt;import &lt;/SPAN&gt;com.sap.it.api.mapping.*;&lt;BR /&gt;&lt;SPAN&gt;import &lt;/SPAN&gt;com.sap.gateway.ip.core.customdev.util.Message  &lt;BR /&gt;&lt;SPAN&gt;import &lt;/SPAN&gt;java.util.HashMap  &lt;BR /&gt; &lt;BR /&gt;&lt;SPAN&gt;def void &lt;/SPAN&gt;createItems(String[] nonsaptext, String[] fieldlength, Output output, MappingContext context) {  &lt;BR /&gt;  &lt;BR /&gt; &lt;SPAN&gt;// Iterate over each text block  &lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;int &lt;/SPAN&gt;lineLength= Integer.parseInt(fieldlength[&lt;SPAN&gt;0&lt;/SPAN&gt;])  &lt;BR /&gt; &lt;SPAN&gt;// int lineLength=textlength  &lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;// def valu1int=Integer.parseInt(linelength[0])  &lt;BR /&gt;&lt;/SPAN&gt; &lt;SPAN&gt;for &lt;/SPAN&gt;(String text : nonsaptext) {  &lt;BR /&gt;  &lt;BR /&gt; &lt;SPAN&gt;// Calculate the number of lines needed for the current text block  &lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;  &lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;int &lt;/SPAN&gt;length = text.length();  &lt;BR /&gt;  &lt;BR /&gt;&lt;SPAN&gt;//int lineLength = 132;  &lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;  &lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;// Split the text into lines of up to 132 characters  &lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt; &lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;for &lt;/SPAN&gt;(&lt;SPAN&gt;int &lt;/SPAN&gt;i = &lt;SPAN&gt;0&lt;/SPAN&gt;; i &amp;lt; length; i += lineLength) {  &lt;BR /&gt;  &lt;BR /&gt;&lt;SPAN&gt;// Ensure we don't go out of bounds  &lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;  &lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;int &lt;/SPAN&gt;end = Math.min(length, i + lineLength);  &lt;BR /&gt;  &lt;BR /&gt;&lt;SPAN&gt;// Extract the substring for the current line  &lt;BR /&gt;&lt;/SPAN&gt;String line = text.substring(i, end);  &lt;BR /&gt;  &lt;BR /&gt; output.addValue(line);  &lt;BR /&gt;&lt;BR /&gt; }  &lt;BR /&gt;  &lt;BR /&gt; }  &lt;BR /&gt;  &lt;BR /&gt;}  &lt;/PRE&gt;&lt;/DIV&gt;&lt;H3 id="toc-hId-1859563012"&gt;&amp;nbsp;Step-by-Step&lt;BR /&gt;&lt;BR /&gt;1. &lt;STRONG&gt;Receives Two Inputs:&lt;/STRONG&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P class=""&gt;&lt;STRONG&gt;nonsaptext:&lt;/STRONG&gt; A long text string (from the sender system).&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;&lt;STRONG&gt;fieldlength:&lt;/STRONG&gt; The maximum allowed characters per segment (usually "132").&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1663049507"&gt;2. &lt;STRONG&gt;Parses the Max Length&lt;/STRONG&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P class=""&gt;Converts the fieldlength string to an integer using Integer.parseInt.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1466536002"&gt;3. &lt;STRONG&gt;Iterates Over the Input Text&lt;/STRONG&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P class=""&gt;It loops through each character of the input text in increments of lineLength (e.g., 132 characters at a time).&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1270022497"&gt;4. &lt;STRONG&gt;Splits the Text&lt;/STRONG&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P class=""&gt;In each loop:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P class=""&gt;It extracts a substring from the current position to the next lineLength.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;This ensures no segment is longer than allowed.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1073508992"&gt;5. &lt;STRONG&gt;Adds Segments to Output&lt;/STRONG&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P class=""&gt;Each substring is added to the &lt;STRONG&gt;output &lt;/STRONG&gt;object as a new value.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;In CPI mapping, this translates into multiple entries for the target repeating structure (e.g., TDLINE in an IDoc).&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;Source Payload:&lt;/STRONG&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="arpit123_0-1747559896978.png" style="width: 740px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/262640i54FC950FE219FDAD/image-dimensions/740x111?v=v2" width="740" height="111" role="button" title="arpit123_0-1747559896978.png" alt="arpit123_0-1747559896978.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;Message Mapping&lt;/STRONG&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="arpit123_1-1747559928920.png" style="width: 759px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/262641i6B0C87DFA0B48424/image-dimensions/759x315?v=v2" width="759" height="315" role="button" title="arpit123_1-1747559928920.png" alt="arpit123_1-1747559928920.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="arpit123_2-1747559937576.png" style="width: 754px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/262642iBD2D6E245ED6950C/image-dimensions/754x311?v=v2" width="754" height="311" role="button" title="arpit123_2-1747559937576.png" alt="arpit123_2-1747559937576.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Message Mapping Result:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="arpit123_3-1747559961267.png" style="width: 757px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/262643iD08B51DFDCAA6ED1/image-dimensions/757x210?v=v2" width="757" height="210" role="button" title="arpit123_3-1747559961267.png" alt="arpit123_3-1747559961267.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-747912768"&gt;&lt;STRONG&gt;Results&lt;/STRONG&gt;&lt;/H2&gt;&lt;P class=""&gt;This approach ensures:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P class=""&gt;&lt;STRONG&gt;Data Integrity&lt;/STRONG&gt;: No truncation or loss of message content.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;&lt;STRONG&gt;SAP Compliance&lt;/STRONG&gt;: Respects SAP's 132-character-per-line constraint.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;&lt;STRONG&gt;Flexibility&lt;/STRONG&gt;: Can process any length of input text without needing hard-coded splits.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Thanks&lt;BR /&gt;Arpit&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/handling-free-form-text-in-sap-cpi-segmenting-long-text-into-132-character/ba-p/14104623"/>
-    <published>2025-05-20T16:14:04.527000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/discover-s-4hana-cloud-events-in-sap-developer-hub/ba-p/14097325</id>
     <title>Discover S/4HANA Cloud Events in SAP Developer Hub</title>
@@ -395,5 +285,381 @@ return message;
     <content>&lt;P&gt;Greetings SAP Integration Community. My name is Craig Stasila, and I have been in the SAP integration ecosystem for many, many years. It has been a long time since I’ve written a technical blog post, but while I was at SAP Sapphire Orlando recently, a customer that had migrated from SAP PI/PO to SAP Integration Suite posed a question for which I did not have an immediate answer. I promised this person that I would author a blog post with all the details to answer her question, &lt;U&gt;and this is that blog post.&lt;/U&gt;&lt;/P&gt;&lt;P&gt;Her question was simple--the answer was not exactly straightforward:&lt;/P&gt;&lt;P&gt;&lt;EM&gt;When will SAP Integration Suite have a feature like the SAP PI/PO Communication Channel start/stop control?&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;On its face, this request sounds like a regular feature request. But the power and flexibility of the Cloud Integration capability of SAP Integration Suite means that you do not have to wait for an official implementation of this feature, and this blog post will tell you how.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Quick sidebar: &lt;/STRONG&gt;To create and vote on future feature requests, visit &lt;A href="https://influence.sap.com/sap/ino/#/campaign/2282" target="_blank" rel="noopener noreferrer"&gt;SAP Integration Suite Customer Influence campaign.&lt;/A&gt;&lt;/P&gt;&lt;P&gt;The following artifacts have been created to demonstrate the channel start/stop prototype. Each artifact will be explained below:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Figure 1: Package Channel Start/Stop Prototype Artifacts" style="width: 814px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/268002i5F1C33362561A803/image-size/large?v=v2&amp;amp;px=999" role="button" title="CraigStasila_0-1748639445243.png" alt="Figure 1: Package Channel Start/Stop Prototype Artifacts" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Figure 1: Package Channel Start/Stop Prototype Artifacts&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1731433667"&gt;&lt;SPAN&gt;Mass Controlling Communication Channels and Adapters&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;The adapter engine component of SAP PI/PO had a feature that allowed for communication channels to be started and stopped through an administration user interface. And, while SAP Integration Suite does not have this exact feature, we can implement a close analog.&lt;/P&gt;&lt;P&gt;We can accomplish this by having our iFlows check the status of a global variable, &lt;FONT face="courier new,courier"&gt;GlobalChannelStatus&lt;/FONT&gt; for example, and stopping the processing of the iFlow if it has a value of 'STOPPED'.&lt;/P&gt;&lt;P&gt;When to check and what to do if the variable is 'STOPPED' depends on whether the integration is synchronous or asynchronous.&lt;/P&gt;&lt;H3 id="toc-hId-1664002881"&gt;&lt;STRONG&gt;Stopping Channel in Synchronous Integrations&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Stopping processing for synchronous interfaces is relatively straightforward. The best practice to stop integration execution for synchronous interfaces is to stop processing and return the call to the sender as soon as possible--before any transformation of the message occurs.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Figure 2: Best-practice to stop synchronous interface processing" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/268001iC320FFFECD6D5971/image-size/large?v=v2&amp;amp;px=999" role="button" title="CraigStasila_1-1748639445245.png" alt="Figure 2: Best-practice to stop synchronous interface processing" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Figure 2: Best-practice to stop synchronous interface processing&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;When implementing this pattern, handling and reprocessing the messages must be handled by the sender. The logic is implemented in the iFlow&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;_1 Synchronous Check Channel Status.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Figure 3: iFlow _1 Synchronous Check Channel Status" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/268003i6EE031E03F58FFF0/image-size/large?v=v2&amp;amp;px=999" role="button" title="CraigStasila_2-1748639445247.png" alt="Figure 3: iFlow _1 Synchronous Check Channel Status" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Figure 3: iFlow _1 Synchronous Check Channel Status&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;As soon as the synchronous message arrives from the sender, the global variable&amp;nbsp;&lt;FONT face="courier new,courier"&gt;GlobalChannelStatus&lt;/FONT&gt; is retrieved. A router checks the variable and if the value is 'RUNNING', the message can be transformed as normal and the message can be sent to the receiver system. If, however, the channel status is 'STOPPED', the message is stopped via an exception. I suggest referencing &lt;/SPAN&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/create-custom-message-for-exceptions-raised-by-sap-cpi/ba-p/13424223" target="_blank"&gt;this blog post to create a custom error message&lt;/A&gt;&lt;SPAN&gt; so that the sending system receives the correct context that processing has been halted by the administrator.&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1467489376"&gt;Stopping Channel in Asynchronous Integrations&lt;/H3&gt;&lt;P&gt;Stopping processing for asynchronous interfaces is a bit more involved. In addition to checking the global variable GlobalChannelStatus, we will also be implementing the &lt;A href="https://help.sap.com/docs/cloud-integration/sap-cloud-integration/apply-retry-pattern" target="_blank" rel="noopener noreferrer"&gt;Retry Pattern&lt;/A&gt; with a JMS queue. Unlike the best-practice for synchronous interface processing, for asynchronous processing it is the best practice to hold the message&amp;nbsp;after the message has been transformed--immediately before the message is to be sent to the receiver.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Figure 4: Best-practice to stop asynchronous interface processing" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/268004iD6B0A4498F673AAE/image-size/large?v=v2&amp;amp;px=999" role="button" title="CraigStasila_3-1748639445248.png" alt="Figure 4: Best-practice to stop asynchronous interface processing" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Figure 4: Best-practice to stop asynchronous interface processing&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Processing for the asynchronous scenario starts like any other interface. I created iFlow&amp;nbsp;&lt;STRONG&gt;A - Build Message Payload&lt;/STRONG&gt; to simulate the creation of a message payload whenever the package is deployed.&amp;nbsp;In practice, this will be whatever the standard interface message processing will be. The sender system, channel, and message processing will be unchanged. The only feature that is specific to the channel start/stop processing is the usage of a JMS receiver at the conclusion of the iFlow processing instead of directly calling the receiver system.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Figure 5: iFlow A - Build Message Payload" style="width: 621px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/268005iA212DDFCA62253F9/image-size/large?v=v2&amp;amp;px=999" role="button" title="CraigStasila_4-1748639445249.png" alt="Figure 5: iFlow A - Build Message Payload" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Figure 5: iFlow A - Build Message Payload&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The iFlow&amp;nbsp;&lt;STRONG&gt;B - Check Channel Status and Send to Adapter&lt;/STRONG&gt; is where we will check the status of the global channel variable and implement all of the JMS retry logic. This iFlow will be invoked immediately after&amp;nbsp; &lt;STRONG&gt;A - Build Message Payload&lt;/STRONG&gt;&amp;nbsp;publishes the message to the shared message queue. The iFlow simply retrieves the&amp;nbsp;global variable &lt;FONT face="courier new,courier"&gt;GlobalChannelStatus&lt;/FONT&gt;. If the value of this variable is 'RUNNING', the message is sent to the receiver system--in this case a iFlow called via the ProcessDirect adapter that simply logs the message payload. If the value of the global variable is 'STOPPED', the processing of the message is stopped and the message will stay in the JMS queue in a Failed status.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Figure 6: iFlow B - Check Channel Status and Send to Adapter" style="width: 957px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/268006i9160B51E889133DE/image-size/large?v=v2&amp;amp;px=999" role="button" title="CraigStasila_5-1748639445250.png" alt="Figure 6: iFlow B - Check Channel Status and Send to Adapter" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Figure 6: iFlow B - Check Channel Status and Send to Adapter&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Finally, I created a small iFlow to mock a receiver system. The simple iFlow&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;C - Process Direct Call Adapter&lt;/STRONG&gt;&lt;SPAN&gt; logs the message header and body to the message processing log so that it can be viewed in the message monitor.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Figure 7: iFlow C - Process Direct Call Adapter" style="width: 775px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/268007iB3C9C55085B31A96/image-size/large?v=v2&amp;amp;px=999" role="button" title="CraigStasila_6-1748639445251.png" alt="Figure 7: iFlow C - Process Direct Call Adapter" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Figure 7: iFlow C - Process Direct Call Adapter&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;For this prototype, the global variable&amp;nbsp;&lt;FONT face="courier new,courier"&gt;GlobalChannelStatus&lt;/FONT&gt; can be set to 'RUNNING' through iFlow&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;D - Start Channels&lt;/STRONG&gt;&lt;SPAN&gt; and can be set to 'STOPPED' by deploying iFlow &lt;/SPAN&gt;&lt;STRONG&gt;E - Stop Channels&lt;/STRONG&gt;&lt;SPAN&gt;. In practice, these iFlows could be triggered externally from an API or through a custom application.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Figure 8: iFlows D - Start Channels &amp;amp; E - Stop Channels" style="width: 575px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/268008i3F2B7637843598B0/image-size/large?v=v2&amp;amp;px=999" role="button" title="CraigStasila_7-1748639445252.png" alt="Figure 8: iFlows D - Start Channels &amp;amp; E - Stop Channels" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Figure 8: iFlows D - Start Channels &amp;amp; E - Stop Channels&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1270975871"&gt;Conclusion&lt;/H3&gt;&lt;P&gt;SAP Integration Suite is not a one-for-one reimplementation of SAP PI/PO in the cloud—in many ways it is way more powerful. This blog post is an example of how using SAP Integration Suite as a true platform solution unlocks a whole host of advanced functionality.&lt;/P&gt;&lt;P&gt;Have any of you tried the JMS retry functionality? Can you think of any improvements to what I’ve shown here? I can think of a couple things I could improve but want to hear from you! What would you do to improve this channel start/stop concept?&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/integration-blog-posts/add-sap-pi-po-communication-channel-start-stop-functionality-to-your-iflows/ba-p/14115643"/>
     <published>2025-06-04T09:14:40.214000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/xml-xrechnung-invoice-to-pdf-invoice-conversion-using-xslt-mapping-in-sap/ba-p/14118646</id>
+    <title>XML(XRechnung) Invoice to PDF Invoice Conversion Using XSLT Mapping in SAP CPI</title>
+    <updated>2025-06-10T20:03:10.353000+02:00</updated>
+    <author>
+      <name>Tech_Jogula_SRL</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1680717</uri>
+    </author>
+    <content>&lt;P&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In today’s digital business landscape, automating invoice processing is essential for efficiency, accuracy, and compliance. I have implemented a robust SAP Cloud Platform Integration (CPI) iFlow that transforms incoming XML invoices into professional PDF documents-ready for distribution, archiving, or further processing.&lt;/P&gt;&lt;P&gt;This blog provides a comprehensive, step-by-step guide to building such a solution in SAP CPI, including the actual scripts used for HTML generation and PDF conversion.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Sample XML:&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;?xml version="1.0" encoding="UTF-8"?&amp;gt;
+&amp;lt;rsm:CrossIndustryInvoice
+    xmlns:a="urn:un:unece:uncefact:data:standard:QualifiedDataType:100"
+    xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"
+    xmlns:qdt="urn:un:unece:uncefact:data:standard:QualifiedDataType:10"
+    xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100"&amp;gt;
+ 
+  &amp;lt;rsm:ExchangedDocumentContext&amp;gt;
+    &amp;lt;ram:GuidelineSpecifiedDocumentContextParameter&amp;gt;
+      &amp;lt;ram:ID&amp;gt;urn:cen.eu:en16931:2017#compliant#urn:xoev-de:kosit:standard:xrechnung_2.3&amp;lt;/ram:ID&amp;gt;
+    &amp;lt;/ram:GuidelineSpecifiedDocumentContextParameter&amp;gt;
+  &amp;lt;/rsm:ExchangedDocumentContext&amp;gt;
+ 
+  &amp;lt;rsm:ExchangedDocument&amp;gt;
+    &amp;lt;ram:ID&amp;gt;INV-20250603-001&amp;lt;/ram:ID&amp;gt;
+    &amp;lt;ram:TypeCode&amp;gt;380&amp;lt;/ram:TypeCode&amp;gt;
+    &amp;lt;ram:IssueDateTime&amp;gt;
+      &amp;lt;udt:DateTimeString format="102"&amp;gt;20250603&amp;lt;/udt:DateTimeString&amp;gt;
+    &amp;lt;/ram:IssueDateTime&amp;gt;
+    &amp;lt;ram:IncludedNote&amp;gt;
+      &amp;lt;ram:Content&amp;gt;Bitte beachten Sie unsere neuen Bankverbindungen.&amp;lt;/ram:Content&amp;gt;
+      &amp;lt;ram:SubjectCode&amp;gt;GEN&amp;lt;/ram:SubjectCode&amp;gt;
+    &amp;lt;/ram:IncludedNote&amp;gt;
+  &amp;lt;/rsm:ExchangedDocument&amp;gt;
+ 
+  &amp;lt;rsm:SupplyChainTradeTransaction&amp;gt;
+    &amp;lt;ram:ApplicableHeaderTradeAgreement&amp;gt;
+      &amp;lt;ram:SellerTradeParty&amp;gt;
+        &amp;lt;ram:Name&amp;gt;Tech Jogula SRL&amp;lt;/ram:Name&amp;gt;
+        &amp;lt;ram:PostalTradeAddress&amp;gt;
+          &amp;lt;ram:PostcodeCode&amp;gt;10178&amp;lt;/ram:PostcodeCode&amp;gt;
+          &amp;lt;ram:LineOne&amp;gt;Alexanderplatz 1&amp;lt;/ram:LineOne&amp;gt;
+          &amp;lt;ram:CityName&amp;gt;Berlin&amp;lt;/ram:CityName&amp;gt;
+          &amp;lt;ram:CountryID&amp;gt;DE&amp;lt;/ram:CountryID&amp;gt;
+        &amp;lt;/ram:PostalTradeAddress&amp;gt;
+        &amp;lt;ram:URIUniversalCommunication&amp;gt;
+          &amp;lt;ram:URIID&amp;gt;info@techjogula.com&amp;lt;/ram:URIID&amp;gt;
+        &amp;lt;/ram:URIUniversalCommunication&amp;gt;
+        &amp;lt;ram:SpecifiedTaxRegistration&amp;gt;
+          &amp;lt;ram:ID schemeID="VA"&amp;gt;DE999999999&amp;lt;/ram:ID&amp;gt;
+        &amp;lt;/ram:SpecifiedTaxRegistration&amp;gt;
+        &amp;lt;ram:SpecifiedLegalOrganization&amp;gt;
+          &amp;lt;ram:ID&amp;gt;HRB 123456 B&amp;lt;/ram:ID&amp;gt;
+        &amp;lt;/ram:SpecifiedLegalOrganization&amp;gt;
+      &amp;lt;/ram:SellerTradeParty&amp;gt;
+      &amp;lt;ram:BuyerTradeParty&amp;gt;
+        &amp;lt;ram:Name&amp;gt;Sample Kunde GmbH&amp;lt;/ram:Name&amp;gt;
+        &amp;lt;ram:PostalTradeAddress&amp;gt;
+          &amp;lt;ram:PostcodeCode&amp;gt;80331&amp;lt;/ram:PostcodeCode&amp;gt;
+          &amp;lt;ram:LineOne&amp;gt;Marienplatz 8&amp;lt;/ram:LineOne&amp;gt;
+          &amp;lt;ram:CityName&amp;gt;München&amp;lt;/ram:CityName&amp;gt;
+          &amp;lt;ram:CountryID&amp;gt;DE&amp;lt;/ram:CountryID&amp;gt;
+        &amp;lt;/ram:PostalTradeAddress&amp;gt;
+        &amp;lt;ram:URIUniversalCommunication&amp;gt;
+          &amp;lt;ram:URIID&amp;gt;buchhaltung@samplekunde.de&amp;lt;/ram:URIID&amp;gt;
+        &amp;lt;/ram:URIUniversalCommunication&amp;gt;
+        &amp;lt;ram:SpecifiedTaxRegistration&amp;gt;
+          &amp;lt;ram:ID schemeID="VA"&amp;gt;DE888888888&amp;lt;/ram:ID&amp;gt;
+        &amp;lt;/ram:SpecifiedTaxRegistration&amp;gt;
+      &amp;lt;/ram:BuyerTradeParty&amp;gt;
+    &amp;lt;/ram:ApplicableHeaderTradeAgreement&amp;gt;
+ 
+    &amp;lt;ram:ApplicableHeaderTradeDelivery&amp;gt;
+      &amp;lt;ram:ShipToTradeParty&amp;gt;
+        &amp;lt;ram:Name&amp;gt;Sample Kunde GmbH&amp;lt;/ram:Name&amp;gt;
+        &amp;lt;ram:PostalTradeAddress&amp;gt;
+          &amp;lt;ram:PostcodeCode&amp;gt;80331&amp;lt;/ram:PostcodeCode&amp;gt;
+          &amp;lt;ram:LineOne&amp;gt;Marienplatz 8&amp;lt;/ram:LineOne&amp;gt;
+          &amp;lt;ram:CityName&amp;gt;München&amp;lt;/ram:CityName&amp;gt;
+          &amp;lt;ram:CountryID&amp;gt;DE&amp;lt;/ram:CountryID&amp;gt;
+        &amp;lt;/ram:PostalTradeAddress&amp;gt;
+      &amp;lt;/ram:ShipToTradeParty&amp;gt;
+    &amp;lt;/ram:ApplicableHeaderTradeDelivery&amp;gt;
+ 
+    &amp;lt;ram:ApplicableHeaderTradeSettlement&amp;gt;
+      &amp;lt;ram:PaymentReference&amp;gt;INV-20250603-001&amp;lt;/ram:PaymentReference&amp;gt;
+      &amp;lt;ram:InvoiceCurrencyCode&amp;gt;EUR&amp;lt;/ram:InvoiceCurrencyCode&amp;gt;
+      &amp;lt;ram:PayeeTradeParty&amp;gt;
+        &amp;lt;ram:Name&amp;gt;Tech Jogula SRL&amp;lt;/ram:Name&amp;gt;
+      &amp;lt;/ram:PayeeTradeParty&amp;gt;
+      &amp;lt;ram:SpecifiedTradeSettlementPaymentMeans&amp;gt;
+        &amp;lt;ram:TypeCode&amp;gt;58&amp;lt;/ram:TypeCode&amp;gt;
+        &amp;lt;ram:Information&amp;gt;Überweisung&amp;lt;/ram:Information&amp;gt;
+        &amp;lt;ram:PayeePartyCreditorFinancialAccount&amp;gt;
+          &amp;lt;ram:IBANID&amp;gt;DE23100100101234567890&amp;lt;/ram:IBANID&amp;gt;
+        &amp;lt;/ram:PayeePartyCreditorFinancialAccount&amp;gt;
+        &amp;lt;ram:PayeeSpecifiedCreditorFinancialInstitution&amp;gt;
+          &amp;lt;ram:BICID&amp;gt;DEUTDEFFXXX&amp;lt;/ram:BICID&amp;gt;
+          &amp;lt;ram:Name&amp;gt;Deutsche Bank&amp;lt;/ram:Name&amp;gt;
+        &amp;lt;/ram:PayeeSpecifiedCreditorFinancialInstitution&amp;gt;
+      &amp;lt;/ram:SpecifiedTradeSettlementPaymentMeans&amp;gt;
+      &amp;lt;ram:ApplicableTradeTax&amp;gt;
+        &amp;lt;ram:TypeCode&amp;gt;VAT&amp;lt;/ram:TypeCode&amp;gt;
+        &amp;lt;ram:CategoryCode&amp;gt;S&amp;lt;/ram:CategoryCode&amp;gt;
+        &amp;lt;ram:RateApplicablePercent&amp;gt;19.00&amp;lt;/ram:RateApplicablePercent&amp;gt;
+      &amp;lt;/ram:ApplicableTradeTax&amp;gt;
+      &amp;lt;ram:SpecifiedTradeSettlementHeaderMonetarySummation&amp;gt;
+        &amp;lt;ram:LineTotalAmount&amp;gt;1190.00&amp;lt;/ram:LineTotalAmount&amp;gt;
+        &amp;lt;ram:ChargeTotalAmount&amp;gt;0.00&amp;lt;/ram:ChargeTotalAmount&amp;gt;
+        &amp;lt;ram:AllowanceTotalAmount&amp;gt;0.00&amp;lt;/ram:AllowanceTotalAmount&amp;gt;
+        &amp;lt;ram:TaxBasisTotalAmount&amp;gt;1190.00&amp;lt;/ram:TaxBasisTotalAmount&amp;gt;
+        &amp;lt;ram:TaxTotalAmount&amp;gt;226.10&amp;lt;/ram:TaxTotalAmount&amp;gt;
+        &amp;lt;ram:GrandTotalAmount&amp;gt;1416.10&amp;lt;/ram:GrandTotalAmount&amp;gt;
+        &amp;lt;ram:DuePayableAmount&amp;gt;1416.10&amp;lt;/ram:DuePayableAmount&amp;gt;
+      &amp;lt;/ram:SpecifiedTradeSettlementHeaderMonetarySummation&amp;gt;
+    &amp;lt;/ram:ApplicableHeaderTradeSettlement&amp;gt;
+ 
+    &amp;lt;ram:IncludedSupplyChainTradeLineItem&amp;gt;
+      &amp;lt;ram:AssociatedDocumentLineDocument&amp;gt;
+        &amp;lt;ram:LineID&amp;gt;1&amp;lt;/ram:LineID&amp;gt;
+      &amp;lt;/ram:AssociatedDocumentLineDocument&amp;gt;
+      &amp;lt;ram:SpecifiedTradeProduct&amp;gt;
+        &amp;lt;ram:GlobalID schemeID="0088"&amp;gt;1234567890123&amp;lt;/ram:GlobalID&amp;gt;
+        &amp;lt;ram:Name&amp;gt;Cloud Hosting Paket Pro&amp;lt;/ram:Name&amp;gt;
+        &amp;lt;ram:ApplicableProductCharacteristic&amp;gt;
+          &amp;lt;ram:Description&amp;gt;Laufzeit&amp;lt;/ram:Description&amp;gt;
+          &amp;lt;ram:Value&amp;gt;01.06.2025 - 30.06.2025&amp;lt;/ram:Value&amp;gt;
+        &amp;lt;/ram:ApplicableProductCharacteristic&amp;gt;
+      &amp;lt;/ram:SpecifiedTradeProduct&amp;gt;
+      &amp;lt;ram:SpecifiedLineTradeAgreement&amp;gt;
+        &amp;lt;ram:NetPriceProductTradePrice&amp;gt;
+          &amp;lt;ram:ChargeAmount&amp;gt;990.00&amp;lt;/ram:ChargeAmount&amp;gt;
+          &amp;lt;ram:BasisQuantity unitCode="MON"&amp;gt;1&amp;lt;/ram:BasisQuantity&amp;gt;
+        &amp;lt;/ram:NetPriceProductTradePrice&amp;gt;
+      &amp;lt;/ram:SpecifiedLineTradeAgreement&amp;gt;
+      &amp;lt;ram:SpecifiedLineTradeDelivery&amp;gt;
+        &amp;lt;ram:BilledQuantity unitCode="MON"&amp;gt;1&amp;lt;/ram:BilledQuantity&amp;gt;
+      &amp;lt;/ram:SpecifiedLineTradeDelivery&amp;gt;
+      &amp;lt;ram:SpecifiedLineTradeSettlement&amp;gt;
+        &amp;lt;ram:ApplicableTradeTax&amp;gt;
+          &amp;lt;ram:TypeCode&amp;gt;VAT&amp;lt;/ram:TypeCode&amp;gt;
+          &amp;lt;ram:CategoryCode&amp;gt;S&amp;lt;/ram:CategoryCode&amp;gt;
+          &amp;lt;ram:RateApplicablePercent&amp;gt;19.00&amp;lt;/ram:RateApplicablePercent&amp;gt;
+        &amp;lt;/ram:ApplicableTradeTax&amp;gt;
+        &amp;lt;ram:BillingSpecifiedPeriod&amp;gt;
+          &amp;lt;ram:StartDateTime&amp;gt;
+            &amp;lt;udt:DateTimeString format="102"&amp;gt;20250601&amp;lt;/udt:DateTimeString&amp;gt;
+          &amp;lt;/ram:StartDateTime&amp;gt;
+          &amp;lt;ram:EndDateTime&amp;gt;
+            &amp;lt;udt:DateTimeString format="102"&amp;gt;20250630&amp;lt;/udt:DateTimeString&amp;gt;
+          &amp;lt;/ram:EndDateTime&amp;gt;
+        &amp;lt;/ram:BillingSpecifiedPeriod&amp;gt;
+        &amp;lt;ram:SpecifiedTradeSettlementLineMonetarySummation&amp;gt;
+          &amp;lt;ram:LineTotalAmount&amp;gt;990.00&amp;lt;/ram:LineTotalAmount&amp;gt;
+        &amp;lt;/ram:SpecifiedTradeSettlementLineMonetarySummation&amp;gt;
+      &amp;lt;/ram:SpecifiedLineTradeSettlement&amp;gt;
+    &amp;lt;/ram:IncludedSupplyChainTradeLineItem&amp;gt;
+ 
+    &amp;lt;ram:IncludedSupplyChainTradeLineItem&amp;gt;
+      &amp;lt;ram:AssociatedDocumentLineDocument&amp;gt;
+        &amp;lt;ram:LineID&amp;gt;2&amp;lt;/ram:LineID&amp;gt;
+      &amp;lt;/ram:AssociatedDocumentLineDocument&amp;gt;
+      &amp;lt;ram:SpecifiedTradeProduct&amp;gt;
+        &amp;lt;ram:GlobalID schemeID="0088"&amp;gt;1234543210987&amp;lt;/ram:GlobalID&amp;gt;
+        &amp;lt;ram:Name&amp;gt;Support Stundenpaket&amp;lt;/ram:Name&amp;gt;
+        &amp;lt;ram:ApplicableProductCharacteristic&amp;gt;
+          &amp;lt;ram:Description&amp;gt;Support-Typ&amp;lt;/ram:Description&amp;gt;
+          &amp;lt;ram:Value&amp;gt;Premium&amp;lt;/ram:Value&amp;gt;
+        &amp;lt;/ram:ApplicableProductCharacteristic&amp;gt;
+      &amp;lt;/ram:SpecifiedTradeProduct&amp;gt;
+      &amp;lt;ram:SpecifiedLineTradeAgreement&amp;gt;
+        &amp;lt;ram:NetPriceProductTradePrice&amp;gt;
+          &amp;lt;ram:ChargeAmount&amp;gt;200.00&amp;lt;/ram:ChargeAmount&amp;gt;
+          &amp;lt;ram:BasisQuantity unitCode="HUR"&amp;gt;1&amp;lt;/ram:BasisQuantity&amp;gt;
+        &amp;lt;/ram:NetPriceProductTradePrice&amp;gt;
+      &amp;lt;/ram:SpecifiedLineTradeAgreement&amp;gt;
+      &amp;lt;ram:SpecifiedLineTradeDelivery&amp;gt;
+        &amp;lt;ram:BilledQuantity unitCode="HUR"&amp;gt;1&amp;lt;/ram:BilledQuantity&amp;gt;
+      &amp;lt;/ram:SpecifiedLineTradeDelivery&amp;gt;
+      &amp;lt;ram:SpecifiedLineTradeSettlement&amp;gt;
+        &amp;lt;ram:ApplicableTradeTax&amp;gt;
+          &amp;lt;ram:TypeCode&amp;gt;VAT&amp;lt;/ram:TypeCode&amp;gt;
+          &amp;lt;ram:CategoryCode&amp;gt;S&amp;lt;/ram:CategoryCode&amp;gt;
+          &amp;lt;ram:RateApplicablePercent&amp;gt;19.00&amp;lt;/ram:RateApplicablePercent&amp;gt;
+        &amp;lt;/ram:ApplicableTradeTax&amp;gt;
+        &amp;lt;ram:BillingSpecifiedPeriod&amp;gt;
+          &amp;lt;ram:StartDateTime&amp;gt;
+            &amp;lt;udt:DateTimeString format="102"&amp;gt;20250601&amp;lt;/udt:DateTimeString&amp;gt;
+          &amp;lt;/ram:StartDateTime&amp;gt;
+          &amp;lt;ram:EndDateTime&amp;gt;
+            &amp;lt;udt:DateTimeString format="102"&amp;gt;20250630&amp;lt;/udt:DateTimeString&amp;gt;
+          &amp;lt;/ram:EndDateTime&amp;gt;
+        &amp;lt;/ram:BillingSpecifiedPeriod&amp;gt;
+        &amp;lt;ram:SpecifiedTradeSettlementLineMonetarySummation&amp;gt;
+          &amp;lt;ram:LineTotalAmount&amp;gt;200.00&amp;lt;/ram:LineTotalAmount&amp;gt;
+        &amp;lt;/ram:SpecifiedTradeSettlementLineMonetarySummation&amp;gt;
+      &amp;lt;/ram:SpecifiedLineTradeSettlement&amp;gt;
+    &amp;lt;/ram:IncludedSupplyChainTradeLineItem&amp;gt;
+ 
+  &amp;lt;/rsm:SupplyChainTradeTransaction&amp;gt;
+&amp;lt;/rsm:CrossIndustryInvoice&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Solution Overview&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The process consists of three main steps:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Receive XML Invoice&lt;/STRONG&gt;: The iFlow is triggered by an incoming XML invoice (for example, via HTTP, SFTP, or Email).&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Transform XML to HTML&lt;/STRONG&gt;: An XSLT transformation (executed via a Groovy script) converts the XML into a visually rich HTML invoice.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Convert HTML to PDF&lt;/STRONG&gt;: Another Groovy script leverages iText to generate a PDF from the HTML.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;Step 1: Designing the CPI iFlow&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The iFlow structure is as follows:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Sender Adapter&lt;/STRONG&gt;: Receives the XML invoice.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Groovy Script (XML to HTML)&lt;/STRONG&gt;: Applies XSLT to generate HTML.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Groovy Script (HTML to PDF)&lt;/STRONG&gt;: Cleans and converts HTML to PDF.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Receiver Adapter&lt;/STRONG&gt;: Sends the PDF to the desired endpoint (e.g., email, SFTP, or document management system).&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Step 2: XML to HTML Transformation Script&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The following Groovy script is used in a CPI Groovy Script step. It applies an XSLT stylesheet to convert the XML invoice into a styled HTML document.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;groovy:::&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;import javax.xml.transform.*
+
+import javax.xml.transform.stream.*
+
+import java.io.StringReader
+
+import java.io.StringWriter
+
+import com.sap.gateway.ip.core.customdev.util.Message
+
+
+
+def processData(def message) {
+
+    // XSLT stylesheet (abbreviated for clarity; use your full version)
+
+    def xsltContent = '''&amp;lt;?xml version="1.0" encoding="UTF-8"?&amp;gt;
+&amp;lt;xsl:stylesheet version="1.0"
+xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"
+xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"
+xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100"&amp;gt;
+
+&amp;lt;xsl:output method="html" indent="yes" encoding="UTF-8" /&amp;gt;
+
+&amp;lt;xsl:template match="/rsm:CrossIndustryInvoice"&amp;gt;
+&amp;lt;html&amp;gt;
+&amp;lt;head&amp;gt;
+&amp;lt;title&amp;gt;Invoice&amp;lt;/title&amp;gt;
+&amp;lt;/head&amp;gt;
+&amp;lt;body&amp;gt;
+&amp;lt;h1&amp;gt;Invoice&amp;lt;/h1&amp;gt;
+&amp;lt;p&amp;gt;Invoice Number: &amp;lt;xsl:value-of select="rsm:ExchangedDocument/ram:ID"/&amp;gt;&amp;lt;/p&amp;gt;
+&amp;lt;p&amp;gt;Issue Date: &amp;lt;xsl:value-of select="rsm:ExchangedDocument/ram:IssueDateTime/udt:DateTimeString"/&amp;gt;&amp;lt;/p&amp;gt;
+&amp;lt;p&amp;gt;Seller: &amp;lt;xsl:value-of select="rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeAgreement/ram:SellerTradeParty/ram:Name"/&amp;gt;&amp;lt;/p&amp;gt;
+&amp;lt;p&amp;gt;Buyer: &amp;lt;xsl:value-of select="rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeAgreement/ram:BuyerTradeParty/ram:Name"/&amp;gt;&amp;lt;/p&amp;gt;
+
+&amp;lt;h2&amp;gt;Items&amp;lt;/h2&amp;gt;
+&amp;lt;table border="1"&amp;gt;
+&amp;lt;tr&amp;gt;
+&amp;lt;th&amp;gt;Line&amp;lt;/th&amp;gt;
+&amp;lt;th&amp;gt;Product&amp;lt;/th&amp;gt;
+&amp;lt;th&amp;gt;Description&amp;lt;/th&amp;gt;
+&amp;lt;th&amp;gt;Quantity&amp;lt;/th&amp;gt;
+&amp;lt;th&amp;gt;Unit&amp;lt;/th&amp;gt;
+&amp;lt;th&amp;gt;Net Price&amp;lt;/th&amp;gt;
+&amp;lt;/tr&amp;gt;
+&amp;lt;xsl:for-each select="rsm:SupplyChainTradeTransaction/ram:IncludedSupplyChainTradeLineItem"&amp;gt;
+&amp;lt;tr&amp;gt;
+&amp;lt;td&amp;gt;&amp;lt;xsl:value-of select="ram:AssociatedDocumentLineDocument/ram:LineID"/&amp;gt;&amp;lt;/td&amp;gt;
+&amp;lt;td&amp;gt;&amp;lt;xsl:value-of select="ram:SpecifiedTradeProduct/ram:Name"/&amp;gt;&amp;lt;/td&amp;gt;
+&amp;lt;td&amp;gt;&amp;lt;xsl:value-of select="ram:SpecifiedTradeProduct/ram:ApplicableProductCharacteristic/ram:Description"/&amp;gt;&amp;lt;/td&amp;gt;
+&amp;lt;td&amp;gt;&amp;lt;xsl:value-of select="ram:SpecifiedLineTradeDelivery/ram:BilledQuantity"/&amp;gt;&amp;lt;/td&amp;gt;
+&amp;lt;td&amp;gt;&amp;lt;xsl:value-of select="ram:SpecifiedLineTradeDelivery/ram:BilledQuantity/@unitCode"/&amp;gt;&amp;lt;/td&amp;gt;
+&amp;lt;td&amp;gt;&amp;lt;xsl:value-of select="ram:SpecifiedLineTradeAgreement/ram:NetPriceProductTradePrice/ram:ChargeAmount"/&amp;gt;&amp;lt;/td&amp;gt;
+&amp;lt;/tr&amp;gt;
+&amp;lt;/xsl:for-each&amp;gt;
+&amp;lt;/table&amp;gt;
+
+&amp;lt;h2&amp;gt;Summary&amp;lt;/h2&amp;gt;
+&amp;lt;p&amp;gt;Total (before tax): &amp;lt;xsl:value-of select="rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeSettlement/ram:SpecifiedTradeSettlementHeaderMonetarySummation/ram:LineTotalAmount"/&amp;gt;&amp;lt;/p&amp;gt;
+&amp;lt;p&amp;gt;Tax: &amp;lt;xsl:value-of select="rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeSettlement/ram:SpecifiedTradeSettlementHeaderMonetarySummation/ram:TaxTotalAmount"/&amp;gt;&amp;lt;/p&amp;gt;
+&amp;lt;p&amp;gt;Grand Total: &amp;lt;xsl:value-of select="rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeSettlement/ram:SpecifiedTradeSettlementHeaderMonetarySummation/ram:GrandTotalAmount"/&amp;gt;&amp;lt;/p&amp;gt;
+&amp;lt;/body&amp;gt;
+&amp;lt;/html&amp;gt;
+&amp;lt;/xsl:template&amp;gt;
+&amp;lt;/xsl:stylesheet&amp;gt;'''
+
+    def inputXML = message.getBody(String)
+
+    def transformerFactory = TransformerFactory.newInstance()
+
+    def transformer = transformerFactory.newTransformer(new StreamSource(new StringReader(xsltContent)))
+
+    def xmlSource = new StreamSource(new StringReader(inputXML))
+
+    def htmlOutputStream = new StringWriter()
+
+    def result = new StreamResult(htmlOutputStream)
+
+
+
+    transformer.transform(xmlSource, result)
+
+    message.setBody(htmlOutputStream.toString())
+
+    message.setHeader("Content-Type", "text/html")
+
+    return message
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Key Points:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The XSLT template maps XML elements to HTML fields, including seller, buyer, invoice lines, totals, and notes.&lt;/LI&gt;&lt;LI&gt;CSS is embedded for professional styling.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Step 3: HTML to PDF Conversion Script&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The next Groovy script (placed after the previous step in your iFlow) uses iText to convert the generated HTML to a PDF.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;groovy:::&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;import com.itextpdf.text.*
+
+import com.itextpdf.text.pdf.PdfWriter
+
+import com.itextpdf.tool.xml.XMLWorkerHelper
+
+import java.io.*
+
+import com.sap.gateway.ip.core.customdev.util.Message
+
+ 
+
+def cleanHtml(String html) {
+
+    html = html.replaceAll(/&amp;lt;a[^&amp;gt;]*&amp;gt;(.*?)&amp;lt;\/a&amp;gt;/, '$1')
+
+    html = html.replaceAll(/&amp;lt;span[^&amp;gt;]*&amp;gt;(.*?)&amp;lt;\/span&amp;gt;/, '$1')
+
+    html = html.replaceAll(/&amp;lt;br&amp;gt;/, '&amp;lt;br/&amp;gt;')
+
+    html = html.replaceAll("&amp;amp;nbsp;", " ")
+
+    return html
+
+}
+
+ 
+
+def processData(Message message) {
+
+    def document = new Document()
+
+    def outputStream = new ByteArrayOutputStream()
+
+    try {
+
+        def htmlContent = message.getBody(String)
+
+        htmlContent = cleanHtml(htmlContent)
+
+        PdfWriter writer = PdfWriter.getInstance(document, outputStream)
+
+        document.open()
+
+        XMLWorkerHelper worker = XMLWorkerHelper.getInstance()
+
+        worker.parseXHtml(writer, document, new StringReader(htmlContent))
+
+        document.close()
+
+        byte[] pdfBytes = outputStream.toByteArray()
+
+        message.setBody(pdfBytes)
+
+        message.setHeader("Content-Type", "application/pdf")
+
+        message.setHeader("Content-Disposition", "attachment; filename=invoice.pdf")
+
+    } catch (Exception e) {
+
+        throw new RuntimeException("Error generating PDF: " + e.message, e)
+
+    } finally {
+
+        outputStream.close()
+
+    }
+
+    return message
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Generated PDF:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Sravanthi_Jogula_0-1749025052510.png" style="width: 484px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/269283i8A1A55C23BC51FF5/image-dimensions/484x511?v=v2" width="484" height="511" role="button" title="Sravanthi_Jogula_0-1749025052510.png" alt="Sravanthi_Jogula_0-1749025052510.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Key Points:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The cleanHtml function ensures compatibility by removing problematic tags.&lt;/LI&gt;&lt;LI&gt;The script sets the PDF as the message body and updates headers for file download.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Best Practices &amp;amp; Tips&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Testing&lt;/STRONG&gt;: Simulate your iFlow with sample XML invoices to ensure correct mapping and formatting.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;XSLT Maintenance&lt;/STRONG&gt;: Keep your XSLT modular and well-documented for easy updates.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;PDF Styling&lt;/STRONG&gt;: Test with different invoice data to ensure the PDF renders well, especially for multi-line items or special characters.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Error Handling&lt;/STRONG&gt;: Enhance your scripts with logging and error handling for production use.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;By combining XSLT-based HTML generation and Groovy/iText PDF conversion in SAP CPI, you can fully automate the transformation of XML invoices into professional PDF documents. This approach ensures compliance, improves efficiency, and provides a scalable solution for digital invoicing.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Ready to streamline your invoice process? Try implementing this iFlow in your SAP CPI tenant today!&lt;/STRONG&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/xml-xrechnung-invoice-to-pdf-invoice-conversion-using-xslt-mapping-in-sap/ba-p/14118646"/>
+    <published>2025-06-10T20:03:10.353000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/automating-customer-communication-and-data-delivery-using-sap-integration/ba-p/14122321</id>
+    <title>Automating Customer Communication and Data Delivery Using SAP Integration Suite</title>
+    <updated>2025-06-10T20:03:27.325000+02:00</updated>
+    <author>
+      <name>Anky02</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2085116</uri>
+    </author>
+    <content>&lt;H2 id="toc-hId-1732264868"&gt;&lt;U&gt;&lt;STRONG&gt;Part 1: Customer Notification iFlow&lt;/STRONG&gt;&lt;/U&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="calculate_price.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/271356i4FEECB5C40BCA5D9/image-size/large?v=v2&amp;amp;px=999" role="button" title="calculate_price.png" alt="calculate_price.png" /&gt;&lt;/span&gt;&lt;/H2&gt;&lt;P&gt;Below is a JSON payload received via HTTP, we have to extract customer details, calculate the total purchase amount, and send a personalized email using gcp and smtp to the customer.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="This is the sample payload which is sent using postman. Postman will be the sender here for testing purposes." style="width: 348px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/271354iFDDE8DC78997DD58/image-size/large?v=v2&amp;amp;px=999" role="button" title="payload.png" alt="This is the sample payload which is sent using postman. Postman will be the sender here for testing purposes." /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;This is the sample payload which is sent using postman. Postman will be the sender here for testing purposes.&lt;/span&gt;&lt;/span&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;H4 id="toc-hId-1793916801"&gt;1. HTTP Sender Adapter:&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;&amp;nbsp;Here we are sending the payload using http sender adapter via postman.&lt;/LI&gt;&lt;LI&gt;Configuration:&lt;UL&gt;&lt;LI&gt;Method:&amp;nbsp; We are using a POST method.&lt;/LI&gt;&lt;LI&gt;Address:&amp;nbsp;/CalculateTotalProductPrice02&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId-1597403296"&gt;2. Content Modifier&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;The HTTP adapter is connected to start message event which is in turn connected to content modifier which stores the incoming payload in the message body for further usage.&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId-1400889791"&gt;3. Parallel Multicast&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;After the processing of the message in the content modifier we send the payload to two different routes at the same time using a parallel multicast.&lt;BR /&gt;&lt;UL&gt;&lt;LI&gt;Branch 1 is connected to Groovy Script which extracts the required data, and it is further connected to end event which is connected to receiver1 via Mail Adapter.&lt;/LI&gt;&lt;LI&gt;Branch 2 is connected to end event which is connected to receiver2 via Process Direct which triggers a second iFlow.&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId-1204376286"&gt;4. Groovy Script&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;Using the groovy script we are parsing the JSON payload, calculating the total amount of all the products, and extracting the name and email of the customer from the payload for dynamic mail sending.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Anky02_0-1749389409111.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/271349i05FB6E7C581E675F/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Anky02_0-1749389409111.png" alt="Anky02_0-1749389409111.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;P&gt;&lt;!--        ScriptorStartFragment        --&gt;&lt;/P&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&lt;FONT color="#003366"&gt;&lt;FONT color="#003366"&gt;&lt;STRONG&gt;Copy the code below and paste in GroovyScript.&lt;BR /&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;FONT color="#003366"&gt;&lt;STRONG&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;import com.sap.gateway.ip.core.customdev.util.Message;&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;import groovy.json.JsonSlurper;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;Message processData(Message message) {&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp; def body = message.getBody(String);&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp; def json = new JsonSlurper().parseText(body);&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp; def firstName = json.customerFirstName;&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp; def customerEmail = json.customerEmail;&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp; def total = 0;&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp; json.purchases.each { purchase -&amp;gt;&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; total += purchase.productPrice;&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp; }&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp; message.setProperty("customerEmail", customerEmail);&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp; message.setProperty("customerFirstName", firstName);&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp; def response = "Hi ${firstName}. Your transaction of ${total} is successfully placed. Regards, My Website Sales Team ";&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp; message.setBody(response);&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp; return message;&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;}&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp;&lt;/DIV&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;!--        ScriptorEndFragment        --&gt;&lt;/P&gt;&lt;H4 id="toc-hId-1007862781"&gt;5. Mail Adapter&lt;/H4&gt;&lt;UL class="lia-align-justify" style="text-align : justify;"&gt;&lt;LI&gt;To:&amp;nbsp;${property.customerEmail} refer to Camel property of accessing properties.&lt;/LI&gt;&lt;LI&gt;Subject:&amp;nbsp;Order Confirmation for ${property.customerFirstName}&lt;/LI&gt;&lt;LI&gt;Body:&amp;nbsp;Uses the message body set by the Groovy script.&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId-811349276"&gt;6. Process Direct Adapter&lt;SPAN&gt;:&lt;/SPAN&gt;&lt;/H4&gt;&lt;SPAN&gt;The process direct adapter is used to forward the processed payload to the second iFlow for transformation and delivery.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-356670333"&gt;&amp;nbsp;&lt;U&gt;Part 2: JSON to CSV Transformation and SFTP Delivery iFlow&lt;/U&gt;&lt;/H2&gt;&lt;H3 id="toc-hId-289239547"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="json_to_csv.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/271369i6E8CBB93602D3AF5/image-size/large?v=v2&amp;amp;px=999" role="button" title="json_to_csv.png" alt="json_to_csv.png" /&gt;&lt;/span&gt;&lt;/H3&gt;&lt;P&gt;Convert the JSON payload into CSV format and send it to an SFTP server. Since SAP Integration Suite doesn’t support direct JSON-to-CSV conversion, we use a multi-step approach.&lt;/P&gt;&lt;H2 id="toc-hId--36356677"&gt;&lt;U&gt;&amp;nbsp;Integration Flow Components&lt;/U&gt;&lt;/H2&gt;&lt;H4 id="toc-hId--472421839"&gt;1. Process Direct Sender Adapter&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;We are using a process direct from the sender here to receive the processed payload from the first iFlow.&lt;/LI&gt;&lt;LI&gt;Configuration: &amp;lt;package_name&amp;gt; /&amp;lt;iFlow_name&amp;gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId--668935344"&gt;2. JSON to XML Converter&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;We are using a JSON to XML converter that converts the JSON payload into XML format.&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId--865448849"&gt;3. Parallel Multicast&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;We are again making use of parallel multicast to split the XML into two branches:&lt;UL&gt;&lt;LI&gt;Branch 1 named products extract's and converts product data.&lt;/LI&gt;&lt;LI&gt;Branch 2 named customer extract's and converts customer data.&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId--1061962354"&gt;4. XML to CSV Converters&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;Here we are using two XML to CSV Converters.&lt;/LI&gt;&lt;LI&gt;Converter 1 (Products) is used to convert product XML to CSV and Converter 2 (Customers) is used to convert customer XML to CSV.&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId--1258475859"&gt;5. Join Component&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;The join component is used to join the two parallel branches after conversion.&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId--1454989364"&gt;6. Gather Component&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;The gather component is used to aggregate the joined data into a single message.&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId--1651502869"&gt;7. SFTP Receiver Adapter&lt;/H4&gt;&lt;OL&gt;&lt;LI&gt;The end message event is connected to receiver via SFTP adapter that sends the final CSV file to an SFTP server.&lt;/LI&gt;&lt;LI&gt;Configuration:&amp;nbsp;Includes server address, port, authentication, and target directory.&lt;/LI&gt;&lt;/OL&gt;&lt;H2 id="toc-hId--1261210360"&gt;&amp;nbsp;Key Takeaways&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Content Modifier&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;is essential for storing and forwarding payloads.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Parallel Multicast&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;enables concurrent processing paths.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Groovy Script&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;provides flexibility for custom logic.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Mail Adapter&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;supports dynamic personalization.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Process Direct&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;promotes modular iFlow design.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;JSON to XML → XML to CSV&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;is a practical workaround for JSON-to-CSV transformation.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;SFTP Adapter&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;enables secure file delivery to external systems.&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/automating-customer-communication-and-data-delivery-using-sap-integration/ba-p/14122321"/>
+    <published>2025-06-10T20:03:27.325000+02:00</published>
   </entry>
 </feed>
