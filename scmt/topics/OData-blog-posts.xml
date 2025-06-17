@@ -2,158 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/OData-blog-posts.xml</id>
   <title>SAP Community - OData</title>
-  <updated>2025-06-16T23:11:19.563007+00:00</updated>
+  <updated>2025-06-17T11:11:33.377790+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/OData/pd-p/551580658536717501828021060147962" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>OData blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/create-deep-entity-using-rap-unmanaged/ba-p/13993060</id>
-    <title>CREATE_DEEP_ENTITY using RAP ( Unmanaged )</title>
-    <updated>2025-01-24T16:44:09.141000+01:00</updated>
-    <author>
-      <name>Mahmoud_Wael</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/178735</uri>
-    </author>
-    <content>&lt;P&gt;Hello Experts,&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In this blog, We will learn how to create a simple RAP OData API and use it to achieve a Deep entity set creation operation which is requested in lot of projects and Custom services especially in complex integration scenarios&amp;nbsp;.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In this example,&amp;nbsp; we will be using a custom cds view entities based on standard tables for header and items, unmanaged behavior definition, service definition and binding&amp;nbsp;&amp;nbsp;.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Step 1 : Parent CDS :&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Production order Cds view'
-@Metadata.ignorePropagatedAnnotations: true
-define root view entity z7pi_production_order 
-    as select from aufk as _order
-    composition [1..*] of z7pi_serial_number as _serial
-{
-    
-    key aufnr as Production_order,
-    auart,
-    
-    _serial
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Step 2 : Child CDS :&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'serial Number Cds view'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-define view entity z7pi_serial_number 
-    as select from objk
-    association [0..1] to ser05 on objk.obknr = ser05.obknr
-    association [0..1] to ser06 on objk.obknr = ser06.obknr
-    
-    association to parent z7pi_production_order as _order
-        on $projection.Production_order = _order.Production_order
-{
-    key ser05.ppaufart as Production_order,
-    key objk.sernr     as serial,
-    key ser06.exidv  as hu,
-    
-    _order
-    
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Step 3 : Unmanaged Behavior Definition :&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;unmanaged implementation in class z7pbp_7pi_production_order unique;
-strict ( 2 );
-
-define behavior for z7pi_production_order alias _order
-//late numbering
-lock master
-authorization master ( instance )
-//etag master &amp;lt;field_name&amp;gt;
-{
-  field ( features : instance ) auart ;
-  create;
-  update;
-  delete;
-  association _serial { create; }
-}
-
-define behavior for z7pi_serial_number alias _serial
-//late numbering
-lock dependent by _order
-authorization dependent by _order
-//etag master &amp;lt;field_name&amp;gt;
-{
-  update;
-  delete;
-  field ( readonly  ) Production_order;
-  association _order;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Step 4 : using quick fix create the implementation Class&lt;/P&gt;&lt;P&gt;Step 5 : comment or remove the&amp;nbsp;&lt;SPAN&gt;create and cba_association create methods&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;we remove both methods and create a new method using the events from the removed ones&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc__order DEFINITION INHERITING FROM cl_abap_behavior_handler.
-  PRIVATE SECTION.
-
-    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-      IMPORTING keys REQUEST requested_authorizations FOR _order RESULT result.
-
-*    METHODS create FOR MODIFY
-*      IMPORTING entities FOR CREATE _order.
-
-    METHODS deep_create FOR MODIFY
-      IMPORTING
-        order  FOR CREATE _order
-        serial FOR CREATE _order\_serial.
-
-    METHODS update FOR MODIFY
-      IMPORTING entities FOR UPDATE _order.
-
-    METHODS delete FOR MODIFY
-      IMPORTING keys FOR DELETE _order.
-
-    METHODS read FOR READ
-      IMPORTING keys FOR READ _order RESULT result.
-
-    METHODS lock FOR LOCK
-      IMPORTING keys FOR LOCK _order.
-
-    METHODS rba_serial FOR READ
-      IMPORTING keys_rba FOR READ _order\_serial FULL result_requested RESULT result LINK association_links.
-    METHODS get_instance_features FOR INSTANCE FEATURES
-      IMPORTING keys REQUEST requested_features FOR _order RESULT result.
-
-*    METHODS cba_serial FOR MODIFY
-*      IMPORTING entities_cba FOR CREATE _order\_serial.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;then in the implementation of the new method we should be able to access both the header and child entities&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD deep_create.
-
-    DATA(lv_import) = order.
-    DATA(lv_import_sr) = serial.
-    LOOP AT lv_import_sr ASSIGNING FIELD-SYMBOL(&amp;lt;sr&amp;gt;) .
-          LOOP AT &amp;lt;sr&amp;gt;-%target ASSIGNING FIELD-SYMBOL(&amp;lt;tr&amp;gt;).
-
-            wa_order_ser = VALUE #(
-                         %key-production_order =   lv_ord_no
-                         %key-serial           =   &amp;lt;tr&amp;gt;-serial
-                         production_order      =   lv_ord_no
-          ).
-
-            wa_report_ser = VALUE #(
-                          %key-production_order =   lv_ord_no
-                          %key-serial           =   &amp;lt;tr&amp;gt;-serial
-                          production_order      =   lv_ord_no
-            ).
-
-            wa_fail_ser = VALUE #(
-                        %key-production_order =   lv_ord_no
-                        %key-serial           =   &amp;lt;tr&amp;gt;-serial
-                        production_order      =   lv_ord_no
-             ).
-
-
-            SELECT SINGLE obknr
-              FROM objk
-              WHERE sernr EQ @&amp;lt;tr&amp;gt;-serial
-                AND taser EQ 'SER05'
-               INTO (obj_list).
-            
-
-          ENDLOOP.
-
-
-        ENDLOOP.
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Finally we create the service binding and service definition&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Blocking zrep order type serials'
-define service Z7PAPI_ZREP_BLOCK {
-  expose z7pi_production_order as prd_ord;
-  expose z7pi_serial_number as serial;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Mahmoud_Wael_0-1737544514045.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/215320iD6323D9F434F9C40/image-size/large?v=v2&amp;amp;px=999" role="button" title="Mahmoud_Wael_0-1737544514045.png" alt="Mahmoud_Wael_0-1737544514045.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;then we move to testing&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Mahmoud_Wael_1-1737544929653.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/215325iDD5B5B368E9750DC/image-size/large?v=v2&amp;amp;px=999" role="button" title="Mahmoud_Wael_1-1737544929653.png" alt="Mahmoud_Wael_1-1737544929653.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Mahmoud_Wael_2-1737544939552.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/215326i7FE0588AA79FF693/image-size/large?v=v2&amp;amp;px=999" role="button" title="Mahmoud_Wael_2-1737544939552.png" alt="Mahmoud_Wael_2-1737544939552.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;as shown you can access your header and child entities however you see fit&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/create-deep-entity-using-rap-unmanaged/ba-p/13993060"/>
-    <published>2025-01-24T16:44:09.141000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/consume-local-odata-service-within-same-backend-system/ba-p/14000638</id>
     <title>Consume local OData Service within same backend system</title>
@@ -1115,5 +967,17 @@ else:
 }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;That's it&lt;/P&gt;&lt;P&gt;Similarly, we can update phone or any other business partner object. Always ensure that you are expanding properly when calling the GET query, so that the object you want to get is listed in the response.&lt;/P&gt;&lt;P&gt;Recommendable is also to handle the response to the PATCH request, the desirable response code is 204. Anything else we can route as an exception in our iflow, as the update did not go through.&lt;/P&gt;&lt;P&gt;See also&amp;nbsp;&lt;A title="Creating Customer in SAP S/4 HANA Public Cloud via OData HTTP Adapter" href="https://community.sap.com/t5/technology-blog-posts-by-members/creating-customer-in-sap-s-4-hana-public-cloud-via-odata-http-adapter/ba-p/13953228" target="_blank"&gt;Creating Customer in SAP S/4 HANA Public Cloud via OData HTTP Adapter&lt;/A&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/updating-customer-in-sap-s-4-hana-public-cloud-via-odata-http-adapter/ba-p/14109511"/>
     <published>2025-05-22T18:35:37.307000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/send-data-from-sap-analytics-cloud-to-3rd-party-tools-using-cpi/ba-p/14129356</id>
+    <title>Send data from SAP Analytics Cloud to 3rd Party tools using CPI</title>
+    <updated>2025-06-17T10:57:20.877000+02:00</updated>
+    <author>
+      <name>akshaykhatri1992</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/778666</uri>
+    </author>
+    <content>&lt;P&gt;Requirement from customer:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Customer checks the financial values on SAC story and is ok with the KPIs.&lt;/LI&gt;&lt;LI&gt;Customer needs a &lt;STRONG&gt;button&lt;/STRONG&gt; in SAC to send the KPIs to 3rd party system in a format different from what we have in Step 1.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;U&gt;Sample Layout of Report for 1:&amp;nbsp;&lt;/U&gt;&lt;/STRONG&gt;Format of report to validate KPI values, Accounts on rows and Period Amounts in columns.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_0-1750139502848.png" style="width: 640px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274957i00BE7E2542B0130A/image-dimensions/640x76/is-moderation-mode/true?v=v2" width="640" height="76" role="button" title="akshaykhatri1992_0-1750139502848.png" alt="akshaykhatri1992_0-1750139502848.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;U&gt;Sample Layout of Report for 2:&amp;nbsp;&lt;/U&gt;&lt;/STRONG&gt;Format of data to be send outside of SAC using Button Script:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_1-1750139502849.png" style="width: 644px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274956i3F260978BA99571B/image-dimensions/644x71/is-moderation-mode/true?v=v2" width="644" height="71" role="button" title="akshaykhatri1992_1-1750139502849.png" alt="akshaykhatri1992_1-1750139502849.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Here we will not cover Analytic Model development on &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Datasphere/pd-p/73555000100800002141" class="lia-product-mention" data-product="16-1"&gt;SAP Datasphere&lt;/a&gt;&amp;nbsp;end to end, below is how we take the oData request of Analytic model&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_2-1750139502852.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274958i8B285EE859786985/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="akshaykhatri1992_2-1750139502852.png" alt="akshaykhatri1992_2-1750139502852.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Copy URL and adjust the URL depending on fields required and additional operators like sort, filter etc. This URL will contain the fields that need to be sent outside SAC, hence needs to be accurate.&lt;/P&gt;&lt;P&gt;Example:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_3-1750139502864.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274961i7C14996EEF2DD1E3/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="akshaykhatri1992_3-1750139502864.png" alt="akshaykhatri1992_3-1750139502864.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The above URL can be shared with &lt;a href="https://community.sap.com/t5/c-khhcw49343/Cloud+Integration/pd-p/67837800100800006801" class="lia-product-mention" data-product="361-1"&gt;Cloud Integration&lt;/a&gt;&amp;nbsp;(CPI), to be maintained in HTTP Adapter, also can be made dynamic with placeholders/filters. ( In our case w e are passing fiscal year, Period, company code etc. and the same is changed dynamically at CPI end.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;U&gt;Sample IFLOW from CPI ( HTTP Adapter)&lt;/U&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_4-1750139502868.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274960i998DE03D8D3357CA/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="akshaykhatri1992_4-1750139502868.png" alt="akshaykhatri1992_4-1750139502868.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;U&gt;Create a connection in &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Analytics+Cloud/pd-p/67838200100800006884" class="lia-product-mention" data-product="3-1"&gt;SAP Analytics Cloud&lt;/a&gt;&amp;nbsp;with CPI ( HTTP Connection ) :&lt;/U&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This will be used to POST the data from SAC to the endpoint of CPI tenant(S).&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_5-1750139502870.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274959i6D058F1CED2C7224/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="akshaykhatri1992_5-1750139502870.png" alt="akshaykhatri1992_5-1750139502870.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;U&gt;Create MultiAction in &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Analytics+Cloud/pd-p/67838200100800006884" class="lia-product-mention" data-product="3-2"&gt;SAP Analytics Cloud&lt;/a&gt;&amp;nbsp;with API&lt;/U&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;STRONG&gt;“Test_Multiaction”&lt;/STRONG&gt; created&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_6-1750139502872.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274963iAD26D6A984242D6D/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="akshaykhatri1992_6-1750139502872.png" alt="akshaykhatri1992_6-1750139502872.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;HTTP API Connection is selected that was created in above step.&lt;/P&gt;&lt;P&gt;Message body can have fixed message, also can pass Parameters as in our case.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_7-1750139502872.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274962i57E29FF0A05A0558/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="akshaykhatri1992_7-1750139502872.png" alt="akshaykhatri1992_7-1750139502872.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_8-1750139502876.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274964iAE4E13CC93DB56B4/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="akshaykhatri1992_8-1750139502876.png" alt="akshaykhatri1992_8-1750139502876.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Parameters can be maintained here:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_9-1750139502879.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274966iF12627E678471E42/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="akshaykhatri1992_9-1750139502879.png" alt="akshaykhatri1992_9-1750139502879.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;U&gt;SAC Story/Page for Execution &lt;/U&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;I am taking an example of standalone story, but this can also be added to a new page of the same story that the user is viewing( like story in Sample Layout 1 shown above ).&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_10-1750139502880.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274965i8E9031EC26BBBB5E/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="akshaykhatri1992_10-1750139502880.png" alt="akshaykhatri1992_10-1750139502880.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;As it can be seen above, we are using radio button, input text fields to capture user inputs to be passed to multiaction parameters shown above.&lt;/P&gt;&lt;P&gt;Before we can call the multiaction in our story, we need to attach/combine &lt;STRONG&gt;"Test_Multiaction" &lt;/STRONG&gt;created above&amp;nbsp;it in the story.&amp;nbsp;Navigate to &lt;STRONG&gt;“Outline”&lt;/STRONG&gt; and use &lt;STRONG&gt;“Add Multiactions”&lt;/STRONG&gt; and follow screenshot below:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_11-1750139502881.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274967iBD4807FED8BC7F59/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="akshaykhatri1992_11-1750139502881.png" alt="akshaykhatri1992_11-1750139502881.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_12-1750139502884.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274970iE65AE951CF55E51F/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="akshaykhatri1992_12-1750139502884.png" alt="akshaykhatri1992_12-1750139502884.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Below is the&amp;nbsp;&lt;STRONG&gt;&lt;U&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Analytics+Cloud/pd-p/67838200100800006884" class="lia-product-mention" data-product="3-3"&gt;SAP Analytics Cloud&lt;/a&gt;&lt;/U&gt;&lt;/STRONG&gt;&amp;nbsp;script sample to set the parameters of Multiaction and also to call/execute the same. This will post the message to CPI&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_13-1750139502887.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274969i96F7253340139089/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="akshaykhatri1992_13-1750139502887.png" alt="akshaykhatri1992_13-1750139502887.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;On successful execution, we get the message as below:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_14-1750139502888.png" style="width: 491px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274968i4261DDD44AA27A4D/image-dimensions/491x221/is-moderation-mode/true?v=v2" width="491" height="221" role="button" title="akshaykhatri1992_14-1750139502888.png" alt="akshaykhatri1992_14-1750139502888.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;U&gt;Monitor Job (MultiAction):&lt;/U&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;We can also monitor the status of runs/jobs for the created multiAction to check history and failure details.&lt;/P&gt;&lt;P&gt;Goto “Job Monitor - Multiactions”&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_15-1750139502890.png" style="width: 509px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274972i1D2C4117522B468A/image-dimensions/509x159/is-moderation-mode/true?v=v2" width="509" height="159" role="button" title="akshaykhatri1992_15-1750139502890.png" alt="akshaykhatri1992_15-1750139502890.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="akshaykhatri1992_16-1750139502893.png" style="width: 518px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/274971iBB8A642D3B14638A/image-dimensions/518x149/is-moderation-mode/true?v=v2" width="518" height="149" role="button" title="akshaykhatri1992_16-1750139502893.png" alt="akshaykhatri1992_16-1750139502893.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/send-data-from-sap-analytics-cloud-to-3rd-party-tools-using-cpi/ba-p/14129356"/>
+    <published>2025-06-17T10:57:20.877000+02:00</published>
   </entry>
 </feed>
