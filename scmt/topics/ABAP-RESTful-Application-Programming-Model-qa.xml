@@ -2,190 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-RESTful-Application-Programming-Model-qa.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2025-06-19T02:00:07.318318+00:00</updated>
+  <updated>2025-06-19T05:00:07.411330+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/custom-entity-count-skip-top-not-supported/qaq-p/14118959</id>
-    <title>Custom entity, $count, $skip, $top not supported</title>
-    <updated>2025-06-04T16:00:15.691000+02:00</updated>
-    <author>
-      <name>patrick_weber11</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/215409</uri>
-    </author>
-    <content>&lt;P&gt;Hi there,&lt;/P&gt;&lt;P&gt;I developed a Fiori Elements ListReport App. The data model constists of a root view entity and compositions. This works fine so far&lt;/P&gt;&lt;P&gt;Now I had to add an additional composition child, which is a custom entity in this case, like this&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'CE for MfgOrdOperationStdWorkTime'
-
-@ObjectModel.query.implementedBy: 'ABAP:ZCL_MFGORDOPERATIONSTDWORKTIME'
-define custom entity Z_CE_MFGORDOPERATIONWORKTIME
-{
-  key ManufacturingOrder             : aufnr;
-  key ManufacturingOrderOperation    : abap.char(4); // Operation Number (External Format)
-
-      // Quantity-Unit Pair 1 (PP)
-      @Aggregation.default           : #SUM
-      @Semantics.quantity.unitOfMeasure: 'PlanWorkCenterStdWorkQtyUnit1'
-      PlanWorkCenterStdWorkQty1      : vdm_vgw01;
-..
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This custom entity has been added as association to my root view entity and it was exposed as part of service definition. Everything seems fine so far.&lt;/P&gt;&lt;P&gt;But it does not show any data. I analyzed the request and it always returns this error message (sorry for German)&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="patrick_weber11_0-1749044860862.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/269414i2F0F99DC1B8CAD73/image-size/medium?v=v2&amp;amp;px=400" role="button" title="patrick_weber11_0-1749044860862.png" alt="patrick_weber11_0-1749044860862.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Angeforderter URI erlaubt folgende Systemabfrageoptionens: '$expand,$select,$format'&lt;BR /&gt;Which means, I'm only allowed to use $expand, $select and $format. Fiori App uses $top, $skip and $count, so the request looks like this:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;.../ZC_PP_PRODUCTIONORDERPOOL(ManufacturingOrder='5230126',ManufacturingOrderOperation='0020',Sequence='0')/_WorkTime?sap-client=500&amp;amp;$count=true&amp;amp;$select=ManufacturingOrder,ManufacturingOrderOperation,PlanWorkCenterStdWorkQtyUnit1,PlanWorkCenterStdWorkQtyUnit2,StandardWorkTimeText&amp;amp;$skip=0&amp;amp;$top=10 &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;If I enter this URL in Postman and if I remove $count, $top and $skip, data are fetched successfully. As soon as I add one of these, it fails.&lt;/P&gt;&lt;P&gt;Here a simplified version of my implementation&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_mfgordoperationstdworktime DEFINITION
-  PUBLIC FINAL
-  CREATE PUBLIC.
-
-  PUBLIC SECTION.
-    INTERFACES if_rap_query_provider.
-
-  PRIVATE SECTION.
-    
-
-ENDCLASS.
-
-
-CLASS zcl_mfgordoperationstdworktime IMPLEMENTATION.
-  METHOD if_rap_query_provider~select.
-    " Result Structure Definition
-    TYPES: BEGIN OF ty_result_line,
-            ...
-           END OF ty_result_line.
-
-    TYPES tt_result TYPE STANDARD TABLE OF ty_result_line WITH EMPTY KEY.
-    DATA lt_result            TYPE tt_result.
-    DATA ls_result            LIKE LINE OF lt_result.
-
-    DATA lv_order_by TYPE string.
-
-    TRY.
-
-        DATA(filters) = io_request-&amp;gt;get_filter( )-&amp;gt;get_as_ranges( ).
-        " TODO: variable is assigned but never used (ABAP cleaner)
-        DATA(requested_fields) = io_request-&amp;gt;get_requested_elements( ).
-
-        READ TABLE filters WITH KEY name = 'MANUFACTURINGORDER' INTO DATA(range_manufacturingorder).
-        READ TABLE filters WITH KEY name = 'MANUFACTURINGORDEROPERATION' INTO DATA(range_operation).
-
-        " Get paging properties
-        DATA(lv_offset) = io_request-&amp;gt;get_paging( )-&amp;gt;get_offset( ).
-        " Get positive page size, to avoid -1
-        DATA(lv_page_size) = abs( io_request-&amp;gt;get_paging( )-&amp;gt;get_page_size( ) ).
-
-        " Get sorting
-        DATA(lt_sort_elements) = io_request-&amp;gt;get_sort_elements( ).
-        LOOP AT lt_sort_elements ASSIGNING FIELD-SYMBOL(&amp;lt;fs_sort_element&amp;gt;).
-          lv_order_by = |{ lv_order_by }{ COND #(
-                     WHEN &amp;lt;fs_sort_element&amp;gt;-descending = abap_false
-                     THEN |, { &amp;lt;fs_sort_element&amp;gt;-element_name }|
-                     ELSE |, { &amp;lt;fs_sort_element&amp;gt;-element_name } DESCENDING| ) }|.
-        ENDLOOP.
-
-        " Apply paging and sorting, get requested part of results
-        IF lv_order_by IS INITIAL.
-          lv_order_by = |MANUFACTURINGORDER|.
-        ENDIF.
-
-       select .... [here the logic takes place]
-
-
-        IF io_request-&amp;gt;is_total_numb_of_rec_requested(  ).
-          io_response-&amp;gt;set_total_number_of_records( lines( lt_result ) ).
-        ENDIF.
-        IF io_request-&amp;gt;is_data_requested(  ).
-          io_response-&amp;gt;set_data( lt_result ).
-        ENDIF.
-
-      " --- Exception Handling ---
-      CATCH cx_rap_query_provider INTO DATA(lx_rap_query).
-        RAISE EXCEPTION lx_rap_query.
-    ENDTRY.
-  ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;As you see here, I do&lt;/P&gt;&lt;P&gt;- read the value of $top by&amp;nbsp;io_request-&amp;gt;get_paging( )-&amp;gt;get_page_size( )&lt;BR /&gt;- read the value of $skip by&amp;nbsp;io_request-&amp;gt;get_paging( )-&amp;gt;get_offset( )&lt;BR /&gt;- check and provide total count ant the end by&amp;nbsp;io_request-&amp;gt;is_total_numb_of_rec_requested( )&lt;/P&gt;&lt;P&gt;Why am I not able to use $count, $top and $skip anyway?&lt;/P&gt;&lt;P&gt;This is a simplified version of my root view. Please note that the custom entity is used as association&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;define root view entity ZI_PP_PRODUCTIONORDERPOOL
-  as select from           I_ManufacturingOrder
-
-   composition [0..*] of ZI_PP_components   as _Components
-  association [1..1] to Z_CE_MFGORDOPERATIONWORKTIME as _WorkTime      on  _WorkTime.ManufacturingOrder = $projection.ManufacturingOrder
-                                                                        and _WorkTime.ManufacturingOrderOperation          = $projection.ManufacturingOrderOperation
-
-{
-
-        &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1692417"&gt;@search&lt;/a&gt;.defaultSearchElement: true
-  key   I_ManufacturingOrder.ManufacturingOrder                                                    as ManufacturingOrder,
-
-        @ObjectModel.text.element: ['OperationText']
-  key   cast( _Operation.ManufacturingOrderOperation as ptrv_web_interface_vornr preserving type ) as ManufacturingOrderOperation,
-
-...
-
-_Components
-_WorkTime&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Projection View looks like this&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Arbeitsplatzvorratsliste Projection View'
-@AccessControl.authorizationCheck: #CHECK
-@Metadata.allowExtensions: true
-@Search.searchable: true
-define root view  entity ZC_PP_PRODUCTIONORDERPOOL as projection on ZI_PP_PRODUCTIONORDERPOOL {
-    key ManufacturingOrder,
-    key ManufacturingOrderOperation,
-    key Sequence,
-    ProductionOrder,
-    ProductionPlant,
-  
-  ...
-  ...  
-    
-    /* Associations */
-    _Components : redirected to composition child ZC_PP_PRODUCTIONORDERPOOL_C,
-    _WorkTime  &amp;lt;&amp;lt;-- this is my Custom entity
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;And finally, metadata extension&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CORE
-@UI.headerInfo: {
-                  typeNamePlural: 'Auftragsvorgänge',
-                  typeName: 'Auftragsvorgang',
-                  title : { value : 'ManufacturingOrder',
-                            type : #STANDARD },
-                  description: { value : 'ManufacturingOrderOperation',
-                                 type: #STANDARD}
-                   }
-
-@UI.lineItem: [{criticality: 'XY'}]
-annotate view ZC_PP_PRODUCTIONORDERPOOL with
-{
-
-  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.facet: [
-  // Header
-       { type: #FIELDGROUP_REFERENCE,
-         purpose: #HEADER,
-         position:10,
-         label: 'Vorgang',
-         targetQualifier: 'OperationDetails'
-       },
-       // Field Group for Material components
-       {
-         id : 'Components',
-         label: 'Komponenten',
-         purpose: #STANDARD,
-         type: #LINEITEM_REFERENCE,
-         position: 10,
-         targetElement: '_Components'
-       },
-       // Field group for Custom entity
-       {
-         id:'WorkTime',
-         label: 'Arbeitszeit',
-         purpose:#STANDARD,
-         type:#LINEITEM_REFERENCE,
-         position: 40,
-         targetElement: '_WorkTime'
-       }               
-    ]
-
-
-  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.selectionField: [{ position: 10 }]
-  @Consumption.valueHelpDefinition: [{ entity : {name: 'I_Plant', element: 'Plant'  } }]
-  ProductionPlant;
-
-...
-...
-  
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/custom-entity-count-skip-top-not-supported/qaq-p/14118959"/>
-    <published>2025-06-04T16:00:15.691000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/sap-public-cloud-badi-needed-for-vf02-release-to-accounting/qaq-p/14120165</id>
     <title>sap public cloud BADI needed for VF02 release to accounting</title>
@@ -595,5 +415,17 @@ lock master
     <content>&lt;P&gt;I am new to RAP. Try to create my first Project and getting many errors in Child and Parent projection view.&lt;/P&gt;&lt;P&gt;Help me find out what is wrong.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Gargi6_0-1750231261422.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/275649iBF1F0FCC01FE1819/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Gargi6_0-1750231261422.png" alt="Gargi6_0-1750231261422.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Gargi6_1-1750231344616.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/275650i4351FEFAC227D70D/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Gargi6_1-1750231344616.png" alt="Gargi6_1-1750231344616.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Thank you,&lt;/P&gt;&lt;P&gt;Gargi&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/my-first-rap-project-many-errors-in-child-and-parent-projection-view/qaq-p/14130624"/>
     <published>2025-06-18T09:24:55.720000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/need-custom-button-to-download-an-excel-file-in-rap-application/qaq-p/14131473</id>
+    <title>Need custom button to download an excel file in RAP application</title>
+    <updated>2025-06-19T05:26:38.723000+02:00</updated>
+    <author>
+      <name>Prasanth13</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2141178</uri>
+    </author>
+    <content>&lt;P&gt;Hi Everyone,&lt;/P&gt;&lt;P&gt;In my RAP application I want to incorporate custom download action in list report page. So that when I click on that I need to download a custom excel sheet.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Can we achieve this in RAP application, If yes, then how?&lt;/P&gt;&lt;P&gt;if not, what other options I can follow?&lt;/P&gt;&lt;P&gt;Thanks and Regards,&lt;/P&gt;&lt;P&gt;Prasanth.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/need-custom-button-to-download-an-excel-file-in-rap-application/qaq-p/14131473"/>
+    <published>2025-06-19T05:26:38.723000+02:00</published>
   </entry>
 </feed>
