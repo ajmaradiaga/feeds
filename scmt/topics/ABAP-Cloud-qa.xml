@@ -2,229 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Cloud-qa.xml</id>
   <title>SAP Community - ABAP Cloud</title>
-  <updated>2025-06-26T08:00:01.226472+00:00</updated>
+  <updated>2025-06-26T11:00:01.350126+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Cloud/pd-p/9ada5ac7-3f77-49de-b5c9-9019df1d1e09" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Cloud Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/instance-memory-in-abap-for-cloud-development/qaq-p/14118659</id>
-    <title>Instance Memory in ABAP for Cloud Development</title>
-    <updated>2025-06-04T11:06:02.199000+02:00</updated>
-    <author>
-      <name>AustinKloske</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1702051</uri>
-    </author>
-    <content>&lt;P&gt;I have not been able to find a way to retain Static Class attributes in instance memory between SAPUI5 apps and the ABAP backend. We're currently on a S/4 HANA on-premise 2023 FSP 02 system.&amp;nbsp;&lt;SPAN class=""&gt;On each call to the ABAP backend from SAPUI5, all of my static class attributes are cleared. Nothing is kept in ABAP memory between calls the ABAP backend from my UI5 apps.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;How can we retain ABAP class instances in memory while re-designing our UI to run on SAPUI5? I hope that I am missing a setting to keep an ABAP internal session memory alive. If not, this is a really big issue for partners and customers that cannot leverage there instanciated instances without having to rebuild from the DB on every call to the ABAP Server. SAPUI5 apps need to be able to leverage instantiated classes in the ABAP server.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;oData services have become the primary bridge between frontend and backend apps. However, OData can't support ABAP object references, so we need to get a little more creative on how to make the two technologies work together:&lt;/P&gt;&lt;P&gt;Attempt 1 - Custom CDS entities + ABAP data store. Here we set up a data store as a singleon to try to take advantage of static attribute - &lt;STRONG&gt;FAILED&lt;/STRONG&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;class ZCL_LE_DATA_STORE definition
-  public
-  final
-  create public .
-
-public section.
-
-  class-methods GET_OBJECT
-    returning
-      value(RO_DATA_STORE) type ref to ZCL_LE_DATA_STORE .
-  methods GET_FOO_OBJECT
-    returning
-      value(RO_FOO) type ref to ZCL_FOO.
-  methods SET_FOO_OBJECT
-    importing
-      !IO_FOO type ref to ZCL_FOO .
-  METHODS get_count
-      RETURNING
-        VALUE(rv_count) TYPE int4.
-    METHODS set_count
-      IMPORTING
-        iv_count TYPE int4.
-  PROTECTED SECTION.
-private section.
-
-  class-data MO_DATA_STORE type ref to ZCL_LE_DATA_STORE .
-  DATA MO_FOO type ref to ZCL_FOO .
-  DATA mv_count TYPE int4.
-ENDCLASS.
-
-CLASS ZCL_LE_DATA_STORE IMPLEMENTATION.
-
-  METHOD get_object.
-    IF zcl_le_data_store=&amp;gt;mo_data_store IS NOT BOUND.
-      CREATE OBJECT zcl_le_data_store=&amp;gt;mo_data_store.
-    ENDIF.
-    ro_data_store = zcl_le_data_store=&amp;gt;mo_data_store.
-  ENDMETHOD.
-
-  METHOD get_count.
-    rv_count = mv_count.
-  ENDMETHOD.
-
-  METHOD set_count.
-    mv_count = iv_count.
-  ENDMETHOD.
-
-  METHOD GET_FOO_OBJECT.
-    ro_foo = mo_foo.
-  ENDMETHOD.
-
-  METHOD SET_FOO_OBJECT.
-    mo_foo = io_foo.
-  ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  METHOD if_rap_query_provider~select.
-    TRY.
-        DATA(lo_data_store) = zcl_le_data_store=&amp;gt;get_object(  ).
-        DATA(lv_count) = lo_data_store-&amp;gt;get_count(  ).
-        lv_count += 1.
-        lo_data_store-&amp;gt;set_count( lv_count ).
-
-        "Required calls for if_rap_query_provider interface usage
-        DATA(lv_top)     = io_request-&amp;gt;get_paging( )-&amp;gt;get_page_size( ).
-        DATA(lv_skip)    = io_request-&amp;gt;get_paging( )-&amp;gt;get_offset( ).
-        DATA(lt_fields)  = io_request-&amp;gt;get_requested_elements( ).
-        DATA(lt_sort)    = io_request-&amp;gt;get_sort_elements( ).
-
-        DATA(lt_filter_conds) = io_request-&amp;gt;get_filter( )-&amp;gt;get_as_ranges( ). "       get_filter_conditions( ).
-        DATA lt_data TYPE ty_web_api_t.
-        io_response-&amp;gt;set_total_number_of_records( lines( lt_data ) ).
-        io_response-&amp;gt;set_data( lt_data ).
-
-      CATCH cx_root INTO DATA(exception).
-        DATA(exception_message) = cl_message_helper=&amp;gt;get_latest_t100_exception( exception )-&amp;gt;if_message~get_longtext( ).
-    ENDTRY.
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The get data store method is returning an unbound instance on each call to if_rap_query_provider.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Attempt 2 - ABAP Push Channels - &lt;STRONG&gt;FAILED&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;I extended&lt;A href="https://community.sap.com/t5/application-development-and-automation-blog-posts/abap-push-messaging-channel-and-sapui5-demo-application/ba-p/13160973" target="_blank"&gt; Gregor's ABAP push channel example&lt;/A&gt; to allow PCP messaging between the SAPUI5 app and the ABAP server. Unfortanately,&amp;nbsp; the data store static attributes do not retain instance memory over ABAP message Channels. The results are the same as attempt #1.&lt;/P&gt;&lt;P&gt;To add insult to injury, when moving this approach from Z-space to a ABAP Cloud, SAP ABAP Messaging Channel Application (t-code SAPC) are not supported in ABAP Cloud. I created another Tech Q&amp;amp;A post on this specific issue &lt;A href="https://community.sap.com/t5/technology-q-a/abap-for-cloud-development-abap-push-channel-applications/qaq-p/14116896" target="_blank"&gt;here&lt;/A&gt;.&lt;BR /&gt;&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="AustinKloske_0-1749026641306.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/269293iE4A8920D104F9772/image-size/medium?v=v2&amp;amp;px=400" role="button" title="AustinKloske_0-1749026641306.png" alt="AustinKloske_0-1749026641306.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_apc_wsp_ext_zapc_echo DEFINITION
-  PUBLIC
-  INHERITING FROM cl_apc_wsp_ext_stateless_pcp_b
-  FINAL
-  CREATE PUBLIC .
-  PUBLIC SECTION.
-    METHODS if_apc_wsp_ext_pcp~on_message
-        REDEFINITION .
-    METHODS if_apc_wsp_ext_pcp~on_start
-        REDEFINITION .
-  PROTECTED SECTION.
-private section.
-
-  class-methods PREPARE_MESSAGE_FOR_UI
-    importing
-      !IV_TEXT type STRING
-    returning
-      value(RV_TEXT) type STRING .
-
-ENDCLASS.
-
-
-
-CLASS ZCL_APC_WSP_EXT_ZAPC_ECHO IMPLEMENTATION.
-
-  METHOD if_apc_wsp_ext_pcp~on_message.
-    DATA: lo_producer TYPE REF TO cl_amc_message_type_pcp.
-    DATA: lt_fields          TYPE pcp_fields.
-    DATA lt_foo TYPE zcl_foo=&amp;gt;ty_fo_tab.
-
-    TRY.
-*       retrieve the text message
-        i_message-&amp;gt;get_fields( CHANGING c_fields = lt_fields ).
-        lo_producer ?= cl_amc_channel_manager=&amp;gt;create_message_producer(
-          i_application_id = 'ZAMC_ECHO'
-          i_channel_id     = '/echo' ).
-
-        DATA lo_foo TYPE REF TO zcl_foo.
-
-        READ TABLE lt_fields INTO DATA(ls_foo_guid) WITH KEY name = 'foo_guid'.
-        IF sy-subrc NE 0.
-          "Raise exception
-        ENDIF.
-
-
-
-
-        """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-        TRY.
-            READ TABLE lt_fields INTO DATA(ls_fields) WITH KEY name = 'operation'.
-            DATA(lv_message) = i_message-&amp;gt;get_text( ).
-            data lo_data_store TYPE REF TO zcl_le_data_store.
-            lo_foo = zcl_le_data_store=&amp;gt;get_foo_object( ).
-            IF lo_foo IS NOT BOUND.
-                "Object memory not working, rebuild from DB :(
-                lo_foo = zcl_foo_factory=&amp;gt;find_or_create( ls_doc_guid-value ).
-            ENDIF.
-            CASE ls_fields-value.
-              WHEN 'update_foo'.
-                lo_foo-&amp;gt;_service( lv_message ).
-                "lo_foo-&amp;gt;save( i_commit = 'X' ).
-              WHEN 'handle_save_and_commit'.
-                lo_foo-&amp;gt;save( i_commit = 'X' ).
-              WHEN OTHERS.
-
-            ENDCASE.
-
-          CATCH cx_root.
-            "Raise exception
-        ENDTRY.
-        """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-
-
-        DATA(lv_text) = prepare_message_for_ui( 'Success' ).
-        DATA(lo_msg) = cl_ac_message_type_pcp=&amp;gt;create( ).
-        lo_msg-&amp;gt;set_text( i_message = lv_text ).
-        LOOP AT lt_fields INTO DATA(ls_field).
-          IF ls_field-name NP 'pcp-*'.
-            lo_msg-&amp;gt;set_field( i_name = ls_field-name i_value = ls_field-value ).
-          ENDIF.
-        ENDLOOP.
-
-        lo_producer-&amp;gt;send( i_message = lo_msg ).
-      CATCH cx_ac_message_type_pcp_error INTO DATA(lx_pcp_error).
-        MESSAGE lx_pcp_error-&amp;gt;get_text( ) TYPE 'E'.
-      CATCH cx_amc_error INTO DATA(lx_amc_error).
-        MESSAGE lx_amc_error-&amp;gt;get_text( ) TYPE 'E'.
-      CATCH cx_apc_error INTO DATA(lx_apc_error).
-        MESSAGE lx_apc_error-&amp;gt;get_text( ) TYPE 'E'.
-      CATCH /coss/cx_api_hub INTO DATA(lx_api_hub).
-        MESSAGE lx_api_hub-&amp;gt;get_text( ) TYPE 'E'.
-    ENDTRY.
-  ENDMETHOD.
-
-
-  METHOD if_apc_wsp_ext_pcp~on_start.
-    TRY.
-* bind the WebSocket connection to the AMC channel
-        DATA(lo_binding) = i_context-&amp;gt;get_binding_manager( ).
-        lo_binding-&amp;gt;bind_amc_message_consumer(
-          i_application_id = 'ZAMC_ECHO'
-          i_channel_id     = '/echo' ).
-      CATCH cx_apc_error INTO DATA(lx_apc_error).
-        DATA(lv_message) = lx_apc_error-&amp;gt;get_text( ).
-        MESSAGE lx_apc_error-&amp;gt;get_text( ) TYPE 'E'.
-    ENDTRY.
-  ENDMETHOD.
-
-
-  METHOD prepare_message_for_ui.
-    TYPES: BEGIN OF t_message,
-             text TYPE string,
-             user TYPE uname,
-             date TYPE timestamp,
-           END OF t_message.
-    DATA: ls_message TYPE t_message.
-    ls_message-text = iv_text.
-    ls_message-user = sy-uname.
-    GET TIME STAMP FIELD ls_message-date.
-    DATA(lo_json_witer) = cl_sxml_string_writer=&amp;gt;create(
-                            type = if_sxml=&amp;gt;co_xt_json
-                          ).
-    CALL TRANSFORMATION id SOURCE ls_message = ls_message
-                        RESULT XML lo_json_witer.
-    DATA(lv_xstr) = lo_json_witer-&amp;gt;get_output( ).
-    CALL FUNCTION 'ECATT_CONV_XSTRING_TO_STRING'
-      EXPORTING
-        im_xstring = lv_xstr
-*       im_encoding = 'UTF-8'
-      IMPORTING
-        ex_string  = rv_text.
-  ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Attempt 3 - ABAP Daemons could be used in combination with any approach that allows communication between SAPUI5 &amp;amp; the ABAP backend and should be able to set and retrieve instanciated objects as a Static Attribute. However, The ABAP dependency (CL_ABAP_DAEMON_EXT_BASE) to make use of ABAP Daemons is also not released for use an ABAP Cloud.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="AustinKloske_1-1749027142548.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/269295i61F33DA6E191BDF0/image-size/medium?v=v2&amp;amp;px=400" role="button" title="AustinKloske_1-1749027142548.png" alt="AustinKloske_1-1749027142548.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Attempt 4 - &lt;A href="https://community.sap.com/t5/additional-blog-posts-by-members/how-to-use-shared-object-memory-and-sap-memory-to-share-the-objects-for/ba-p/13288625" target="_blank"&gt;ABAP Shared memory to the rescue&lt;/A&gt;?&amp;nbsp; &lt;STRONG&gt;NOPE&lt;/STRONG&gt;, This approach can also be used in any combination of SAPUI5 &amp;lt;-&amp;gt; ABAP Cloud communication. Similarly, the ABAP dependencies to make use of this approach are also not released for ABAP Cloud usage (CL_SHM_AREA, &lt;SPAN&gt;if_shm_build_instance &amp;amp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;transaction&amp;nbsp;&lt;STRONG&gt;SHMA&amp;nbsp;&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;SPAN&gt;objects). While this approach does work in non ABAP Cloud, a limitation I came accross is the &lt;A href="https://community.sap.com/t5/application-development-and-automation-discussions/shared-objects-quot-cx-shm-external-reference-quot-exception/m-p/5719329" target="_self"&gt;"cx_shm_external_reference" exception&lt;/A&gt;&amp;nbsp;which prevents you from setting an instance ref to shared memory if it has creates references to other objects. For our case of an object with many other nestest instances, this approach is not workable.&lt;BR /&gt;&lt;BR /&gt;After quite some research and failed attempts... getting SAPUI5 and ABAP Cloud to work together is challenging. I think we need something like ABAP Events + SAPUI5's EventBus to communicate or a ABAP Cloud based way to use ABAP Push channels. Currently migrating to clean core with the available tools of our on-prem system feels like trying to fit a square peg into a circlular hole &lt;span class="lia-unicode-emoji" title=":sleepy_face:"&gt;😪&lt;/span&gt;.&lt;BR /&gt;&lt;BR /&gt;&lt;EM&gt;ps. I am running my freestyle SAPUI5 apps on Business application studio &amp;amp; deploying it to the ABAP Application server. In both scenerios there is not a clear way to utilize my existing ABAP classes are part of our clean core add-on.&lt;/EM&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;__PRESENT&lt;/SPAN&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/instance-memory-in-abap-for-cloud-development/qaq-p/14118659"/>
-    <published>2025-06-04T11:06:02.199000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/annotation-abapcatalog-extensibility-allownewdatasources-false-is-not/qaq-p/14121167</id>
     <title>Annotation @AbapCatalog.extensibility.allowNewDatasources: false is not working in ABAP CDS</title>
@@ -592,5 +373,46 @@ ENDFORM.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Normally it show like this:&lt;/P&gt;&
     <content>&lt;P&gt;Hi Community, I am trying to deploy BSP app to S4 HANA system via Business Application Studio, After entering Credentials I am getting the below error. how to resolve and deploy without any error.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="rmanoh61_0-1750848508631.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/278615iF2DBC19095E58BA2/image-size/medium?v=v2&amp;amp;px=400" role="button" title="rmanoh61_0-1750848508631.png" alt="rmanoh61_0-1750848508631.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/error-deploying-bsp-app-to-s4-hana-backend-error-message-no-default-virus/qaq-p/14136559"/>
     <published>2025-06-25T12:51:49.676000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/move-selection-screen-parameters-data-to-my-table-fields/qaq-p/14137644</id>
+    <title>Move selection screen parameters data to my table fields</title>
+    <updated>2025-06-26T11:53:26.046000+02:00</updated>
+    <author>
+      <name>SouhailFairadi</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1968869</uri>
+    </author>
+    <content>&lt;P&gt;Dear SAP users,&lt;/P&gt;&lt;P&gt;I have a question, I want to copy the values of fields in ly selection-screen to the fields of my custom table.&lt;/P&gt;&lt;P&gt;For the selection screen, I have&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;!--  StartFragment   --&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;PARAMETERS&lt;/SPAN&gt;&lt;SPAN class=""&gt;:&amp;nbsp;&lt;/SPAN&gt;p_bukrs&amp;nbsp;&lt;SPAN class=""&gt;like&amp;nbsp;&lt;/SPAN&gt;T001&lt;SPAN class=""&gt;-&lt;/SPAN&gt;BUKRS&amp;nbsp;OBLIGATORY&amp;nbsp;&lt;SPAN class=""&gt;.&lt;/SPAN&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;!--  StartFragment   --&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;SELECT-OPTIONS&lt;/SPAN&gt;&lt;SPAN class=""&gt;:&amp;nbsp;&lt;/SPAN&gt;so_budat&amp;nbsp;&lt;SPAN class=""&gt;FOR&amp;nbsp;&lt;/SPAN&gt;ACDOCA&lt;SPAN class=""&gt;-&lt;/SPAN&gt;BUDAT&amp;nbsp;OBLIGATORY&lt;SPAN class=""&gt;.&lt;/SPAN&gt; &lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;A&lt;/STRONG&gt;nd I have a custom table with fields:&lt;/P&gt;&lt;P&gt;COMPANY_CODE &lt;STRONG&gt;DATA ELEMENT&lt;/STRONG&gt; BUKRS&lt;/P&gt;&lt;P&gt;DATE_HIGH&lt;STRONG&gt;&amp;nbsp;DATA ELEMENT&lt;/STRONG&gt; DATE&lt;/P&gt;&lt;P&gt;DATE_LOW &lt;STRONG&gt;DATA ELEMENT&lt;/STRONG&gt; DATE&lt;/P&gt;&lt;P&gt;Now I want to copy the data of selection screen like this:&lt;/P&gt;&lt;P&gt;COMPANY_CODE =&amp;nbsp;&lt;STRONG&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;p_bukrs&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;DATE_HIGH =&amp;nbsp;&lt;!--  StartFragment   --&gt;&lt;STRONG&gt;so_budat&lt;SPAN class=""&gt;-&lt;/SPAN&gt;high&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;DATE_LOW =&amp;nbsp;&lt;!--  StartFragment   --&gt;&lt;STRONG&gt;so_budat&lt;SPAN class=""&gt;-low&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;I&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN class=""&gt; wrote some code, I did a point debug and I found that it come with data for&amp;nbsp;&lt;STRONG&gt;p_bukrs,&amp;nbsp;so_budat-high &lt;/STRONG&gt;and&lt;STRONG&gt;so_budat-low&amp;nbsp;&lt;/STRONG&gt;but when it come to sy-subrc it give me 4&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;FORM move_data.
+  LOOP AT gt_alv INTO DATA(ls_alv).
+    DATA: gt_alv8 TYPE STANDARD TABLE OF ztfi_affec_a,
+          gs_alv8 TYPE ztfi_affec_a.
+
+    SELECT * FROM ztfi_affec_a INTO TABLE gt_alv8
+      WHERE company_code = p_bukrs
+        AND date_low &amp;gt;= so_budat-low
+        AND date_high &amp;lt;= so_budat-high.
+
+    LOOP AT gt_alv8 INTO gs_alv8.
+      gs_alv8-date_high    = so_budat-high.
+      gs_alv8-date_low     = so_budat-low.
+      gs_alv8-company_code = p_bukrs.
+         IF sy-subrc = 0.
+           ENDIF.
+
+      SELECT SINGLE * FROM ztfi_affec_a INTO &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1407137"&gt;@DATA&lt;/a&gt;(ls_exist)
+        WHERE company_code = &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/393"&gt;@GS&lt;/a&gt;_alv8-company_code
+         AND date_high = &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/393"&gt;@GS&lt;/a&gt;_alv8-date_high
+          AND date_low = &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/393"&gt;@GS&lt;/a&gt;_alv8-date_low.
+
+      IF sy-subrc = 0.
+        UPDATE ztfi_affec_a FROM gs_alv8.
+      ELSE.
+        INSERT ztfi_affec_a FROM gs_alv8.
+      ENDIF.
+    ENDLOOP.
+  ENDLOOP.
+ENDFORM.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/move-selection-screen-parameters-data-to-my-table-fields/qaq-p/14137644"/>
+    <published>2025-06-26T11:53:26.046000+02:00</published>
   </entry>
 </feed>
