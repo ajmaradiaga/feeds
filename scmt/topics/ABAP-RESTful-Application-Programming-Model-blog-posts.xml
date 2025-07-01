@@ -2,595 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-RESTful-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2025-07-01T08:00:06.345313+00:00</updated>
+  <updated>2025-07-01T11:00:05.739237+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/implementing-deep-action-for-bulk-approval-in-rap/ba-p/14086471</id>
-    <title>Implementing Deep Action for Bulk Approval  In Rap</title>
-    <updated>2025-04-29T18:56:26.024000+02:00</updated>
-    <author>
-      <name>Umesh_Gauda</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1451063</uri>
-    </author>
-    <content>&lt;P&gt;Introduction&lt;/P&gt;&lt;P&gt;In this blog, we will explore how to implement a deep action in the ABAP RESTful Application Programming Model (RAP). Our use case involves bulk approval of Purchase Orders (POs) along with their respective line items.&lt;/P&gt;&lt;P&gt;Deep Action :&lt;/P&gt;&lt;P&gt;A Deep Action in the ABAP RESTful Application Programming Model (RAP) is a custom behavior action that allows processing and manipulation of a hierarchical structure of entities—including the root entity and its related child entities—in a single transactional call.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Steps for end-to-end implementation,&lt;/P&gt;&lt;P&gt;CDS view creation&lt;/P&gt;&lt;P&gt;Behavior definitions&lt;/P&gt;&lt;P&gt;Abstract entities&lt;/P&gt;&lt;P&gt;Deep action logic&lt;/P&gt;&lt;P&gt;Metadata extensions&lt;/P&gt;&lt;P&gt;Service definition&lt;/P&gt;&lt;P&gt;Testing&lt;/P&gt;&lt;P&gt;Business scenario.&lt;/P&gt;&lt;P&gt;multiple purchase orders (POs) for procuring raw materials and equipment. Each PO contains several line items detailing the materials, quantities, and suppliers. Streamline operations, the company wants to implement a feature that allows bulk approval of selected POs along with their respective line items.&lt;/P&gt;&lt;P&gt;Implementation Steps:&lt;/P&gt;&lt;P&gt;Define the Data Model:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Behavior Definition:&lt;/P&gt;&lt;P&gt;Action Definition: In the behavior definition (behavior definition), define a deep action Approves that operates on PO Header and its associated PO Item entities.&lt;/P&gt;&lt;P&gt;Behavior Implementation:&lt;/P&gt;&lt;P&gt;Purchase Order Header Entity (PO Header):&lt;/P&gt;&lt;P&gt;Represents the main details of the purchase order, such as PO number, supplier, and approval status.&lt;/P&gt;&lt;P&gt;Database Table.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'purchase order header'
-
-@AbapCatalog.enhancement.category : #EXTENSIBLE_ANY
-
-@AbapCatalog.tableCategory : #TRANSPARENT
-
-@AbapCatalog.deliveryClass : #A
-
-@AbapCatalog.dataMaintenance : #RESTRICTED
-
-define table zug_dt_poheader {
-
-
-
-key client : abap.clnt not null;
-
-key ebeln : ebeln not null;
-
-bukrs : bukrs;
-
-lifnr : lifnr;
-
-ekorg : ekorg;
-
-ekgrp : ekgrp;
-
-bstyp : bstyp;
-
-status : zug_postatus;
-
-
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Purchase Order Item Entity (PO Item):&lt;/P&gt;&lt;P&gt;Contains details of each line item within a PO, including material ID, quantity, price, and item-specific approval status.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;POitem.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'purchase order item'
-
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
-
-@AbapCatalog.tableCategory : #TRANSPARENT
-
-@AbapCatalog.deliveryClass : #A
-
-@AbapCatalog.dataMaintenance : #RESTRICTED
-
-define table zug_dt_poitem {
-
-
-
-key client : abap.clnt not null;
-
-@AbapCatalog.foreignKey.screenCheck : false
-
-key ebeln : ebeln not null
-
-with foreign key [0..*,1] zug_dt_poheader
-
-where ebeln = zug_dt_poitem.ebeln;
-
-key ebelp : ebelp not null;
-
-matnr : matnr;
-
-munit : abap.unit(3);
-
-@Semantics.quantity.unitOfMeasure : 'zug_dt_poitem.munit'
-
-menge : menge_d;
-
-cunit : abap.cuky;
-
-@Semantics.amount.currencyCode : 'zug_dt_poitem.cunit'
-
-netpr : abap.curr(10,2);
-
-status : zug_postatus;
-
-
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;Behavior Definition:&lt;/P&gt;&lt;P&gt;Action Definition: In the behavior definition (behavior definition), define a deep action Approves that operates on PO Header and its associated PO Item entities.&lt;/P&gt;&lt;P&gt;Interface entity.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;unmanaged implementation in class zbp_ug_i_poheader2 unique;
-
-strict ( 2 );
-define behavior for zug_i_poheader1 
-
-lock master
-
-authorization master ( instance )
-
-{
-static action Bulkorderapprove deep parameter zug_s_poheader;
-
-create;
-
-update;
-
-delete;
-association _poitem { create; }
-mapping for zug_dt_poheader
-
-{
-Bstyp = bstyp;
-
-Bukrs = bukrs;
-
-Ebeln = ebeln;
-
-Ekgrp = ekgrp;
-
-Ekorg = ekorg;
-
-Lifnr = lifnr;
-
-Status = status;
-
-}
-
-}
-
-define behavior for zug_i_poitem1 
-
-
-lock dependent by _poheader
-
-authorization dependent by _poheader
-
-{
-
-update;
-
-delete;
-
-field ( readonly ) Ebeln;
-
-association _poheader;
-
-mapping for zug_dt_poitem
-
-{
-
-Ebeln = ebeln;
-
-Ebelp = ebelp;
-
-Matnr = matnr;
-
-Menge = menge;
-
-Munit = munit;
-
-Netpr = netpr;
-
-Status = status;
-
-}
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Association: Establish a composition association between PO Header and PO Item to model the hierarchical relationship.&lt;/P&gt;&lt;P&gt;Projection view.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection;
-strict ( 2 );
-define behavior for zug_p_poheader1 //alias &amp;lt;alias_name&amp;gt;
-
-{
-use create;
-
-use update;
-
-use delete;
-
-use action Bulkorderapprove;
-
-use association _poitem { create; }
-
-}
-define behavior for zug_p_poitem //alias &amp;lt;alias_name&amp;gt;
-{
-
-use update;
-
-use delete;
-
-use association _poheader;
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Abstract entity.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;abstract;
-
-strict ( 2 );
-
-with hierarchy;
-
-define behavior for zug_s_poheader //alias &amp;lt;alias_name&amp;gt;
-
-{
-
-association _poitem;
-
-}
-
-
-
-define behavior for zug_s_poitem //alias &amp;lt;alias_name&amp;gt;
-
-{
-
-}
-
-
-
-Abstract Entities
-
-@EndUserText.label: 'abstract entity'
-
-define root abstract entity zug_s_poheader
-
-{
-
-key ebeln : ebeln ;
-
-status : zug_postatus ;
-
-last_changed_by : abp_locinst_lastchange_user;
-
-last_changed_at : abp_locinst_lastchange_tstmpl;
-
-_poitem : composition [0..*] of zug_s_poitem;
-
-}
-
-For item
-
-@EndUserText.label: 'poitem abstarct entity'
-
-define abstract entity zug_s_poitem
-
-
-
-{
-
-key ebeln : ebeln ;
-
-key ebelp : ebelp ;
-
-status : zug_postatus ;
-
-last_changed_by : abp_locinst_lastchange_user;
-
-last_changed_at : abp_locinst_lastchange_tstmpl;
-
-_poheader : association to parent zug_s_poheader on $projection.ebeln = _poheader.ebeln;
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Meta data extension for header&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CORE
-
-annotate entity zug_p_poheader1
-
-with
-
-{
-
-@UI.facet: [{
-
-id: 'Poheader',
-
-purpose: #STANDARD,
-
-position: 10 ,
-
-label: 'Poheader',
-
-type: #IDENTIFICATION_REFERENCE
-
-},
-
-{
-
-id: 'Poitem',
-
-purpose: #STANDARD,
-
-position: 20 ,
-
-label: 'Poitem',
-
-type: #LINEITEM_REFERENCE,
-
-targetElement: '_poitem'
-
-}
-
-]
-
-@UI.lineItem: [{ position: 10 }]
-
-@UI.identification: [{ position: 10 }]
-
-Ebeln;
-
-@UI.lineItem: [{ position: 20 }]
-
-@UI.identification: [{ position: 20 }]
-
-Bukrs;
-
-@UI.lineItem: [{ position: 20 }]
-
-@UI.identification: [{ position: 30 }]
-
-Lifnr;
-
-@UI.lineItem: [{ position: 40 }]
-
-@UI.identification: [{ position: 40 }]
-
-Ekorg;
-
-@UI.lineItem: [{ position: 50 }]
-
-@UI.identification: [{ position: 50 }]
-
-Ekgrp;
-
-@UI.lineItem: [{ position: 60 }]
-
-@UI.identification: [{ position: 60 }]
-
-Bstyp;
-
-@UI.lineItem: [{ position: 70 }
-
-, { type: #FOR_ACTION , dataAction: 'Bulkorderapprove' , label : 'Bulkorderapprove' }
-
-]
-
-@UI.identification: [{ position: 70 }]
-
-Status;
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;Action Handler: Implement the Approves action in the behavior implementation class. This method will loop through the selected POs and their items, updating their approval statuses.&lt;/P&gt;&lt;P&gt;Implementing class&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_zug_i_poheader1 DEFINITION INHERITING FROM cl_abap_behavior_handler.
-
-PRIVATE SECTION.
-
-METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-
-IMPORTING keys REQUEST requested_authorizations FOR zug_i_poheader1 RESULT result.
-
-METHODS create FOR MODIFY
-
-IMPORTING entities FOR CREATE zug_i_poheader1.
-
-METHODS update FOR MODIFY
-
-IMPORTING entities FOR UPDATE zug_i_poheader1.
-METHODS delete FOR MODIFY
-
-IMPORTING keys FOR DELETE zug_i_poheader1.
-
-METHODS read FOR READ
-
-IMPORTING keys FOR READ zug_i_poheader1 RESULT result.
-
-METHODS lock FOR LOCK
-
-IMPORTING keys FOR LOCK zug_i_poheader1.
-
-METHODS rba_Poitem FOR READ
-
-IMPORTING keys_rba FOR READ zug_i_poheader1\_Poitem FULL result_requested RESULT result LINK association_links.
-
-METHODS cba_Poitem FOR MODIFY
-
-IMPORTING entities_cba FOR CREATE zug_i_poheader1\_Poitem.
-
-METHODS Bulkorderapprove FOR MODIFY
-
-IMPORTING keys FOR ACTION zug_i_poheader1~Bulkorderapprove.
-
-ENDCLASS.
-
-CLASS lhc_zug_i_poheader1 IMPLEMENTATION.
-METHOD get_instance_authorizations.
-
-ENDMETHOD.
-
-METHOD create.
-data ls_c_o TYPE zug_dt_poheader.
-data lt_c_o TYPE TABLE of zug_dt_poheader.
-lt_c_o = CORRESPONDING #( entities mapping from ENTITY ).
-ls_c_o = lt_c_o[ 1 ].
-zcl_ug_h=&amp;gt;gs_tab_c = ls_c_o
-ENDMETHOD.
-
-METHOD update.
-data ls_u_o TYPE zug_dt_poheader
-data lt_u_o TYPE TABLE of zug_dt_poheader.
-
-lt_u_o = CORRESPONDING #( entities mapping from ENTITY ).
-
-ls_u_o = lt_u_o[ 1 ].
-
-zcl_ug_h=&amp;gt;gs_tab_u = ls_u_o.
-ENDMETHOD.
-
-
-METHOD delete.
-
-ENDMETHOD.
-
-METHOD read.
-
-SELECT from zug_dt_poheader FIELDS *
-
-INTO TABLE (lt_porders).
-
-result = CORRESPONDING #( lt_porders mapping to entity ).
-
-ENDMETHOD.
-
-
-
-METHOD lock.
-
-ENDMETHOD.
-
-
-
-METHOD rba_Poitem.
-
-ENDMETHOD.
-
-
-
-METHOD cba_Poitem.
-
-ENDMETHOD.
-
-
-
-METHOD Bulkorderapprove.
-
-DATA lt_order TYPE TABLE for UPDATE zug_i_poheader1.
-
-DATA lt_item TYPE TABLE for UPDATE zug_i_poitem1.
-data(ls_s) = VALUE #( keys[ 1 ] OPTIONAL ).
-lt_order = value #( ( ebeln = ls_s-%param-ebeln
-status = ls_s-%param-status
-) ).
-
-lt_item = value #( for ls_i in ls_s-%param-_poitem ( ebeln = ls_i-ebeln
-
-ebelp = ls_i-ebelp
-) ).
-
-
-
-
-MODIFY ENTITIES OF zug_i_poheader1 IN LOCAL MODE
-ENTITY zug_i_poheader1
-UPDATE from lt_order
-ENTITY zug_i_poitem1
-UPDATE FROM lt_item
-FAILED DATA(lt_failed)
-
-REPORTED data(lt_reported).
-ENDMETHOD.
-
-ENDCLASS.
-
-CLASS lhc_zug_i_poitem1 DEFINITION INHERITING FROM cl_abap_behavior_handler.
-
-PRIVATE SECTION.
-
-METHODS update FOR MODIFY
-
-IMPORTING entities FOR UPDATE zug_i_poitem1.
-
-METHODS delete FOR MODIFY
-
-IMPORTING keys FOR DELETE zug_i_poitem1.
-
-
-METHODS read FOR READ
-
-IMPORTING keys FOR READ zug_i_poitem1 RESULT result
-
-
-METHODS rba_Poheader FOR READ
-
-IMPORTING keys_rba FOR READ zug_i_poitem1\_Poheader FULL result_requested RESULT result LINK association_links
-
-ENDCLASS.
-
-CLASS lhc_zug_i_poitem1 IMPLEMENTATION.
-
-METHOD update.
-ENDMETHOD.
-
-METHOD delete.
-ENDMETHOD.
-
-METHOD read.
-ENDMETHOD.
-
-METHOD rba_Poheader.
-ENDMETHOD.
-
-ENDCLASS.
-
-CLASS lsc_ZUG_I_POHEADER1 DEFINITION INHERITING FROM cl_abap_behavior_saver.
-
-PROTECTED SECTION.
-
-METHODS finalize REDEFINITION.
-
-METHODS check_before_save REDEFINITION.
-
-METHODS save REDEFINITION
-
-METHODS cleanup REDEFINITION.
-
-METHODS cleanup_finalize REDEFINITION
-ENDCLASS.
-
-CLASS lsc_ZUG_I_POHEADER1 IMPLEMENTATION.
-METHOD finalize.
-ENDMETHOD.
-
-METHOD check_before_save.
-ENDMETHOD.
-
-METHOD save.
-if zcl_ug_h=&amp;gt;gs_tab_c is NOT INITIAL.
-INSERT zug_dt_poheader from @zcl_ug_h=&amp;gt;gs_tab_c.
-ELSEIF zcl_ug_h=&amp;gt;gs_tab_u Is NOT INITIAL.
-INSERT zug_dt_poheader from @zcl_ug_h=&amp;gt;gs_tab_u.
-ENDIF.
-
-ENDMETHOD.
-
-METHOD cleanup.
-
-ENDMETHOD.
-
-METHOD cleanup_finalize.
-
-ENDMETHOD.
-
-ENDCLASS.
-
-
-
-DATA lt_order TYPE TABLE for UPDATE zug_i_poheader1.
-DATA lt_item TYPE TABLE for UPDATE zug_i_poitem1
-data(ls_s) = VALUE #( keys[ 1 ] OPTIONAL ).
-
-lt_order = value #( ( ebeln = ls_s-%param-ebeln
-
-status = ls_s-%param-status
-
-) ).
-
-lt_item = value #( for ls_i in ls_s-%param-_poitem ( ebeln = ls_i-ebeln
-
-ebelp = ls_i-ebelp
-
-) ).
-
-MODIFY ENTITIES OF zug_i_poheader1 IN LOCAL MODE
-
-ENTITY zug_i_poheader1
-
-UPDATE
-
-from lt_order
-
-ENTITY zug_i_poitem1
-
-UPDATE FROM
-
-lt_item
-FAILED DATA(lt_failed)
-
-REPORTED data(lt_reported).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;Service Exposure:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Service Definition: Expose the PO Header and PO Item entities through a service definition to make them available for consumption.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Service Binding: Create a service binding to expose the service via OData.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Service binding&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Umesh_Gauda_0-1745585766202.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/254759iD6C22DD33D74C86A/image-size/large?v=v2&amp;amp;px=999" role="button" title="Umesh_Gauda_0-1745585766202.png" alt="Umesh_Gauda_0-1745585766202.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Steps to test&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Set Auth&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Umesh_Gauda_1-1745585766203.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/254760i73806A35D1811BBF/image-size/large?v=v2&amp;amp;px=999" role="button" title="Umesh_Gauda_1-1745585766203.png" alt="Umesh_Gauda_1-1745585766203.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;In header you can pass&amp;nbsp; these the click on get&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Umesh_Gauda_2-1745585766204.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/254758i04FCF919483532C8/image-size/large?v=v2&amp;amp;px=999" role="button" title="Umesh_Gauda_2-1745585766204.png" alt="Umesh_Gauda_2-1745585766204.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;After that we can post request and get the result&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Umesh_Gauda_3-1745585766205.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/254763iFAF5B853F68A55DF/image-size/large?v=v2&amp;amp;px=999" role="button" title="Umesh_Gauda_3-1745585766205.png" alt="Umesh_Gauda_3-1745585766205.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Umesh_Gauda_4-1745585766207.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/254762i8B282FC86CBB7E2E/image-size/large?v=v2&amp;amp;px=999" role="button" title="Umesh_Gauda_4-1745585766207.png" alt="Umesh_Gauda_4-1745585766207.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Header.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Umesh_Gauda_5-1745585766208.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/254761iA678A47F4A095026/image-size/large?v=v2&amp;amp;px=999" role="button" title="Umesh_Gauda_5-1745585766208.png" alt="Umesh_Gauda_5-1745585766208.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;Po item.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Umesh_Gauda_6-1745585766208.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/254764i749087B80348377F/image-size/large?v=v2&amp;amp;px=999" role="button" title="Umesh_Gauda_6-1745585766208.png" alt="Umesh_Gauda_6-1745585766208.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/implementing-deep-action-for-bulk-approval-in-rap/ba-p/14086471"/>
-    <published>2025-04-29T18:56:26.024000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/enable-multi-input-field-on-the-object-page-using-rap/ba-p/14089415</id>
     <title>Enable Multi-Input Field on the Object Page using RAP</title>
@@ -2999,5 +2414,54 @@ CLASS lhc_ZI_VBPRODUCT IMPLEMENTATION.
 ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;8.&amp;nbsp; &amp;nbsp;Create a service definition.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="BharathKumarVaddepalli_7-1750685661754.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/277665iEFCAA3980CB636A1/image-size/medium?v=v2&amp;amp;px=400" role="button" title="BharathKumarVaddepalli_7-1750685661754.png" alt="BharathKumarVaddepalli_7-1750685661754.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;9.&amp;nbsp; &amp;nbsp; Finally create a service binding and activate it. And click on preview to view the application .&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="BharathKumarVaddepalli_8-1750685661766.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/277667i590445B8FEC5A213/image-size/medium?v=v2&amp;amp;px=400" role="button" title="BharathKumarVaddepalli_8-1750685661766.png" alt="BharathKumarVaddepalli_8-1750685661766.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;FINAL OUTPUT&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="BharathKumarVaddepalli_9-1750685661769.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/277669i476C174C2A793C79/image-size/medium?v=v2&amp;amp;px=400" role="button" title="BharathKumarVaddepalli_9-1750685661769.png" alt="BharathKumarVaddepalli_9-1750685661769.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="BharathKumarVaddepalli_10-1750685661774.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/277670i8153B0F44DA8E102/image-size/medium?v=v2&amp;amp;px=400" role="button" title="BharathKumarVaddepalli_10-1750685661774.png" alt="BharathKumarVaddepalli_10-1750685661774.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;CREATE&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="BharathKumarVaddepalli_11-1750685661777.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/277668i6CEB580D08B4F986/image-size/medium?v=v2&amp;amp;px=400" role="button" title="BharathKumarVaddepalli_11-1750685661777.png" alt="BharathKumarVaddepalli_11-1750685661777.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="BharathKumarVaddepalli_12-1750685661781.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/277672i732E64E941BC35D5/image-size/medium?v=v2&amp;amp;px=400" role="button" title="BharathKumarVaddepalli_12-1750685661781.png" alt="BharathKumarVaddepalli_12-1750685661781.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="BharathKumarVaddepalli_13-1750685661782.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/277671iC9F5A057FB7C58A1/image-size/medium?v=v2&amp;amp;px=400" role="button" title="BharathKumarVaddepalli_13-1750685661782.png" alt="BharathKumarVaddepalli_13-1750685661782.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;UPDATE OR EDIT&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="BharathKumarVaddepalli_14-1750685661786.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/277673iCAC2DF0ED585C233/image-size/medium?v=v2&amp;amp;px=400" role="button" title="BharathKumarVaddepalli_14-1750685661786.png" alt="BharathKumarVaddepalli_14-1750685661786.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="BharathKumarVaddepalli_15-1750685661789.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/277675i46331F08F5717892/image-size/medium?v=v2&amp;amp;px=400" role="button" title="BharathKumarVaddepalli_15-1750685661789.png" alt="BharathKumarVaddepalli_15-1750685661789.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="BharathKumarVaddepalli_16-1750685661792.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/277674iB3C4DEE1F566CBBA/image-size/medium?v=v2&amp;amp;px=400" role="button" title="BharathKumarVaddepalli_16-1750685661792.png" alt="BharathKumarVaddepalli_16-1750685661792.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;DELETE&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="BharathKumarVaddepalli_17-1750685661798.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/277676i23E02C2672B915DA/image-size/medium?v=v2&amp;amp;px=400" role="button" title="BharathKumarVaddepalli_17-1750685661798.png" alt="BharathKumarVaddepalli_17-1750685661798.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="BharathKumarVaddepalli_18-1750685661804.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/277677iED24A32151E26954/image-size/medium?v=v2&amp;amp;px=400" role="button" title="BharathKumarVaddepalli_18-1750685661804.png" alt="BharathKumarVaddepalli_18-1750685661804.png" /&gt;&lt;/span&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/crud-operations-in-rap-abap-in-managed-bo/ba-p/14134508"/>
     <published>2025-06-24T10:52:46.357000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/rap-transactional-app-performance-considerations-for-singleton-pattern-in/ba-p/14140680</id>
+    <title>RAP Transactional app: performance considerations for singleton pattern in draft enabled RAP BO</title>
+    <updated>2025-07-01T11:50:32.505000+02:00</updated>
+    <author>
+      <name>patrick_winkler</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/729521</uri>
+    </author>
+    <content>&lt;H1 id="toc-hId-1604972677"&gt;Introduction&lt;/H1&gt;&lt;P&gt;When developing a transactional app, you can use the &lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/developing-transactional-apps-with-multi-inline-edit-capabilities" target="_blank" rel="noopener noreferrer"&gt;singleton pattern for a draft enabled RAP BO&lt;/A&gt; to enable editing / inline create on the actual root entity.&lt;/P&gt;&lt;P&gt;In this blog, you will learn how the singleton pattern impacts performance and other advantages and disadvantages of this pattern in the context of Fiori elements.&lt;/P&gt;&lt;P&gt;This blog is relevant for&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A class="" href="https://community.sap.com/t5/c-khhcw49343/SAP+S%25252F4HANA+Cloud+Public+Edition/pd-p/08e2a51b-1ce5-4367-8b33-4ae7e8b702e0" target="_blank"&gt;SAP S/4HANA Cloud Public Edition&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A class="" href="https://community.sap.com/t5/c-khhcw49343/SAP+S%25252F4HANA+Cloud+Private+Edition/pd-p/5c26062a-9855-4f39-8205-272938b6882f" target="_blank"&gt;SAP S/4HANA Cloud Private Edition&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;&lt;A class="" href="https://community.sap.com/t5/c-khhcw49343/SAP+BTP+ABAP+environment/pd-p/73555000100800001164" target="_blank"&gt;SAP BTP ABAP environment&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&amp;nbsp;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Further reading:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/tag/business%20configuration%20maintenance%20object/tg-p/board-id/technology-blog-sap" target="_blank"&gt;Related blog posts&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;Learn how you can use&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://learning.sap.com/products/business-technology-platform/development/abap?url_id=text-sapcommunity-prdteng-ABAP" target="_blank" rel="noopener noreferrer"&gt;ABAP technology&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;to develop innovative applications and business solutions across SAP’s portfolio on&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://learning.sap.com/products/business-technology-platform/development/abap" target="_blank" rel="noopener noreferrer"&gt;SAP Learning Site&lt;/A&gt;.&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-1408459172"&gt;Example BO&lt;/H1&gt;&lt;P&gt;Our data model consists of a table T1 and a corresponding text table T1_TXT.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Tab1'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #C
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table T1 {
+  key client            : abap.clnt not null;
+  key k1                : zpw_d1 not null;
+  f1                    : abap.char(20);
+  f2                    : abap.char(20);
+  f3                    : abap.char(20);
+  f4                    : abap.char(20);
+  f5                    : abap.char(20);
+  f6                    : abap.char(20);
+  f7                    : abap.char(20);
+  f8                    : abap.char(20);
+  last_changed_at       : abp_lastchange_tstmpl;
+  local_last_changed_at : abp_locinst_lastchange_tstmpl;
+}&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Tab1 Text'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #C
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table T1_TXT {
+  key client            : abap.clnt not null;
+  key langu             : abap.lang not null;
+  @AbapCatalog.foreignKey.keyType : #TEXT_KEY
+  @AbapCatalog.foreignKey.screenCheck : false
+  key k1                : zpw_d1 not null
+    with foreign key T1
+      where client = T1_TXT.client
+        and k1 = T1_TXT.k1;
+  description           : abap.char(30);
+  local_last_changed_at : abp_locinst_lastchange_tstmpl;
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Therefore, the draft-enabled RAP BO with singleton pattern consists of the singleton root entity type, T1 entity type, and T1_TXT entity type, each with a draft table.&lt;/P&gt;&lt;H1 id="toc-hId-1211945667"&gt;Singleton draft&lt;/H1&gt;&lt;P&gt;When the &lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/runtime-edit-action" target="_blank" rel="noopener noreferrer"&gt;Edit action&lt;/A&gt; is performed on a root entity, a corresponding draft entity including all subentities is created. In the singleton pattern, this basically means that a draft entity is created for all entities of the RAP BO.&lt;BR /&gt;Typically, the Edit action is performed when the user clicks the Edit button in the Fiori elements app. You can also use the following ABAP EML statement:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;MODIFY ENTITY zi_t1_s
+  EXECUTE edit
+  FROM VALUE #( ( %cid = |CID1|  singletonid = 1 ) ).
+COMMIT ENTITIES.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;For our example BO, the Edit action therefore consists of three SQL statements in the form of INSERT INTO &amp;lt;draft table&amp;gt; SELECT FROM &amp;lt;entity type cds view&amp;gt;. No data is passed to the ABAP application server, only one statement per entity type, regardless of the number of entities.&lt;/P&gt;&lt;P&gt;The following measurement was performed in an ABAP Platform performance test system with respect to the above SQL statements as total:&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="25%"&gt;#Rows T1&lt;/TD&gt;&lt;TD width="25%"&gt;#Rows T1_TXT&lt;/TD&gt;&lt;TD width="25%"&gt;HANA CPU time [ms]&lt;/TD&gt;&lt;TD width="25%"&gt;HANA max memory consumption [mb]&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%"&gt;10&lt;/TD&gt;&lt;TD width="25%"&gt;40&lt;/TD&gt;&lt;TD width="25%"&gt;7&lt;/TD&gt;&lt;TD width="25%"&gt;1&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%"&gt;100&lt;/TD&gt;&lt;TD width="25%"&gt;400&lt;/TD&gt;&lt;TD width="25%"&gt;75&lt;/TD&gt;&lt;TD width="25%"&gt;3&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%"&gt;1000&lt;/TD&gt;&lt;TD width="25%"&gt;4000&lt;/TD&gt;&lt;TD width="25%"&gt;135&lt;/TD&gt;&lt;TD width="25%"&gt;6&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%"&gt;10000&lt;/TD&gt;&lt;TD width="25%"&gt;40000&lt;/TD&gt;&lt;TD width="25%"&gt;810&lt;/TD&gt;&lt;TD width="25%"&gt;45&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%"&gt;100000&lt;/TD&gt;&lt;TD width="25%"&gt;400000&lt;/TD&gt;&lt;TD width="25%"&gt;7600&lt;/TD&gt;&lt;TD width="25%"&gt;437&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;This table shows the performance impact of the singleton pattern compared to a RAP BO without a singleton pattern. It is linear, so you can extrapolate for a higher number of lines.&lt;/P&gt;&lt;P&gt;If you use ABAP EML to modify entities, you do not need to create a draft entity, so this penalty does not necessarily apply to ABAP EML statements.&lt;/P&gt;&lt;P data-unlink="true"&gt;The runtime behavior when changing a draft entity or in the &lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/runtime-prepare-action" target="_blank" rel="noopener noreferrer"&gt;action prepare&lt;/A&gt;&amp;nbsp;is not affected by the singleton pattern.&lt;/P&gt;&lt;P&gt;During the &lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/draft-action-activate-optimized" target="_blank" rel="noopener noreferrer"&gt;activation action&lt;/A&gt;, the draft entities are discarded using a DELETE statement:&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="25%" height="57px"&gt;#Rows T1&lt;/TD&gt;&lt;TD width="25%" height="57px"&gt;#Rows T1_TXT&lt;/TD&gt;&lt;TD width="25%" height="57px"&gt;HANA CPU time [ms]&lt;/TD&gt;&lt;TD width="25%" height="57px"&gt;HANA max memory consumption [mb]&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%" height="30px"&gt;10&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;40&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;7&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;1&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%" height="30px"&gt;100&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;400&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;7&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;2&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%" height="30px"&gt;1000&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;4000&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;27&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;4&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%" height="30px"&gt;10000&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;40000&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;155&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;10&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="30px"&gt;100000&lt;/TD&gt;&lt;TD height="30px"&gt;400000&lt;/TD&gt;&lt;TD height="30px"&gt;430&lt;/TD&gt;&lt;TD height="30px"&gt;43&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;So you can add this to the performance impact.&lt;/P&gt;&lt;P&gt;Logically, these numbers depend on the table and CDS view design as well as the system. But the basic statement remains.&lt;/P&gt;&lt;P&gt;If the user changes more than about 10% of the entities in the interaction phase, the singleton pattern is more performant because draft entities do not always have to be created.&lt;/P&gt;&lt;H1 id="toc-hId-1015432162"&gt;Singleton in Fiori Elements&lt;/H1&gt;&lt;P&gt;Using a singleton RAP BO pattern in Fiori elements has the following characteristics:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Multi-line edit/inline creation for the actual root entity&lt;/LI&gt;&lt;LI&gt;The app can temporarily store global information in the singleton draft entity&lt;/LI&gt;&lt;LI&gt;All entities of the RAP BO are locked for a user&lt;/LI&gt;&lt;LI&gt;You cannot use selection fields as the &lt;A href="https://sapui5.hana.ondemand.com/sdk/#/topic/4bd7590569c74c61a0124c6e370030f6.html" target="_blank" rel="noopener nofollow noreferrer"&gt;filter bar&lt;/A&gt; is only available in the list report. Alternatively, you can add &lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/adding-search-capabilities" target="_blank" rel="noopener noreferrer"&gt;search capabilities&lt;/A&gt; to the entity. A search field is then available&amp;nbsp;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;See &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/how-to-create-a-fiori-elements-app-for-a-rap-bo-with-transport-selection/ba-p/13562792" target="_blank"&gt;link&lt;/A&gt; on how to create a Fiori Elements app for a RAP BO with singleton pattern.&lt;/P&gt;&lt;H1 id="toc-hId-818918657"&gt;Custom Business Configurations&lt;/H1&gt;&lt;P&gt;When you create business configurations app using the ABAP RAP programming model, you use the&amp;nbsp;&lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/abap-environment/creating-business-configuration-apps-with-abap-restful-application-programming-model-and-custom-business-configurations-app" target="_blank" rel="noopener noreferrer"&gt;Custom Business Configurations&lt;/A&gt; app and the &lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/generating-business-configuration-maintenance-object-with-generate-abap-repository-objects-wizard" target="_blank" rel="noopener noreferrer"&gt;business configuration maintenance object ADT wizard&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;The RAP BO that this wizard generates always uses the singleton pattern for the following reasons:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;For configuration tables, you want to have a spreadsheet like user experience&lt;/LI&gt;&lt;LI&gt;The customizing transport request can be selected once for all entities and stored in the singleton draft entity&lt;/LI&gt;&lt;LI&gt;Locking the entire configuration for only one user is beneficial. You do not want multiple users to work on the same configuration table in parallel&lt;/LI&gt;&lt;LI&gt;The performance penalty for the singleton pattern is acceptable because&lt;BR /&gt;&lt;UL&gt;&lt;LI&gt;Configuration tables rarely have more than 1000 rows, let alone more than 10000 rows&lt;/LI&gt;&lt;LI&gt;Most of the configuration takes place in the intended system/client, not in the production client&lt;/LI&gt;&lt;LI&gt;The frequency of configuration changes is low&lt;/LI&gt;&lt;LI&gt;There is no performance impact when using ABAP EML or the &lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/upload-business-configuration?version=Cloud" target="_blank" rel="noopener noreferrer"&gt;Upload Business Configurations&lt;/A&gt; app&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The Custom Business Configurations app also supports RAP BO without singleton pattern:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Create the RAP BO / Service binding without using the business configuration maintenance object ADT wizard&lt;/LI&gt;&lt;LI&gt;Add the relevant transport related functionality to the RAP BO&lt;/LI&gt;&lt;LI&gt;Create the business configuration maintenance object (SMBC) manually. Leave the option "Skip root entity list report" unchecked&lt;/LI&gt;&lt;/OL&gt;&lt;H1 id="toc-hId-622405152"&gt;Conclusion&lt;/H1&gt;&lt;P&gt;Do not use the singleton pattern if the RAP BO handles more than 50000 entities and the app is used frequently.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/rap-transactional-app-performance-considerations-for-singleton-pattern-in/ba-p/14140680"/>
+    <published>2025-07-01T11:50:32.505000+02:00</published>
   </entry>
 </feed>
