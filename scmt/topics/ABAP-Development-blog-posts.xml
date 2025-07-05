@@ -2,154 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2025-07-05T08:00:03.140886+00:00</updated>
+  <updated>2025-07-05T11:00:02.993888+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/merge-multiple-pdf-forms-into-a-single-document-for-download-or-printing/ba-p/14127997</id>
-    <title>Merge multiple PDF forms into a single document for download or printing.</title>
-    <updated>2025-06-17T10:51:33.899000+02:00</updated>
-    <author>
-      <name>MiljanDjuric</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1533184</uri>
-    </author>
-    <content>&lt;P&gt;Our report required the ability to save or print a bundle of PDF forms, each provided as an entry in an internal table. Initially, we attempted to use the standard approach with the function module FP_GET_PDF_TABLE. However, we encountered limitations specifically, FP_JOB_OPEN was unable to handle the necessary parameters for bundled output in our scenario.&lt;/P&gt;&lt;P&gt;As we did not have the option to modify the Adobe forms themselves or apply relevant SAP Notes, we explored an alternative solution. By leveraging the CL_RSPO_PDF_MERGE class, we successfully implemented PDF merging at runtime. This approach provided a stable and effective way to combine individual PDFs into a single document, ready for download or direct printing.&lt;BR /&gt;&lt;BR /&gt;This is a sample code that provide this functionality:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;TYPES: ty_documents_tab TYPE STANDARD TABLE OF ty_document WITH DEFAULT KEY.
-
-FORM generate_merged_pdf USING pt_documents TYPE ty_documents_tab.
-
-  DATA: lt_binary_pdf     TYPE TABLE OF x255,
-        lt_merged_pdf     TYPE TABLE OF x255,
-        lv_xstring        TYPE xstring,
-        lv_merged_xstring TYPE xstring,
-        lv_filename       TYPE string,
-        lv_path           TYPE string,
-        lv_fullpath       TYPE string,
-        ls_formoutput     TYPE fpformoutput,
-        ls_joboutput      TYPE sfpjoboutput.
-*------------------------------------------------------------
-* Field symbols
-*------------------------------------------------------------
-  FIELD-SYMBOLS: &amp;lt;fs_document&amp;gt; TYPE ty_document.
-*------------------------------------------------------------
-* form and doc parametars
-*------------------------------------------------------------
-  DATA: l_fm_name    TYPE rs38l_fnam,
-        fp_docparams TYPE sfpdocparams,
-        lv_formname  TYPE fpname.
-*------------------------------------------------------------
-* Set Adobe Form output parameters
-*------------------------------------------------------------
-* Initialize PDF merger class
-*------------------------------------------------------------
-  TRY.
-      DATA(lo_merger) = NEW cl_rspo_pdf_merge( ).
-    CATCH cx_rspo_pdf_merge INTO DATA(lo_error).
-      MESSAGE 'PDF merger initialization failed.' TYPE 'E'.
-      RETURN.
-  ENDTRY.
-*------------------------------------------------------------
-* Open Adobe Forms spool job
-*------------------------------------------------------------
-  CALL FUNCTION 'FP_JOB_OPEN'
-    CHANGING
-      ie_outputparams = fp_outputparams
-    EXCEPTIONS
-      OTHERS          = 1.
-*------------------------------------------------------------
-* Loop through entries and generate individual PDFs
-*------------------------------------------------------------
-  LOOP AT lt_documents ASSIGNING &amp;lt;fs_document&amp;gt;. 
-*------------------------------------------------------------
-* Set form name 
-*------------------------------------------------------------
-    lv_formname = 'Z_YOUR_PDF_FORM'.
-*------------------------------------------------------------
-* Get generated function module name
-*------------------------------------------------------------
-    CALL FUNCTION 'FP_FUNCTION_MODULE_NAME'
-      EXPORTING
-        i_name     = lv_formname
-      IMPORTING
-        e_funcname = l_fm_name.
-*------------------------------------------------------------
-* Set form parameters
-*------------------------------------------------------------
-    CLEAR fp_docparams.
-    fp_docparams-langu   = sy-langu.
-    fp_docparams-country = 'XX'.
-*------------------------------------------------------------
-* Call form generation
-*------------------------------------------------------------
-    CALL FUNCTION l_fm_name
-      EXPORTING
-        /1bcdwb/docparams  = fp_docparams
-        i_data             = &amp;lt;fs_document&amp;gt;
-      IMPORTING
-        /1bcdwb/formoutput = ls_formoutput
-      EXCEPTIONS
-        OTHERS             = 1.
-*------------------------------------------------------------
-* Add document to merger
-*------------------------------------------------------------
-    lv_xstring = ls_formoutput-pdf.
-    lo_merger-&amp;gt;add_document( lv_xstring ).
-  ENDLOOP.
-*------------------------------------------------------------
-* Close Adobe Forms spool job
-*------------------------------------------------------------
-  CALL FUNCTION 'FP_JOB_CLOSE'
-    IMPORTING
-      e_result = ls_joboutput
-    EXCEPTIONS
-      OTHERS   = 1.
-*------------------------------------------------------------
-* Merge all added PDF documents
-*------------------------------------------------------------
-  DATA lv_rc TYPE i.
-  lo_merger-&amp;gt;merge_documents(
-    IMPORTING
-      merged_document = lv_merged_xstring
-      rc              = lv_rc ).
-
-  CHECK lv_rc = 0.
-*------------------------------------------------------------
-* Convert final merged XSTRING to binary
-*------------------------------------------------------------
-  CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
-    EXPORTING
-      buffer     = lv_merged_xstring
-    TABLES
-      binary_tab = lt_merged_pdf.
-*------------------------------------------------------------
-* Prompt user for file location
-*------------------------------------------------------------
-  CALL METHOD cl_gui_frontend_services=&amp;gt;file_save_dialog
-    CHANGING
-      filename = lv_filename
-      path     = lv_path
-      fullpath = lv_fullpath
-    EXCEPTIONS
-      OTHERS   = 1.
-
-  IF sy-subrc &amp;lt;&amp;gt; 0.
-    MESSAGE 'File path selection cancelled.' TYPE 'I'.
-    RETURN.
-  ENDIF.
-*------------------------------------------------------------
-* Download the merged PDF to selected path
-*------------------------------------------------------------
-  CALL FUNCTION 'GUI_DOWNLOAD'
-    EXPORTING
-      filename = lv_fullpath
-      filetype = 'BIN'
-    TABLES
-      data_tab = lt_merged_pdf.
-
-ENDFORM.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;In addition, parameters can be assigned to fp_outputparams to&amp;nbsp;suppress the print dialog or to prefill predefined values, enabling a more streamlined and user-friendly output process. If no parameters are specified, the system will apply the default print settings.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/merge-multiple-pdf-forms-into-a-single-document-for-download-or-printing/ba-p/14127997"/>
-    <published>2025-06-17T10:51:33.899000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/reimagining-sap-mdg-field-validations-low-code-approach-ui-field-control/ba-p/14122121</id>
     <title>Reimagining SAP MDG Field Validations Low-Code Approach | UI Field Control Made Dynamic Yet Simple !</title>
@@ -4067,5 +3923,124 @@ LT_FACTORTY-&amp;gt;DISPLAY( ).
 BREAK-POINT.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;&lt;U&gt;&lt;EM&gt;&lt;STRONG&gt;Final Output after Replacing&lt;/STRONG&gt;&lt;/EM&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ce85d46a-cb8e-4e6e-8755-ad6b2181d0b7.jpg" style="width: 800px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/279341iD103B87DA4BC43CB/image-size/large?v=v2&amp;amp;px=999" role="button" title="ce85d46a-cb8e-4e6e-8755-ad6b2181d0b7.jpg" alt="ce85d46a-cb8e-4e6e-8755-ad6b2181d0b7.jpg" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Development/pd-p/833755570260738661924709785639136" class="lia-product-mention" data-product="314-1"&gt;ABAP Development&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/U&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/replace-all-occurrences-in-multiple-fields-of-an-internal-table/ba-p/14137810"/>
     <published>2025-07-04T18:13:43.456000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/factory-alv-with-header-logo-and-footer-in-abap/ba-p/14145038</id>
+    <title>FACTORY ALV with Header , Logo and Footer in ABAP</title>
+    <updated>2025-07-05T11:39:33.748000+02:00</updated>
+    <author>
+      <name>vinodkumarreddyappannagari</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2174225</uri>
+    </author>
+    <content>&lt;P&gt;I’m excited to share my very first blog post on SAP ABAP programming! In this post, you'll learn how to create an &lt;STRONG&gt;ALV&lt;/STRONG&gt; report using the &lt;STRONG&gt;Factory Method&lt;/STRONG&gt;, complete with a custom header, logo, and footer to enhance your report’s appearance and professionalism.&lt;/P&gt;&lt;P&gt;1. Create Logo&amp;nbsp;&lt;/P&gt;&lt;P&gt;step1 : Go to &lt;STRONG&gt;OAER&lt;/STRONG&gt;&amp;nbsp; T code .&lt;/P&gt;&lt;P&gt;step2 :&amp;nbsp;&lt;SPAN&gt;Enter the following fields for your logo.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vinodkumarreddyappannagari_2-1751700892463.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/282961iEEB213D2ED2C2DD8/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="vinodkumarreddyappannagari_2-1751700892463.png" alt="vinodkumarreddyappannagari_2-1751700892463.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Step 3: Click on Execute.&lt;/SPAN&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;SPAN&gt;Step 4: Below screen will displayed, double click on Standard Doc Types.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vinodkumarreddyappannagari_3-1751700948601.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/282963i889F288020A41685/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="vinodkumarreddyappannagari_3-1751700948601.png" alt="vinodkumarreddyappannagari_3-1751700948601.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Step 5: Double Click on a screen and select the picture from your files you want make logo.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;REPORT ZVA_HEADER_LOGO_FACTORY.
+* Declare table reference
+TABLES: ZVA_VENDOR_TA.
+* Declare data references
+DATA: LT_TABLE TYPE REF TO CL_SALV_TABLE, " Reference to ALV table object
+      LV_TEXT  TYPE STRING.               " Text string for header
+
+* Selection screen for Vendor Numbers
+SELECT-OPTIONS: S_VENO FOR ZVA_VENDOR_TA-VENDERNO.
+
+START-OF-SELECTION.
+
+  * Select data from custom vendor table based on selection
+  SELECT VENDERNO, NAME, CITY, POSTALCODE, EMAIL, ACCOUNTGROUP, PROCESSORGROUP, POSTINGBLOCK
+    INTO TABLE &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1407137"&gt;@DATA&lt;/a&gt;(LT_VENDOR)
+    FROM ZVA_VENDOR_TA
+    WHERE VENDERNO IN @S_VENO.
+
+  * Proceed only if records are found
+  IF LT_VENDOR IS NOT INITIAL.
+
+    * Create the SALV (ALV) object using factory method
+    CL_SALV_TABLE=&amp;gt;FACTORY(
+      IMPORTING
+        R_SALV_TABLE = LT_TABLE
+      CHANGING
+        T_TABLE      = LT_VENDOR
+    ).
+
+    * Create layout grids and logo objects for header and footer customization
+    DATA(LT_LAYOUT)  = NEW CL_SALV_FORM_LAYOUT_GRID( ).
+    DATA(LT_LAYOUT1) = NEW CL_SALV_FORM_LAYOUT_GRID( ).
+    DATA(LT_LOGO)    = NEW CL_SALV_FORM_LAYOUT_LOGO( ).
+
+    * Set the header title
+    LV_TEXT = 'VINOD KUMAR REDDY'.
+    LT_LAYOUT-&amp;gt;CREATE_HEADER_INFORMATION(
+      EXPORTING
+        ROW     = 3
+        COLUMN  = 1
+        TEXT    = LV_TEXT
+    ).
+
+    * Add user name label and text
+    LT_LAYOUT-&amp;gt;CREATE_LABEL(
+      EXPORTING
+        ROW     = 5
+        COLUMN  = 1
+        TEXT    = 'User Name' ).
+
+    LT_LAYOUT-&amp;gt;CREATE_TEXT(
+      EXPORTING
+        ROW     = 5
+        COLUMN  = 2
+        TEXT    = 'VINOD APPANNAGARI' ).
+
+    * Add date label and current date value
+    LT_LAYOUT-&amp;gt;CREATE_LABEL(
+      EXPORTING
+        ROW     = 3
+        COLUMN  = 1
+        TEXT    = 'Date' ).
+
+    LT_LAYOUT-&amp;gt;CREATE_TEXT(
+      EXPORTING
+        ROW     = 3
+        COLUMN  = 2
+        TEXT    = SY-DATUM ).
+
+    * Add time label and current system time
+    LT_LAYOUT-&amp;gt;CREATE_LABEL(
+      EXPORTING
+        ROW     = 4
+        COLUMN  = 1
+        TEXT    = 'Time' ).
+
+    LT_LAYOUT-&amp;gt;CREATE_TEXT(
+      EXPORTING
+        ROW     = 4
+        COLUMN  = 2
+        TEXT    = SY-UZEIT ).
+
+    * Add footer layout - number of records found
+    LT_LAYOUT1-&amp;gt;CREATE_LABEL(
+      EXPORTING
+        ROW     = 2
+        COLUMN  = 1
+        TEXT    = 'Number of records found' ).
+
+    DATA: LV_COUNT TYPE INT4.
+    DESCRIBE TABLE LT_VENDOR LINES LV_COUNT.
+
+    LT_LAYOUT1-&amp;gt;CREATE_TEXT(
+      EXPORTING
+        ROW     = 2
+        COLUMN  = 2
+        TEXT    = LV_COUNT
+        TOOLTIP = LV_COUNT ).
+
+    * Set SAP logo on the right of the header
+    LT_LOGO-&amp;gt;SET_RIGHT_LOGO( 'SAPLOGO1' ).
+    * Set header and footer content
+    LT_LOGO-&amp;gt;SET_LEFT_CONTENT( LT_LAYOUT ).
+    LT_TABLE-&amp;gt;SET_TOP_OF_LIST( VALUE = LT_LOGO ).
+    LT_TABLE-&amp;gt;SET_END_OF_LIST( VALUE = LT_LAYOUT1 ).
+    * Display the ALV table
+    LT_TABLE-&amp;gt;DISPLAY( ).
+  ENDIF.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Output:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="cfc5871a-34dc-41eb-80e5-53adde9181b4.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/282954iE3A4C02EEF1754EF/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="cfc5871a-34dc-41eb-80e5-53adde9181b4.png" alt="cfc5871a-34dc-41eb-80e5-53adde9181b4.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Development/pd-p/833755570260738661924709785639136" class="lia-product-mention" data-product="314-1"&gt;ABAP Development&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/factory-alv-with-header-logo-and-footer-in-abap/ba-p/14145038"/>
+    <published>2025-07-05T11:39:33.748000+02:00</published>
   </entry>
 </feed>

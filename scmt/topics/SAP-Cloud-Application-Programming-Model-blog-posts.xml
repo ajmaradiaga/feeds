@@ -2,100 +2,16 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Cloud-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - SAP Cloud Application Programming Model</title>
-  <updated>2025-07-05T08:00:46.255044+00:00</updated>
+  <updated>2025-07-05T11:00:42.877491+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Cloud Application Programming Model/pd-p/9f13aee1-834c-4105-8e43-ee442775e5ce" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Cloud Application Programming Model blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/how-to-control-the-visibility-of-crud-and-custom-actions-in-fiori-elements/ba-p/14099473</id>
-    <title>How to Control the Visibility of CRUD and Custom Actions in Fiori Elements Based on Authorization</title>
-    <updated>2025-05-14T08:37:05.413000+02:00</updated>
-    <author>
-      <name>MioYasutake</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/789</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-1710310019"&gt;1. Introduction&lt;/H2&gt;&lt;P&gt;In Fiori elements applications built with CAP, there is often a requirement to control the visibility of buttons such as &lt;EM&gt;Create, Edit,&lt;/EM&gt; or custom actions based on the user's authorization.&lt;/P&gt;&lt;P&gt;While in SAP S/4HANA systems this can be achieved through "Adapt UI" and app variants, as described in this &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-fiori-for-sap-s-4hana-app-variants-are-the-easy-way-to-control-app/ba-p/13557917" target="_self"&gt;blog post&lt;/A&gt;, such options are not available in SAP BTP.&lt;/P&gt;&lt;P&gt;To meet this requirement, we can leverage a combination of annotations, a singleton entity that holds feature control flags, and logic implemented in event handlers.&lt;/P&gt;&lt;P&gt;This blog explains how to implement this approach to achieve dynamic button visibility in Fiori elements applications.&lt;/P&gt;&lt;H2 id="toc-hId-1513796514"&gt;2. About Authorization Control with&amp;nbsp;@restrict&lt;/H2&gt;&lt;P&gt;The `@restrict` annotation in CAP allows you to define fine-grained access control for CRUD operations and custom actions based on user roles. While this ensures backend-level security, there is a limitation when using Fiori elements.&lt;/P&gt;&lt;P&gt;Even if a user does not have permission to perform a certain operation (such as Create or Execute Action), the corresponding button is still rendered in the UI. When the user clicks the button, they will encounter a "403 Forbidden" error.&lt;/P&gt;&lt;P&gt;Although the backend restriction works as expected, this experience can be confusing or frustrating for end users. Therefore, combining `@restrict` with UI-level control — such as dynamically hiding or disabling buttons based on authorization — leads to a much better user experience.&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;service CatalogService {
-    &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1599241"&gt;@odata&lt;/a&gt;.draft.enabled
-    @restrict: [{ grant: ['READ','WRITE'], to: 'Admin'},
-                { grant: 'READ'}]
-    entity Books as projection on my.Books
-        actions {
-            action updateStock(stock : Integer) returns Books;
-        };
-
-    @restrict: [{ to: 'Admin'}]
-    action autoFillStock();
-}&lt;/code&gt;&lt;/pre&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;EM&gt;Authorization Control with `@restrict`&lt;/EM&gt;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="forbidden.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/260249iFE3A1220470B10EA/image-size/large?v=v2&amp;amp;px=999" role="button" title="forbidden.png" alt="forbidden.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;EM&gt;Forbidden Error Displayed When User Lacks Authorization&lt;/EM&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1317283009"&gt;3. Method for Button Control Based on Authorization&lt;/H2&gt;&lt;P&gt;In this section, we will walk through a sample scenario where the visibility and availability of CRUD buttons and custom actions (both bound and unbound) are controlled based on the user's authorization.&lt;/P&gt;&lt;P&gt;Only users with the Admin role can perform these operations. All other users will see limited UI options according to their access level.&lt;/P&gt;&lt;H3 id="toc-hId-1249852223"&gt;3.1. Setup&lt;/H3&gt;&lt;P&gt;To implement this control, we will perform the following steps:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Define the main entity and custom actions&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;service CatalogService {
-    &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1599241"&gt;@odata&lt;/a&gt;.draft.enabled
-    entity Books as projection on my.Books
-        actions {
-            action updateStock(stock : Integer) returns Books; // bound action
-        };
-
-    //unbound action
-    action autoFillStock();
-}&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;Create a singleton entity that will act as a container for UI control flags (e.g., whether Create or action buttons should be shown or hidden)&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;    &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1599241"&gt;@odata&lt;/a&gt;.singleton
-    entity FeatureControl {
-        operationHidden : Boolean;
-        operationEnabled : Boolean;
-    }&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;Implement an event handler that checks the current user's roles and sets the corresponding flags in the singleton entity.&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;  this.on ('READ', FeatureControl, async (req) =&amp;gt; {
-    let operationHidden = true
-
-    if (req.user.is('Admin')) {
-      operationHidden = false
-    }
-
-    return {
-      operationHidden: operationHidden,
-      operationEnabled: !operationHidden,
-    }
-  })&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-1053338718"&gt;3.2. Hiding Buttons Using Annotations&lt;/H3&gt;&lt;P&gt;To control the visibility of CRUD buttons and custom actions, we use &lt;STRONG&gt;UI.xxxHidden&lt;/STRONG&gt;&amp;nbsp;annotations, combined with dynamic path-based expressions referring to the singleton entity defined in the previous step.&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// CRUD operations
-annotate CatalogService.Books with @(
-    UI.CreateHidden: { $edmJson: { $Path: '/CatalogService.EntityContainer/FeatureControl/operationHidden' } }, 
-    UI.UpdateHidden: { $edmJson: { $Path: '/CatalogService.EntityContainer/FeatureControl/operationHidden' } },
-    UI.DeleteHidden: { $edmJson: { $Path: '/CatalogService.EntityContainer/FeatureControl/operationHidden' } }
-);&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;To hide custom action buttons, place the &lt;STRONG&gt;UI.Hidden&lt;/STRONG&gt;&amp;nbsp;annotation within the &lt;STRONG&gt;U&lt;/STRONG&gt;&lt;STRONG&gt;I.LineItem&lt;/STRONG&gt;&amp;nbsp;or &lt;STRONG&gt;U&lt;/STRONG&gt;&lt;STRONG&gt;I.&lt;/STRONG&gt;&lt;STRONG&gt;Identification&lt;/STRONG&gt;&amp;nbsp;annotation, depending on where the button is rendered.&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;annotate CatalogService.Books with @(
-    UI.LineItem : [
-        ...,
-        {
-            $Type : 'UI.DataFieldForAction',
-            Action : 'CatalogService.updateStock',
-            Label : 'Update Stock',
-            ![@UI.Hidden]: { $edmJson: { $Path: '/CatalogService.EntityContainer/FeatureControl/operationHidden' }},
-        },
-        {
-            $Type : 'UI.DataFieldForAction',
-            Action : 'CatalogService.EntityContainer/autoFillStock',
-            Label : 'Auto Fill Stock',
-            ![@UI.Hidden]: { $edmJson: { $Path: '/CatalogService.EntityContainer/FeatureControl/operationHidden' }},
-        },&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This results in the following behavior:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;When the user has the authorization, buttons are visible.&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="MioYasutake_1-1747170668182.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/260823iCA4DEC252029EF31/image-size/large?v=v2&amp;amp;px=999" role="button" title="MioYasutake_1-1747170668182.png" alt="MioYasutake_1-1747170668182.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;When the user does not have the authorization, buttons are hidden.&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="MioYasutake_0-1747170585601.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/260822i8EE9623237FAB02D/image-size/large?v=v2&amp;amp;px=999" role="button" title="MioYasutake_0-1747170585601.png" alt="MioYasutake_0-1747170585601.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-856825213"&gt;3.3. Disabling Buttons (Visible but Inactive)&lt;/H3&gt;&lt;P&gt;In some cases, instead of hiding buttons entirely, you may want to display them in the UI but disable them based on the user's authorization—or another condition.&lt;/P&gt;&lt;P&gt;For standard operations like Update and Delete, you can control their availability using `&lt;STRONG&gt;Capabilities.UpdateRestrictions.Updatable`&lt;/STRONG&gt; and `&lt;STRONG&gt;Capabilities.DeleteRestrictions.Deletable`&lt;/STRONG&gt; annotations.&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// CRUD Operations
-annotate CatalogService.Books with @(
-    Capabilities.UpdateRestrictions: {
-        Updatable: { $edmJson: { $Path: '/CatalogService.EntityContainer/FeatureControl/operationEnabled' } }
-    },
-    Capabilities.DeleteRestrictions: {
-        Deletable: { $edmJson: { $Path: '/CatalogService.EntityContainer/FeatureControl/operationEnabled' } }
-    }
-);&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;For both bound and unbound actions, the availability can be controlled using the `&lt;STRONG&gt;Core.OperationAvailable&lt;/STRONG&gt;` annotation.&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// Bound Action
-annotate CatalogService.Books with actions {
-    updateStock @(
-        Core.OperationAvailable: { $edmJson: { $Path: '/CatalogService.EntityContainer/FeatureControl/operationEnabled' } } 
-    );
-};
-
-// Unbound Action
-annotate CatalogService.autoFillStock with @(
-    Core.OperationAvailable: { $edmJson: { $Path: '/CatalogService.EntityContainer/FeatureControl/operationEnabled' } } 
-);&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;This results in the following behavior:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;When the user has the authorization, buttons are enabled.&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="MioYasutake_3-1747171095187.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/260825i46EA9947FAF1FF55/image-size/large?v=v2&amp;amp;px=999" role="button" title="MioYasutake_3-1747171095187.png" alt="MioYasutake_3-1747171095187.png" /&gt;&lt;/span&gt;&lt;P&gt;The Delete button is disabled on the List Report but enabled on the Object Page.&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="MioYasutake_6-1747171230329.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/260828iAA9F6E4E470C99E6/image-size/large?v=v2&amp;amp;px=999" role="button" title="MioYasutake_6-1747171230329.png" alt="MioYasutake_6-1747171230329.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;When the user does not have the authorization, buttons are disabled.&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="MioYasutake_2-1747170947309.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/260824iE1174E643909589D/image-size/large?v=v2&amp;amp;px=999" role="button" title="MioYasutake_2-1747170947309.png" alt="MioYasutake_2-1747170947309.png" /&gt;&lt;/span&gt;&lt;P&gt;In this case, the Delete button is also disabled on the Object Page.&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="MioYasutake_5-1747171204785.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/260827i18EAA4A12FBF6EE9/image-size/large?v=v2&amp;amp;px=999" role="button" title="MioYasutake_5-1747171204785.png" alt="MioYasutake_5-1747171204785.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-660311708"&gt;Known Limitation: $Not Expressions Do Not Work as Expected&lt;/H3&gt;&lt;P&gt;Although using &lt;STRONG&gt;$Not&lt;/STRONG&gt; to negate a boolean path (e.g., to invert an &lt;STRONG&gt;opererationEnabled&lt;/STRONG&gt; flag) may seem straightforward, it currently does not work as expected in Fiori elements. For example, the following annotation will not properly hide the Create button:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;UI.CreateHidden : { $edmJson: { $Not: { $Path: '/CatalogService.EntityContainer/FeatureControl/operationEnabled' } } } // Does not work&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This is a known limitation, and a related discussion can be found in this&amp;nbsp;&lt;A href="https://community.sap.com/t5/technology-q-a/fiori-elements-ui-createhidden-with-not-path-expression-is-not-working/qaq-p/14098475" target="_self"&gt;SAP Community Q&amp;amp;A thread&lt;/A&gt;. As a workaround, handle the negation in your backend logic. Rather than inverting the flag in the annotation, expose a dedicated boolean property (e.g., operationHidden) that already represents the intended value for UI.&lt;/P&gt;&lt;H2 id="toc-hId-334715484"&gt;4. Conclusion&lt;/H2&gt;&lt;P&gt;In this blog post, we explored how to control the visibility and availability of CRUD and action buttons in Fiori elements applications based on user authorization. By combining annotations, a singleton entity, and event handlers, you can provide a more secure and user-friendly UI experience tailored to each user's role.&lt;/P&gt;&lt;H2 id="toc-hId-138201979"&gt;References&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://cap.cloud.sap/docs/advanced/fiori#use-roles-to-toggle-visibility-of-ui-elements" target="_self" rel="nofollow noopener noreferrer"&gt;Use Roles to Toggle Visibility of UI elements (CAP Documentation)&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://github.com/SAP-samples/fiori-elements-feature-showcase?tab=readme-ov-file#dynamic-crud-restrictions" target="_self" rel="nofollow noopener noreferrer"&gt;Dynamic CRUD Restrictions (GitHub – fiori-elements-feature-showcase)&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://sapui5.hana.ondemand.com/sdk/#/topic/cbf16c599f2d4b8796e3702f7d4aae6c.html" target="_self" rel="nofollow noopener noreferrer"&gt;Enabling Custom Actions Defined Using Annotations (SAPUI5 SDK)&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/how-to-control-the-visibility-of-crud-and-custom-actions-in-fiori-elements/ba-p/14099473"/>
-    <published>2025-05-14T08:37:05.413000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/helpful-links-for-your-sap-transformation/ba-p/14101989</id>
     <title>Helpful links for your SAP transformation</title>
     <updated>2025-05-15T06:41:47.799000+02:00</updated>
     <author>
-      <name>jkmaeda711</name>
+      <name>jkmaeda</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/154392</uri>
     </author>
     <content>&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;P class=""&gt;The architecture chapter can use and recommend the tools and services below to guide and equip (and create principles and guardrails to) professionals and managers to support evidence-based decisions for your business and digital transformations.&lt;/P&gt;&lt;P class=""&gt;The links below can help to provide visibility and clarity of your SAP ecosystem, especially to non-SAP professionals and leaders, so they can also make better questions when discovering and exploring the myriad of capabilities that SAP can offer.&lt;/P&gt;&lt;P class=""&gt;You will need an SAP S-user (&lt;A class="" href="https://me.sap.com/" target="_blank" rel="noopener ugc noreferrer"&gt;me.sap.com&lt;/A&gt;) and an SAP account (&lt;A class="" href="http://sap.com/" target="_blank" rel="noopener ugc noreferrer"&gt;sap.com&lt;/A&gt;) to access the content.&lt;/P&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://me.sap.com/processnavigator/HomePage" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Best Practices based on SAP Signavio Process Navigator&lt;/A&gt;, alternatively, &lt;A class="" href="https://www.signavio.com/products/process-explorer/" target="_blank" rel="noopener ugc nofollow noreferrer"&gt;SAP Signavio Process Explorer&lt;/A&gt; is the gateway to get insights into SAP’s process portfolio and leverage related process implementation guidance and reference business and solution architectures. These include business-capability and solution maps, process models, metrics, industry best practices, and SAP best-practice and product recommendations.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_0-1747283066894.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261344i545A3FC521671638/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_0-1747283066894.png" alt="jkmaeda711_0-1747283066894.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_1-1747283066895.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261342iF15ACE0C7D64064D/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_1-1747283066895.png" alt="jkmaeda711_1-1747283066895.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://fioriappslibrary.hana.ondemand.com/sap/fix/externalViewer/" target="_blank" rel="noopener ugc nofollow noreferrer"&gt;SAP Fiori Apps Reference Library&lt;/A&gt; to explore, plan and implement SAP Fiori, the latest user experience from SAP including all relevant content for the SAP Fiori launchpad.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_2-1747283066895.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261343i42C0706F280C57CE/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_2-1747283066895.png" alt="jkmaeda711_2-1747283066895.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://discovery-center.cloud.sap/index.html" target="_blank" rel="noopener ugc nofollow noreferrer"&gt;SAP Business Technology Platform&lt;/A&gt; to explore and understand different architecture patterns which can be implemented using SAP BTP services.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_3-1747283066895.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261346i9214E50CBBC4C0CD/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_3-1747283066895.png" alt="jkmaeda711_3-1747283066895.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://help.sap.com/docs/sap-btp-guidance-framework/guidance-framework/what-is-sap-btp-guidance-framework" target="_blank" rel="noopener ugc noreferrer"&gt;SAP BTP Guidance Framework&lt;/A&gt; for architects, developers, and administrators.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_4-1747283066895.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261347iA227CC743317BCB7/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_4-1747283066895.png" alt="jkmaeda711_4-1747283066895.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://hub.sap.com/" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Business Accelerator Hub&lt;/A&gt; (or Intelligent Enterprise Reference Solution Architecture) to help discover, consume, and create integrations, extensions, and innovations.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_5-1747283066895.jpeg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261345i7CBCBA4BAD7906CB/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_5-1747283066895.jpeg" alt="jkmaeda711_5-1747283066895.jpeg" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://go.support.sap.com/roadmapviewer/" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Activate&lt;/A&gt; provides a clear guided methodology to deploy, adopt and extend new capabilities with different approaches, e.g., agile or waterfall, cloud, hybrid or on-premise, implementation or upgrade.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_6-1747283066899.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261349i8713E59455C6A997/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_6-1747283066899.png" alt="jkmaeda711_6-1747283066899.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://roadmaps.sap.com/" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Road Maps&lt;/A&gt; support the journey to SAP’s future product portfolio. Before customising, check for future enhancements.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_7-1747283066899.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261350i845ACB1C7D5CD6FD/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_7-1747283066899.png" alt="jkmaeda711_7-1747283066899.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://influence.sap.com/" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Customer Influence &lt;/A&gt;offers a range of programs that give customers the opportunity to influence SAP software development decisions, request specific enhancements or features, and adopt new innovations early on. Before customising, check (and vote) for opportunities and ideas to speed up SAP’s development and delivery of new requirements. Customers should engage the SAP account team to work internally with the development and product management teams.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_8-1747283066899.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261348i4762E5DEBDCDAA81/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_8-1747283066899.png" alt="jkmaeda711_8-1747283066899.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://support.sap.com/content/dam/support/en_us/library/ssp/offerings-and-programs/support-services/sap-security-optimization-services-portfolio/SAP_Secure_Operations_Map.pdf" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Secure Operations Map&lt;/A&gt; ensures smooth operation of SAP solutions by taking action proactively, before severe security problems occur.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_9-1747283066899.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261351i32B0BD42EEE95E2C/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_9-1747283066899.png" alt="jkmaeda711_9-1747283066899.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;P class=""&gt;Depending on use case, when the company is ready for transformational initiatives, use the tools and services available to customers:&lt;/P&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://valuemanagement.sap.com/" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Value Lifecycle Manager&lt;/A&gt; for a value analysis, total costs of ownership calculation and more.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_10-1747283066899.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261352i5635781D5AA40E45/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_10-1747283066899.png" alt="jkmaeda711_10-1747283066899.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://me.sap.com/readinesscheck" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Readiness Check&lt;/A&gt; conducts a detailed analysis of our existing SAP system to help plan our digital transformation. For example, SAP S/4HANA Conversion, SAP S/4HANA Upgrade, SAP BW/4HANA Conversion, SAP ERP Usage and Data Profiling, SAP Customer Experience Solutions, SAP SuccessFactors Solutions, SAP Cloud ALM, SAP Datasphere, SAP BW Bridge.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_11-1747283066899.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261353i34728C4FB8A13BD5/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_11-1747283066899.png" alt="jkmaeda711_11-1747283066899.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://me.sap.com/app/customcodeanalytics" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Custom Code Analytics&lt;/A&gt; uses aggregated Custom Code Management (CCM) data from your SAP Solution Manager. The application gives an overview about the custom code footprint of the ABAP systems and provides insights about code quality and usage.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_12-1747283066899.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261354iB32C17112B6DD917/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_12-1747283066899.png" alt="jkmaeda711_12-1747283066899.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://support.sap.com/en/offerings-programs/enterprise-support/enterprise-support-academy/continuous-quality-check-improvement-services.html" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Continuous Quality Check &amp;amp; Improvement Services&lt;/A&gt; are included in the SAP Enterprise Support contract. After each service, you receive a service report with an executive summary, findings and a detailed action plan to mitigate risks or improve your situation.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_13-1747283066899.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261355i49A57E72CD7EC133/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_13-1747283066899.png" alt="jkmaeda711_13-1747283066899.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://webinars.sap.com/customer-evolution-kit/en/home" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Customer Evolution Kit&lt;/A&gt; for cost-free engagement to accelerate digital transformation to the cloud.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_14-1747283066900.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261356i4F94D324849E0916/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_14-1747283066900.png" alt="jkmaeda711_14-1747283066900.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://url.sap/discovery-edition" target="_blank" rel="noopener ugc nofollow noreferrer"&gt;SAP Signavio, Process Insights, discovery edition&lt;/A&gt;, the successor of Process Discovery and Pathfinder on Spotlight, can get innovation recommendations based on the usage of the current system.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_15-1747283066900.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261359i8D4950588D68988B/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_15-1747283066900.png" alt="jkmaeda711_15-1747283066900.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://apphaus.sap.com/offering" target="_blank" rel="noopener ugc noreferrer"&gt;SAP AppHaus&lt;/A&gt; and its network partners offer different engagement types. From discovering innovation opportunities like rethinking business processes and user interfaces to delivering scalable solutions.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_16-1747283066900.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261358i4D69678808334542/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_16-1747283066900.png" alt="jkmaeda711_16-1747283066900.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://cal.sap.com/" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Cloud Appliance Library&lt;/A&gt; offers a quick and easy way to create SAP workloads in our cloud infrastructure.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_17-1747283066900.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261357iE8B38D01C5A8FDC2/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_17-1747283066900.png" alt="jkmaeda711_17-1747283066900.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://www.sap.com/registration/protected/background/digital-discover-assessment.html" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Digital Discovery and Assessment&lt;/A&gt; is used to plan the scope of a planned SAP S/4HANA project (for SAP partners only).&lt;/LI&gt;&lt;LI&gt;&lt;A class="" href="https://me.sap.com/sic" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Simplification Item Catalogue&lt;/A&gt; helps better prepare for the transition to SAP S/4HANA and SAP BW/4HANA. It provides a description of all relevant changes that might have an impact when converting from SAP ERP to SAP S/4HANA or SAP BW to SAP BW/4HANA.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_18-1747283066900.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261361i20C768D226F1453D/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_18-1747283066900.png" alt="jkmaeda711_18-1747283066900.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://www.sap.com/extendS4" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Extensibility Explorer for SAP S/4HANA Cloud&lt;/A&gt; covers a broad spectrum of topics that allow us to adapt standard business software to our business needs by leveraging the extensibility patterns and sample scenarios from SAP.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_19-1747283066900.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261360i2602D31DA67ACA30/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_19-1747283066900.png" alt="jkmaeda711_19-1747283066900.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;P class=""&gt;When customising is required (&lt;A class="" href="https://www.sap.com/documents/2022/11/96974181-4f7e-0010-bca6-c68f7e60039b.html" target="_blank" rel="noopener ugc noreferrer"&gt;Clean Core&lt;/A&gt;), refer to the following frameworks and additional resources:&lt;/P&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://www.sap.com/store.html" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Store&lt;/A&gt; is a digital marketplace with over 2000+ extensions where we can discover, try, and buy solutions from SAP partners.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_20-1747283066900.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261362iFD07539412AC72D8/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_20-1747283066900.png" alt="jkmaeda711_20-1747283066900.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://www.sap.com/partners/find.html" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Partner Finder&lt;/A&gt; to find the best SAP partners to meet our needs.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_21-1747283066900.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261365iF330598191182D94/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_21-1747283066900.png" alt="jkmaeda711_21-1747283066900.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://cap.cloud.sap/docs" target="_blank" rel="noopener ugc nofollow noreferrer"&gt;SAP Cloud Application Programming Model&lt;/A&gt; helps build cloud-native applications with maximised productivity at minimised costs, based on proven best practices served out of the box.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_22-1747283066900.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261363i9F5F3A4C465B09EA/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_22-1747283066900.png" alt="jkmaeda711_22-1747283066900.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://help.sap.com/docs/SAPUI5" target="_blank" rel="noopener ugc noreferrer"&gt;SAP UI Development Toolkit for HTML5&lt;/A&gt; is a platform for developing rich user interfaces for modern web business applications.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_23-1747283066900.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261364iC51AB1216C733D67/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_23-1747283066900.png" alt="jkmaeda711_23-1747283066900.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://learning.sap.com/" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Learning&lt;/A&gt; offers free online courses, tutorials, trials, and official SAP help documentation for anyone who wants to build in-demand SAP skills and prepare for SAP certifications.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_24-1747283066901.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261368i3DD38F73F6259443/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_24-1747283066901.png" alt="jkmaeda711_24-1747283066901.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://www.sap.com/community.html" target="_blank" rel="noopener ugc noreferrer"&gt;SAP Community&lt;/A&gt; offers access to experts, knowledge sharing, the latest news, resources, and insights on SAP solutions and technologies.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_25-1747283066900.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261366iF395E00BB05D35E7/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_25-1747283066900.png" alt="jkmaeda711_25-1747283066900.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://me.sap.com/" target="_blank" rel="noopener ugc noreferrer"&gt;SAP for Me&lt;/A&gt; is the digital companion to interact with SAP and aggregates important alerts, metrics, and insights about the SAP product portfolio with a single access point.&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_26-1747283066901.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261367iE4CB07810843F80A/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_26-1747283066901.png" alt="jkmaeda711_26-1747283066901.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;A class="" href="https://learn.microsoft.com/en-us/azure/architecture" target="_blank" rel="noopener ugc nofollow noreferrer"&gt;Microsoft Azure Architecture Centre&lt;/A&gt; on guidance for architecting solutions on Azure using established patterns and practices, including SAP on Azure (as Microsoft is our strategic partner).&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="jkmaeda711_27-1747283066901.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/261369iBFD56170C93BA0BA/image-size/large?v=v2&amp;amp;px=999" role="button" title="jkmaeda711_27-1747283066901.png" alt="jkmaeda711_27-1747283066901.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P class=""&gt;I hope it also helps guide and drive your project. It is a starting point to prepare your colleagues to support business and tech decisions.&lt;/P&gt;&lt;P class=""&gt;Surely I missed many helpful links here, so feel free to add yours in the comments too. Thanks!&lt;/P&gt;&lt;P class=""&gt;Originally posted on&amp;nbsp;&lt;A href="https://www.linkedin.com/pulse/helpful-links-your-sap-transformation-jacques-maeda-rawlc" target="_blank" rel="noopener nofollow noreferrer"&gt;LinkedIn&lt;/A&gt;.&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;</content>
@@ -498,5 +414,400 @@ service poWorklist @(path:'/poWorklist') {
     <content>&lt;P&gt;&lt;STRONG&gt;1. Start Your Business application studio Dev Space&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;2. Creating new Cap Project Using Terminal&lt;/STRONG&gt;&lt;BR /&gt;for creating a new project you can go through the new Project from Template or you can use the terminal&lt;BR /&gt;Open the new Terminal and follow the steps:&lt;BR /&gt;Change the current directory to your desired workspace, typically located at /home/user/projects/:&lt;BR /&gt;Run the CAP project initialization command:&lt;BR /&gt;cds init firstCapProject&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyanarayanpradhan_0-1751366158119.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/281262iA09D8ED1B70698DE/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyanarayanpradhan_0-1751366158119.png" alt="satyanarayanpradhan_0-1751366158119.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;then we need to go inside the project folder using&lt;BR /&gt;cd firstCapProject&lt;BR /&gt;Your project will now have a structured directory layout containing essential folders such as db for data models, for services, app for UI modules (currently empty), and package.json which manages dependencies.&lt;BR /&gt;then we install all the packages from the npm(Node Package Manager). It is a tool and registry used primarily for packages in node.js projects&lt;BR /&gt;It manages the dependencies. It keeps track of all the packages your project uses in a file called package.json&lt;BR /&gt;npm install&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;3. Defining Data Model and Services&lt;/STRONG&gt;&lt;BR /&gt;Define the Data Model&lt;BR /&gt;Create the schema.cds file db/schema.cds&lt;BR /&gt;The Schema.cds file in a CAP project defines the data model using CDS. It is just like a container that contains entities, types, relationship and aspects that describes the structure of your application's database.&lt;BR /&gt;Define the name space and Create Books and Author entities.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyanarayanpradhan_1-1751366158968.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/281260i9BBB21616C4F433C/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyanarayanpradhan_1-1751366158968.png" alt="satyanarayanpradhan_1-1751366158968.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Add Sample Data in CSV Format&lt;BR /&gt;Create the .csv file manually or you can type the command&lt;BR /&gt;cds add data&lt;BR /&gt;This command creates the .csv files for each entities. The naming convention for the .csv file&lt;BR /&gt;&amp;lt;namespace&amp;gt;-&amp;lt;entityName&amp;gt;.csv&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyanarayanpradhan_2-1751366157827.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/281261i32B0F7557F447DE9/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyanarayanpradhan_2-1751366157827.png" alt="satyanarayanpradhan_2-1751366157827.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyanarayanpradhan_3-1751366158684.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/281268i72422D34D2AE2B49/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyanarayanpradhan_3-1751366158684.png" alt="satyanarayanpradhan_3-1751366158684.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyanarayanpradhan_4-1751366158403.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/281266i94128BF8D69BA484/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyanarayanpradhan_4-1751366158403.png" alt="satyanarayanpradhan_4-1751366158403.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Define a CAP Service&lt;BR /&gt;create a file cat-service.cds inside srv folder&lt;BR /&gt;expose the entity that you have created in schema.cds file inside a service(CatalogService)&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyanarayanpradhan_5-1751366158872.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/281267iB861583905299E0B/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyanarayanpradhan_5-1751366158872.png" alt="satyanarayanpradhan_5-1751366158872.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;To run the application locally&lt;BR /&gt;in the terminal do cds watch&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyanarayanpradhan_6-1751366158495.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/281272iCCD0CC8C4CE815DE/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyanarayanpradhan_6-1751366158495.png" alt="satyanarayanpradhan_6-1751366158495.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Click on Open In New Tab&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyanarayanpradhan_7-1751366157922.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/281274i7496B0178635807C/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyanarayanpradhan_7-1751366157922.png" alt="satyanarayanpradhan_7-1751366157922.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Click on any of entities&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyanarayanpradhan_8-1751366160423.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/281273i8058208B87ED4319/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyanarayanpradhan_8-1751366160423.png" alt="satyanarayanpradhan_8-1751366160423.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;you can see the data that is present in the .csv file&lt;BR /&gt;&lt;STRONG&gt;4. Configuring for SAP HANA Deployment&lt;/STRONG&gt;&lt;BR /&gt;Add HANA configuration for production:&lt;BR /&gt;cds add hana --for production&lt;BR /&gt;Add hybrid setup (for both dev and prod compatibility):&lt;BR /&gt;cds add hana --for hybrid&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyanarayanpradhan_9-1751366159254.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/281279iCAA08F6C9ABAF15D/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyanarayanpradhan_9-1751366159254.png" alt="satyanarayanpradhan_9-1751366159254.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Generate multi-target Application (MTA)&lt;BR /&gt;It will create a mta.yaml file after that do npm update&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyanarayanpradhan_10-1751366160048.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/281280iBE81665999B5C0E3/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyanarayanpradhan_10-1751366160048.png" alt="satyanarayanpradhan_10-1751366160048.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;then run the application again.&lt;BR /&gt;&lt;STRONG&gt;5. Adding XSUAA for Authentication and Authorization&lt;/STRONG&gt;&lt;BR /&gt;XSUAA is required for deploying CAP apps to Cloud Foundry with authentication support.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyanarayanpradhan_11-1751366158118.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/281278iB96F0C23B8DA806D/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyanarayanpradhan_11-1751366158118.png" alt="satyanarayanpradhan_11-1751366158118.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;This updates your package.json and adds authentication requirements under the "requires" section.&lt;BR /&gt;Adding a Managed Application Router&lt;BR /&gt;Right-click on the mta.yaml file and select Create MTA Module from Template.&lt;BR /&gt;&lt;BR /&gt;Choose the Approuter Configuration template.&lt;BR /&gt;&lt;BR /&gt;6. Deploying the Application to SAP BTP Cloud Foundry&lt;BR /&gt;Login to Cloud Foundry&lt;BR /&gt;In the Terminal type cf login&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="satyanarayanpradhan_12-1751366160421.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/281281i070DC11D88F880DB/image-size/medium?v=v2&amp;amp;px=400" role="button" title="satyanarayanpradhan_12-1751366160421.png" alt="satyanarayanpradhan_12-1751366160421.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Provide the API endpoint, credentials, and select the correct organization and space.&lt;BR /&gt;&lt;STRONG&gt;7. Verifying Deployment and Launching Your Fiori App&lt;/STRONG&gt;&lt;BR /&gt;In the BTP cockpit, go to Services → Instances. You should see instances for the db, approuter, CAP service, and xsuaa.&lt;BR /&gt;Go to HTML5 Applications (enabled via SAP Build Work Zone) and find your firstCapProject app&lt;BR /&gt;Launch the app to see the same Fiori UI you previewed locally, now hosted on the cloud&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/deploying-first-cap-project-in-sap-cloud-a-step-by-step-guide/ba-p/14141569"/>
     <published>2025-07-02T14:08:44.436000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/the-capstone-project-a-journey-from-component-to-cloud/ba-p/14143718</id>
+    <title>The CAPstone Project: A Journey from Component to Cloud</title>
+    <updated>2025-07-05T11:15:37.612000+02:00</updated>
+    <author>
+      <name>LOKESH_GHOSH</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2103994</uri>
+    </author>
+    <content>&lt;H3 id="toc-hId-1036649068" id="toc-hId-1863228240"&gt;Introduction&lt;/H3&gt;&lt;P&gt;In this post, I'll take you through complete journey: of building React + Vite(Component) application on SAP’s ecosystem(Cloud).&lt;/P&gt;&lt;P&gt;Someone, who is React developer and curious about SAP's environment or a CAP expert just exploring modern frontend option, this blog will give them a practical and real-world solution with code snippets.&lt;/P&gt;&lt;P&gt;Let's dive how modern JavaScript development can thrive alongside enterprise SAP capabilities.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Open &lt;A href="https://developers.sap.com/tutorials/appstudio-onboarding..html" target="_blank" rel="noopener noreferrer"&gt;BAS&lt;/A&gt;&lt;/STRONG&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Create a CAP Project&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;cds init project_name
+npm install&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Create a basic schema&lt;/STRONG&gt; &lt;EM&gt;schema.cds&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;namespace UserManagement;
+
+using { managed, cuid } from '@sap/cds/common';
+
+entity Users : managed, cuid {
+    name    : String(100) not null;
+    email   : String(255) not null;
+    company : String(100) not null;
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Service in&lt;/STRONG&gt; &lt;EM&gt;service.cds&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;using UserManagement from '../db/schema';
+
+service UserService {
+    entity Users as projection on UserManagement.Users;
+
+    function getUser() returns array of {
+        name    : String(100) not null;
+        email   : String(255) not null;
+        company : String(100) not null;
+    }
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Custom service&lt;/STRONG&gt; &lt;EM&gt;service.js&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;const cds = require('@sap/cds');
+const { message } = require('@sap/cds/lib/log/cds-error');
+
+module.exports = cds.service.impl(async function() {
+    const { Users } = this.entities;
+
+    // Before CREATE event - validate data
+    this.before('CREATE', 'Users', async (req) =&amp;gt; {
+        const { name, email, company } = req.data;
+        
+        // Basic validation
+        if (!name || !email || !company) {
+            req.reject(400, 'All fields (name, email, company) are required');
+        }
+        
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            req.reject(400, 'Invalid email format');
+        }
+        
+        // Check for duplicate email
+        const existingUser = await SELECT.one.from(Users).where({ email: email });
+        if (existingUser) {
+            req.reject(400, 'User with this email already exists');
+        }
+    });
+
+    // After CREATE event - log the action
+    this.after('CREATE', 'Users', async (data, req) =&amp;gt; {
+        console.log(`New user created: ${data.name} (${data.email})`);
+    });
+
+    this.on('getUser',async(req)=&amp;gt;{
+        const data = await SELECT.from('Users');
+        return {status:200,message:'Data Fetched',data}
+        
+    })
+});&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Add csv file for mock data&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;cds add data&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Add the below mock data&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;ID,name,email,company,createdAt,modifiedAt
+1,John Doe,john.doe@example.com,Tech Corp,2024-01-15T10:00:00Z,2024-01-15T10:00:00Z
+2,Jane Smith,jane.smith@innovate.io,Innovate Solutions,2024-01-16T11:30:00Z,2024-01-16T11:30:00Z
+3,Mike Johnson,mike.j@startup.com,StartupX,2024-01-17T09:15:00Z,2024-01-17T09:15:00Z&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Now let’s Create React Project&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;cd app
+npm create vite@latest .&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;As shown below&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-06-09 204314.png" style="width: 997px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/271925iC942199FCD992157/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-06-09 204314.png" alt="Screenshot 2025-06-09 204314.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Install Lucide React for icon&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;npm install lucide-react&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Install &lt;A href="https://tailwindcss.com/docs/installation/using-vite" target="_blank" rel="noopener nofollow noreferrer"&gt;Tailwind CSS&lt;/A&gt;(optional)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Setup Proxy Server to avoid &lt;A href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS/Errors" target="_blank" rel="noopener nofollow noreferrer"&gt;CORS issue&lt;/A&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;vite.config.js&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react(),tailwindcss()],
+  server:{
+    proxy:{
+      '/odata':{
+        target:'http://localhost:42745',
+        changeOrigin:true,
+        rewrite: path=&amp;gt;path.replace('/^\/odata/','/odata'),
+      }
+    }
+  }
+})&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Create the UI&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;App.jsx&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;import React, { useState } from 'react';
+import { Plus, Database, User, Mail, Building } from 'lucide-react';
+import './app.css'
+
+const App = () =&amp;gt; {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    company: ''
+  });
+  const [users, setUsers] = useState([]);
+  const [showTable, setShowTable] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Nord color palette
+  const nordColors = {
+    polarNight: ['#2e3440', '#3b4252', '#434c5e', '#4c566a'],
+    snowStorm: ['#d8dee9', '#e5e9f0', '#eceff4'],
+    frost: ['#8fbcbb', '#88c0d0', '#81a1c1', '#5e81ac'],
+    aurora: ['#bf616a', '#d08770', '#ebcb8b', '#a3be8c', '#b48ead']
+  };
+
+  const handleInputChange = (e) =&amp;gt; {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleSubmit = async () =&amp;gt; {
+    if (!formData.name || !formData.email || !formData.company) {
+      alert('Please fill in all fields');
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      // Simulate API call to CAP backend
+      const response = await fetch('odata/v4/user/Users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+      });
+      
+      if (response.ok) {
+        // For demo purposes, add to local state
+        const newUser = {
+          id: Date.now(),
+          ...formData,
+          createdAt: new Date().toISOString()
+        };
+        setUsers(prev =&amp;gt; [...prev, newUser]);
+        setFormData({ name: '', email: '', company: '' });
+        alert('User saved successfully!');
+      }
+    } catch (error) {
+      // For demo, still add to local state
+      const newUser = {
+        id: Date.now(),
+        ...formData,
+        createdAt: new Date().toISOString()
+      };
+      setUsers(prev =&amp;gt; [...prev, newUser]);
+      setFormData({ name: '', email: '', company: '' });
+      alert('User saved successfully! (Demo mode)');
+    }
+    
+    setLoading(false);
+  };
+
+  const fetchUsers = async () =&amp;gt; {
+    setLoading(true);
+    setShowTable(true);
+    
+    try {
+      // Simulate API call to fetch users
+      const response = await fetch('odata/v4/user/getUser');
+      if (response.ok) {
+        const data = await response.json();
+        console.log('log on ui',data.value[0].data)
+        setUsers(data.value[0].data);
+      }
+    } catch (error) {
+      // Demo mode - use local state
+      console.log('Using demo data');
+    }
+    
+    setLoading(false);
+  };
+
+  return (
+    &amp;lt;div className="min-h-screen" style={{ backgroundColor: nordColors.polarNight[0] }}&amp;gt;
+      &amp;lt;div className="container mx-auto px-4 py-8"&amp;gt;
+        {/* Header */}
+        &amp;lt;div className="text-center mb-8"&amp;gt;
+          &amp;lt;h1 className="text-4xl font-bold mb-2" style={{ color: nordColors.snowStorm[2] }}&amp;gt;
+            User Management
+          &amp;lt;/h1&amp;gt;
+          &amp;lt;p className="text-lg" style={{ color: nordColors.snowStorm[0] }}&amp;gt;
+            Simple form with SAP BTP CAP backend
+          &amp;lt;/p&amp;gt;
+        &amp;lt;/div&amp;gt;
+
+        &amp;lt;div className="grid grid-cols-1 lg:grid-cols-2 gap-8"&amp;gt;
+          {/* Form Section */}
+          &amp;lt;div 
+            className="p-6 rounded-lg shadow-xl"
+            style={{ backgroundColor: nordColors.polarNight[1] }}
+          &amp;gt;
+            &amp;lt;h2 
+              className="text-2xl font-semibold mb-6 flex items-center gap-2"
+              style={{ color: nordColors.frost[1] }}
+            &amp;gt;
+              &amp;lt;Plus className="w-6 h-6" /&amp;gt;
+              Add New User
+            &amp;lt;/h2&amp;gt;
+            
+            &amp;lt;div className="space-y-4"&amp;gt;
+              &amp;lt;div&amp;gt;
+                &amp;lt;label 
+                  className="block text-sm font-medium mb-2 flex items-center gap-2"
+                  style={{ color: nordColors.snowStorm[1] }}
+                &amp;gt;
+                  &amp;lt;User className="w-4 h-4" /&amp;gt;
+                  Name
+                &amp;lt;/label&amp;gt;
+                &amp;lt;input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-4 py-2 rounded-md border focus:ring-2 focus:outline-none transition-all"
+                  style={{ 
+                    backgroundColor: nordColors.polarNight[2],
+                    borderColor: nordColors.polarNight[3],
+                    color: nordColors.snowStorm[2],
+                    focusRingColor: nordColors.frost[2]
+                  }}
+                  placeholder="Enter full name"
+                /&amp;gt;
+              &amp;lt;/div&amp;gt;
+
+              &amp;lt;div&amp;gt;
+                &amp;lt;label 
+                  className="block text-sm font-medium mb-2 flex items-center gap-2"
+                  style={{ color: nordColors.snowStorm[1] }}
+                &amp;gt;
+                  &amp;lt;Mail className="w-4 h-4" /&amp;gt;
+                  Email
+                &amp;lt;/label&amp;gt;
+                &amp;lt;input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-4 py-2 rounded-md border focus:ring-2 focus:outline-none transition-all"
+                  style={{ 
+                    backgroundColor: nordColors.polarNight[2],
+                    borderColor: nordColors.polarNight[3],
+                    color: nordColors.snowStorm[2]
+                  }}
+                  placeholder="Enter email address"
+                /&amp;gt;
+              &amp;lt;/div&amp;gt;
+
+              &amp;lt;div&amp;gt;
+                &amp;lt;label 
+                  className="block text-sm font-medium mb-2 flex items-center gap-2"
+                  style={{ color: nordColors.snowStorm[1] }}
+                &amp;gt;
+                  &amp;lt;Building className="w-4 h-4" /&amp;gt;
+                  Company
+                &amp;lt;/label&amp;gt;
+                &amp;lt;input
+                  type="text"
+                  name="company"
+                  value={formData.company}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-4 py-2 rounded-md border focus:ring-2 focus:outline-none transition-all"
+                  style={{ 
+                    backgroundColor: nordColors.polarNight[2],
+                    borderColor: nordColors.polarNight[3],
+                    color: nordColors.snowStorm[2]
+                  }}
+                  placeholder="Enter company name"
+                /&amp;gt;
+              &amp;lt;/div&amp;gt;
+
+              &amp;lt;button
+                type="button"
+                onClick={handleSubmit}
+                disabled={loading}
+                className="w-full py-3 px-4 rounded-md font-semibold transition-all hover:opacity-90 disabled:opacity-50"
+                style={{ 
+                  backgroundColor: nordColors.aurora[3],
+                  color: nordColors.polarNight[0]
+                }}
+              &amp;gt;
+                {loading ? 'Saving...' : 'Save User'}
+              &amp;lt;/button&amp;gt;
+            &amp;lt;/div&amp;gt;
+          &amp;lt;/div&amp;gt;
+
+          {/* Data Display Section */}
+          &amp;lt;div 
+            className="p-6 rounded-lg shadow-xl"
+            style={{ backgroundColor: nordColors.polarNight[1] }}
+          &amp;gt;
+            &amp;lt;h2 
+              className="text-2xl font-semibold mb-6 flex items-center gap-2"
+              style={{ color: nordColors.frost[1] }}
+            &amp;gt;
+              &amp;lt;Database className="w-6 h-6" /&amp;gt;
+              User Database
+            &amp;lt;/h2&amp;gt;
+
+            &amp;lt;button
+              onClick={fetchUsers}
+              disabled={loading}
+              className="mb-6 py-2 px-4 rounded-md font-semibold transition-all hover:opacity-90 disabled:opacity-50"
+              style={{ 
+                backgroundColor: nordColors.frost[2],
+                color: nordColors.snowStorm[2]
+              }}
+            &amp;gt;
+              {loading ? 'Loading...' : 'Show All Users'}
+            &amp;lt;/button&amp;gt;
+
+            {showTable &amp;amp;&amp;amp; (
+              &amp;lt;div className="overflow-x-auto"&amp;gt;
+                {users.length === 0 ? (
+                  &amp;lt;p style={{ color: nordColors.snowStorm[0] }}&amp;gt;
+                    No users found. Add some users using the form.
+                  &amp;lt;/p&amp;gt;
+                ) : (
+                  &amp;lt;table className="w-full"&amp;gt;
+                    &amp;lt;thead&amp;gt;
+                      &amp;lt;tr style={{ borderBottom: `2px solid ${nordColors.polarNight[3]}` }}&amp;gt;
+                        &amp;lt;th 
+                          className="text-left py-3 px-2 font-semibold"
+                          style={{ color: nordColors.frost[1] }}
+                        &amp;gt;
+                          Name
+                        &amp;lt;/th&amp;gt;
+                        &amp;lt;th 
+                          className="text-left py-3 px-2 font-semibold"
+                          style={{ color: nordColors.frost[1] }}
+                        &amp;gt;
+                          Email
+                        &amp;lt;/th&amp;gt;
+                        &amp;lt;th 
+                          className="text-left py-3 px-2 font-semibold"
+                          style={{ color: nordColors.frost[1] }}
+                        &amp;gt;
+                          Company
+                        &amp;lt;/th&amp;gt;
+                      &amp;lt;/tr&amp;gt;
+                    &amp;lt;/thead&amp;gt;
+                    &amp;lt;tbody&amp;gt;
+                      {users.map((user, index) =&amp;gt; (
+                        &amp;lt;tr 
+                          key={user.ID}
+                          className="hover:opacity-80 transition-opacity"
+                          style={{ 
+                            borderBottom: `1px solid ${nordColors.polarNight[2]}`,
+                            backgroundColor: index % 2 === 0 ? nordColors.polarNight[0] : 'transparent'
+                          }}
+                        &amp;gt;
+                          &amp;lt;td 
+                            className="py-3 px-2"
+                            style={{ color: nordColors.snowStorm[1] }}
+                          &amp;gt;
+                            {user.name}
+                          &amp;lt;/td&amp;gt;
+                          &amp;lt;td 
+                            className="py-3 px-2"
+                            style={{ color: nordColors.snowStorm[1] }}
+                          &amp;gt;
+                            {user.email}
+                          &amp;lt;/td&amp;gt;
+                          &amp;lt;td 
+                            className="py-3 px-2"
+                            style={{ color: nordColors.snowStorm[1] }}
+                          &amp;gt;
+                            {user.company}
+                          &amp;lt;/td&amp;gt;
+                        &amp;lt;/tr&amp;gt;
+                      ))}
+                    &amp;lt;/tbody&amp;gt;
+                  &amp;lt;/table&amp;gt;
+                )}
+              &amp;lt;/div&amp;gt;
+            )}
+          &amp;lt;/div&amp;gt;
+        &amp;lt;/div&amp;gt;
+      &amp;lt;/div&amp;gt;
+    &amp;lt;/div&amp;gt;
+  );
+};
+
+export default App;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;App.css&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-css"&gt;&lt;code&gt;@import "tailwindcss";&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The Landing Page&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-06-09 220701.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/271926i22E4719743B55123/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-06-09 220701.png" alt="Screenshot 2025-06-09 220701.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Click on &lt;EM&gt;show all Users&lt;/EM&gt;&amp;nbsp;to see all data&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-06-09 221221.png" style="width: 713px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/271927i6148F9718B757D3A/image-dimensions/713x424?v=v2" width="713" height="424" role="button" title="Screenshot 2025-06-09 221221.png" alt="Screenshot 2025-06-09 221221.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Insert data in Form and Save User data&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-06-09 221034.png" style="width: 906px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/271929iA4614621A3817239/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-06-09 221034.png" alt="Screenshot 2025-06-09 221034.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Data added&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-06-09 221238.png" style="width: 904px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/271930iFEA02DBB7AC4D810/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-06-09 221238.png" alt="Screenshot 2025-06-09 221238.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1666714735"&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Our journey in this blog proved that React+Vite and SAP CAP can work together beautifully – but success requires understanding the nuances of integration, security, and deployment in the BTP environment,&lt;/P&gt;&lt;P&gt;My approach was to integrate with external APIs and services beyond the SAP ecosystem. For purely internal, form-heavy applications, UI5 might still be the more better choice.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Please feel free to ask any questions you may have.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Cloud+Application+Programming+Model/pd-p/9f13aee1-834c-4105-8e43-ee442775e5ce" class="lia-product-mention" data-product="100-1"&gt;SAP Cloud Application Programming Model&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Business+Application+Studio/pd-p/67837800100800007077" class="lia-product-mention" data-product="13-1"&gt;SAP Business Application Studio&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Community/pd-p/486157991894093153608181816584982" class="lia-product-mention" data-product="1161-1"&gt;SAP Community&lt;/a&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/the-capstone-project-a-journey-from-component-to-cloud/ba-p/14143718"/>
+    <published>2025-07-05T11:15:37.612000+02:00</published>
   </entry>
 </feed>
