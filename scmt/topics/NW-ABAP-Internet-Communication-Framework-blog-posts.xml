@@ -1,0 +1,2142 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/NW-ABAP-Internet-Communication-Framework-blog-posts.xml</id>
+  <title>SAP Community - NW ABAP Internet Communication Framework</title>
+  <updated>2025-07-20T11:11:13.436564+00:00</updated>
+  <link href="https://community.sap.com/t5/c-khhcw49343/NW ABAP Internet Communication Framework/pd-p/74cb47de-57f0-40d3-988e-5e2069582fab" rel="alternate"/>
+  <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
+  <subtitle>NW ABAP Internet Communication Framework blog posts in SAP Community</subtitle>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/the-meaning-of-lifetime-rc/ba-p/12840530</id>
+    <title>The meaning of LIFETIME_RC</title>
+    <updated>2004-10-12T10:34:40+02:00</updated>
+    <author>
+      <name>qmacro</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/53</uri>
+    </author>
+    <content>&lt;DIV&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Last week, during some preparation for my &lt;A class="jive-link-external-small" href="http://localhost/qmacro/tech/sap/teched04.entry" target="_blank" rel="nofollow noopener noreferrer"&gt;talk at TechEd&lt;/A&gt; on Thursday this week, I'd been wondering about something in the ICF that hadn't seemed quite right. Interface IF_HTTP_EXTENSION, which is what every ICF handler must implement (in the form of a single method HANDLE_REQUEST) has a couple of attributes, FLOW_RC and LIFETIME_RC. FLOW_RC is for controlling the flow of handler dispatching for a request. LIFETIME_RC is for controlling the lifetime of handlers for a sequence of requests. To quote the &lt;A class="jive-link-external-small" href="http://help.sap.com/saphelp_nw04/helpdata/en/78/98529fc06b11d4ad310000e83539c3/content.htm" target="_blank" rel="noopener noreferrer"&gt;documentation at help.sap.com&lt;/A&gt; on the latter:&lt;BR /&gt;
+&lt;BLOCKQUOTE class="jive-quote"&gt;&lt;EM&gt;HTTP request handlers can control the lifetime of their instances if they are operating in stateful mode ... If the attribute IF_HTTP_EXTENSION~LIFETIME_RC is set to one of the following values, the HTTP request handler can specify whether the handler should be reinitiated for every request in a session, or whether the handler should be retained and reused for subsequent HTTP requests.&lt;/EM&gt;&lt;/BLOCKQUOTE&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+The default action is for the handler instance created to handle the request to be kept, so that instance-level data is retained (think of an incrementing counter value that keeps going up every new request). This is the equivalent of setting LIFETIME_RC to the value of the constant CO_LIFETIME_KEEP. But if LIFETIME_RC is set to the value of constant CO_LIFETIME_DESTROY:&lt;BR /&gt;
+&lt;BLOCKQUOTE class="jive-quote"&gt;&lt;EM&gt;The current instance of the HTTP request handler is terminated after the request is processed. If stateful mode is active, a new instance of the HTTP request handler is created. This means that local data belonging to the instance is lost.&lt;/EM&gt;&lt;/BLOCKQUOTE&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+[This of course only makes sense in the context of stateful sessions, which you can create using the SET_SESSION_STATEFUL method (of IF_HTTP_SERVER) - one effect of which causes a context id cookie to be constructed and set in the next HTTP response.]&lt;BR /&gt;
+&lt;BR /&gt;
+Ok, so with the phrasing of the help text (such as "&lt;EM&gt;...can control the lifetime...&lt;/EM&gt;") and the implication of the "DESTROY" part of the constant name, I did a little experiment to try and control the lifetime, by setting the LIFETIME_RC attribute so that the handler instance would be destroyed after it exited. Did it work as expected?&lt;BR /&gt;
+&lt;BR /&gt;
+No.&lt;BR /&gt;
+&lt;BR /&gt;
+Hmm. What's going on? Well, it seems that with LIFETIME_RC, it's either all or nothing. If you set your session to be stateful and specify that the handler instance should be kept (or let it default to that anyway), then you can't, later in the session, suddenly decide to have the session destroyed.&lt;BR /&gt;
+&lt;BR /&gt;
+Looking under the hood, we see this is confirmed in the ICF layer's code. The whole process of handling a request is triggered via PBO modules in SAPMHTTP, and via the HTTP_DISPATCH_REQUEST coordinator, we come to the EXECUTE_REQUEST (or EXECUTE_REQUEST_FROM_MEMORY which I've seen in 6.40) method of the CL_HTTP_SERVER class.&lt;BR /&gt;
+&lt;BR /&gt;
+When a request comes in, the appropriate handler is instantiated, and the HANDLE_REQUEST method called. Once this method returns, a decision based on LIFETIME_RC is made as to whether to save the instantiated handler object in an internal table, ready for a new request. Unless LIFETIME_RC is set to destroy, the object is saved, providing we're dealing with a stateful session:&lt;BR /&gt;
+&lt;PRE class="sapCode"&gt;if server-&amp;gt;stateful = 1 and extension-&amp;gt;lifetime_rc = if_http_extension=&amp;gt;co_lifetime_keep and ext_inst_idx = -1. * add extension to list of instantiated extensions ...&lt;/PRE&gt;&lt;BR /&gt;
+There's no facility for &lt;EM&gt;removing&lt;/EM&gt; existing table entries though. And this is the key to understanding why manipulating the LIFETIME_RC attribute won't always do ... what you &lt;EM&gt;think&lt;/EM&gt; it should do.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+I bet you're glad you know that now ... share and enjoy &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;/DIV&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/the-meaning-of-lifetime-rc/ba-p/12840530"/>
+    <published>2004-10-12T10:34:40+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/identify-the-owner-of-the-process-holding-the-mutex-lock/ba-p/13404454</id>
+    <title>Identify the owner of the process holding the mutex lock</title>
+    <updated>2018-12-19T12:39:38+01:00</updated>
+    <author>
+      <name>Former Member</name>
+    </author>
+    <content>&lt;H3 id="toc-hId-1057944956"&gt;Purpose&lt;/H3&gt;&lt;BR /&gt;
+To identify the process holding the mutex lock which will help in troubleshooting mutex related problems.There are different processes holding the mutex lock.In order to identify which is that process and how to release that held mutex we must first understand how to identify the process.&lt;BR /&gt;
+&lt;H4 id="Identifytheowneroftheprocessholdingthemutexlock-BreakingdowntheMtxLock" id="toc-hId-990514170"&gt;Breaking down the MtxLock&lt;/H4&gt;&lt;BR /&gt;
+Firstly what is meaning of the MtxLock function ? By definition this means&amp;nbsp;&lt;EM&gt;wait for a lock to become available.&amp;nbsp;&lt;/EM&gt;Mutexes can't be recovered&amp;nbsp;automatically if a process dies while still holding a lock.&lt;BR /&gt;
+&lt;H4 id="Identifytheowneroftheprocessholdingthemutexlock-TheMutexrelatedtraceentries" id="toc-hId-794000665"&gt;The Mutex related trace entries&lt;/H4&gt;&lt;BR /&gt;
+In the developer traces of the work processes&amp;nbsp; (dev_w*) we can find the entries as:&lt;BR /&gt;
+&lt;BR /&gt;
+example #1&lt;BR /&gt;
+&lt;DIV class="scn-scrollable-area"&gt;&lt;BR /&gt;
+&lt;TABLE class="wrapped confluenceTable"&gt;&lt;COLGROUP&gt; &lt;COL /&gt;&lt;/COLGROUP&gt;&lt;BR /&gt;
+&lt;TBODY&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TH class="confluenceTh"&gt;*** WARNING =&amp;gt; MtxLock &amp;lt;hex address&amp;gt; RQ_Q_WOD owner=30004 deadlock ? [mtxxx.c 641]&lt;/TH&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;/TBODY&gt;&lt;BR /&gt;
+&lt;/TABLE&gt;&lt;BR /&gt;
+&lt;/DIV&gt;&lt;BR /&gt;
+example #2&lt;BR /&gt;
+&lt;DIV class="scn-scrollable-area"&gt;&lt;BR /&gt;
+&lt;TABLE class="wrapped confluenceTable"&gt;&lt;COLGROUP&gt; &lt;COL /&gt;&lt;/COLGROUP&gt;&lt;BR /&gt;
+&lt;TBODY&gt;&lt;BR /&gt;
+&lt;TR&gt;&lt;BR /&gt;
+&lt;TH class="confluenceTh"&gt;*** WARNING =&amp;gt; MtxLock &amp;lt;hex address&amp;gt;&amp;nbsp;MTXGLOB owner=30001 deadlock ? [mtxxx.c 2574]&lt;/TH&gt;&lt;BR /&gt;
+&lt;/TR&gt;&lt;BR /&gt;
+&lt;/TBODY&gt;&lt;BR /&gt;
+&lt;/TABLE&gt;&lt;BR /&gt;
+&lt;/DIV&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Now lets break down each example one by one.&lt;BR /&gt;
+&lt;BR /&gt;
+From example #1&lt;BR /&gt;
+&lt;BR /&gt;
+*** WARNING =&amp;gt; MtxLock a00010020000270 RQ_Q_WOD&amp;nbsp;&lt;STRONG&gt;owner=30004&lt;/STRONG&gt;&amp;nbsp;deadlock ? [mtxxx.c 641]&lt;BR /&gt;
+&lt;BR /&gt;
+Now here we can see the owner is :&amp;nbsp;&lt;STRONG&gt;owner=30004&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Similarly in&amp;nbsp;example #2 we can see the owner is&amp;nbsp;&lt;STRONG&gt;owner=30001&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;H4 id="Identifytheowneroftheprocessholdingthemutexlock-IdentifyingthecalleridakaclientidakaCID" id="toc-hId-597487160"&gt;Identifying the caller id aka client id aka CID&lt;/H4&gt;&lt;BR /&gt;
+First I would like to list out the predefined client id's in the kernel.&lt;BR /&gt;
+&lt;BR /&gt;
+The Client id range starts from 30000 and is end to 32767.&lt;BR /&gt;
+&lt;BR /&gt;
+By definition it states as ( part of internal SAP coding I cant provide more detail due to security reasons ) :&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+30000+0 = 30000 --&amp;gt; Owner is dispatcher&lt;BR /&gt;
+&lt;BR /&gt;
+30000+1 = 30001 --&amp;gt; Owner is ICM&lt;BR /&gt;
+&lt;BR /&gt;
+30000+2 = 30002 --&amp;gt; Owner is the java control process&lt;BR /&gt;
+&lt;BR /&gt;
+30000+3 = 30003 --&amp;gt; Owner is dpmon process&lt;BR /&gt;
+&lt;BR /&gt;
+30000+4 = 30004 --&amp;gt; Owner is gateway&lt;BR /&gt;
+&lt;BR /&gt;
+30000+5 = 30005 --&amp;gt; Owner is VMC process&lt;BR /&gt;
+&lt;BR /&gt;
+30000+6 = 30006 --&amp;gt; Owner is ES (extended segment) memory area&lt;BR /&gt;
+&lt;BR /&gt;
+30000+7 = 30007 --&amp;gt; Owner is EM (extended memmory) memory area&lt;BR /&gt;
+&lt;BR /&gt;
+30000+8 = 30008 --&amp;gt; Owner is EM (extended global) memory area&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;H4 id="Identifytheowneroftheprocessholdingthemutexlock-Troubleshootingtheentries" id="toc-hId-400973655"&gt;Troubleshooting the entries&lt;/H4&gt;&lt;BR /&gt;
+Going one step further we now know who is the owner of the mutex.Our next step is checking the related developer trace file to rectify the issue.&lt;BR /&gt;
+&lt;BR /&gt;
+From example #1&lt;BR /&gt;
+&lt;BR /&gt;
+*** WARNING =&amp;gt; MtxLock &amp;lt;hex address&amp;gt; RQ_Q_WOD owner=30004 deadlock ? [mtxxx.c 641]&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN style="text-decoration: underline"&gt;&lt;EM&gt;Here we will check in the gateway trace (dev_rd) to see what is the issue.&lt;/EM&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+From example #2&lt;BR /&gt;
+&lt;BR /&gt;
+*** WARNING =&amp;gt; MtxLock &amp;lt;hex address&amp;gt; MTXGLOB owner=30001 deadlock ? [mtxxx.c 2574]&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN style="text-decoration: underline"&gt;&lt;EM&gt;Here we will check in the ICM (dev_icm) to see what is the issue.&lt;/EM&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;EM&gt;TIP: Please also check the dev_*.old traces respectively.&lt;/EM&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Let me know in case any queries.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Kind regards,&lt;BR /&gt;
+&lt;BR /&gt;
+Manjunath Hanmantgad</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/identify-the-owner-of-the-process-holding-the-mutex-lock/ba-p/13404454"/>
+    <published>2018-12-19T12:39:38+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/sicf-on-pi-po-single-stack-shortening-long-urls-for-customers-inbound/ba-p/13404350</id>
+    <title>SICF on PI/PO single stack : Shortening Long URLs for customers inbound.</title>
+    <updated>2018-12-20T12:46:01+01:00</updated>
+    <author>
+      <name>shariqueali2</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/190389</uri>
+    </author>
+    <content>&lt;H1 id="toc-hId-799778553"&gt;SICF alternative on PI/PO single stack.&lt;/H1&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+In case where customer sends us files on a dual stack, SICF is available to create service and shorten the long technical URLs with various security mechanisms.&lt;BR /&gt;
+&lt;BR /&gt;
+Which means something like this&lt;BR /&gt;
+&lt;PRE class="language-java"&gt;&lt;CODE&gt;{server:port}/HttpAdapter/HttpMessageServlet?interfaceNamespace=&amp;lt;namespace&amp;gt; &amp;amp;interface=&amp;lt;interface name&amp;gt;&amp;amp;senderService=BS_Sender&amp;amp;qos=EO&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+can be made to this&lt;BR /&gt;
+&lt;PRE class="language-java"&gt;&lt;CODE&gt;{server:port}/&amp;lt;context-root&amp;gt;/&amp;lt;app&amp;gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+without compromising on the authentication mechanism like Basic,&amp;nbsp;certificate etc. in PI/PO .&lt;BR /&gt;
+&lt;BR /&gt;
+The 'test' service in the below pic&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/1-35.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+can be accessed using&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;&lt;A href="https://&amp;lt;server&amp;gt;/&amp;lt;service" target="test_blank" rel="nofollow noopener noreferrer"&gt;https://&amp;lt;server&amp;gt;/&amp;lt;service&lt;/A&gt; element&amp;gt;/test?sap-client=300&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+Logon is a list of Logon Procedure in that order to be followed.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/2-36.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+However On Java stack&amp;nbsp; where we no more have such a service, the same can be achieved by using a servlet which will forward the received request to the HTTP adapter URL.&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;{server:port}/HttpAdapter/HttpMessageServlet?interfaceNamespace=&amp;lt;namespace&amp;gt; &amp;amp;interface=&amp;lt;interface name&amp;gt;&amp;amp;senderService=BS_Sender&amp;amp;qos=EO&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+The customer actually posts to the servlet, which then forward it to the Http Adapter. This method can be used in other scenarios as well where we need to shorten a url or don't want the outside world to know about the&amp;nbsp; technical details.Below is the procedure:&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;H2 id="toc-hId-732347767"&gt;Procedure:&lt;/H2&gt;&lt;BR /&gt;
+In NWDS, create&amp;nbsp; two DCs of type WebModule &amp;amp; Enterprise Application in DI perspective.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/3-23.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Give a name for the project , here “sicf”.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/4-22.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Chose Finish&lt;BR /&gt;
+&lt;BR /&gt;
+Create DC of type Enterprise Application&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/5-17.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/6-21.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Link with the webmodule “sicf”&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/7-18.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Choose&amp;nbsp;&lt;STRONG&gt;Finish&lt;/STRONG&gt;&amp;nbsp;.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/8-19.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+In the&amp;nbsp;&lt;STRONG&gt;Project Explorer&lt;/STRONG&gt;&amp;nbsp;, select the Dynamic Web Project.&lt;BR /&gt;
+&lt;BR /&gt;
+In the context menu, choose&amp;nbsp;&lt;STRONG&gt;New&lt;/STRONG&gt;&amp;nbsp;→&amp;nbsp;&lt;STRONG&gt;Servlet&lt;/STRONG&gt;&amp;nbsp;.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/9-20.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Throughout the wizard pages, enter the servlet settings as required.&lt;BR /&gt;
+&lt;BR /&gt;
+Here we created a class named “test” in the java package “com.test”&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/10-15.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+To access the servlet, you need to add servlet mapping. Using this and the context-root specified in application.xml we will be able to access the URL. Each mapping represent a java class here test.java can be accessed using /test in the browser (GET method) or UI tools.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/11-9.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Here we select the doPost and doGet methods where we will write our code.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/12-12.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Chose&amp;nbsp;&lt;STRONG&gt;Finish&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+You can see that in the project structure Servets, Its Mapping and the Java class has been created.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/13-10.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Inside test.java , the doGet &amp;amp; doPost needs to be implemented.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/14-7.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Copy paste the below code. The Get method will just print out some message. The post method will redirect the request to the Http adapter .&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;PRE class="language-java"&gt;&lt;CODE&gt;/**&lt;BR /&gt;
+	 * @see HttpServlet#doGet(HttpServletRequest request, HttpServletResponse response)&lt;BR /&gt;
+	 */&lt;BR /&gt;
+	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {&lt;BR /&gt;
+		PrintWriter out= response.getWriter();&lt;BR /&gt;
+		out.println("This is the GET Method ,use POST to post data ");&lt;BR /&gt;
+		&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	/**&lt;BR /&gt;
+	 * @see HttpServlet#doPost(HttpServletRequest request, HttpServletResponse response)&lt;BR /&gt;
+	 */&lt;BR /&gt;
+	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {&lt;BR /&gt;
+		PrintWriter out= response.getWriter();&lt;BR /&gt;
+		&lt;BR /&gt;
+		ServletContext web1 = getServletContext();;&lt;BR /&gt;
+		ServletContext web2 = web1.getContext("/HttpAdapter");&lt;BR /&gt;
+		RequestDispatcher rd = &lt;BR /&gt;
+		web2.getRequestDispatcher("/HttpMessageServlet?interfaceNamespace=urn:sap-com:document:sap:idoc:messages&amp;amp;interface=GSVERF.GSVERF01&amp;amp;senderService=SELFBILLING&amp;amp;qos=EO");&lt;BR /&gt;
+		&lt;BR /&gt;
+		rd.include(request, response);&lt;BR /&gt;
+		out.println("Response -&amp;gt; Inside Post method");&lt;BR /&gt;
+		out.close();&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+Servlets can redirect client requests to other servlet and JSP components. This is done by using the “include” method of the &amp;nbsp;request &amp;nbsp;dispatcher as seen above in the doPost method.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+For authentication we need to maintain web-descriptors , namely web.xml and web-j2ee-engine.xml in our application.&lt;BR /&gt;
+&lt;BR /&gt;
+In web-j2ee-engine.xml, we need to enter the security mechanism to be used.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;&amp;lt;login-module-stack&amp;gt;&lt;/STRONG&gt; can have multiple &lt;STRONG&gt;&amp;lt;login-module&amp;gt; &lt;/STRONG&gt;elements.&lt;BR /&gt;
+&lt;PRE class="language-markup"&gt;&lt;CODE&gt;&amp;lt;?xml version="1.0" encoding="UTF-8"?&amp;gt;&lt;BR /&gt;
+&amp;lt;web-j2ee-engine xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="web-j2ee-engine.xsd"&amp;gt;&lt;BR /&gt;
+	&amp;lt;spec-version&amp;gt;2.4&amp;lt;/spec-version&amp;gt;&lt;BR /&gt;
+	&amp;lt;security-role-map&amp;gt;&lt;BR /&gt;
+ 		&amp;lt;role-name&amp;gt;Everyone&amp;lt;/role-name&amp;gt;&lt;BR /&gt;
+ 		&amp;lt;server-role-name&amp;gt;Everyone&amp;lt;/server-role-name&amp;gt;&lt;BR /&gt;
+ 	&amp;lt;/security-role-map&amp;gt;&lt;BR /&gt;
+  &amp;lt;login-module-configuration&amp;gt;&lt;BR /&gt;
+  	&amp;lt;login-module-stack&amp;gt;&lt;BR /&gt;
+  	&amp;lt;login-module&amp;gt;&lt;BR /&gt;
+  	&amp;lt;login-module-name&amp;gt;BasicPasswordLoginModule&amp;lt;/login-module-name&amp;gt;&lt;BR /&gt;
+  	&amp;lt;flag&amp;gt;REQUIRED&amp;lt;/flag&amp;gt;&lt;BR /&gt;
+  	&amp;lt;/login-module&amp;gt;&lt;BR /&gt;
+  	&lt;BR /&gt;
+   	&amp;lt;/login-module-stack&amp;gt;&lt;BR /&gt;
+ &amp;lt;/login-module-configuration&amp;gt;&lt;BR /&gt;
+&amp;lt;/web-j2ee-engine&amp;gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+The element &lt;STRONG&gt;&amp;lt;login-module-name &amp;gt;&lt;/STRONG&gt; can be found in NWA path:&lt;BR /&gt;
+&lt;BR /&gt;
+NWA-&amp;gt; Configuration-&amp;gt;Security-&amp;gt;Authentication &amp;amp; SingleSign-On&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/18-3.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+The element &lt;STRONG&gt;&amp;lt;flag&amp;gt;&lt;/STRONG&gt; can be :&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/19-2.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+In the web.xml descriptor , there is an entry for &amp;nbsp;servlet and its URL mapping&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/20-2.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/21-2.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Include below code for the login mechanism after &amp;lt;servlet-mapping&amp;gt; node ends, we are using client-cert and basic. The role mapped here is the j2ee role and not PI.&lt;BR /&gt;
+&lt;PRE class="language-markup"&gt;&lt;CODE&gt;&amp;lt;security-role&amp;gt;&lt;BR /&gt;
+		&amp;lt;description&amp;gt;Everyone&amp;lt;/description&amp;gt;&lt;BR /&gt;
+		&amp;lt;role-name&amp;gt;Everyone&amp;lt;/role-name&amp;gt;&lt;BR /&gt;
+	&amp;lt;/security-role&amp;gt;&lt;BR /&gt;
+	&amp;lt;security-constraint&amp;gt;&lt;BR /&gt;
+		&amp;lt;web-resource-collection&amp;gt;&lt;BR /&gt;
+			&amp;lt;web-resource-name&amp;gt;General access restriction&amp;lt;/web-resource-name&amp;gt;&lt;BR /&gt;
+			&amp;lt;url-pattern&amp;gt;/*&amp;lt;/url-pattern&amp;gt;&lt;BR /&gt;
+		&amp;lt;/web-resource-collection&amp;gt;&lt;BR /&gt;
+		&amp;lt;auth-constraint&amp;gt;&lt;BR /&gt;
+			&amp;lt;description&amp;gt;EveryoneH&amp;lt;/description&amp;gt;&lt;BR /&gt;
+			&amp;lt;role-name&amp;gt;Everyone&amp;lt;/role-name&amp;gt;&lt;BR /&gt;
+		&amp;lt;/auth-constraint&amp;gt;&lt;BR /&gt;
+		&amp;lt;user-data-constraint&amp;gt;&lt;BR /&gt;
+			&amp;lt;transport-guarantee&amp;gt;NONE&amp;lt;/transport-guarantee&amp;gt;&lt;BR /&gt;
+		&amp;lt;/user-data-constraint&amp;gt;&lt;BR /&gt;
+	&amp;lt;/security-constraint&amp;gt;&lt;BR /&gt;
+	&amp;lt;login-config&amp;gt;&lt;BR /&gt;
+		&amp;lt;auth-method&amp;gt;BASIC,CLIENT-CERT&amp;lt;/auth-method&amp;gt;&lt;BR /&gt;
+		&amp;lt;realm-name&amp;gt;test&amp;lt;/realm-name&amp;gt;&lt;BR /&gt;
+	&amp;lt;/login-config&amp;gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+Multiple mechanism , If used , should be comma separated.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/22-3.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+The sub-element&amp;nbsp;auth-method&amp;nbsp;configures the authentication mechanism for the web application. The element content must be either NONE, BASIC, DIGEST, FORM, or CLIENT-CERT. The&amp;nbsp;realm-name&amp;nbsp;element indicates the realm name to use when the basic authentication scheme is chosen for the web application.&lt;BR /&gt;
+&lt;BR /&gt;
+In the EAR project create application.xml file.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/23-3.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+The application.xml links the war file to the context-root that helps us give application a name.&lt;BR /&gt;
+&lt;BR /&gt;
+Using the context-root our URL to access test.java is&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;lt;server&amp;gt;:&amp;lt;port&amp;gt;/&amp;lt;context-root&amp;gt;/&amp;lt;servlet-url-mapping&amp;gt;&lt;BR /&gt;
+&lt;BR /&gt;
+i.e.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;lt;server&amp;gt;:&amp;lt;port&amp;gt;/sicftesting/test&lt;BR /&gt;
+&lt;PRE class="language-markup"&gt;&lt;CODE&gt;&amp;lt;?xml version="1.0" encoding="UTF-8"?&amp;gt;&lt;BR /&gt;
+&amp;lt;application &lt;BR /&gt;
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" &lt;BR /&gt;
+xmlns="http://java.sun.com/xml/ns/javaee" &lt;BR /&gt;
+xmlns:application="http://java.sun.com/xml/ns/javaee"&lt;BR /&gt;
+xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/application_5.xsd" version="5"&amp;gt;&lt;BR /&gt;
+  &amp;lt;display-name&amp;gt;SICFTest&amp;lt;/display-name&amp;gt;&lt;BR /&gt;
+  &amp;lt;module&amp;gt;&lt;BR /&gt;
+    &amp;lt;web&amp;gt;&lt;BR /&gt;
+      &amp;lt;web-uri&amp;gt;demo.sap.com~sicf.war&amp;lt;/web-uri&amp;gt;&lt;BR /&gt;
+      &amp;lt;context-root&amp;gt;sicftesting&amp;lt;/context-root&amp;gt;&lt;BR /&gt;
+    &amp;lt;/web&amp;gt;&lt;BR /&gt;
+  &amp;lt;/module&amp;gt;&lt;BR /&gt;
+&amp;lt;/application&amp;gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+Build&amp;nbsp; both the application and EAR and deploy.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/25-4.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Finally, as your application is on the server ,you&amp;nbsp; can use a browser to call the application&amp;nbsp; - the doGet method will be called. The output below is what we wrote in the doGET method.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/27-1.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Use tool like Postman or SoapUI to send the request/file and you will find an entry in your pimon tool.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/28-2.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Below is the scenario which got triggered after sending the request .&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/29-1.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+So ,as our HTTP adapter is itself implemented as a servlet , we create another servlet to redirect inbound requests to this adapter masking all the technical details with all the security mechanisms in place, making it easier for the partners to use and we can internally change the landscape , interfaces without the need to to communicate the change making task a lot easier.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Please feel free to comment , suggest and ask any questions.&lt;BR /&gt;
+&lt;BR /&gt;
+Updated on 21st Dec 2018 :&lt;BR /&gt;
+&lt;BR /&gt;
+Forgot to mention ,that as we have the&amp;nbsp;HttpServletRequest request&amp;nbsp; &amp;amp;&amp;nbsp; HttpServletResponse response objects in the function call , they can be used to manipulate query or header parameters as well as the response codes .&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2018/12/30-4.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Example:&lt;BR /&gt;
+&lt;PRE class="language-java"&gt;&lt;CODE&gt;//for all the query params &lt;BR /&gt;
+request.getQueryString();&lt;BR /&gt;
+&lt;BR /&gt;
+//username=james&amp;amp;password=pwd&lt;BR /&gt;
+request.getParameter("username");&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&amp;nbsp;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/sicf-on-pi-po-single-stack-shortening-long-urls-for-customers-inbound/ba-p/13404350"/>
+    <published>2018-12-20T12:46:01+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/invalidating-cache-is-not-working-entries-in-icm-trace-as-quot/ba-p/13406338</id>
+    <title>Invalidating Cache is not working.Entries in ICM trace as "IctICmRemoveFile() failed. 1"</title>
+    <updated>2019-01-29T12:08:52+01:00</updated>
+    <author>
+      <name>Former Member</name>
+    </author>
+    <content>&lt;H3 id="toc-hId-1058003519"&gt;Purpose&lt;/H3&gt;&lt;BR /&gt;
+While trying to invalidate cache I was constantly being faced by the issue that post invalidating the cache, my screen was turning blank or it was giving me with the blank page.&lt;BR /&gt;
+&lt;BR /&gt;
+Once I invalidated my cache it would work for some time (approx 10 minutes) but again when I executed the URL I would get a blank page again.&lt;BR /&gt;
+&lt;H3 id="toc-hId-861490014"&gt;&lt;/H3&gt;&lt;BR /&gt;
+&lt;H3 id="toc-hId-664976509"&gt;Troubleshooting&lt;/H3&gt;&lt;BR /&gt;
+The first thing that came to my mind when I came across this issue was to check in icm trace file ( dev_icm ).&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+In icman trace file I could see the entries as:&lt;BR /&gt;
+&lt;BR /&gt;
+*** dev_icm&lt;BR /&gt;
+&lt;BR /&gt;
+[Thr 15696] Fri Jan 25 14:21:44 2019&lt;BR /&gt;
+[Thr 15696] *** ERROR =&amp;gt; remove('\\*\sapmnt\&amp;lt;SID&amp;gt;\ASCS00\data\cache\M0x1AC4') failed. errno=2 [ictxxcache_r 4331]&lt;BR /&gt;
+[Thr 15696] *** ERROR =&amp;gt; ENOENT*: No such file or directory OR: The system cannot find the file specified. [ictxxcache_r 4333]&lt;BR /&gt;
+[Thr 15696] *** ERROR =&amp;gt; IctICmRemoveFile() failed. 1 [ictxxcache_r 3369]&lt;BR /&gt;
+[Thr 15696] *** ERROR =&amp;gt; can't write resource '/sap/public/bsp/sap/system/E9207E7015E6D2F18F8EA41F72C7461F&amp;amp;en&amp;amp;&amp;amp;GZ=0&amp;amp;000&amp;amp;A6E90000&amp;amp;' (&lt;BR /&gt;
+[Thr 15696] WARNING: ISC object '/sap/public/bsp/sap/system/E9207E7015E6D2F18F8EA41F72C7461F&amp;amp;en&amp;amp;&amp;amp;GZ=0&amp;amp;000&amp;amp;A6E90000&amp;amp;' not found&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Based on the error entries the important functions that we need to check are&amp;nbsp;&lt;EM&gt;ENOENT ,&amp;nbsp;IctICmRemoveFile ,&amp;nbsp;can't write resource ,&amp;nbsp;ISC object.&lt;/EM&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+From the above entries at the first instance we can start to visualize that there is something wrong in the header of the url.&lt;BR /&gt;
+&lt;BR /&gt;
+The entry :&amp;nbsp; ERROR =&amp;gt; remove('\\*\sapmnt\&amp;lt;SID&amp;gt;\ASCS00\data\cache\M0x1AC4') failed. errno=2 [ictxxcache_r 4331] ..proves this .&lt;BR /&gt;
+&lt;BR /&gt;
+I tried to check if some application is causing this? After some research I came to know the issue is something different.&lt;BR /&gt;
+&lt;BR /&gt;
+The entry :&amp;nbsp;ERROR =&amp;gt; ENOENT*: No such file or directory OR: The system cannot find the file specified. [ictxxcache_r 4333]&lt;BR /&gt;
+&lt;BR /&gt;
+this indicates that cache directory which is been set is not actually being taken. In other words it is WRONG!&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+My next guess was to identify which parameter is related to cache directory and ICMan. Till now I was just trying get to understood what went wrong , but now I had the solution &lt;span class="lia-unicode-emoji" title=":winking_face:"&gt;😉&lt;/span&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+The parameter that is related to cache dir and icman is "&lt;A href="https://help.sap.com/doc/saphelp_nw73ehp1/7.31.19/en-US/48/3e1b4e252f72d0e10000000a42189c/content.htm?no_cache=true" target="_blank" rel="noopener noreferrer"&gt;&lt;STRONG&gt;icm/HTTP/file_access_&amp;lt;xx&amp;gt;&lt;/STRONG&gt;&lt;/A&gt;".&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+If you look closely the standard value for this parameter is :&lt;BR /&gt;
+&lt;BLOCKQUOTE&gt;&lt;STRONG&gt;icm/HTTP/file_access_0 = PREFIX=/sap/public/icmandir/ ,DOCROOT=$(DIR_ICMAN_ROOT)&lt;/STRONG&gt;&lt;/BLOCKQUOTE&gt;&lt;BR /&gt;
+Here the point of concern is "&lt;EM&gt;DOCROOT=$(DIR_ICMAN_ROOT)&lt;/EM&gt;".&lt;BR /&gt;
+&lt;BLOCKQUOTE&gt;Next I checked the value for&amp;nbsp;$(DIR_ICMAN_ROOT). This was the important step which resolved my issue.&lt;/BLOCKQUOTE&gt;&lt;BR /&gt;
+In&amp;nbsp;icm/HTTP/file_access_0 I had set the DOCROOT to some other value which was not matching with ' &lt;EM&gt;DIR_ICMAN_ROOT&lt;/EM&gt; '.&lt;BR /&gt;
+&lt;BR /&gt;
+Once I changed the value of&amp;nbsp;'&lt;STRONG&gt;DOCROOT&lt;/STRONG&gt;' in the &lt;STRONG&gt;&lt;EM&gt;'icm/HTTP/file_access_0&lt;/EM&gt;&lt;/STRONG&gt;' the issue got resolved. I was able to proceed further without the irritating BLANK PAGE!!&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Let me know if any queries.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN style="text-decoration: underline"&gt;&lt;EM&gt;PS: I would like to also point out to a fact that always check the below set of parameters :&lt;/EM&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN style="text-decoration: underline"&gt;&lt;EM&gt;ABAP-only or dual stack (&amp;nbsp;&lt;KBD class="ph userinput"&gt;system/type = ABAP| DS&lt;/KBD&gt;&amp;nbsp;)&lt;/EM&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN style="text-decoration: underline"&gt;&lt;EM&gt;Java-only (&amp;nbsp;&lt;KBD class="ph userinput"&gt;system/type = J2EE&lt;/KBD&gt;&amp;nbsp;)&lt;/EM&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Kind regards,&lt;BR /&gt;
+&lt;BR /&gt;
+Manjunath Hanmantgad</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/invalidating-cache-is-not-working-entries-in-icm-trace-as-quot/ba-p/13406338"/>
+    <published>2019-01-29T12:08:52+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/developing-graphql-api-on-abap-the-inspiration/ba-p/13395503</id>
+    <title>Developing GraphQL API on ABAP: The Inspiration</title>
+    <updated>2019-09-18T09:08:38+02:00</updated>
+    <author>
+      <name>hareeshbabu82gmail_com</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/295697</uri>
+    </author>
+    <content>&lt;IMG class="aligncenter" src="https://marmelab.com/images/blog/graphql/logo.png" alt="Image result for graphql logo" width="339" height="119" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+This two-part article will discuss details we need to know about the GraphQL implementation in SAP ABAP. How it was born, what it offers, and how to use it. As this is my first blog post ever and I am not an expert in either ABAP or GraphQL, the article may contain few mistakes. Also, this article is not designed to be a comparison of &lt;STRONG&gt;REST&lt;/STRONG&gt; or &lt;STRONG&gt;OData&lt;/STRONG&gt; vs &lt;STRONG&gt;GraphQL&lt;/STRONG&gt;.&lt;BR /&gt;
+&lt;BR /&gt;
+For those wants to skip to Technical details can go to &lt;A href="https://blogs.sap.com/2019/09/12/developing-graphql-api-on-abap-architecture-and-technical-details" target="_blank" rel="noopener noreferrer"&gt;part 2&lt;/A&gt;.&lt;BR /&gt;
+&lt;P id="8b7e" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf" data-selectable-paragraph=""&gt;As I was looking for better ways to expose existing data in SAP through APIs which helps development and maintenance times low. I have tried a few ways to produce APIs out of SAP.&lt;/P&gt;&lt;BR /&gt;
+&lt;P id="5b8b" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf" data-selectable-paragraph=""&gt;Earlier being&amp;nbsp;&lt;STRONG class="ju kg"&gt;ICF Services&lt;/STRONG&gt; exposing data using ABAP to JSON converter utility (custom) classes. Which were bare minimum implementations of APIs that can be exposed out of SAP using &lt;STRONG class="ju kg"&gt;SICF&lt;/STRONG&gt;. Which is equivalent of&amp;nbsp;&lt;STRONG class="ju kg"&gt;Express Server&lt;/STRONG&gt;&amp;nbsp;in&amp;nbsp;&lt;STRONG class="ju kg"&gt;NodeJS&lt;/STRONG&gt;&amp;nbsp;world.&lt;/P&gt;&lt;BR /&gt;
+&lt;P id="1a70" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf" data-selectable-paragraph=""&gt;Although ICF services are quite powerful and provide total control over what can be sent over responses, I continued looking further for better options.&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;H1 id="892c" class="kp kq bm bc bb fz kr ks kt ku kv kw kx ky kz la lb" data-selectable-paragraph="" id="toc-hId-779492652"&gt;GraphQL&lt;/H1&gt;&lt;BR /&gt;
+&lt;P id="9a83" class="js jt bm bc ju b jv lc jx ld jz le kb lf kd lg kf" data-selectable-paragraph=""&gt;As I also work with NodeJS to develop Web Applications and Server-Side APIs, I have been following GraphQL from its earlier stages since Facebook has made it public and I am very much fascinated by the way GraphQL standardizes the access of our backend Relational Data.&lt;/P&gt;&lt;BR /&gt;
+&lt;P id="f3bc" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf" data-selectable-paragraph=""&gt;Although this article is not in any way the introduction to GraphQL, I would like to just talk about a few features it brings to the table.&lt;/P&gt;&lt;BR /&gt;
+&lt;P id="fa5d" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf" data-selectable-paragraph=""&gt;The quote from &lt;A class="ci ce lh li lj lk" href="https://graphql.org/" target="_blank" rel="noopener noreferrer nofollow"&gt;https://graphql.org&lt;/A&gt;, &lt;STRONG class="ju kg"&gt;Describe your data&lt;/STRONG&gt;,&amp;nbsp;&lt;STRONG class="ju kg"&gt;Ask for what you want&lt;/STRONG&gt;&amp;nbsp;and&amp;nbsp;&lt;STRONG class="ju kg"&gt;Get predictable results&lt;/STRONG&gt;&amp;nbsp;provides all there is to know about GraphQL in a nutshell.&lt;/P&gt;&lt;BR /&gt;
+&lt;P data-selectable-paragraph=""&gt;One of the advantages I love about GraphQL is the ability to traverse through the relationships of our Data model. Which provides superpowers to the clients requesting data and puts totally in charge. This makes sense in the multi-platform world that A mobile App can choose to fetch fewer data from the same API endpoint as opposed to a Web Application which has more screen area.&lt;/P&gt;&lt;BR /&gt;
+&lt;P data-selectable-paragraph=""&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2019/09/GqlServer-RR-demo.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;H6 style="text-align: center" id="toc-hId-1228392742"&gt;Request and Response to GraphQL Server (image from &lt;A class="ci ce lh li lj lk" href="https://www.howtographql.com/" target="_blank" rel="noopener noreferrer nofollow"&gt;https://www.howtographql.com&lt;/A&gt;)&lt;/H6&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;P id="3424" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf" data-selectable-paragraph=""&gt;Another advantage of GraphQL which simplifies API development and maintenance is that we can get rid of versioning APIs and maintaining several endpoints and flavors of the same domain data. As GraphQL provides&amp;nbsp;&lt;STRONG class="ju kg"&gt;Queries&lt;/STRONG&gt;&amp;nbsp;(Read),&amp;nbsp;&lt;STRONG class="ju kg"&gt;Mutations&lt;/STRONG&gt;&amp;nbsp;(Create, Update and Delete) and&amp;nbsp;&lt;STRONG class="ju kg"&gt;Subscriptions&lt;/STRONG&gt; (Real-time Updates) all under single endpoint, scaling and maintaining is much simpler. Instead of versioning API, GraphQL has the functionality to flag fields for &lt;STRONG class="ju kg"&gt;Depreciation&lt;/STRONG&gt;&amp;nbsp;along with the reason. Adding new fields will not be affecting existing API unless clients request for it.&lt;/P&gt;&lt;BR /&gt;
+&lt;P id="4b84" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf" data-selectable-paragraph=""&gt;The GraphQL&amp;nbsp;&lt;STRONG class="ju kg"&gt;Type System&lt;/STRONG&gt;&amp;nbsp;will provide the&amp;nbsp;&lt;STRONG class="ju kg"&gt;Documentation&lt;/STRONG&gt;&amp;nbsp;by default so that the consumers are well aware of what to request and expect back from the Server.&lt;/P&gt;&lt;BR /&gt;
+&lt;P id="ec7f" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf" data-selectable-paragraph=""&gt;As the popularity of GraphQL increases, so are the Tools and Libraries around it. The GraphQL community is really awesome and can find a lot of resources online for learning about it.&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="5ab0" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf lq lr ls" data-selectable-paragraph=""&gt;The&amp;nbsp;&lt;STRONG class="ju kg"&gt;GraphiQL&lt;/STRONG&gt; tool is one used to interact with GraphQL server and has several flavors to improve usability. GraphiQL provides auto-completion of queries and shows the documentation from Server.&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="9527" class="js jt bm bc ju b jv lt jx lu jz lv kb lw kd lx kf lq lr ls" data-selectable-paragraph=""&gt;&lt;A class="ci ce lh li lj lk" href="https://www.apollographql.com/" target="_blank" rel="noopener noreferrer nofollow"&gt;&lt;STRONG class="ju kg"&gt;Apollo&lt;/STRONG&gt;&lt;/A&gt;&lt;STRONG class="ju kg"&gt;&amp;nbsp;and&amp;nbsp;&lt;/STRONG&gt;&lt;A class="ci ce lh li lj lk" href="https://facebook.github.io/relay/" target="_blank" rel="noopener noreferrer nofollow"&gt;&lt;STRONG class="ju kg"&gt;Relay&lt;/STRONG&gt;&lt;/A&gt;&lt;STRONG class="ju kg"&gt;&amp;nbsp;&lt;/STRONG&gt;libraries provide easy to integrate GraphQL into the development workflow&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;H1 id="f7e4" class="kp kq bm bc bb fz kr ks kt ku kv kw kx ky kz la lb" data-selectable-paragraph="" id="toc-hId-386465642"&gt;SAP&lt;/H1&gt;&lt;BR /&gt;
+&lt;P id="4418" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf" data-selectable-paragraph=""&gt;I would like to mention about&amp;nbsp;&lt;STRONG class="ju kg"&gt;SAP CRM&lt;/STRONG&gt;&amp;nbsp;module as well here, as my end goal is to expose CRM customer data as APIs. CRM has divided the functionality into Business Partners and One Order, which is already exposed to CRM UI with the help of&amp;nbsp;&lt;STRONG class="ju kg"&gt;BOL(Business Object Layer)/GenIL(Generic Interaction Layer)&lt;/STRONG&gt;. My Idea is to leverage what has been working for several years and extend to expose as a GraphQL API.&lt;/P&gt;&lt;BR /&gt;
+&lt;P id="e687" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf" data-selectable-paragraph=""&gt;If we look closely, BOL/GenIL has several similarities with GraphQL.&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="b8a4" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf lq lr ls" data-selectable-paragraph=""&gt;BOL defines Advanced Search Entities which can be related to Query Types in GraphQL&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="6414" class="js jt bm bc ju b jv lt jx lu jz lv kb lw kd lx kf lq lr ls" data-selectable-paragraph=""&gt;Query Parameters can be converted as Arguments&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="e4a7" class="js jt bm bc ju b jv lt jx lu jz lv kb lw kd lx kf lq lr ls" data-selectable-paragraph=""&gt;Root Entities/ Result Entities can be related to Custom Types&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="d8c4" class="js jt bm bc ju b jv lt jx lu jz lv kb lw kd lx kf lq lr ls" data-selectable-paragraph=""&gt;Each attribute of the Entity can be exposed as Type fields&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="6d76" class="js jt bm bc ju b jv lt jx lu jz lv kb lw kd lx kf lq lr ls" data-selectable-paragraph=""&gt;Each consequent relation can be considered as Related/Sub Types and can be resolved with getRelatedEntitie(s) function calls of GenIL&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="b9fb" class="js jt bm bc ju b jv lt jx lu jz lv kb lw kd lx kf lq lr ls" data-selectable-paragraph=""&gt;Data Element values or Value Tables for each BOL field can be converted as Enum&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="3103" class="js jt bm bc ju b jv lt jx lu jz lv kb lw kd lx kf lq lr ls" data-selectable-paragraph=""&gt;Last but not least, GenIL Create Entity, Update Entity and Delete Entities can be mapped to Mutations&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P id="f891" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf" data-selectable-paragraph=""&gt;This view of mapping from BOL/GenIL to GraphQL compelled me to invest more time in building the GraphQL server to expose as a unified interface into SAP CRM.&lt;/P&gt;&lt;BR /&gt;
+&lt;P id="88ae" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf" data-selectable-paragraph=""&gt;Initially, I have started to implement GraphQL in NodeJS and call custom REST endpoints into SAP. Even though this approach allowed me to build an initial Proof of concept. I am not convinced that simply calling REST endpoints behind GraphQL NodeJS implementation and applying filters outside SAP, is a huge task and we can not fully leverage features BOL/GenIL. I feel that it's just a hack to expose data from SAP.&lt;/P&gt;&lt;BR /&gt;
+&lt;P id="4f4c" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf" data-selectable-paragraph=""&gt;I have started looking into GraphQL implementation in ABAP and failed to find one at the time I started building one myself (around Jan 2018). I took the code of Java implementation as a reference in building GraphQL server within ABAP. There has to be a lot of adjustments and sacrifices in porting the Java code to ABAP, as ABAP OOPs is slightly different and I need to strip out Threading as our SAP ICM(Internet Communication Manager) will manage this for us at the request level in my understanding. Also changed the implementation to work with the idea of loading config from tables instead of Schema files as in other languages.&lt;/P&gt;&lt;BR /&gt;
+&lt;P id="372d" class="js jt bm bc ju b jv jw jx jy jz ka kb kc kd ke kf" data-selectable-paragraph=""&gt;Once the GraphQL server is built and ready in ABAP, It was easy to expose BOL/GenIL to the server as reading from Config tables already available in SAP CRM.&lt;/P&gt;&lt;BR /&gt;
+&lt;P data-selectable-paragraph=""&gt;Enough of the story, we shall now dive into technical stuff in this &lt;A href="https://blogs.sap.com/2019/09/12/developing-graphql-api-on-abap-architecture-and-technical-details" target="_blank" rel="noopener noreferrer"&gt;second part&lt;/A&gt; of the Article.&lt;/P&gt;&lt;BR /&gt;
+&lt;P data-selectable-paragraph=""&gt;Other sources to track this topic.&lt;/P&gt;&lt;BR /&gt;
+&lt;A href="https://medium.com/@hareeshbabu82/graphql-sap-abap-the-inspiration-eb6d4f305681" target="_blank" rel="nofollow noopener noreferrer"&gt;Part 1&lt;/A&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;A href="https://medium.com/@hareeshbabu82/graphql-sap-abap-demo-and-technical-details-92a511ed8e4a" target="_blank" rel="nofollow noopener noreferrer"&gt;Part 2&lt;/A&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/developing-graphql-api-on-abap-the-inspiration/ba-p/13395503"/>
+    <published>2019-09-18T09:08:38+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/developing-graphql-api-on-abap-architecture-and-technical-details/ba-p/13395518</id>
+    <title>Developing GraphQL API on ABAP: Architecture and Technical Details</title>
+    <updated>2019-09-19T10:04:04+02:00</updated>
+    <author>
+      <name>hareeshbabu82gmail_com</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/295697</uri>
+    </author>
+    <content>&lt;IMG class="aligncenter" src="https://marmelab.com/images/blog/graphql/logo.png" alt="Image result for graphql logo" width="323" height="113" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+This article is the second in series, explains the technical details and includes few screenshots to give a preview. If you want to read some background and boring stuff, is covered in the&amp;nbsp;&lt;A class="ci ce ko kp kq kr" href="https://blogs.sap.com/2019/09/18/developing-graphql-api-on-abap-the-inspiration/" target="_blank" rel="noopener noreferrer"&gt;first part&lt;/A&gt;.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Before going to the details, a few product vision key features I have considered.&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Leverage what SAP/ABAP has to offer most. ex. ICM, OOPs&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Modularize the implementation&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Independent JSON converters&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;GraphQL Service Handler knows nothing about the schema&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Resolvers can be independent of Schema generation logic&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;BOL Resolvers to generate Dynamic schema and resolve all CRUD operations using GENIL operations&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Schema can be saved to Database Tables to be re-loaded/configured manually&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;SAP Sessions to improve performance with BOL and retaining Schema across requests&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Testable Code and ABAP Test Scripts for code coverage&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;H1 id="3eab" class="ks kt bm bc bb fz ku kv kw kx ky kz la lb lc ld le" data-selectable-paragraph="" id="toc-hId-779492688"&gt;Architecture&lt;/H1&gt;&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2019/09/GQL_SAP_Arch_blog.png" /&gt;&lt;BR /&gt;
+&lt;H6 style="text-align: center" id="toc-hId-1228392778"&gt;Architecture Diagram&lt;/H6&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="5478" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn lk ll lm" data-selectable-paragraph=""&gt;GraphQL server is exposed as an ICF service from ABAP, which accepts and provides JSON data&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="b27e" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;ICF handler class takes JSON string and convert to ABAP GraphQL Schema classes and validated&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="9fa5" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;Schema is built only for the first time if the Session is enabled&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="94da" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;The user input Query will be parsed and the Execution Context is created&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="0b1e" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;Resolver class will be called for individual resolver identifications&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="8850" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;Resolver will either go to BOL/GenIL or APIs or can directly talk to DB to fetch data&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="dbd8" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;Data will be submitted back to ExecutionContext as JSON classes&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="d619" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;Finally, JSON classes will be validated and converted to JSON string as ICF service response&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;H1 id="341f" class="ks kt bm bc bb fz ku ma kw mb ky mc la md lc me le" data-selectable-paragraph="" id="toc-hId-386465678"&gt;Accessing the API&lt;/H1&gt;&lt;BR /&gt;
+Note: currently this is under active development, watch this space for updates and code&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="aligncenter" src="https://miro.medium.com/max/5560/1*MIRC8H6cqontCMlI21RB8A.png" /&gt;&lt;BR /&gt;
+&lt;H6 style="text-align: center" id="toc-hId-835365768"&gt;MYSAPSSO2 token for authentication&lt;/H6&gt;&lt;BR /&gt;
+&lt;EM&gt;Follows standard SAP authorization like MYSAPSSO2 header/cookie in the Request.&lt;/EM&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="aligncenter" src="https://miro.medium.com/max/3888/1*csa7o63VYxwTxKXaZWpZcw.png" /&gt;&lt;BR /&gt;
+&lt;H6 style="text-align: center" id="toc-hId-638852263"&gt;API Documentation&lt;/H6&gt;&lt;BR /&gt;
+&lt;EM&gt;GraphQL API provides API documentation by default and can be accessed using Schema Queries. Which will provide information to frontend team to browse through the contract to know what fields/operations are supported by the API&lt;/EM&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="aligncenter" src="https://miro.medium.com/max/5584/1*gVqoyX-3tuKvu22aX1XSgQ.png" /&gt;&lt;BR /&gt;
+&lt;H6 style="text-align: center" id="toc-hId-442338758"&gt;Queries — using BP Advanced Search&lt;/H6&gt;&lt;BR /&gt;
+&lt;EM&gt;Query is the way to get some data from API, which is same as HTTP “GET” operations. Query can have Arguments which will help filter the results from the API. Query should end with requesting necessary field by the UI.&lt;/EM&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="aligncenter" src="https://miro.medium.com/max/4184/1*rHk_oltACDwf1ZObcU_zXQ.png" /&gt;&lt;BR /&gt;
+&lt;H6 style="text-align: center" id="toc-hId-245825253"&gt;BP Advanced Search Results&lt;/H6&gt;&lt;BR /&gt;
+&lt;EM&gt;Here we can see the Results as sent back from API, which exactly matches the Requested 4 fields from the server.&lt;/EM&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="aligncenter" src="https://miro.medium.com/max/4280/1*aptQ7L5WELIa1sNSAOlo3w.png" /&gt;&lt;BR /&gt;
+&lt;H6 style="text-align: center" id="toc-hId-49311748"&gt;Mutations — Creating BP with Deep Data&lt;/H6&gt;&lt;BR /&gt;
+&lt;EM&gt;Mutations are a way to change some data on the server. Here we are creating a BP along with the child relations like Address and Marketing Attributes.&lt;/EM&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="aligncenter" src="https://miro.medium.com/max/4072/1*OG1cStNfQoIeIaReHCIaGw.png" /&gt;&lt;BR /&gt;
+&lt;H6 style="text-align: center" id="toc-hId--147201757"&gt;Mutations — Creating Child data of BP&lt;/H6&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="aligncenter" src="https://miro.medium.com/max/3944/1*PUZuQGxmWzvwJdFdix_JnQ.png" /&gt;&lt;BR /&gt;
+&lt;H6 style="text-align: center" id="toc-hId--343715262"&gt;Mutations — Updates and Deletes&lt;/H6&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;H1 id="ce6e" class="ks kt bm bc bb fz ku ma kw mb ky mc la md lc me le" data-selectable-paragraph="" id="toc-hId--415902279"&gt;At a Glance&lt;/H1&gt;&lt;BR /&gt;
+&lt;H2 id="a8de" class="my kt bm bc bb fz mz na nb nc nd ne nf ng nh ni nj" data-selectable-paragraph="" id="toc-hId--905818791"&gt;Packages&lt;/H2&gt;&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="cd05" class="ka kb bm bc kc b kd mf kf mg kh mh kj mi kl mj kn lk ll lm" data-selectable-paragraph=""&gt;ZGRAPHQL — Main Package&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="f56e" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;ZGRAPHQL_LANG — contains all the Language/Schema Implementation classes&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="3d38" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;ZGRAPHQL_API — contains base Service classes to expose CRM data as API&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="11ea" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;ZGRAPHQL_CORE — Base Server Classes&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;H2 id="dfe9" class="my kt bm bc bb fz mz na nb nc nd ne nf ng nh ni nj" data-selectable-paragraph="" id="toc-hId--1102332296"&gt;Message Class — ZGRAPHQL&lt;/H2&gt;&lt;BR /&gt;
+&lt;H2 id="3645" class="my kt bm bc bb fz mz na nb nc nd ne nf ng nh ni nj" data-selectable-paragraph="" id="toc-hId--1298845801"&gt;Important Classes&lt;/H2&gt;&lt;BR /&gt;
+&lt;P id="2a35" class="ka kb bm bc kc b kd mf kf mg kh mh kj mi kl mj kn" data-selectable-paragraph=""&gt;&lt;STRONG class="kc nk"&gt;ZGQLSCL_SCHEMA&lt;/STRONG&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="b481" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn lk ll lm" data-selectable-paragraph=""&gt;responsible for creating the GraphQL Schema (Type System)&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="7ad4" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;can create either from Internal Tables or from Database Tables&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="af34" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;Validates and Creates Schema Object&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="1012" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;loads all required components into Memory&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="7dc8" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;Builds Introspection Resolver and Holds User Resolver&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P id="6472" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn" data-selectable-paragraph=""&gt;&lt;STRONG class="kc nk"&gt;ZGQLCL_API_SERVICE_BASE&lt;/STRONG&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="26d3" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn lk ll lm" data-selectable-paragraph=""&gt;Base SICF handler class to handle basic functionality of the GraphQL server&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="309b" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;All Sub-classes are only expected to provide Schema from PREPARE_SCHEMA method&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P id="2900" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn" data-selectable-paragraph=""&gt;&lt;STRONG class="kc nk"&gt;ZGQLCL_TABLES_RESOLVER&lt;/STRONG&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="9e89" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn lk ll lm" data-selectable-paragraph=""&gt;which builds Schama using given ABAP table names&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P id="2f33" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn" data-selectable-paragraph=""&gt;&lt;STRONG class="kc nk"&gt;ZGQLCL_BUIL_GENIL_RESOLVER&lt;/STRONG&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="84af" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn lk ll lm" data-selectable-paragraph=""&gt;Class to resolve all Business Partner related BOL operations&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="3d0a" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;&lt;STRONG class="kc nk"&gt;ZGQLCL_BUIL_CUST_RESOLVER&lt;/STRONG&gt;&amp;nbsp;is a specialization which allows restricting&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="de99" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;BOL entities and Relationships exposed&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="69a6" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;Mapping for the Relationship names&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P id="5163" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn" data-selectable-paragraph=""&gt;&lt;STRONG class="kc nk"&gt;ZGQLSIF_RESOLVER&lt;/STRONG&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="516a" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn lk ll lm" data-selectable-paragraph=""&gt;Resolver to provide links to Operation and Data&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="aa18" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;All Implementation classes must provide&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="d1f6" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;Schema to be initiated&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="946e" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;Resolving Method for each Operation&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P id="7711" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn" data-selectable-paragraph=""&gt;&lt;STRONG class="kc nk"&gt;ZGQLSCL_INTROSPEC_RESOLVER&lt;/STRONG&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="22a0" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn lk ll lm" data-selectable-paragraph=""&gt;responsible for resolving Schema Introspection queries&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P id="2970" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn" data-selectable-paragraph=""&gt;&lt;STRONG class="kc nk"&gt;ZCX_GQL_EXCEPTION&lt;/STRONG&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="83ab" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn lk ll lm" data-selectable-paragraph=""&gt;Base Exception class available globally to throw Errors&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="1489" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;The server automatically handles this error and passes to Client as&amp;nbsp;&lt;STRONG class="kc nk"&gt;“errors”&lt;/STRONG&gt;&amp;nbsp;array in response&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="a11d" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;can handle BOL errors and BAPI errors&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P id="60dc" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn" data-selectable-paragraph=""&gt;&lt;STRONG class="kc nk"&gt;ZGQLCL_EXECUTION_CONTEXT&lt;/STRONG&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="023e" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn lk ll lm" data-selectable-paragraph=""&gt;the class is responsible for keeping the current Context until the end of the operation execution&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="27c5" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;Validates the current Operation submitted by Client before starting the execution&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="d5c2" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;holds Schema, Operation currently being executed, Selections requested by Client&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P id="e14b" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn" data-selectable-paragraph=""&gt;&lt;STRONG class="kc nk"&gt;ZGQLCL_EXECUTOR&lt;/STRONG&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="a52b" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn lk ll lm" data-selectable-paragraph=""&gt;the class is responsible for executing Query, Mutations and handle Errors&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;OL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="f0ee" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn nl ll lm" data-selectable-paragraph=""&gt;EXECUTE_QUERY&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="54fa" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn lk ll lm" data-selectable-paragraph=""&gt;the method resolves Query operations&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P id="0de8" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn" data-selectable-paragraph=""&gt;2. EXECUTE_MUTATION&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="757b" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn lk ll lm" data-selectable-paragraph=""&gt;the method performs Mutation (update) operations&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P id="e003" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn" data-selectable-paragraph=""&gt;3. EXECUTE_SELECTION_SET&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="b57b" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn lk ll lm" data-selectable-paragraph=""&gt;method to resolve each field requested by the Client&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="ef8f" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;recursively resolves each Custom Type until it reaches Leaf Nodes&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P id="ec62" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn" data-selectable-paragraph=""&gt;&lt;STRONG class="kc nk"&gt;ZGQLCL_LOG&lt;/STRONG&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="879a" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn lk ll lm" data-selectable-paragraph=""&gt;used for logging the requests to the GraphQL server&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="f33f" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;logs Request Operations, Response Errors&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI id="48d3" class="ka kb bm bc kc b kd ln kf lo kh lp kj lq kl lr kn lk ll lm" data-selectable-paragraph=""&gt;Transaction: SLG0, Object — ZGRAPHQL, Sub Object — ZGQL_GEN&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P id="d4de" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn" data-selectable-paragraph=""&gt;&lt;STRONG class="kc nk"&gt;ZGQLCL_UTILS&lt;/STRONG&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;UL class=""&gt;&lt;BR /&gt;
+ 	&lt;LI id="af3f" class="ka kb bm bc kc b kd ke kf kg kh ki kj kk kl km kn lk ll lm" data-selectable-paragraph=""&gt;utility functions for reading AppSet Entries and Domain Values&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+The benefits I observe from this approach are:&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Higher Abstraction of the API Implementation&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Easy Integration using widely popular toolchain on UI running outside SAP&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Above all, Performance can be tweaked within SAP as we run the logic near Database&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Even though I started this as an exploring project not knowing if I could finish it on my own or not, spending my evenings and holidays, After seeing the final result, I requested my Manager to spend some time for a small the Demo.&lt;BR /&gt;
+&lt;BR /&gt;
+Having no expectations, with the CRM experience my Manager immediately identified the potential of this solution and the advantages our Organization can get in exposing CRM data using GraphQL. With his support, I have managed to present to higher management.&lt;BR /&gt;
+&lt;BR /&gt;
+And today we are experimenting and building unified enterprise level services for multiple Web Applications with minimal friction and with High performance. The feedback from the Web developers is that 'Fast development times, Ease of use and more options in choosing client libraries'.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;P data-selectable-paragraph=""&gt;Other sources to track this topic.&lt;/P&gt;&lt;BR /&gt;
+&lt;A href="https://medium.com/@hareeshbabu82/graphql-sap-abap-the-inspiration-eb6d4f305681" target="_blank" rel="nofollow noopener noreferrer"&gt;Part 1&lt;/A&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;A href="https://medium.com/@hareeshbabu82/graphql-sap-abap-demo-and-technical-details-92a511ed8e4a" target="_blank" rel="nofollow noopener noreferrer"&gt;Part 2&lt;/A&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/developing-graphql-api-on-abap-architecture-and-technical-details/ba-p/13395518"/>
+    <published>2019-09-19T10:04:04+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/logging-incoming-requests-when-creating-short-urls/ba-p/13456675</id>
+    <title>Logging incoming requests when creating short URLs</title>
+    <updated>2020-01-14T14:40:02+01:00</updated>
+    <author>
+      <name>shariqueali2</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/190389</uri>
+    </author>
+    <content>Based on my previous blog&amp;nbsp; - &lt;A href="https://blogs.sap.com/2018/12/20/sicf-on-pipo-single-stack-shortening-long-urls-for-customers-inbound./" target="_blank" rel="noopener noreferrer"&gt;SICF on PI/PO&lt;/A&gt; , We may need to log incoming requests or process the incoming requests (e.g delete few header /prolog etc.) as per our needs before sending it to the adapter.&lt;BR /&gt;
+&lt;BR /&gt;
+But the challenge here is you cannot in anyway touch the actual request -&amp;nbsp; the moment you do it - the stream will be all used up and nothing will be forwarded to Adapter resulting in an exception.&lt;BR /&gt;
+&lt;BR /&gt;
+This challenge can be mitigated by making a copy of the request first and then using a wrapper to access the content.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/01/copy.png" height="83" width="711" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+The wrapper can also be used to read the content and ignore the request or else strip some unwanted data from it and then pass on the adapter .&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/01/read.png" height="149" width="388" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Here after stripping the unwanted content and extracting the xml -it is posted to the&amp;nbsp; adapter.&lt;BR /&gt;
+&lt;BR /&gt;
+The Loggers are used to log data in debug mode and can be viewed in&amp;nbsp; /nwa/logs&lt;BR /&gt;
+&lt;BR /&gt;
+The resetInputStream changes the content to the xml and we forward the wrapper instead of the actual request.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/01/strip-1.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+If you are not OK with the content you can send back a custom response like here 406&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/01/response.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Here I show you an example with OAGI format&amp;nbsp; which sends a Prolog sort of text&amp;nbsp; before actual xml.&lt;BR /&gt;
+&lt;BR /&gt;
+The xml starts after the string "Payload="&lt;BR /&gt;
+&lt;BR /&gt;
+(PS: I am using fasterjackson library to convert objects into string)&lt;BR /&gt;
+&lt;BR /&gt;
+The servlet with doPost&lt;BR /&gt;
+&lt;PRE class="language-java"&gt;&lt;CODE&gt;package com.mycompany;&lt;BR /&gt;
+&lt;BR /&gt;
+import java.io.IOException;&lt;BR /&gt;
+import java.io.PrintWriter;&lt;BR /&gt;
+import java.util.logging.Logger;&lt;BR /&gt;
+&lt;BR /&gt;
+import javax.servlet.RequestDispatcher;&lt;BR /&gt;
+import javax.servlet.ServletContext;&lt;BR /&gt;
+import javax.servlet.ServletException;&lt;BR /&gt;
+import javax.servlet.http.HttpServlet;&lt;BR /&gt;
+import javax.servlet.http.HttpServletRequest;&lt;BR /&gt;
+import javax.servlet.http.HttpServletResponse;&lt;BR /&gt;
+&lt;BR /&gt;
+import com.mycompany.logging.entity.LoggingRequest;&lt;BR /&gt;
+import com.mycompany.logging.wrapper.LoggingHttpServletRequestWrapper;&lt;BR /&gt;
+import com.mycompany.logging.wrapper.LoggingHttpServletResponseWrapper;&lt;BR /&gt;
+import com.fasterxml.jackson.core.JsonProcessingException;&lt;BR /&gt;
+import com.sap.tc.logging.Configurator;&lt;BR /&gt;
+import com.sap.tc.logging.Log;&lt;BR /&gt;
+import com.sap.tc.logging.Severity;&lt;BR /&gt;
+import com.fasterxml.jackson.core.JsonProcessingException;&lt;BR /&gt;
+import com.fasterxml.jackson.databind.ObjectMapper;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;BR /&gt;
+/**&lt;BR /&gt;
+ * Servlet implementation class &lt;BR /&gt;
+ */&lt;BR /&gt;
+public class oagi extends HttpServlet {&lt;BR /&gt;
+	&lt;BR /&gt;
+	private static final long serialVersionUID = 1L;&lt;BR /&gt;
+	  &lt;BR /&gt;
+	private static final com.sap.tc.logging.Location LOGGER = com.sap.tc.logging.Location.getLocation(oagi.class);&lt;BR /&gt;
+	ObjectMapper ObjectMapper = new ObjectMapper();&lt;BR /&gt;
+	&lt;BR /&gt;
+	/**&lt;BR /&gt;
+     * @see HttpServlet#HttpServlet()&lt;BR /&gt;
+     */&lt;BR /&gt;
+    public oagi() {&lt;BR /&gt;
+        super();&lt;BR /&gt;
+       &lt;BR /&gt;
+        // TODO Auto-generated constructor stub&lt;BR /&gt;
+    }&lt;BR /&gt;
+&lt;BR /&gt;
+	/**&lt;BR /&gt;
+	 * @see HttpServlet#doGet(HttpServletRequest request, HttpServletResponse response)&lt;BR /&gt;
+	 */&lt;BR /&gt;
+	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {&lt;BR /&gt;
+		LOGGER.entering();&lt;BR /&gt;
+		&lt;BR /&gt;
+		response.getWriter().append("Served at: ").append(request.getContextPath());&lt;BR /&gt;
+		LOGGER.exiting();&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	/**&lt;BR /&gt;
+	 * @see HttpServlet#doPost(HttpServletRequest request, HttpServletResponse response)&lt;BR /&gt;
+	 */&lt;BR /&gt;
+	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {&lt;BR /&gt;
+		LOGGER.entering("doPost");&lt;BR /&gt;
+			&lt;BR /&gt;
+		//PrintWriter out= response.getWriter();&lt;BR /&gt;
+		ServletContext web1 = getServletContext();&lt;BR /&gt;
+		ServletContext web2 = web1.getContext("/HttpAdapter");&lt;BR /&gt;
+	&lt;BR /&gt;
+		//send to adapter&lt;BR /&gt;
+		RequestDispatcher rd = &lt;BR /&gt;
+		web2.getRequestDispatcher("/HttpMessageServlet?interfaceNamespace=http://OAGI/test&amp;amp;interface=SI_OrderRequest_OutS&amp;amp;senderService=BC_EU_Orders_OAGI&amp;amp;qos=BE");&lt;BR /&gt;
+		&lt;BR /&gt;
+		HttpServletRequest httpRequest = (HttpServletRequest) request;&lt;BR /&gt;
+		HttpServletResponse httpResponse = (HttpServletResponse) response;&lt;BR /&gt;
+&lt;BR /&gt;
+		LoggingHttpServletRequestWrapper requestWrapper = new LoggingHttpServletRequestWrapper(httpRequest);&lt;BR /&gt;
+		&lt;BR /&gt;
+		&lt;BR /&gt;
+			String content = requestWrapper.getContent();&lt;BR /&gt;
+			&lt;BR /&gt;
+			String	searchit = "PAYLOAD=";&lt;BR /&gt;
+			&lt;BR /&gt;
+			if(!content.isEmpty()) &lt;BR /&gt;
+			{&lt;BR /&gt;
+				&lt;BR /&gt;
+				if(!(content.startsWith("&amp;lt;")))&lt;BR /&gt;
+				{&lt;BR /&gt;
+					LOGGER.debugT("original content : " + content);		&lt;BR /&gt;
+					int off = content.indexOf(searchit);&lt;BR /&gt;
+					if(off != -1)&lt;BR /&gt;
+					{&lt;BR /&gt;
+						off = off + searchit.length();&lt;BR /&gt;
+						content = content.substring(off);&lt;BR /&gt;
+						LOGGER.debugT("Stripped content : " + content);			&lt;BR /&gt;
+						requestWrapper.resetInputStream(content);&lt;BR /&gt;
+					    content = null;&lt;BR /&gt;
+				    &lt;BR /&gt;
+					    LOGGER.exiting("doPost" );&lt;BR /&gt;
+					    rd.forward(requestWrapper, response);&lt;BR /&gt;
+					}&lt;BR /&gt;
+					else&lt;BR /&gt;
+					{&lt;BR /&gt;
+						LOGGER.errorT("REQUEST: " + getRequestDescription(requestWrapper) +"Content:" +content );&lt;BR /&gt;
+					    &lt;BR /&gt;
+					    httpResponse.reset();&lt;BR /&gt;
+					    httpResponse.setStatus(HttpServletResponse.SC_NOT_ACCEPTABLE); //send 406&lt;BR /&gt;
+					    httpResponse.setHeader("Location", requestWrapper.getLocalAddr());&lt;BR /&gt;
+					    return;	&lt;BR /&gt;
+					}&lt;BR /&gt;
+				}&lt;BR /&gt;
+				else &lt;BR /&gt;
+				{&lt;BR /&gt;
+					content = null;&lt;BR /&gt;
+				    LOGGER.exiting("doPost" );&lt;BR /&gt;
+				    rd.forward(requestWrapper, response);&lt;BR /&gt;
+				}&lt;BR /&gt;
+				&lt;BR /&gt;
+				return;&lt;BR /&gt;
+			}&lt;BR /&gt;
+		&lt;BR /&gt;
+		&lt;BR /&gt;
+		&lt;BR /&gt;
+	}&lt;BR /&gt;
+	&lt;BR /&gt;
+	&lt;BR /&gt;
+	&lt;BR /&gt;
+	protected String getRequestDescription(LoggingHttpServletRequestWrapper requestWrapper) {&lt;BR /&gt;
+		LoggingRequest loggingRequest = new LoggingRequest();&lt;BR /&gt;
+		loggingRequest.setSender(requestWrapper.getRemoteAddr());&lt;BR /&gt;
+		loggingRequest.setMethod(requestWrapper.getMethod());&lt;BR /&gt;
+		&lt;BR /&gt;
+		loggingRequest.setUser(requestWrapper.getRemoteUser());&lt;BR /&gt;
+		loggingRequest.setParams(requestWrapper.isFormPost() ? null : requestWrapper.getParameters());&lt;BR /&gt;
+		loggingRequest.setHeaders(requestWrapper.getHeaders());&lt;BR /&gt;
+		&lt;BR /&gt;
+		//String content = requestWrapper.getContent();&lt;BR /&gt;
+		&lt;BR /&gt;
+		//loggingRequest.setBody(content);&lt;BR /&gt;
+		&lt;BR /&gt;
+&lt;BR /&gt;
+		try {&lt;BR /&gt;
+			return ObjectMapper.writeValueAsString(loggingRequest);&lt;BR /&gt;
+		} catch (JsonProcessingException e) {&lt;BR /&gt;
+			LOGGER.warningT("Cannot serialize Request to JSON"+ e.getMessage());&lt;BR /&gt;
+			return null;&lt;BR /&gt;
+		}&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+}&lt;BR /&gt;
+&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Sample Request Wrapper (most of the methods are not used)&lt;BR /&gt;
+&lt;PRE class="language-java"&gt;&lt;CODE&gt;package com.mycompany.logging.wrapper;&lt;BR /&gt;
+&lt;BR /&gt;
+import java.io.BufferedReader;&lt;BR /&gt;
+import java.io.ByteArrayInputStream;&lt;BR /&gt;
+import java.io.IOException;&lt;BR /&gt;
+import java.io.InputStream;&lt;BR /&gt;
+import java.io.InputStreamReader;&lt;BR /&gt;
+import java.io.UncheckedIOException;&lt;BR /&gt;
+import java.nio.charset.StandardCharsets;&lt;BR /&gt;
+import java.util.Arrays;&lt;BR /&gt;
+import java.util.Collections;&lt;BR /&gt;
+import java.util.Enumeration;&lt;BR /&gt;
+import java.util.HashMap;&lt;BR /&gt;
+import java.util.Iterator;&lt;BR /&gt;
+import java.util.Map;&lt;BR /&gt;
+import java.util.Map.Entry;&lt;BR /&gt;
+import java.util.Set;&lt;BR /&gt;
+import java.util.stream.Collectors;&lt;BR /&gt;
+&lt;BR /&gt;
+import javax.servlet.ServletInputStream;&lt;BR /&gt;
+import javax.servlet.http.HttpServletRequest;&lt;BR /&gt;
+import javax.servlet.http.HttpServletRequestWrapper;&lt;BR /&gt;
+&lt;BR /&gt;
+import org.apache.commons.io.IOUtils;&lt;BR /&gt;
+import org.apache.commons.lang3.ArrayUtils;&lt;BR /&gt;
+import org.apache.commons.lang3.StringUtils;&lt;BR /&gt;
+&lt;BR /&gt;
+import com.mycompany.logging.OAGIFilter;&lt;BR /&gt;
+&lt;BR /&gt;
+public class LoggingHttpServletRequestWrapper extends HttpServletRequestWrapper {&lt;BR /&gt;
+&lt;BR /&gt;
+	private static final com.sap.tc.logging.Location LOGGER = com.sap.tc.logging.Location.getLocation(LoggingHttpServletRequestWrapper.class);&lt;BR /&gt;
+	&lt;BR /&gt;
+	private static final String FORM_CONTENT_TYPE = "application/x-www-form-urlencoded";&lt;BR /&gt;
+&lt;BR /&gt;
+	private static final String METHOD_POST = "POST";&lt;BR /&gt;
+&lt;BR /&gt;
+	private byte[] content;&lt;BR /&gt;
+&lt;BR /&gt;
+	private final Map&amp;lt;String, String[]&amp;gt; parameterMap;&lt;BR /&gt;
+&lt;BR /&gt;
+	private final HttpServletRequest delegate;&lt;BR /&gt;
+	private LoggingServletInputStream servletStream;&lt;BR /&gt;
+		&lt;BR /&gt;
+	&lt;BR /&gt;
+	&lt;BR /&gt;
+	public LoggingHttpServletRequestWrapper(HttpServletRequest request) {&lt;BR /&gt;
+		super(request);&lt;BR /&gt;
+		this.delegate = request;&lt;BR /&gt;
+		this.servletStream = new LoggingServletInputStream();&lt;BR /&gt;
+		&lt;BR /&gt;
+		if (isFormPost()) {&lt;BR /&gt;
+			this.parameterMap = request.getParameterMap();&lt;BR /&gt;
+		} else {&lt;BR /&gt;
+			this.parameterMap = Collections.emptyMap();&lt;BR /&gt;
+		}&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	public void resetInputStream(String content) {&lt;BR /&gt;
+		this.content = content.getBytes();&lt;BR /&gt;
+		&lt;BR /&gt;
+		LOGGER.debugT("content : " + new String(this.content));	&lt;BR /&gt;
+	    &lt;BR /&gt;
+		servletStream.is = new ByteArrayInputStream(content.getBytes());&lt;BR /&gt;
+	}&lt;BR /&gt;
+	&lt;BR /&gt;
+	@Override&lt;BR /&gt;
+	public ServletInputStream getInputStream() throws IOException {&lt;BR /&gt;
+		&lt;BR /&gt;
+		if (ArrayUtils.isEmpty(content)) {&lt;BR /&gt;
+			return delegate.getInputStream();&lt;BR /&gt;
+		}&lt;BR /&gt;
+		LOGGER.debugT("inputstream content : " + new String(this.content));	&lt;BR /&gt;
+		return new LoggingServletInputStream(content);&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	@Override&lt;BR /&gt;
+	public BufferedReader getReader() throws IOException {&lt;BR /&gt;
+		if (ArrayUtils.isEmpty(content)) {&lt;BR /&gt;
+			return delegate.getReader();&lt;BR /&gt;
+		}&lt;BR /&gt;
+		return new BufferedReader(new InputStreamReader(getInputStream()));&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	@Override&lt;BR /&gt;
+	public String getParameter(String name) {&lt;BR /&gt;
+		if (ArrayUtils.isEmpty(content) || this.parameterMap.isEmpty()) {&lt;BR /&gt;
+			return super.getParameter(name);&lt;BR /&gt;
+		}&lt;BR /&gt;
+		String[] values = this.parameterMap.get(name);&lt;BR /&gt;
+		if (values != null &amp;amp;&amp;amp; values.length &amp;gt; 0) {&lt;BR /&gt;
+			return values[0];&lt;BR /&gt;
+		}&lt;BR /&gt;
+		return Arrays.toString(values);&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	@Override&lt;BR /&gt;
+	public Map&amp;lt;String, String[]&amp;gt; getParameterMap() {&lt;BR /&gt;
+		if (ArrayUtils.isEmpty(content) || this.parameterMap.isEmpty()) {&lt;BR /&gt;
+			return super.getParameterMap();&lt;BR /&gt;
+		}&lt;BR /&gt;
+		return this.parameterMap;&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	@Override&lt;BR /&gt;
+	public Enumeration&amp;lt;String&amp;gt; getParameterNames() {&lt;BR /&gt;
+		if (ArrayUtils.isEmpty(content) || this.parameterMap.isEmpty()) {&lt;BR /&gt;
+			return super.getParameterNames();&lt;BR /&gt;
+		}&lt;BR /&gt;
+		return new ParamNameEnumeration(this.parameterMap.keySet());&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	@Override&lt;BR /&gt;
+	public String[] getParameterValues(String name) {&lt;BR /&gt;
+		if (ArrayUtils.isEmpty(content) || this.parameterMap.isEmpty()) {&lt;BR /&gt;
+			return super.getParameterValues(name);&lt;BR /&gt;
+		}&lt;BR /&gt;
+		return this.parameterMap.get(name);&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	public String getContent() {&lt;BR /&gt;
+		try {&lt;BR /&gt;
+			if (this.parameterMap.isEmpty()) {&lt;BR /&gt;
+				content = IOUtils.toByteArray(delegate.getInputStream());&lt;BR /&gt;
+			} else {&lt;BR /&gt;
+				content = getContentFromParameterMap(this.parameterMap);&lt;BR /&gt;
+			}&lt;BR /&gt;
+			String requestEncoding = delegate.getCharacterEncoding();&lt;BR /&gt;
+			String normalizedContent = StringUtils.normalizeSpace(new String(content, requestEncoding != null ? requestEncoding : StandardCharsets.UTF_8.name()));&lt;BR /&gt;
+			return StringUtils.isBlank(normalizedContent) ? "[EMPTY]" : normalizedContent;&lt;BR /&gt;
+		} catch (IOException e) {&lt;BR /&gt;
+			throw new UncheckedIOException(e);&lt;BR /&gt;
+		}&lt;BR /&gt;
+	}&lt;BR /&gt;
+	&lt;BR /&gt;
+	&lt;BR /&gt;
+	&lt;BR /&gt;
+&lt;BR /&gt;
+	private byte[] getContentFromParameterMap(Map&amp;lt;String, String[]&amp;gt; parameterMap) {&lt;BR /&gt;
+		return parameterMap.entrySet().stream().map(e -&amp;gt; {&lt;BR /&gt;
+			String[] value = e.getValue();&lt;BR /&gt;
+			return e.getKey() + "=" + (value.length == 1 ? value[0] : Arrays.toString(value));&lt;BR /&gt;
+		}).collect(Collectors.joining("&amp;amp;")).getBytes();&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	public Map&amp;lt;String, String&amp;gt; getHeaders() {&lt;BR /&gt;
+		Map&amp;lt;String, String&amp;gt; headers = new HashMap&amp;lt;&amp;gt;(0);&lt;BR /&gt;
+		Enumeration&amp;lt;String&amp;gt; headerNames = getHeaderNames();&lt;BR /&gt;
+		while (headerNames.hasMoreElements()) {&lt;BR /&gt;
+			String headerName = headerNames.nextElement();&lt;BR /&gt;
+			if (headerName != null) {&lt;BR /&gt;
+				headers.put(headerName, getHeader(headerName));&lt;BR /&gt;
+			}&lt;BR /&gt;
+		}&lt;BR /&gt;
+		return headers;&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	public Map&amp;lt;String, String&amp;gt; getParameters() {&lt;BR /&gt;
+		return getParameterMap().entrySet().stream().collect(Collectors.toMap(Entry::getKey, e -&amp;gt; {&lt;BR /&gt;
+			String[] values = e.getValue();&lt;BR /&gt;
+			return values.length &amp;gt; 0 ? values[0] : "[EMPTY]";&lt;BR /&gt;
+		}));&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	public boolean isFormPost() {&lt;BR /&gt;
+		String contentType = getContentType();&lt;BR /&gt;
+		return (contentType != null &amp;amp;&amp;amp; contentType.contains(FORM_CONTENT_TYPE) &amp;amp;&amp;amp; METHOD_POST.equalsIgnoreCase(getMethod()));&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	&lt;BR /&gt;
+	private class ParamNameEnumeration implements Enumeration&amp;lt;String&amp;gt; {&lt;BR /&gt;
+&lt;BR /&gt;
+		private final Iterator&amp;lt;String&amp;gt; iterator;&lt;BR /&gt;
+&lt;BR /&gt;
+		private ParamNameEnumeration(Set&amp;lt;String&amp;gt; values) {&lt;BR /&gt;
+			this.iterator = values != null ? values.iterator() : Collections.emptyIterator();&lt;BR /&gt;
+		}&lt;BR /&gt;
+&lt;BR /&gt;
+		@Override&lt;BR /&gt;
+		public boolean hasMoreElements() {&lt;BR /&gt;
+			return iterator.hasNext();&lt;BR /&gt;
+		}&lt;BR /&gt;
+&lt;BR /&gt;
+		@Override&lt;BR /&gt;
+		public String nextElement() {&lt;BR /&gt;
+			return iterator.next();&lt;BR /&gt;
+		}&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	private class LoggingServletInputStream extends ServletInputStream {&lt;BR /&gt;
+&lt;BR /&gt;
+		private  InputStream is;&lt;BR /&gt;
+&lt;BR /&gt;
+		private LoggingServletInputStream() {&lt;BR /&gt;
+			&lt;BR /&gt;
+		}&lt;BR /&gt;
+		&lt;BR /&gt;
+		private LoggingServletInputStream(byte[] content) {&lt;BR /&gt;
+			this.is = new ByteArrayInputStream(content);&lt;BR /&gt;
+		}&lt;BR /&gt;
+&lt;BR /&gt;
+		public boolean isFinished() {&lt;BR /&gt;
+			return true;&lt;BR /&gt;
+		}&lt;BR /&gt;
+&lt;BR /&gt;
+		public boolean isReady() {&lt;BR /&gt;
+			return true;&lt;BR /&gt;
+		}&lt;BR /&gt;
+&lt;BR /&gt;
+		&lt;BR /&gt;
+&lt;BR /&gt;
+		@Override&lt;BR /&gt;
+		public int read() throws IOException {&lt;BR /&gt;
+			return this.is.read();&lt;BR /&gt;
+		}&lt;BR /&gt;
+&lt;BR /&gt;
+		@Override&lt;BR /&gt;
+		public void close() throws IOException {&lt;BR /&gt;
+			super.close();&lt;BR /&gt;
+			is.close();&lt;BR /&gt;
+		}&lt;BR /&gt;
+	}&lt;BR /&gt;
+	&lt;BR /&gt;
+	&lt;BR /&gt;
+	 }&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Logging Request&lt;BR /&gt;
+&lt;PRE class="language-java"&gt;&lt;CODE&gt;package com.mycompany.logging.entity;&lt;BR /&gt;
+&lt;BR /&gt;
+import java.io.Serializable;&lt;BR /&gt;
+import java.util.Map;&lt;BR /&gt;
+&lt;BR /&gt;
+public class LoggingRequest implements Serializable {&lt;BR /&gt;
+&lt;BR /&gt;
+	private static final long serialVersionUID = -4702574169916528738L;&lt;BR /&gt;
+&lt;BR /&gt;
+	private String sender;&lt;BR /&gt;
+&lt;BR /&gt;
+	private String method;&lt;BR /&gt;
+&lt;BR /&gt;
+	private String user;&lt;BR /&gt;
+	&lt;BR /&gt;
+&lt;BR /&gt;
+	private Map&amp;lt;String, String&amp;gt; params;&lt;BR /&gt;
+&lt;BR /&gt;
+	private Map&amp;lt;String, String&amp;gt; headers;&lt;BR /&gt;
+&lt;BR /&gt;
+	private String body;&lt;BR /&gt;
+&lt;BR /&gt;
+	public String getSender() {&lt;BR /&gt;
+		return sender;&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	public void setSender(String sender) {&lt;BR /&gt;
+		this.sender = sender;&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	public String getMethod() {&lt;BR /&gt;
+		return method;&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	public void setMethod(String method) {&lt;BR /&gt;
+		this.method = method;&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	public String getUser() {&lt;BR /&gt;
+		return user;&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	&lt;BR /&gt;
+&lt;BR /&gt;
+	public void setUser(String user) {&lt;BR /&gt;
+		this.user = user;&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	public Map&amp;lt;String, String&amp;gt; getParams() {&lt;BR /&gt;
+		return params;&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	public void setParams(Map&amp;lt;String, String&amp;gt; params) {&lt;BR /&gt;
+		this.params = params;&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	public Map&amp;lt;String, String&amp;gt; getHeaders() {&lt;BR /&gt;
+		return headers;&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	public void setHeaders(Map&amp;lt;String, String&amp;gt; headers) {&lt;BR /&gt;
+		this.headers = headers;&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	public String getBody() {&lt;BR /&gt;
+		return body;&lt;BR /&gt;
+	}&lt;BR /&gt;
+&lt;BR /&gt;
+	public void setBody(String body) {&lt;BR /&gt;
+		this.body = body;&lt;BR /&gt;
+	}&lt;BR /&gt;
+}&lt;BR /&gt;
+&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Example : Error logged in /nwa/logs when payload had some irregular data:&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/01/error-1.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Sample wrong payload&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/01/test-2.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Sample unacceptable response&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/01/not-1.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Here the request processing takes place in the doPost method itself - alternatively you can create a Filter in the project and use that to process the request.&lt;BR /&gt;
+&lt;BR /&gt;
+Hope this would be helpful !&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/logging-incoming-requests-when-creating-short-urls/ba-p/13456675"/>
+    <published>2020-01-14T14:40:02+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/now-get-target-server-root-certificate-in-the-comfort-of-your-own-browser/ba-p/13457036</id>
+    <title>Now get target server root certificate in the comfort of your own browser without getting your local IP white-listed</title>
+    <updated>2020-01-15T06:27:09+01:00</updated>
+    <author>
+      <name>shariqueali2</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/190389</uri>
+    </author>
+    <content>&lt;P&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;My obsession with this new way of hitting the PI server using servlets took new turn when a brilliant colleague of mine wanted me to program a way to get target root certificate without having to ask them for or without running a command on your cloud which is harder to access.&lt;BR /&gt;&lt;BR /&gt;And now get the target server root certificates without getting your local IP white-listed ,in the comfort of your own browser, through PI server. (Of course, your server should be able to access the target)&lt;BR /&gt;&lt;BR /&gt;It takes the URL as a query parameter&amp;nbsp; and will print out the full chain of certificates and also write the root certificate which you can trust in your keystore&amp;nbsp; in. CER format&lt;BR /&gt;&lt;BR /&gt;Here is&amp;nbsp; a sample for google&lt;BR /&gt;&lt;BR /&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/01/cert-2.png" border="0" /&gt;&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;Scroll down to get&amp;nbsp; X509 Certificate as .CER:&lt;BR /&gt;&lt;BR /&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/01/google.png" border="0" /&gt;&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;Here is the snippet which does the job for you.&lt;BR /&gt;&lt;BR /&gt;To build the servlet you can always refer to &lt;A href="https://blogs.sap.com/2018/12/20/sicf-on-pipo-single-stack-shortening-long-urls-for-customers-inbound./" target="_blank" rel="noopener noreferrer"&gt;SICF on Pi/PO&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;To enable logging you can refer to&amp;nbsp; &lt;A href="https://blogs.sap.com/2020/01/14/logging-incoming-requests-when-creating-short-urls/" target="_blank" rel="noopener noreferrer"&gt;Logging Incoming Requests&lt;/A&gt;&lt;/P&gt;&lt;PRE&gt;protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+
+
+
+		try 
+
+		{
+
+			String url = request.getParameter("url");
+
+			final String LINE_SEPARATOR = System.getProperty("line.separator");
+
+			
+
+			
+
+			HttpsURLConnection connection = (HttpsURLConnection) new URL(null,url,new sun.net.www.protocol.https.Handler()).openConnection();
+
+			connection.setRequestMethod("GET");
+
+			connection.connect();
+
+			
+
+			Certificate[] certs = connection.getServerCertificates();
+
+			for (Certificate cert : certs) {
+
+			 
+
+			  
+
+			  response.getWriter().append("Certificate is : " + cert);
+
+			}
+
+			 
+
+			 if (certs == null || certs.length == 0 || (!(certs[0] instanceof X509Certificate))) {
+
+				    throw new SSLPeerUnverifiedException("No server's end-entity certificate");
+
+				  }
+
+			 
+
+			 X509Certificate x509cert = ((X509Certificate) certs[0]);
+
+			
+
+			 Base64.Encoder encoder = Base64.getMimeEncoder(64, LINE_SEPARATOR.getBytes());
+
+			 String cert_begin = "-----BEGIN CERTIFICATE-----\n";
+
+			 String end_cert = "\n-----END CERTIFICATE-----";
+
+			
+
+			 byte[] derCert = x509cert.getEncoded();
+
+			 
+
+			 String pemCertPre = new String(encoder.encode(derCert));
+
+			 String pemCert = cert_begin + pemCertPre + end_cert;
+
+			 
+
+			 
+
+			 
+
+			 response.getWriter().append("X509 Certificate in encoded form : \n").append(pemCert);
+
+			 
+
+		} catch (Exception e) {
+
+			// TODO Auto-generated catch block
+
+			response.getWriter().append("Exception occured : ").append(e.getMessage() +" :");
+
+			
+
+			e.printStackTrace(response.getWriter());
+
+		}
+
+		
+
+		
+
+	}&lt;/PRE&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;if the below snippet shows error, on the underlined part , you need to set the access restrictions to Warning as shown in the next picture.&lt;BR /&gt;&lt;BR /&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/01/ip.png" border="0" /&gt;&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/01/fb.png" border="0" /&gt;&lt;BR /&gt;&lt;BR /&gt;The import section:&lt;BR /&gt;&lt;BR /&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/01/import.png" border="0" /&gt;&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;This code was tested by my colleague and for him the formatting did not render properly on Microsoft edge but worked on Firefox and Chrome.&lt;BR /&gt;&lt;BR /&gt;Disclaimer : We are not having this for productive use and so should you.&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;Regards&lt;BR /&gt;&lt;BR /&gt;Fariha Kazi&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/now-get-target-server-root-certificate-in-the-comfort-of-your-own-browser/ba-p/13457036"/>
+    <published>2020-01-15T06:27:09+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/remediation-of-uncalled-active-icf-services/ba-p/13435159</id>
+    <title>Remediation of uncalled active ICF services</title>
+    <updated>2020-06-18T10:23:53+02:00</updated>
+    <author>
+      <name>JoeGoerlich</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2716</uri>
+    </author>
+    <content>&lt;H3 id="toc-hId-1060742432"&gt;Web applications and web services to rule them all&lt;/H3&gt;&lt;P&gt;&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;&lt;H6 id="toc-hId-1251477084"&gt;Updates:&lt;BR /&gt;2022-11-07: Added hint for new secure-by-default logs.&lt;/H6&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;HR /&gt;&lt;P&gt;The time of SAP GUI as a proprietary interface for every user interaction seems to be over soon. SAP is moving towards serving more and more applications as web applications or web services - be it SAP Fiori, be it the Webgui utilising Screen Personas or OData or REST APIs.&lt;BR /&gt;&lt;BR /&gt;While this change counts in for sure to better user experience or using open standards for interfaces (e.g. towards cloud services), it also effects the SAP Basis Administrator:&lt;BR /&gt;A SAP basis administrator nowadays need to have a deep understanding of web technologies (additionally to understanding the SAP application server, the database as well as to the operating system like linux).&lt;BR /&gt;&lt;BR /&gt;I will not go into detail about the journey from the integration of Internet Communication Manager (ICM) as web server into SAP NW AS ABAP/Java or what to consider in general when operating a web server within your ERP system - maybe even exposed to the internet.&lt;STRONG&gt;&lt;BR /&gt;In this blogpost I would like to catch up a topic which is more related to the content served by the Internet Communication Framework (ICF) through the ICM&lt;/STRONG&gt;.&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-667715422"&gt;“Please activate one or the other ICF service - it is urgent!”&lt;/H3&gt;&lt;P&gt;In the early days - before "Secure by Default" was a claim - SAP NetWeaver AS ABAP based systems were &lt;STRONG&gt;shipped with certain ICF services in status "activated".&lt;/STRONG&gt; In addition to that, SAP Basis Administrators often where asked on short notice to quickly activate one or the other service in transaction SICF until some urgent needed functionality works. So it happened that there were more ICF service activated then ever needed, especially in the production system.&lt;BR /&gt;&lt;BR /&gt;While in the meantime SAP released many security notes to fix vulnerabilities in the SAP standard ICF services, &lt;STRONG&gt;in many systems a number of 500 up to more than 3000 ICF services are still enabled although they are not needed nor called&lt;/STRONG&gt;.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;H3 id="toc-hId-471201917"&gt;Bring some light into the darkness&lt;/H3&gt;&lt;P&gt;&lt;FONT color="#FF0000"&gt;&lt;SPAN&gt;&lt;STRONG&gt;Please note: &lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;FONT color="#FF0000"&gt;As of SAP S/HANA-Version 2022 / ABAP Platform 2022 the so called &lt;EM&gt;secure-by-default logs&lt;/EM&gt; for ICF calls are collected. These logs can be evaluated in transaction SBDLOG. Those can be used to activate all ICF services that have ever been logged or deactivate services that were not logged by choosing '&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Menu' -&amp;gt; '&lt;/SPAN&gt;&lt;SPAN class=""&gt;ICF Integration' in transaction SBDLOG&lt;/SPAN&gt;&lt;/SPAN&gt;. With this, the manual steps described below can be omitted. Furthermore,&amp;nbsp;as of SAP S/HANA-Version 2022 services which are created via the &lt;EM&gt;HTTP Service Framework&amp;nbsp;&lt;/EM&gt;do not show up as nodes below /sap/bc/http but the URL path starts with this. Those services can be activated via transaction `UCON_HTTP_SERVICES`, if necessary.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;At first lets export a list of the active ICF services of &lt;STRONG&gt;all of your systems (Dev, Int, Prod)&lt;/STRONG&gt;&amp;nbsp;by the following steps:&lt;/P&gt;&lt;OL&gt;&lt;OL&gt;&lt;LI&gt;Go to transaction SE38.&lt;/LI&gt;&lt;LI&gt;Execute report RS_ICF_SERV_ADMIN_TASKS.&lt;/LI&gt;&lt;LI&gt;Choose “Export of Active Services to CSV File” and execute to save the file, e.g. as &amp;lt;SID&amp;gt;_active_services.csv&lt;BR /&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/06/Bildschirmfoto-2020-06-17-um-10.03.29.png" border="0" width="403" height="391" /&gt;&lt;/LI&gt;&lt;LI&gt;Again. Repeat these steps for every system in your landscape.&lt;/LI&gt;&lt;/OL&gt;&lt;/OL&gt;&lt;P&gt;&lt;BR /&gt;To give yourself an overview about the active ICF services in your systems take a look at the exported lists. By screening every list you will figure out that &lt;STRONG&gt;the active services in the various systems of a system landscape will be different from system to system&lt;/STRONG&gt;.&lt;/P&gt;&lt;BLOCKQUOTE&gt;Please be aware &lt;STRONG&gt;for some services there is a good reason to be active in development or integration system only!&lt;/STRONG&gt; There are services used for development purposes or there might be services for features which are not yet released to production. Besides that, there are web applications used only for one time tasks or initial setup. Or active services differ simply due to configuration drift.&lt;/BLOCKQUOTE&gt;&lt;P&gt;The main purpose of this lists is to use it a) &lt;STRONG&gt;as a template&lt;/STRONG&gt; for the deactivation of uncalled ICF services in the next steps and b) &lt;STRONG&gt;as a backup&lt;/STRONG&gt; to quickly mass re-activate all former active services in emergency case.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-274688412"&gt;What about service usage?&lt;/H3&gt;&lt;P&gt;It is strictly advisable to activate ICF services only if they are necessary for business needs in order &lt;STRONG&gt;to reduce the attack surface&lt;/STRONG&gt;. Often there is no documentation which services are involved in what business functionality, some of them are even involved in more than one since they provide a framework&amp;nbsp; functionality (e.g. for Webdynpro ABAP or BSP). So it might be hard for you to determine which service is truly needed in the first.&lt;BR /&gt;&lt;BR /&gt;As a quick win you could analyse how often each service were called in &lt;STRONG&gt;each of your systems&lt;/STRONG&gt;. To do so there are at least three methods:&lt;/P&gt;&lt;OL&gt;&lt;OL&gt;&lt;LI&gt;extract the relevant info from the HTTP access log of the ICM (parameter icm/HTTP/logging_&amp;lt;xx&amp;gt;).&lt;/LI&gt;&lt;LI&gt;enable and evaluate the ICF trace using report RS_ICF_SERV_ADMIN_TASKS as mentioned in SAP note 2430473.&lt;/LI&gt;&lt;LI&gt;evaluate the Web Statistics.&lt;/LI&gt;&lt;/OL&gt;&lt;/OL&gt;&lt;P&gt;Method 1 might be time consuming to gather all log files and grep and normalize the relevant parts.&lt;BR /&gt;Method 2 could have a performance impact as of SAP note 1611713.&lt;BR /&gt;Since Web Statistics are collected by default I recommend to use &lt;STRONG&gt;method 3&lt;/STRONG&gt;. However, I like to advise to prolong the retention period of Web Statistics for this purpose in advance by following these steps:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Go to transaction ST03.&lt;/LI&gt;&lt;LI&gt;Go to Collector and Performance DB -&amp;gt; Performance Database -&amp;gt; Workload Collector Database -&amp;gt; Reorganization -&amp;gt; Control.&lt;/LI&gt;&lt;LI&gt;&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/06/Bildschirmfoto-2020-06-17-um-10.12.55.png" border="0" width="283" height="371" /&gt;Adjust retention period for the WEB statistics, e.g. TOTAL Monthly Aggregates Retention Period for `VC` and `VD`.&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/06/Bildschirmfoto-2020-06-17-um-10.15.03.png" border="0" width="722" height="195" /&gt;&lt;/LI&gt;&lt;LI&gt;Again: Repeat these steps for every system in your landscape.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;After a reasonable time frame&lt;/STRONG&gt; in which the Web Statistics for relevant phases (month end closing or alike) have been collected, the statistics can be exported by following these steps:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Go to transaction ST03.&lt;/LI&gt;&lt;LI&gt;Expand Workload -&amp;gt; Total -&amp;gt; Month -&amp;gt; and perform for each available month the following steps.&lt;/LI&gt;&lt;LI&gt;Expand Analysis Views -&amp;gt; Web Statistics -&amp;gt; WEB Server Statistics.&lt;/LI&gt;&lt;LI&gt;Switch to tab “URL”.&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/06/Bildschirmfoto-2020-06-17-um-10.20.05.png" border="0" /&gt;&lt;SPAN&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; The Web Statistics may contain entries for services which are not even present in the system but are requested for example by a scanning server.&lt;BR /&gt;&lt;STRONG&gt;Hint: &lt;/STRONG&gt;You may have noticed the column “Protocol” indicates if a service is called via HTTP or HTTPS.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;Export the list of URLs as spreadsheet (“Excel (in Office 2007 XLSX Format)“) using the “Export” button. (Note: available as of SAP_BASIS 7.02).&lt;/LI&gt;&lt;LI&gt;Again: Repeat these steps for every system in your landscape.&lt;/LI&gt;&lt;/OL&gt;&lt;H3 id="toc-hId-78174907"&gt;Put the puzzle together&lt;/H3&gt;&lt;P&gt;Now it is time to compare the list of active services with the list of called services to prepare the cleanup.&lt;BR /&gt;&lt;BR /&gt;You can also think of comparing the lists across your system landscape. As already stated, for your development and integration system you should consider that there are indeed services active which are necessary for development purposes only or services which are in acceptance test and not yet set productive. These should be evaluated for the relevant systems. Talk to the developer team!&lt;BR /&gt;&lt;BR /&gt;Besides that there may also be web applications activated which are used only for initial setup tasks, e.g. SAML2 configuration or troubleshooting e.g. sec_diag_tool. You should consider to activate these only at configuration time or as long as needed.&lt;BR /&gt;&lt;BR /&gt;There may also be services which are actively used in the production system but are not activated in one or another system of the system landscape. It's time to &lt;STRONG&gt;eliminate this configuration drift&lt;/STRONG&gt;.&lt;BR /&gt;&lt;BR /&gt;Ok, lets start the preparation:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Copy the export of active services CSV file as a template.&lt;/LI&gt;&lt;LI&gt;Remove all lines which have an entry in column REF_PATH. These are aliases which point to a service node. Aliases can not be deactivated, but they will stop working if the original service is disabled.&lt;/LI&gt;&lt;LI&gt;Remove all lines for called services and their parent paths from the list so that you end up with a list of ICF services which can be deactivated in the relevant system.&lt;/LI&gt;&lt;LI&gt;Make sure no parent node stays in the list to be deactivated while it has sub nodes which should remain active. This would lead to so called "stale nodes" and non-working services. For example if /sap/bc/echo should stay active remove /sap, /sap/bc and /sap/bc/echo from the list.&lt;/LI&gt;&lt;LI&gt;Save this list of your to-be-deactivated services as CSV file.&lt;/LI&gt;&lt;LI&gt;Again: Repeat these steps for every system in your landscape.&lt;/LI&gt;&lt;/OL&gt;&lt;H3 id="toc-hId--118338598"&gt;&amp;nbsp;&lt;/H3&gt;&lt;H3 id="toc-hId--314852103"&gt;Time to cleanup&lt;/H3&gt;&lt;P&gt;Now you can start deactivating unused services in each system with your processed templates by following these steps:&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Open the list of active ICF services, e.g. &amp;lt;SID&amp;gt;_acvite_services.csv and doublecheck if it holds only to-be-deactivated ICF services.&lt;/LI&gt;&lt;LI&gt;Go to transaction SE38.&lt;/LI&gt;&lt;LI&gt;Execute report RS_ICF_SERV_MASS_PROCESSING.&lt;/LI&gt;&lt;LI&gt;Select “Deactivate ICF Services for All Virtual Hosts Listed in CSV File” and execute.&lt;IMG src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2020/06/Bildschirmfoto-2020-06-17-um-10.21.16.png" border="0" width="359" height="470" /&gt;&lt;/LI&gt;&lt;LI&gt;Confirm the popup and upload the list to deactivate all services in the list.&lt;/LI&gt;&lt;LI&gt;Again: Repeat these steps for every system in your landscape.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;BR /&gt;Did you reveal a configuration drift? Activate the missing services in the relevant systems either manually in transaction SICF or by preparing a CSV file for mass activation.&lt;BR /&gt;&lt;BR /&gt;Maybe you have overlooked some parent paths during creation of the list and they have now been deactivated accidentally. This is not that fatal. You simply can perform a fresh "Export of Active Services to CSV File" and use this to “Activate ICF Services for All Virtual Hosts Listed in CSV File”. The activation logic of the report will then take care of activating also all necessary parent nodes.&lt;BR /&gt;&lt;BR /&gt;Keep in mind if something goes totally wrong you have also the initial export of active services as a backup which can be used to mass activate everything again as it was before.&lt;BR /&gt;&lt;BR /&gt;&lt;EM&gt;Just as a side note:&lt;/EM&gt;&lt;BR /&gt;&lt;EM&gt;The UCON HTTP whitelist scenario or former HTTP_WHITELIST does not serve for the same purpose as the UCON RFC Basic scenario. Meaning it does not affect the general reachability of certain paths through ICM! But this is a topic for another blogpost.&lt;/EM&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;H3 id="toc-hId--511365608"&gt;Whats next?&lt;/H3&gt;&lt;P&gt;After finishing the deactivation in all systems, I recommend to "Export of Active Services to CSV File" once again. With this list you should &lt;STRONG&gt;start documenting your web services and their business need&lt;/STRONG&gt;.&lt;BR /&gt;&lt;BR /&gt;I started to collect information about SAP standard ICF services in &lt;A href="https://github.com/J-Goerlich/Standard_ICF_services" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/J-Goerlich/Standard_ICF_services&lt;/A&gt; which may give you a hint if a service is needed in your scenario.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/remediation-of-uncalled-active-icf-services/ba-p/13435159"/>
+    <published>2020-06-18T10:23:53+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/smaintenance-automation-of-regular-maintenance-tasks/ba-p/13522648</id>
+    <title>SMAINTENANCE - Automation Of Regular Maintenance Tasks</title>
+    <updated>2022-01-10T13:18:59+01:00</updated>
+    <author>
+      <name>bhargav_bhatt</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/209408</uri>
+    </author>
+    <content>Hi All,&lt;BR /&gt;
+&lt;BR /&gt;
+Being a SAP Admin you need to frequently deal with various maintenance activities involving application database or operating system. SAP has come up with tcode - SMAINTENANCE to make SAP application ramp down/up activity easy for us.&lt;BR /&gt;
+&lt;BR /&gt;
+SMAINTENANCE tcode can be used to monitor and control the status of the system in terms of the so called "Maintenance Mode".&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;B&gt;Prerequisite&lt;/B&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+For using smaintenance t-code we need to create security policy from t-code SECPOL.&amp;nbsp; Below two attributes are mandatory to use smaintenance t-code&lt;BR /&gt;
+&lt;BR /&gt;
+TENANT_RUNLEVEL_LOGON_PRIVILEGE = 1&lt;BR /&gt;
+&lt;BR /&gt;
+SERVER_LOGON_PRIVILEGE = 1&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/01/3-11.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+This security policy needs to be assigned to all system Admin users in SU01 which needs to be allowed when system is in maintenance mode&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/01/4-14.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Below is the screen of t-code smaintenance&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/01/1-16.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+When we "Switch to Maintenance" only Admin users who are having security policy assigned are allowed to login to system and perform maintenance activity.&lt;BR /&gt;
+&lt;BR /&gt;
+Remaining all users including system users are blocked against SAP logon.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;B&gt;Switch to Maintenance&lt;/B&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+The action "Switch to Maintenance" starts a workflow which sets the system to mode "In Maintenance". The workflow consists of the modes as described above: "Running -&amp;gt; Web dispatcher closed -&amp;gt; Cool down -&amp;gt; In Maintenance". The current duration of the whole workflow is &lt;STRONG&gt;10 minutes&lt;/STRONG&gt;.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;B&gt;Switch to Running&lt;/B&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+The action "Switch to Running" starts a workflow which sets the system to mode "Running". The workflow consists of the modes "In Maintenance -&amp;gt; Running". The switch to "Running" is performed immediately.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+On the top current system status is displayed as show in below&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/01/2-11.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+There are different modes system goes through:&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;B&gt;Running (Runlevel - 0)&lt;/B&gt;&lt;BR /&gt;
+The system is fully operational for business end users and administrator. There are no restrictions for services (e.g. batch, rfc, ...) or for inbound and outbound connections.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;B&gt;Web dispatcher Closed (Runlevel - 4)&lt;/B&gt;&lt;BR /&gt;
+The system is fully operational for business end users and administrators but connections to the Web dispatcher from outside are blocked. That is users connected via the web dispatcher cannot work any longer.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;B&gt;Cool down (Runlevel - 9)&lt;/B&gt;&lt;BR /&gt;
+The system is fully operational for administrators only. Business users are expected to finish their work and logout. At the end of the cool down phase business end users' sessions are terminated.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;B&gt;In Maintenance (Runlevel - 100)&lt;/B&gt;&lt;BR /&gt;
+The system is fully operational for administrators only. Administrators are users which have a special security policy assigned. There are no business end users logged onto the system.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;B&gt;Error during mode switch&lt;/B&gt;&lt;BR /&gt;
+An error occurred during a system mode switch.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;H4 id="toc-hId-1217446181"&gt;Below you see the so called "Maintenance Periods" and a "Log" of the maintenance mode.&lt;/H4&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/01/5-8.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;B&gt;Maintenance Periods&lt;/B&gt;&lt;BR /&gt;
+The maintenance periods are time periods in which the system is set to Maintenance Mode or where the system is shut down. Maintenance Periods may be defined by external monitoring tools or from within the system by creating a new entry in this view. Only entries created from within the system may be deleted here.&lt;BR /&gt;
+&lt;BR /&gt;
+There is no automatic mode switch implemented according to this schedule. By default the schedule of the current year is displayed. Use the selection button to modify this default selection.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;B&gt;Log&lt;/B&gt;&lt;BR /&gt;
+The log shows messages created by the framework which performs system mode switches. By default the log of the current month is displayed. Use the selection button to modify this default selection.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+When system is in maintenance mode below things are restricted&lt;BR /&gt;
+&lt;OL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Users which are not having security policy assigned are prevented to logon&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Background jobs are not allowed to run during maintenance mode&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;All sessions and users are logged off post 10 mins upon activating maintenance mode&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;HTTP sessions(webservices) are also closed and users will get 503 error&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;External interfaces/RFC are restricted to connect SAP system&lt;/LI&gt;&lt;BR /&gt;
+&lt;/OL&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+Message end users will see when system in maintenance mode&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/01/6-8.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+By using this we need not worry about ramp down activities such as users locking/unlocking, Job suspend, system messages, etc during any maintenance related task&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+References link :&amp;nbsp;&lt;A href="https://blogs.sap.com/2020/06/18/abap-platform-part-3-whats-new-for-the-basis-administrators/" target="_blank" rel="noopener noreferrer"&gt;https://blogs.sap.com/2020/06/18/abap-platform-part-3-whats-new-for-the-basis-administrators/&lt;/A&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;A href="https://help.sap.com/viewer/e067931e0b0a4b2089f4db327879cd55/202110.000/en-US/79b58c0b017f437aad8f4128980a06a7.html?q=Maintenance%20mode" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/viewer/e067931e0b0a4b2089f4db327879cd55/202110.000/en-US/79b58c0b017f437aad8f4128980a06a7.html?q=Maintenance%20mode&lt;/A&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/smaintenance-automation-of-regular-maintenance-tasks/ba-p/13522648"/>
+    <published>2022-01-10T13:18:59+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/fiori-like-web-app-development-in-pure-abap-with-htmx-and-fundamental/ba-p/13500763</id>
+    <title>Fiori-like web app development in pure ABAP with htmx and Fundamental</title>
+    <updated>2022-02-10T22:21:30+01:00</updated>
+    <author>
+      <name>pkve</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/299753</uri>
+    </author>
+    <content>&lt;H1 id="toc-hId-828292418"&gt;Introduction&lt;/H1&gt;&lt;BR /&gt;
+Are you a die-hard SE80 ABAP developer, or allergic to JavaScript? Or perhaps you just want to create some &lt;SPAN class="innerContentContainer"&gt;"freestyle" &lt;/SPAN&gt;custom Fiori-like apps for your clients or your company without wasting too much time learning new frameworks or relying on some third party?&lt;BR /&gt;
+&lt;BR /&gt;
+If so, then this post might be of some interest to you.&lt;BR /&gt;
+&lt;BR /&gt;
+Don't get me wrong, I do like JavaScript as a programming language, but I would like to present an alternative to the Single Page Application (SPA) frameworks, like Angular, Vue, React and SAPUI5 that have taken the world by storm over the last decade.&lt;BR /&gt;
+&lt;BR /&gt;
+In this blog post, we take a look at the main differences between the SPA model and the model promoted by htmx, and explore a small app to demonstrate its usage.&lt;BR /&gt;
+&lt;H1 id="toc-hId-631778913"&gt;From SPA to htmx&lt;/H1&gt;&lt;BR /&gt;
+&lt;H2 id="toc-hId-564348127"&gt;&lt;SPAN class="innerContentContainer"&gt;Single page application (JSON over the wire)&lt;/SPAN&gt;&lt;/H2&gt;&lt;BR /&gt;
+&lt;SPAN class="innerContentContainer"&gt;As a reminder, Single Page Applications are applications built to run on a single webpage. After the initial load of one HTML page and some JavaScript, they rely upon Ajax ("Asynchronous Javascript and XML") requests to pass JSON data objects to and from the server to the client to update the HTML page via JavaScript and the Document object model (DOM) API, without the need to reload the entire page.&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/02/draw_spa.png" /&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Single Page Application lifecycle&lt;/P&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;H2 id="toc-hId-367834622"&gt;HTML (fragment) over the wire&lt;/H2&gt;&lt;BR /&gt;
+In December 2020, David Heinemeier Hansson, creator of Ruby on Rails, CTO and co-founder of Basecamp, got some attention (at least mine) with a blog post proposing a departure from the SPA model.&lt;BR /&gt;
+&lt;BLOCKQUOTE&gt;You can write fast, modern, responsive web applications by generating your HTML on the server, and delivering that (with a little help) directly to the browser. You don’t need JSON as an in-between format. You don’t need client-side MVC frameworks. You don’t need complicated bundling and transpiling pipelines. But you do need to think different. [...]&lt;BR /&gt;
+&lt;BR /&gt;
+When we embrace HTML as the format to send across the wire, we liberate ourselves from having to write all the code that creates that HTML in JavaScript. You now get to write it in Ruby or Erlang or Clojure or Smalltalk or any programming language that might set your heart aflutter. We return the web to a place full of diversity in the implementations, and HTML as the lingua franca of describing those applications directly to the browser.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;A href="https://m.signalvnoise.com/html-over-the-wire/" target="_blank" rel="nofollow noopener noreferrer"&gt;https://m.signalvnoise.com/html-over-the-wire/&lt;/A&gt;&lt;/BLOCKQUOTE&gt;&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="908ae981cde0"&gt;&lt;SPAN class="innerContentContainer"&gt;This sounds like old SSR (server-side rendering) from the pre-SPA era, but with a twist: after receiving HTML from the server, the browser asynchronously requests &lt;STRONG&gt;fragments&lt;/STRONG&gt; of HTML, instead of JSON data, to dynamically alter parts of the page based on user interactions or events occurring on the server. &lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class="name" data-wfid="67a02da419b1"&gt;&lt;SPAN class="innerContentContainer"&gt;The logic, and the state, remain on the server.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/02/draw_html_over_the_wire-1.png" /&gt;&lt;BR /&gt;
+&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;HTML over the wire lifecycle&lt;/P&gt;&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="24bd526b66d7"&gt;&lt;SPAN class="innerContentContainer"&gt;I later learned that the model behind this "HTML over the wire" concept was not so new and already expressed in other frameworks such as &lt;A href="https://elixirforum.com/t/phoenix-liveview-info/16569" target="_blank" rel="nofollow noopener noreferrer"&gt;Phoenix LiveView&lt;/A&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt; (2018) or &lt;A href="https://calebporzio.com/proof-of-concept-phoenix-liveview-for-laravel" target="_blank" rel="nofollow noopener noreferrer"&gt;Laravel Livewire&lt;/A&gt;&amp;nbsp;(2019).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;H2 id="toc-hId-171321117"&gt;Htmx library&lt;/H2&gt;&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="6194eafbe47f"&gt;&lt;SPAN class="innerContentContainer"&gt;But there’s an even longer-term advocate of this model: Carson Gross, creator of the &lt;A href="https://htmx.org" target="_blank" rel="nofollow noopener noreferrer"&gt;htmx&lt;/A&gt;&amp;nbsp;library.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="7b46916a0d63"&gt;&lt;SPAN class="innerContentContainer"&gt;While htmx is fairly new with its first release in 2020, its predecessor, &lt;A href="https://intercoolerjs.org/" target="_blank" rel="nofollow noopener noreferrer"&gt;intercooler.js&lt;/A&gt;, dates back to 2013.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="a84f600f6a4b"&gt;&lt;SPAN class="innerContentContainer"&gt;Carson is a natural contrarian, as his pinned &lt;A href="https://twitter.com/htmx_org/status/1306234341056344065" target="_blank" rel="nofollow noopener noreferrer"&gt;Twitter&lt;/A&gt; post shows, and his &lt;A href="https://bigsky.software/" target="_blank" rel="nofollow noopener noreferrer"&gt;company&lt;/A&gt; motto too ("We find hot, new industry trends and then do the opposite of that").&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="7749d02269a7"&gt;&lt;SPAN class="innerContentContainer"&gt;To quote the website, htmx allows you to access &lt;A class="contentLink" href="https://htmx.org/docs#ajax" target="_blank" rel="noopener noreferrer nofollow"&gt;AJAX&lt;/A&gt;, &lt;A class="contentLink" href="https://htmx.org/docs#css_transitions" target="_blank" rel="noopener noreferrer nofollow"&gt;CSS Transitions&lt;/A&gt;, &lt;A class="contentLink" href="https://htmx.org/docs#websockets" target="_blank" rel="noopener noreferrer nofollow"&gt;WebSockets&lt;/A&gt; and &lt;A class="contentLink" href="https://htmx.org/docs#sse" target="_blank" rel="noopener noreferrer nofollow"&gt;Server-Sent Events&lt;/A&gt; directly in HTML, using &lt;A class="contentLink" href="https://htmx.org/reference#attributes" target="_blank" rel="noopener noreferrer nofollow"&gt;attributes&lt;/A&gt;, so you can build &lt;A class="contentLink" href="https://htmx.org/examples" target="_blank" rel="noopener noreferrer nofollow"&gt;modern user interfaces&lt;/A&gt; with the &lt;A class="contentLink" href="https://en.wikipedia.org/wiki/HATEOAS" target="_blank" rel="noopener noreferrer nofollow"&gt;simplicity&lt;/A&gt; and &lt;A class="contentLink" href="https://www.ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm" target="_blank" rel="noopener noreferrer nofollow"&gt;power&lt;/A&gt; of hypertext.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="6634dd26cb69"&gt;&lt;SPAN class="innerContentContainer"&gt;Htmx is small (&lt;A class="contentLink" href="https://unpkg.com/htmx.org/dist/" target="_blank" rel="noopener noreferrer nofollow"&gt;~10k min.gz'd&lt;/A&gt;), &lt;A class="contentLink" href="https://github.com/bigskysoftware/htmx/blob/master/package.json" target="_blank" rel="noopener noreferrer nofollow"&gt;dependency-free&lt;/A&gt;, &lt;A class="contentLink" href="https://htmx.org/extensions" target="_blank" rel="noopener noreferrer nofollow"&gt;extendable&lt;/A&gt; &amp;amp; IE11 compatible.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="4d3d20db18f7"&gt;&lt;SPAN class="innerContentContainer"&gt;It's also an attempt to complete HTML as a hypertext (as its name implies, htmx is an extension to HTML).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;H3 id="toc-hId-103890331"&gt;Basic examples&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/02/htmx_basic_example.png" /&gt;&lt;/H3&gt;&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="d2d5bb637b09"&gt;&lt;SPAN class="innerContentContainer"&gt;The htmx library is provided as a simple JavaScript file you can just reference from a CDN: no bundling is required.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="548b303bb9e4"&gt;&lt;SPAN class="innerContentContainer"&gt;In this example, when you click on the button, htmx issues a POST request to the url "/clicked" (because of the "hx-post" tag) and swaps the button tag with the (html fragment) responses (because of the "hx-swap" tag), without reloading the full page.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="602115e38231"&gt;&lt;SPAN class="innerContentContainer"&gt;And you can also issue a GET request or swap the innerHTML or any other tag of the current html page if you want.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="666eab888783"&gt;&lt;SPAN class="innerContentContainer"&gt;More examples are provided on the website and I highly recommend that you have a look at them &lt;A href="https://htmx.org/examples/" target="_blank" rel="nofollow noopener noreferrer"&gt;here&lt;/A&gt;.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="f4b357ff0c53"&gt;&lt;SPAN class="innerContentContainer"&gt;What makes htmx special is its minimalism:&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;You don't need any tooling.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;You can adopt htmx incrementally.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;You can do a lot purely in terms of HTML (without any JavaScript).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;If you really want/need some interactivity for your pages without touching the server, you can always use lightweight client frameworks such as:&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt; &lt;A class="contentLink" href="https://alpinejs.dev" target="_blank" rel="noopener noreferrer nofollow"&gt;Alpine.js,&lt;/A&gt; &lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;&lt;A class="contentLink" href="https://github.com/vuejs/petite-vue" target="_blank" rel="noopener noreferrer nofollow"&gt;petite-vue,&lt;/A&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;&lt;A class="contentLink" href="https://hyperscript.org/" target="_blank" rel="noopener noreferrer nofollow"&gt;hyperscript&lt;/A&gt;&amp;nbsp;(Carson's own library) - look at &lt;A href="https://putyourlightson.com/articles/a-first-look-at-hyperscript" target="_blank" rel="nofollow noopener noreferrer"&gt;this article&lt;/A&gt; for a short introduction,&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;or &lt;A href="http://vanilla-js.com/" target="_blank" rel="nofollow noopener noreferrer"&gt;VanillaJS&lt;/A&gt;.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="a065766127a9"&gt;&lt;SPAN class="innerContentContainer"&gt;If you want more information about the concepts behind htmx (REST, HATEOAS), I encourage you to &lt;A href="https://youtu.be/L_UWY-zHlOA" target="_blank" rel="nofollow noopener noreferrer"&gt;watch this talk&lt;/A&gt; from Carson (just mentally replace Django by SAP and Python by ABAP, and all his talk remains relevant, thanks to the "HOWL stack" — Hypertext On Whatever Language).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;H2 id="toc-hId--221705893"&gt;&lt;SPAN class="innerContentContainer"&gt;Fundamental Library Styles&lt;/SPAN&gt;&lt;/H2&gt;&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="eba7040f2cb3"&gt;&lt;SPAN class="innerContentContainer"&gt;If you want to give your app a Fiori look, don't look any further than the &lt;A href="https://github.com/SAP/fundamental-styles" target="_blank" rel="nofollow noopener noreferrer"&gt;Fundamental Library Styles&lt;/A&gt;, a light-weight presentation layer that you can use with any SPA framework and even with plain HTML; a perfect match for htmx.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="eba7040f2cb3"&gt;&lt;SPAN class="innerContentContainer"&gt;Another well-suited option for htmx might be &lt;A href="https://blogs.sap.com/2021/11/10/lift-off-ui5-web-components-1.0.0-launched/" target="_blank" rel="noopener noreferrer"&gt;Web Components&lt;/A&gt;, but I haven't experimented with them yet.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;H1 id="toc-hId--547302117"&gt;Small demo app&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/02/SAP-htmx-Active-search.gif" /&gt;&lt;/H1&gt;&lt;BR /&gt;
+&lt;H2 id="toc-hId--614732903"&gt;&lt;SPAN class="name" data-wfid="4c7b9c0038a2"&gt;&lt;SPAN class="innerContentContainer"&gt;Introduction&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/H2&gt;&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;To give you a better feel of the potential of a "&lt;A href="https://htmx.org/essays/hypermedia-driven-applications/" target="_blank" rel="nofollow noopener noreferrer"&gt;Hypermedia-Driven Application&lt;/A&gt;" on SAP, I created a micro "single class application" in just 195 single lines of ABAP code.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;It will illustrate 3 UX patterns made possible by htmx (among many others):&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;active search: search as the user enters text,&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;out-of-band (oob) content update: update multiple HTML fragments with the same http response,&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;and infinite scroll.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;H2 id="toc-hId--811246408"&gt;Installation&lt;/H2&gt;&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;You can choose any IDE to develop such apps, even your tried and tested SE80.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;The code of this app/class is available on Github &lt;A href="https://raw.githubusercontent.com/pkve/abap-htmx/main/ZTF_HANDLER.clas.abap" target="_blank" rel="nofollow noopener noreferrer"&gt;here&lt;/A&gt;.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;It should work out of the box on any 7.51+ system. This requirement is not related to htmx, but to my use of some ABAP keywords. Actually, htmx should work with any system starting from the 6.10 release of Web Application Server.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Just copy the raw data and paste it to a new ZTF_HANDLER class (after selecting "Source Code-Based" if you are using SE80).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/02/2021-09-19_15-42.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Once the code is activated, head over to SICF to create a new service.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;It can be on the root or, like in the example below, under a 'custom' parent service with no handler.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/02/2021-09-11_12-36.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Add your class name to the handler list and save.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/02/2021-09-11_12-34.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;And finally, in the SICF tree, right-click on your service and select "Activate Service", then "Test Service".&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/02/2021-11-07_08-50.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Your browser should open automatically and display your service for testing.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Note that the search function of the app is really basic, and case sensitive.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Also pay attention to the scrollbar handle on the right when you scroll down the results: it goes up every time a batch of 100 new rows is appended to the table.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;H2 id="toc-hId--660505556"&gt;Some code explanations&lt;/H2&gt;&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="285c2515e7bf"&gt;&lt;SPAN class="innerContentContainer"&gt;Before diving into the code, we have to keep in mind the structure of the app and its components.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/02/ztf_layout.png" /&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="58f7a32fb77f"&gt;&lt;SPAN class="innerContentContainer"&gt;Please also note that this app is bare-bones on purpose: to keep the code clear and simple, and focus on htmx.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="bd8cf4076244"&gt;&lt;SPAN class="innerContentContainer"&gt;The ABAP code is straightforward, so I will only explain the parts involving the htmx library.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;H3 id="toc-hId--1150422068"&gt;&lt;SPAN class="innerContentContainer"&gt;if_http_extension~handle_request&lt;/SPAN&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/02/handle_request-2.png" /&gt;&lt;/H3&gt;&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="dd19a584b7ea"&gt;&lt;SPAN class="innerContentContainer"&gt;Like every ICF service handler, the ZTF_HANDLER class implements the if_http_extension interface and its if_http_extension~handle_request method.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="aec78284c57d"&gt;&lt;SPAN class="innerContentContainer"&gt;This method acts as the "controller" part of the app.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="a18c52a38046"&gt;&lt;SPAN class="innerContentContainer"&gt;First we filter the HTTP method to only keep the GET requests, and then we get the current path of the app and the searched string, if any.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="db6ece7fb859"&gt;&lt;SPAN class="innerContentContainer"&gt;Then we check if the HTTP request is issued by the browser following normal navigation or from the htmx library (the 'HX-Request' header field is always populated with the value "true" for every htmx-initiated XMLHttpRequest).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;In the first case (initial load of the application), all the fragments making up the whole page are returned to the browser.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;In the second case, only the fragments required by the "app-action" are returned.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="8b13a3799072"&gt;&lt;SPAN class="innerContentContainer"&gt;Each HTML fragment is generated by its own method (prefixed with 'html_').&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="2708952323ed"&gt;&lt;SPAN class="innerContentContainer"&gt;Note that the "app-action" is a custom header field and not provided by the htmx library; its name is arbitrary and we will see later where this header field is defined.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="9a81b4e32d74"&gt;&lt;SPAN class="innerContentContainer"&gt;Each "app-action" (think of it as an "OK code") triggers a different response from the server.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;search&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;The whole table is sent to the browser, with the first batch of rows (100 rows or less).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;search_init&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Same as "search" but the searched_string is cleared and another HTML fragment is sent "out of band" with the response, the search bar itself, to clear its content. This "oob" feature allows you to update not only one, but as many HTML fragments of the original page within the same response as you want.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;scroll&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;When the user scrolls the list, a request is automatically sent to the server to get the next batch of rows (we will see how later).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;H3 id="toc-hId--1346935573"&gt;&lt;SPAN class="innerContentContainer"&gt;html_page&lt;/SPAN&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/02/html_page-3.png" /&gt;&lt;/H3&gt;&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="6a154d205e30"&gt;&lt;SPAN class="innerContentContainer"&gt;This app only has three dependencies:&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;the htmx.js file for the core htmx library,&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;the fundamental-style.css file for the Fundamental Library Styles,&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;the fonts used by the Fundamental Library Styles (see &lt;A href="https://sap.github.io/fundamental-styles/?path=/docs/introduction--overview" target="_blank" rel="nofollow noopener noreferrer"&gt;here&lt;/A&gt; for more info).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="f08be2cd403e"&gt;&lt;SPAN class="innerContentContainer"&gt;Here we link to a CDN but you should probably store these libraries in the standard SAP MIME Repository or using the &lt;A href="https://answers.sap.com/questions/5496583/viewing-a-file-which-is-in-application-server-al11.html" target="_blank" rel="noopener noreferrer"&gt;ICM&lt;/A&gt; or on any other internal HTTP server.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="74b39e47c84a"&gt;&lt;SPAN class="innerContentContainer"&gt;We also added a "htmx-config" meta tag to configure the default htmx swap mode with "outerHTML", to swap the whole fragment and not only its content (as with the default "innerHTML" mode).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;H3 id="toc-hId--1543449078"&gt;&lt;SPAN class="innerContentContainer"&gt;html_searchbar&lt;/SPAN&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/02/html_searchbar.png" /&gt;&lt;/H3&gt;&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="e0186d989d2a"&gt;&lt;SPAN class="innerContentContainer"&gt;To get started, all htmx attributes begin with "hx-" or "data-hx-". The two forms are equivalent but the latter doesn't issue errors when you check your generated HTML code with some tools like &lt;A href="https://validator.w3.org/nu/#textarea" target="_blank" rel="nofollow noopener noreferrer"&gt;this one&lt;/A&gt;.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="b2d08f7e2889"&gt;&lt;SPAN class="innerContentContainer"&gt;Here we have two reactive elements:&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;an input element for the search string,&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;a button to refresh the search bar and the list.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="4991c8353a5a"&gt;&lt;SPAN class="innerContentContainer"&gt;Here are some basic explanations about the various htmx attributes used here.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;data-hx-push-url&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Note that this attribute, like the data-hx-target attribute, is inherited by the child tags; so, instead of repeating this attribute on the input and button tags, we can just place it on the parent div tag.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;This tag is used to push the URL into the location bar; each time we search a new table name, it creates a new entry history, so that we can navigate back to our previous searches.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;data-hx-target&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;This attribute allows us to target a different HTML element for swapping than the one issuing the request.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;The target can be any valid CSS query selector (and more).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;data-hx-trigger&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;This attribute allows us to specify what triggers the request.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;As we want an "active search", the request will be triggered 250ms after the user stops typing (or if he leaves the search field).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;data-hx-get&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;This attribute causes an element to issue a GET request to the specified URL.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;data-hx-headers&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;This attribute allows us to add to the headers that will be submitted with the request. Its value is in JSON format.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;"app-action" is the arbitrary header field name I chose to send to the if_http_extension~handle_request.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;data-hx-swap-oob (in the first &amp;lt;div&amp;gt;)&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;This attribute allows you to specify that some content in a response should be swapped into the DOM somewhere other than the target, that is "Out of Band". Thanks to this attribute, when the user initialises their search, the server response updates both the html table and the search bar. Of course, this attribute is not inherited.&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="7ecc6a7a96fe"&gt;&lt;SPAN class="innerContentContainer"&gt;You can find more information about these attributes and the other htmx attributes &lt;A href="https://htmx.org/reference/#attributes" target="_blank" rel="nofollow noopener noreferrer"&gt;here&lt;/A&gt;.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;H3 id="toc-hId--1739962583"&gt;&lt;SPAN class="innerContentContainer"&gt;html_table_rows&lt;/SPAN&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/02/html_table_rows.png" /&gt;&lt;/H3&gt;&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="2adf4c79710e"&gt;&lt;SPAN class="innerContentContainer"&gt;Here, we not only display the batch of table rows but also an invisible row whose purpose is to trigger the load of the next batch of rows when it is scrolled into the viewport (or "revealed" as defined in the "data-hx-trigger" attribute).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="cf26dfba8f2f"&gt;&lt;SPAN class="innerContentContainer"&gt;The "data-hx-vals" attribute allows us to add some parameters to those that will be submitted with the request. We have to use this attribute to get the next batch of rows with the same search string as the original request.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name" data-wfid="0ba4ba7fc7d3"&gt;&lt;SPAN class="innerContentContainer"&gt;The "data-hx-target" and the "data-hx-swap" attributes are defined so as to add the new batch of rows to the end of the table.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;H1 id="toc-hId--1349670074"&gt;Advice from my own experience&lt;/H1&gt;&lt;BR /&gt;
+&lt;H2 id="toc-hId--1839586586"&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Use htmx&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/H2&gt;&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;You can find some libraries comparable to htmx (I first tried &lt;A href="https://unpoly.com/" target="_blank" rel="nofollow noopener noreferrer"&gt;unpoly&lt;/A&gt;) but the minimalism of htmx pays off in the end.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;H2 id="toc-hId--2036100091"&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Embrace HTML and CSS&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/H2&gt;&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;When I first experimented with htmx, my initial idea was to create an ABAP library to encapsulate HTML, htmx and the Fundamental Library Styles, but it was tedious and without any real added value.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;HTML and CSS are two of the core technologies for building webpages: you will not waste your time adding those skills to your toolbox.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+You can head over to the &lt;A href="https://sap.github.io/fundamental-styles/?path=/docs/components-action-bar--actions" target="_blank" rel="nofollow noopener noreferrer"&gt;Fundamental Library Styles website&lt;/A&gt; to get started. Just select a component and click on "Show code" to get the required HTML and CSS.&lt;BR /&gt;
+&lt;H2 id="toc-hId-2062353700"&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Learn how the SAP Internet Communication Framework works&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/H2&gt;&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;You can design your own app architecture in many different ways and with many different ABAP technologies (BSP, ABAP REST Library...) but using the ICF fully and &lt;A href="https://blogs.sap.com/2003/09/30/bsp-in-depth-writing-an-http-handler" target="_blank" rel="noopener noreferrer"&gt;writing your own HTTP handlers&lt;/A&gt; is a really good option.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;You can have &lt;A href="https://help.sap.com/viewer/753088fc00704d0a80e7fbd6803c8adb/202110.000/en-US/48d60600553b3e49e10000000a421937.html" target="_blank" rel="noopener noreferrer"&gt;multiple HTTP handler classes handling the same request&lt;/A&gt; and split your app in a tree of ICF services where each service corresponds to a component, or a group of components, which completes the main server response, quite similarly to "nested routes" in frameworks such as &lt;A href="https://remix.run/" target="_blank" rel="nofollow noopener noreferrer"&gt;Remix&lt;/A&gt; or in &lt;A href="https://reactrouter.com/docs/en/v6/getting-started/overview#nested-routes" target="_blank" rel="nofollow noopener noreferrer"&gt;React Router v6&lt;/A&gt;.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Also, don't forget &lt;A href="https://blogs.sap.com/2013/07/12/logging-calls-to-your-gateway-service-sicf-for-beginners/" target="_blank" rel="noopener noreferrer"&gt;ICF logging&lt;/A&gt;.&lt;BR /&gt;
+&lt;H2 id="toc-hId-1865840195"&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Simplify your state management&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/H2&gt;&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;If you are on HANA, store everything (including all user inputs) in the database; if you have to call BAPIs, store intermediate data in custom tables (just like SAPUI5 Draft Handling). You can even store each field update from the user.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;H2 id="toc-hId-1837510381"&gt;Stay humble&lt;/H2&gt;&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;When you think there is an issue with the htmx library, check your code instead (and the htmx &lt;A href="https://htmx.org/docs" target="_blank" rel="nofollow noopener noreferrer"&gt;documentation&lt;/A&gt; or &lt;A href="https://htmx.org/discord" target="_blank" rel="nofollow noopener noreferrer"&gt;discord&lt;/A&gt;).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;H1 id="toc-hId-1934399883"&gt;&lt;SPAN class="name" data-wfid="18a69c18b44a"&gt;&lt;SPAN class="innerContentContainer"&gt;Conclusion&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/H1&gt;&lt;BR /&gt;
+After a few weeks of using htmx, here are the main advantages and disadvantages of this library, from my point of view.&lt;BR /&gt;
+&lt;H2 id="toc-hId-1444483371"&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Pros&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/H2&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Full ABAP with direct access to existing BAPI, FM, classes, CDS views...&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Easy to grasp and well-documented libraries (both htmx and Fundamental Library Styles)&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Fast iterative process&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;No build process, you just have to activate your ABAP code.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;When building and testing HTML fragments, you don't even have to reload your HTML page.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;No mockup data&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;You have your full DB data available at your fingertips.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Simplified state management&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;No API / Frontend desynchronization&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;No duplication of logic&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Code editor of choice&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;I personally use VSCodium on Linux without a glitch, thanks to &lt;SPAN class="mention-scrubbed"&gt;murbani&lt;/SPAN&gt; and &lt;SPAN class="mention-scrubbed"&gt;lars.hvam&lt;/SPAN&gt;,&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;but ADT and SE80 are fine.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Easier debugging&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;All your code is in one place and you have no dependency on external code.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Architecture freedom&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;on the server-side&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;on the frontend: I used Fundamental Library Styles but you can use any CSS framework if you want.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Performance&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;It could be counter-intuitive because of all these round trips between the browser and the SAP server, but the fact is htmx is damn fast (faster than Fiori apps in our S/4HANA environment).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Security&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;The htmx library itself is less than 2,500 lines of easily auditable JavaScript code and, with it, you avoid using any other JavaScript (npm) module, usually overwhelmingly found in current SPA frontend developments or toolings.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Ubiquity&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;You can integrate htmx with any server-side framework using any language such as &lt;A href="https://htmx.org/server-examples" target="_blank" rel="nofollow noopener noreferrer"&gt;Python, C#, Java, Ruby, Julia, Lisp, Clojure&lt;/A&gt;, &lt;A href="https://github.com/rajasegar/awesome-htmx#go" target="_blank" rel="nofollow noopener noreferrer"&gt;Go&lt;/A&gt;, &lt;A href="https://hackage.haskell.org/package/lucid-htmx" target="_blank" rel="nofollow noopener noreferrer"&gt;Haskell&lt;/A&gt; or even &lt;A href="https://github.com/rajasegar/awesome-htmx#express" target="_blank" rel="nofollow noopener noreferrer"&gt;JavaScript&lt;/A&gt;!&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;H2 id="toc-hId-1247969866"&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Cons&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/H2&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Deviation from the web development model promoted by SAP&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;Not the best solution for fast prototyping&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;But as a programmer once said: "In the beginning you always want results. In the end all you want is control".&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;No ecosystem of reusable components (yet!)&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;SPAN class="name"&gt;&lt;SPAN class="innerContentContainer"&gt;I would really enjoy seeing some of you try this htmx library so that we can share our experiments and best practices &lt;SPAN class="innercontentcontainer"&gt;(and soon, "hmtx" might even become a new SAP community tag!).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;EM&gt;(This blog post is a tribute to &lt;SPAN class="mention-scrubbed"&gt;brian.mckellar&lt;/SPAN&gt; and &lt;SPAN class="mention-scrubbed"&gt;thomas.jung&lt;/SPAN&gt; whose book "Advanced BSP Programming" had been gathering dust on one of my shelves for too many years).&lt;/EM&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/fiori-like-web-app-development-in-pure-abap-with-htmx-and-fundamental/ba-p/13500763"/>
+    <published>2022-02-10T22:21:30+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/exploring-web-app-development-with-abap-htmx-in-comparison-with-abap-rap/ba-p/13543568</id>
+    <title>Exploring web app development with ABAP &amp; htmx (in comparison with ABAP RAP)</title>
+    <updated>2022-04-08T10:01:32+02:00</updated>
+    <author>
+      <name>aoyang</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/14700</uri>
+    </author>
+    <content>&lt;H3 id="toc-hId-1090239396"&gt;&lt;STRONG&gt;1. Introduction&lt;/STRONG&gt;&lt;/H3&gt;&lt;BR /&gt;
+This is a personal sequel to &lt;A href="https://blogs.sap.com/2022/02/10/fiori-like-web-app-development-in-pure-abap-with-htmx-and-fundamental/#" target="_blank" rel="noopener noreferrer"&gt;Fiori-like web app development in pure ABAP with htmx and Fundamental&lt;/A&gt; by &lt;SPAN class="mention-scrubbed"&gt;patrick.villeneuve&lt;/SPAN&gt; to explore further the possibilities of combining htmx and ABAP to develop business web apps.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;1.1 Motivation&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+The world is shifting towards SAP web development using SAPUI5 and ABAP RAP model on a platform like BTP, and it feels like all the years and efforts spent on developing pure ABAP applications and accumulating the know-how are starting to be forgotten.&lt;BR /&gt;
+&lt;BR /&gt;
+Then Patrick's blog caught my eyes. The blog introduces a web app development using htmx to control the frontend and ABAP on the backend. To put this in the modern SAPUI5 MVC architecture, "view" is managed by htmx, "controller" is managed by ABAP, and "Model" is not needed because ABAP can directly access the database.&lt;BR /&gt;
+&lt;BR /&gt;
+In this blog, I will go through my demo app to explain the interaction between htmx and ABAP, as well as how the CRUD operations can be handled. I aimed to create a business application which could be used by the real world business user, in order to share the feasibility and effort needed for this new development approach.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;1.2 htmx in a Nutshell&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+The most concrete explanation and philosophy behind htmx can be found in the &lt;A href="http://blogs.sap.com/2022/02/10/fiori-like-web-app-development-in-pure-abap-with-htmx-and-fundamental/" target="_blank" rel="noopener noreferrer"&gt;original blog&lt;/A&gt;. It's got nice illustrations too. But in a Nutshell, what makes it special are:&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Any HTML element can issue an HTTP request to the backend&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Not only clicking can trigger HTTP request but also scrolling, as user enters value, and even with shortcut key&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Any element on the page can be updated(swapped) without updating the entire page&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;A lot can be achieved on the frontend solely using htmx, without using JavaScript&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+If you are new to htmx(like me) and can't wrap your head around these concepts, that's ok! Nothing helps you understand better than getting your hands dirty!&lt;BR /&gt;
+&lt;H3 id="toc-hId-893725891"&gt;&lt;STRONG&gt;2. Demo app&lt;/STRONG&gt;&lt;/H3&gt;&lt;BR /&gt;
+Let's dive right into the demo app. This Sales Order Update App allows user to search the Sales order by certain selection filter and update line item information. The update result will be displayed on the Status column.&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/04/giphy2.gif" height="324" width="576" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/04/Model.png" height="215" width="393" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;STRONG&gt;2.1 Implementation steps&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Go to SE24 or SE80 and implement the backend ABAP class/methods. &lt;A href="https://raw.githubusercontent.com/Yoloyoda/abap_htmx/main/ZHTMX_HANDLER_SO.cl.abap" target="_blank" rel="nofollow noopener noreferrer"&gt;Here&lt;/A&gt; is the code of this app.&lt;BR /&gt;
+&lt;BR /&gt;
+Create a new custom service in SICF and activate it. Detailed steps can be found in the &lt;A href="https://blogs.sap.com/2022/02/10/fiori-like-web-app-development-in-pure-abap-with-htmx-and-fundamental/#" target="_blank" rel="noopener noreferrer"&gt;original blog&lt;/A&gt;. In this demo, I named my class "ZHTMX_HANDLER_SO" so that class should be set in your service. Right click the service and "Test Service" will open the app on your default browser.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;2.2 Code explanation&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;2.2.1 Initial call&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+When the Service URL is accessed, the class will be called and method "&lt;!--StartFragment --&gt;IF_HTTP_EXTENSION&lt;SPAN class="L0S70"&gt;~&lt;/SPAN&gt;HANDLE_REQUEST" is triggered. Here, first we get the query string and form data send on the request from the browser. In the initial call there is no string query or form so will come back to that. Then Depending on the method type, the code goes to different logic. The initial call will be GET and "&lt;!--StartFragment --&gt;hx&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;request" will always be empty. &lt;!--StartFragment --&gt;hx&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;request will be true if the request is triggered by htmx element such as "&lt;!--StartFragment --&gt;hx&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;&lt;SPAN class="L0S52"&gt;get&lt;/SPAN&gt;" and &lt;!--StartFragment --&gt;hx&lt;SPAN class="L0S70"&gt;-put&lt;/SPAN&gt;". So the code will call 4 different methods(&lt;!--StartFragment --&gt;HTML_PAGE, &lt;!--StartFragment --&gt;HTML_SHELLBAR, &lt;!--StartFragment --&gt;HTML_SELECTION, &lt;!--StartFragment --&gt;HTML_TABLE) in order to create the first view of the page. Each methods appends the html fragments into variable "&lt;!--StartFragment --&gt;HTML", which is also their return value.&amp;nbsp; &lt;!--StartFragment --&gt;SERVER&lt;SPAN class="L0S70"&gt;-&amp;gt;&lt;/SPAN&gt;RESPONSE&lt;SPAN class="L0S70"&gt;-&amp;gt;&lt;/SPAN&gt;APPEND_CDATA will return the whole HTML code back to browser as the Response.&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;METHOD IF_HTTP_EXTENSION~HANDLE_REQUEST.&lt;BR /&gt;
+&lt;BR /&gt;
+    "Get Request parameters&lt;BR /&gt;
+    ME-&amp;gt;GV_PATH = SERVER-&amp;gt;REQUEST-&amp;gt;GET_HEADER_FIELD(&lt;BR /&gt;
+                 IF_HTTP_HEADER_FIELDS_SAP=&amp;gt;PATH_TRANSLATED_EXPANDED ).&lt;BR /&gt;
+&lt;BR /&gt;
+    "Get the query value Order type&lt;BR /&gt;
+    ME-&amp;gt;GV_AUART = ESCAPE( VAL = SERVER-&amp;gt;REQUEST-&amp;gt;GET_FORM_FIELD( `a` )&lt;BR /&gt;
+                                  FORMAT = CL_ABAP_FORMAT=&amp;gt;E_HTML_TEXT ).&lt;BR /&gt;
+    "Get the query value Sales Org&lt;BR /&gt;
+    ME-&amp;gt;GV_VKORG = ESCAPE( VAL = SERVER-&amp;gt;REQUEST-&amp;gt;GET_FORM_FIELD( `v` )&lt;BR /&gt;
+                                  FORMAT = CL_ABAP_FORMAT=&amp;gt;E_HTML_TEXT ).&lt;BR /&gt;
+&lt;BR /&gt;
+    "Get the SO number user is operating&lt;BR /&gt;
+    ME-&amp;gt;GV_SO_KEY = ESCAPE( VAL = SERVER-&amp;gt;REQUEST-&amp;gt;GET_FORM_FIELD( `k` )&lt;BR /&gt;
+                                  FORMAT = CL_ABAP_FORMAT=&amp;gt;E_HTML_TEXT ).&lt;BR /&gt;
+&lt;BR /&gt;
+    "Get form data&lt;BR /&gt;
+    CALL METHOD SERVER-&amp;gt;REQUEST-&amp;gt;GET_FORM_FIELDS( CHANGING FIELDS = GT_FORM ).&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;BR /&gt;
+    "Get method&lt;BR /&gt;
+    IF SERVER-&amp;gt;REQUEST-&amp;gt;GET_HEADER_FIELD(&lt;BR /&gt;
+         IF_HTTP_HEADER_FIELDS_SAP=&amp;gt;REQUEST_METHOD ) = `GET`.&lt;BR /&gt;
+&lt;BR /&gt;
+      IF SERVER-&amp;gt;REQUEST-&amp;gt;GET_HEADER_FIELD( `hx-request` ) IS INITIAL.&lt;BR /&gt;
+&lt;BR /&gt;
+        SERVER-&amp;gt;RESPONSE-&amp;gt;APPEND_CDATA( HTML_PAGE( ) ).&lt;BR /&gt;
+        SERVER-&amp;gt;RESPONSE-&amp;gt;APPEND_CDATA( HTML_SHELLBAR( ) ).&lt;BR /&gt;
+        SERVER-&amp;gt;RESPONSE-&amp;gt;APPEND_CDATA( HTML_SELECTION( ) ).&lt;BR /&gt;
+        SERVER-&amp;gt;RESPONSE-&amp;gt;APPEND_CDATA( HTML_TABLE( EXPORTING FORM = GT_FORM ) ).&lt;BR /&gt;
+&lt;BR /&gt;
+      ELSE.&lt;BR /&gt;
+&lt;BR /&gt;
+        CASE SERVER-&amp;gt;REQUEST-&amp;gt;GET_HEADER_FIELD( `app-action` ).&lt;BR /&gt;
+&lt;BR /&gt;
+          WHEN `search_init`.&lt;BR /&gt;
+            "Implement Search Init logic of your choice&lt;BR /&gt;
+&lt;BR /&gt;
+          WHEN `scroll`.&lt;BR /&gt;
+&lt;BR /&gt;
+            GV_PAGE = SERVER-&amp;gt;REQUEST-&amp;gt;GET_HEADER_FIELD( `app-page` ).&lt;BR /&gt;
+            SERVER-&amp;gt;RESPONSE-&amp;gt;APPEND_CDATA( HTML_TABLE_ROWS( EXPORTING FORM = GT_FORM ) ).&lt;BR /&gt;
+&lt;BR /&gt;
+          WHEN `edit`.&lt;BR /&gt;
+            SERVER-&amp;gt;RESPONSE-&amp;gt;APPEND_CDATA( HTML_EDIT_ROWS( EXPORTING FORM = GT_FORM ) ).&lt;BR /&gt;
+&lt;BR /&gt;
+          WHEN `cancel`.&lt;BR /&gt;
+            SERVER-&amp;gt;RESPONSE-&amp;gt;APPEND_CDATA( HTML_CANCEL_EDIT( EXPORTING FORM = GT_FORM ) ).&lt;BR /&gt;
+&lt;BR /&gt;
+        ENDCASE.&lt;BR /&gt;
+&lt;BR /&gt;
+        DATA(LV_ACTION) = SERVER-&amp;gt;REQUEST-&amp;gt;GET_HEADER_FIELD( `app-action` ).&lt;BR /&gt;
+&lt;BR /&gt;
+      ENDIF.&lt;BR /&gt;
+&lt;BR /&gt;
+      SERVER-&amp;gt;RESPONSE-&amp;gt;SET_STATUS( CODE = 200&lt;BR /&gt;
+                                    REASON = IF_HTTP_STATUS=&amp;gt;REASON_200 ).&lt;BR /&gt;
+      SERVER-&amp;gt;RESPONSE-&amp;gt;SET_CONTENT_TYPE( `text/html` ).&lt;BR /&gt;
+&lt;BR /&gt;
+    ENDIF.&lt;BR /&gt;
+&lt;BR /&gt;
+    "Put Method&lt;BR /&gt;
+    IF SERVER-&amp;gt;REQUEST-&amp;gt;GET_HEADER_FIELD(&lt;BR /&gt;
+               IF_HTTP_HEADER_FIELDS_SAP=&amp;gt;REQUEST_METHOD ) = `PUT`.&lt;BR /&gt;
+      CASE SERVER-&amp;gt;REQUEST-&amp;gt;GET_HEADER_FIELD( `app-action` ).&lt;BR /&gt;
+&lt;BR /&gt;
+        WHEN `search`.&lt;BR /&gt;
+          SERVER-&amp;gt;RESPONSE-&amp;gt;APPEND_CDATA( HTML_TABLE( EXPORTING FORM = GT_FORM ) ).&lt;BR /&gt;
+&lt;BR /&gt;
+        WHEN `save`.&lt;BR /&gt;
+          SERVER-&amp;gt;RESPONSE-&amp;gt;APPEND_CDATA( HTML_SAVE_EDIT( EXPORTING FORM = GT_FORM&lt;BR /&gt;
+                                                          IMPORTING STATUS_MSG = GV_STATUS_MSG ) ).&lt;BR /&gt;
+      ENDCASE.&lt;BR /&gt;
+&lt;BR /&gt;
+      SERVER-&amp;gt;RESPONSE-&amp;gt;SET_STATUS( CODE = 200&lt;BR /&gt;
+                                    REASON = IF_HTTP_STATUS=&amp;gt;REASON_200 ).&lt;BR /&gt;
+      SERVER-&amp;gt;RESPONSE-&amp;gt;SET_CONTENT_TYPE( `text/html` ).&lt;BR /&gt;
+    ENDIF.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;BR /&gt;
+  ENDMETHOD.&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;2.2.2 Fundamental library and htmx library&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+In &lt;!--StartFragment --&gt;HTML_PAGE, the header of the app page is defined. The important point here is that&amp;nbsp; &lt;A href="https://sap.github.io/fundamental-styles/?path=/docs/introduction--overview" target="_blank" rel="nofollow noopener noreferrer"&gt;Fundamental Library&lt;/A&gt; and &lt;A href="https://htmx.org/docs/" target="_blank" rel="nofollow noopener noreferrer"&gt;htmx library&lt;/A&gt; are defined. In the later section of the code, you will find html class such as "fd-table" and "fd-input" and attributes such as "&lt;!--StartFragment --&gt;hx&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;headers" and "&lt;!--StartFragment --&gt;hx&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;target". "fd-" are referring to Fundamental library to give SAP Fiori theme UI and "hx-" attributes enables htmx function from htmx library.&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;`&amp;lt;link href='https://unpkg.com/fundamental-styles@0.22.0/dist/fundamental-styles.css' rel='stylesheet'&amp;gt;`&lt;BR /&gt;
+`&amp;lt;script src="https://unpkg.com/htmx.org@latest/dist/htmx.js"&amp;gt;&amp;lt;/script&amp;gt;`&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;2.2.3 Frontend/Backend interaction by htmx&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+By pressing the search button,&amp;nbsp; PUT request is triggered with the service URL of this app. This behavior is defined in &lt;!--StartFragment --&gt;HTML_SELECTION. "&lt;!--StartFragment --&gt;&lt;SPAN class="L0S52"&gt;data&lt;/SPAN&gt;&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;hx&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;&lt;SPAN class="L0S52"&gt;put=" defines the service to be triggered when the search button is pressed. In this case, &lt;!--StartFragment --&gt;GV_PATH contains the URL path initially triggered, and that will be triggered again when the button is pressed. Whatever set in "&lt;!--StartFragment --&gt;hx&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;headers=" will be added to Request header when the service is triggered. In this case, "app&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;action = search" will be added on the header and when the service is triggered by "data&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;hx&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;put", the code will process into the case statement where "&lt;!--StartFragment --&gt;WHEN&amp;nbsp;&lt;SPAN class="L0S33"&gt;`search`&lt;/SPAN&gt; = true"&amp;nbsp;in the main &lt;!--StartFragment --&gt;HANDLE_REQUEST method. &lt;SPAN style="text-decoration: underline"&gt;In other words,&lt;/SPAN&gt; &lt;SPAN style="text-decoration: underline"&gt;whatever set in "&lt;!--StartFragment --&gt;hx&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;headers" works like a OK code in ABAP dynpro and it gets picked up in the main &lt;!--StartFragment --&gt;HANDLE_REQUEST method&lt;/SPAN&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Another point to mention here is that this button is inside a "form", which means that the input values(Document type and Sales Org) will be passed as form data on the Request when the &lt;SPAN class="L0S52"&gt;search &lt;/SPAN&gt;button is pressed. Form data is fetched by method &lt;!--StartFragment --&gt;GET_FORM_FIELDS in the main &lt;!--StartFragment --&gt;HANDLE_REQUEST and later used to filter the SELECT statement. The purpose of those input fields are to filter the output of sales orders.&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;  METHOD HTML_SELECTION.&lt;BR /&gt;
+&lt;BR /&gt;
+    CONCATENATE&lt;BR /&gt;
+     `&amp;lt;form class="fd-form__item"&amp;gt;`&lt;BR /&gt;
+       `&amp;lt;label class="fd-form__label" for="auart"&amp;gt; Document type &amp;lt;/label&amp;gt;`&lt;BR /&gt;
+       `&amp;lt;input id="auart" class="fd-input fd-input-group__input" style="max-width: 100px;" type="text" name="Document type" &amp;gt;`&lt;BR /&gt;
+       `&amp;lt;label class="fd-form__label" for="vkorg"&amp;gt; Sales Org &amp;lt;/label&amp;gt;`&lt;BR /&gt;
+       `&amp;lt;input id="vkorg" class="fd-input fd-input-group__input" style="max-width: 100px;" type="text" name="Sales Org" &amp;gt;`&lt;BR /&gt;
+         `&amp;lt;button type="button" class="fd-button" `&lt;BR /&gt;
+                  `aria-label="clear search" `&lt;BR /&gt;
+                  `data-hx-get="` GV_PATH `" `&lt;BR /&gt;
+                  `data-hx-headers='{"app-action": "search_init"}'&amp;gt;`&lt;BR /&gt;
+            `&amp;lt;i class="sap-icon--clear-all"&amp;gt;&amp;lt;/i&amp;gt;`&lt;BR /&gt;
+          `&amp;lt;/button&amp;gt;`&lt;BR /&gt;
+         `&amp;lt;button type="button" class="fd-button" `&lt;BR /&gt;
+                  `aria-label="saerch" `&lt;BR /&gt;
+                  `data-hx-target="#sap_tables" `&lt;BR /&gt;
+                  `data-hx-swap-oob="true" `&lt;BR /&gt;
+                  `data-hx-put="` GV_PATH `" `&lt;BR /&gt;
+                  `data-hx-headers='{"app-action": "search"}'&amp;gt;`&lt;BR /&gt;
+            `&amp;lt;i class="sap-icon--search"&amp;gt;&amp;lt;/i&amp;gt;`&lt;BR /&gt;
+          `&amp;lt;/button&amp;gt;`&lt;BR /&gt;
+     `&amp;lt;/form&amp;gt;`&lt;BR /&gt;
+    INTO HTML.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;BR /&gt;
+  ENDMETHOD.&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+Similarly, Edit button on each table rows are also calling back the class method every time they are pressed. Here, form is not used but "&lt;!--StartFragment --&gt;hx&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;vals" allows you to add search string to the request and in this case, search string k with value of &lt;!--StartFragment --&gt;GV_SO_KEY is passed. &lt;!--StartFragment --&gt;GV_SO_KEY contains the sales order + item number key which is concatenated before &lt;!--StartFragment --&gt;TAB_ROW_DISP_MODE is called. This is for the callback program to identify which sales order row the user is trying to change.&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;  METHOD TAB_ROW_DISP_MODE.&lt;BR /&gt;
+&lt;BR /&gt;
+    "Put the row to display mode&lt;BR /&gt;
+    CONCATENATE HTML&lt;BR /&gt;
+    `&amp;lt;tr class="fd-table__row fd-table__row--hoverable"&amp;gt;`&lt;BR /&gt;
+      `&amp;lt;td class="fd-table__cell"&amp;gt;` DATA-VBELN `&amp;lt;/td&amp;gt;`&lt;BR /&gt;
+      `&amp;lt;td class="fd-table__cell"&amp;gt;` DATA-AUART `&amp;lt;/td&amp;gt;`&lt;BR /&gt;
+      `&amp;lt;td class="fd-table__cell"&amp;gt;` DATA-VKORG `&amp;lt;/td&amp;gt;`&lt;BR /&gt;
+      `&amp;lt;td class="fd-table__cell"&amp;gt;` DATA-POSNR `&amp;lt;/td&amp;gt;`&lt;BR /&gt;
+      `&amp;lt;td class="fd-table__cell"&amp;gt;` DATA-MATNR `&amp;lt;/td&amp;gt;`&lt;BR /&gt;
+      `&amp;lt;td class="fd-table__cell"&amp;gt;` DATA-KWMENG `&amp;lt;/td&amp;gt;`&lt;BR /&gt;
+      `&amp;lt;td class="fd-table__cell"&amp;gt;` DATA-VRKME `&amp;lt;/td&amp;gt;`&lt;BR /&gt;
+      `&amp;lt;td&amp;gt;`&lt;BR /&gt;
+        `&amp;lt;button class="btn btn-danger"`&lt;BR /&gt;
+                `data-hx-vals='{"k": "` GV_SO_KEY `"}' `&lt;BR /&gt;
+                `data-hx-get="` GV_PATH `" `&lt;BR /&gt;
+                `data-hx-headers='{"app-action": "edit"}' &amp;gt;`&lt;BR /&gt;
+          `Edit`&lt;BR /&gt;
+        `&amp;lt;/button&amp;gt;`&lt;BR /&gt;
+      `&amp;lt;/td&amp;gt;`&lt;BR /&gt;
+      `&amp;lt;td class="fd-table__cell fd-info-label--accent-color-6" style="margin:0.2rem""&amp;gt;` STATUS_MSG `&amp;lt;/td&amp;gt;`&lt;BR /&gt;
+    `&amp;lt;/tr&amp;gt;` INTO HTML.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;BR /&gt;
+  ENDMETHOD.&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+Other htmx initiated user interactions include, pressing cancel buttons, pressing save button and scrolling down to fetch more records. They all call back the backend ABAP class method and return with the response data.&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;2.2.4 Swapping in htmx&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+One of the attractive feature of htmx is that &lt;SPAN style="text-decoration: underline"&gt;you can swap and replace certain part of the page without returning the whole page of HTML.&lt;/SPAN&gt; This is achieved by first defining the default swapping mode. "outerHTML" replaces the entire HTML element that is in process. &lt;A href="https://htmx.org/attributes/hx-swap/" target="_blank" rel="nofollow noopener noreferrer"&gt;Here&lt;/A&gt; you can find other swapping modes.&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;&amp;lt;meta name="htmx-config" content='{"defaultSwapStyle":"outerHTML"}'&amp;gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+Let's look at an example when user presses Edit on one of the rows. &lt;!--StartFragment --&gt;&lt;SPAN class="L0S52"&gt;WHEN&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN class="L0S33"&gt;`edit`&lt;/SPAN&gt; will be true and &lt;!--StartFragment --&gt;HTML_EDIT_ROWS&amp;nbsp; is called, in which calls &lt;!--StartFragment --&gt;TAB_ROW_EDIT_MODE. This method is only returning one row of table in HTML, NOT the whole page of the app starting from the Shell bar to the bottom of the table.&lt;BR /&gt;
+&lt;BR /&gt;
+OuterHTML swapping is used almost everywhere in this app, but the search button is using different kind of swapping. &lt;A href="https://htmx.org/attributes/hx-swap-oob/" target="_blank" rel="nofollow noopener noreferrer"&gt;hx-swap-oob&lt;/A&gt; comes in handy when you want to swap other part of the page instead of itself. When search button is pressed, no change on the button itself is required but the table contents below should be refreshed. So&amp;nbsp; that's why &lt;!--StartFragment --&gt;hx&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;target=&lt;SPAN class="L0S31"&gt;"#sap_tables"&lt;/SPAN&gt; is set, which means this button is intended to swap the contents of "&lt;SPAN class="L0S31"&gt;sap_tables", which is the id for the HTML table.&amp;nbsp;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;         `&amp;lt;button type="button" class="fd-button" `&lt;BR /&gt;
+                  `aria-label="saerch" `&lt;BR /&gt;
+                  `data-hx-target="#sap_tables" `&lt;BR /&gt;
+                  `data-hx-swap-oob="true" `&lt;BR /&gt;
+                  `data-hx-put="` GV_PATH `" `&lt;BR /&gt;
+                  `data-hx-headers='{"app-action": "search"}'&amp;gt;`&lt;BR /&gt;
+            `&amp;lt;i class="sap-icon--search"&amp;gt;&amp;lt;/i&amp;gt;`&lt;BR /&gt;
+          `&amp;lt;/button&amp;gt;`&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;2.3 CRUD operation&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+This app uses Read and Update of the sales document data so I will only highlight how Create and Delete can by handled.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;Create: &lt;/STRONG&gt;Define a "Add" button with attribute "&lt;!--StartFragment --&gt;hx&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;headers=&lt;SPAN class="L0S33"&gt;'{"app-action": "add"}'" and set app's callback URL on "&lt;!--StartFragment --&gt;hx&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;&lt;SPAN class="L0S52"&gt;get&lt;/SPAN&gt;". In the main &lt;!--StartFragment --&gt;HANDLE_REQUEST method, create a CASE statement for "add" and call BAPI or BDC of your choice to create sales order.&amp;nbsp;&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;SPAN class="L0S33"&gt;&lt;STRONG&gt;Delete: &lt;/STRONG&gt;Define a "Delete" button on each row of the table with attribute "&lt;!--StartFragment --&gt;hx&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;headers='{"app-action": "delete"}'" and set app's callback URL on "&lt;!--StartFragment --&gt;hx&lt;SPAN class="L0S70"&gt;-&lt;/SPAN&gt;&lt;SPAN class="L0S52"&gt;get&lt;/SPAN&gt;". The rest is same as Create. Create your own logic to delete the sales order item. One thing you have to remember is that nothing should be returned by &lt;!--StartFragment --&gt;APPEND_CDATA on the request's response to make sure that the deleted item will be removed from the HTML table.&lt;/SPAN&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+So it's very straightforward! Just need to use htmx initiated request &amp;amp; htmx swapping wisely and combine it with backend ABAP to update the SAP database.&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;2.4 &lt;/STRONG&gt;&lt;B&gt;Exercise(Try it!)&lt;/B&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+Now I assume you have pretty good idea how swapping and htmx initiated request work. If you'd like, you can implement your own logic for the "search clear button", as I left it empty on purpose&lt;span class="lia-unicode-emoji" title=":grinning_face:"&gt;😀&lt;/span&gt;.&lt;BR /&gt;
+&lt;PRE class="language-abap"&gt;&lt;CODE&gt;          WHEN `search_init`.&lt;BR /&gt;
+            "Implement Search Init logic of your choice&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;H3 id="toc-hId-697212386"&gt;&lt;STRONG&gt;3. Compatibility with ABAP&lt;/STRONG&gt;&lt;/H3&gt;&lt;BR /&gt;
+Through building this app, here is my summary of this development approach.&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Full access to objects in SAP application/DB server through ABAP&lt;span class="lia-unicode-emoji" title=":thumbs_up:"&gt;👍&lt;/span&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;No need to call API to fetch dataset thus no need to create/manage Odata in backend&lt;span class="lia-unicode-emoji" title=":thumbs_up:"&gt;👍&lt;/span&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Entire code is wrapped in one ABAP class for good maintainability (but you can always setup multiple services and classes in SICF)&lt;span class="lia-unicode-emoji" title=":thumbs_up:"&gt;👍&lt;/span&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;The frontend code will be very light. All the complex logic is managed in backend ABAP&lt;span class="lia-unicode-emoji" title=":thumbs_up:"&gt;👍&lt;/span&gt;&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Input fields cannot directly refer to SAP data domain thus no automatic external/internal value conversion(had to manually convert doc number, sales org, etc.) &lt;span class="lia-unicode-emoji" title=":confused_face:"&gt;😕&lt;/span&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;A lot of effort to create select-options and F4 value help. They're so easy in ABAP though...&lt;span class="lia-unicode-emoji" title=":confused_face:"&gt;😕&lt;/span&gt;&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Need better idea to maintain HTML code than using string concatenation&lt;span class="lia-unicode-emoji" title=":confused_face:"&gt;😕&lt;/span&gt; -&amp;gt; In the next release, it would be cool if SAP integrated HTML editor in SE80, like &lt;A href="https://blogs.sap.com/2016/01/20/wysiwyg-html-editor/" target="_blank" rel="noopener noreferrer"&gt;this one&lt;/A&gt;!&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+There are pros and cons but since it's a new approach, there is always room for improvement!&lt;BR /&gt;
+&lt;H3 id="toc-hId-500698881"&gt;&lt;STRONG&gt;4. Comparing the efforts with ABAP RAP Model&lt;/STRONG&gt;&lt;/H3&gt;&lt;BR /&gt;
+This new development model offers new possibilities for SAP web development and all, but does it save more time and hassle compared to the existing web app development framework? I used ABAP RAP to create nearly the identical app and turned out it took much less effort to build it&lt;span class="lia-unicode-emoji" title=":grinning_face_with_sweat:"&gt;😅&lt;/span&gt;.&lt;BR /&gt;
+&lt;BR /&gt;
+On top of that, ABAP RAP model does not have the weakness of htmx &amp;amp; ABAP model, which are:&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Internal/external format conversion is performed automatically&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;F4 search help comes as default&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Select options/multiple selection are possible&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+on top of these advantages,&lt;BR /&gt;
+&lt;UL&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;DB data is at your fingertip. BAPI call also possible to update database(not in the CRUD methods but only in the saver methods)&lt;/LI&gt;&lt;BR /&gt;
+ 	&lt;LI&gt;Coding is only needed on behavior class, which was less than 200 lines&lt;/LI&gt;&lt;BR /&gt;
+&lt;/UL&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/04/ABAPRest1.png" height="163" width="641" /&gt;&lt;/P&gt;&lt;BR /&gt;
+&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2022/04/ABAPRest2.png" /&gt;&lt;/P&gt;&lt;BR /&gt;
+The only drawback I felt there was is that I couldn't call BAPI anywhere I wanted in the behavior class method. BAPI parameters must be prepared in the CRUD methods and pass them as ABAP memory to the saver methods.&lt;BR /&gt;
+&lt;BR /&gt;
+If you are not familiar with ABAP RAP model, please check &lt;A href="https://blogs.sap.com/2019/05/23/sap-cloud-platform-abap-restful-programming-model-rap-for-beginners/" target="_blank" rel="noopener noreferrer"&gt;this blog&lt;/A&gt; and I definitely recommend you to try it!&lt;BR /&gt;
+&lt;H3 id="toc-hId-304185376"&gt;&lt;STRONG&gt;5. Conclusion&lt;/STRONG&gt;&lt;/H3&gt;&lt;BR /&gt;
+So I must admit that for this specific demo app requirement, ABAP RAP model is a better option. However, htmx is still super powerful and htmx &amp;amp; ABAP model brings so much possibilities to SAP web app development. If the weakness I mentioned can be overcome somehow, it will offer much more flexibility in the UI design, easier frontend backend synchronization, and much simpler development model.&lt;BR /&gt;
+&lt;BR /&gt;
+The next step? I really hope that SAP will add new components to ABAP library to exploit the capability of htmx!&lt;BR /&gt;
+&lt;BR /&gt;
+&amp;nbsp;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;STRONG&gt;References&lt;/STRONG&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;A href="https://blogs.sap.com/2022/02/10/fiori-like-web-app-development-in-pure-abap-with-htmx-and-fundamental/#" target="_blank" rel="noopener noreferrer"&gt;Fiori-like web app development in pure ABAP with htmx and Fundamental&lt;/A&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;A href="https://raw.githubusercontent.com/Yoloyoda/abap_htmx/main/ZHTMX_HANDLER_SO.cl.abap" target="_blank" rel="nofollow noopener noreferrer"&gt;Demo app source code&lt;/A&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;A href="https://htmx.org/" target="_blank" rel="nofollow noopener noreferrer"&gt;htmx library&lt;/A&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;A href="https://sap.github.io/fundamental-styles/?path=/docs/introduction--overview" target="_blank" rel="nofollow noopener noreferrer"&gt;Fundamental Library&lt;/A&gt;&lt;BR /&gt;
+&lt;BR /&gt;
+&lt;A href="https://blogs.sap.com/2019/05/23/sap-cloud-platform-abap-restful-programming-model-rap-for-beginners/" target="_blank" rel="noopener noreferrer"&gt;ABAP on SAP Cloud platform – ABAP RESTful Programming Model (RAP) for beginners with CRUD example&lt;/A&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/exploring-web-app-development-with-abap-htmx-in-comparison-with-abap-rap/ba-p/13543568"/>
+    <published>2022-04-08T10:01:32+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/how-to-display-alv-grid-with-only-structure/ba-p/13864946</id>
+    <title>How to display ALV GRID with only structure</title>
+    <updated>2024-09-13T10:39:24.855000+02:00</updated>
+    <author>
+      <name>mark_fryu</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/709977</uri>
+    </author>
+    <content/>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/how-to-display-alv-grid-with-only-structure/ba-p/13864946"/>
+    <published>2024-09-13T10:39:24.855000+02:00</published>
+  </entry>
+</feed>
