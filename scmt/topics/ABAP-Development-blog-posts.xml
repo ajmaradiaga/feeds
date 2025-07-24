@@ -2,10 +2,316 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2025-07-24T11:00:03.629877+00:00</updated>
+  <updated>2025-07-24T14:00:03.440867+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/custom-program-to-generate-where-used-list-for-cds-ddls-object/ba-p/14137421</id>
+    <title>Custom program to generate- Where used list for CDS DDLS Object.</title>
+    <updated>2025-06-26T10:31:12.615000+02:00</updated>
+    <author>
+      <name>Prasenjitsbist</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/11946</uri>
+    </author>
+    <content>&lt;P&gt;This code is not my original creation, there was already a utility code on SCN to generate the where used list of CDS DDLS object. But that code only works for 1 CDS at a time. I supplied the same code to my team and they said it would be better if it could handle multiple entries. So, I just made those few changes rest is as it is from the original and full credit goes to that developer for his/her work. This code can surely be improved using better queries and reducing loops etc. but that will be up to the developer who uses this code in future.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;report zpsb_util_cds_where_used.
+
+
+types:begin of ty_ddls_w,
+        ddls     type ddlname,
+        o_type   type trobjtype,
+        obj_name type progname,
+      end of ty_ddls_w,
+
+      begin of ty_funcm,
+        funcname type rs38l_fnam,
+        pname    type pname,
+      end of ty_funcm,
+
+      ty_ddls_t  type standard table of ty_ddls_w with empty key,
+      ty_funcm_t type standard table of ty_funcm with empty key.
+
+data:w_ddls_f  type string,
+     t_ddls_w  type ty_ddls_t,
+     t_ddls_final  type ty_ddls_t,
+     s_ddlname type ty_ddls_w,
+     t_func    type ty_funcm_t.
+
+selection-screen: begin of block b1 with frame title text-001.
+
+selection-screen skip 1.
+
+selection-screen begin of line.
+*parameters:p_rad1 radiobutton group rb1.
+selection-screen comment 5(20) comment1.
+"PARAMETERS: p_ddls1  TYPE ddlname.
+select-options: s_ddls1 for s_ddlname-ddls NO INTERVALS.
+selection-screen end of line.
+
+selection-screen skip 1.
+
+*selection-screen begin of line.
+*parameters:p_rad2 radiobutton group rb1.
+*selection-screen comment 5(20) comment2.
+*parameters: p_ddls2  type ddlname.
+*selection-screen end of line.
+selection-screen:end of block b1.
+
+at selection-screen output.
+
+  comment1 = 'CDS Where Used:'.
+*  comment2 = 'CDS Components:'.
+
+class lcl_event_handler definition.
+
+  public section.
+
+    types:begin of lty_source_code,
+            src_cd type char1000_idoc,
+          end of lty_source_code.
+
+    data:
+      lo_alv type ref to cl_salv_table,
+      lt_alv type ty_ddls_t.
+
+
+    methods constructor
+      importing
+        i_alv type ref to cl_salv_table.
+
+    methods on_double_click
+      for event if_salv_events_actions_table~double_click
+                  of cl_salv_events_table
+      importing row column.
+
+endclass.
+
+class lcl_event_handler implementation.
+
+  method constructor.
+    lo_alv = i_alv.
+  endmethod.
+
+  method on_double_click.
+
+    data: lt_source_cd type standard table of lty_source_code,
+          l_obj_name   type progname,
+          l_type       type trobjtype,
+          l_ddls       type ddlname.
+
+    check column = 'OBJ_NAME'.
+
+    l_obj_name = lt_alv[ row ]-obj_name.
+    l_type = lt_alv[ row ]-o_type.
+    l_ddls = lt_alv[ row ]-ddls.
+
+    case l_type.
+
+      when 'DDLS'.
+
+        try.
+            cl_dd_ddl_handler_factory=&amp;gt;create( )-&amp;gt;read(
+                  exporting
+                    name         = conv ddlname( to_upper( l_obj_name ) )
+                  importing
+                    ddddlsrcv_wa = data(ddlsrcv_wa) ).
+          catch cx_dd_ddl_read into data(exc).
+            cl_demo_output=&amp;gt;display( exc-&amp;gt;get_text( ) ).
+        endtry.
+        if ddlsrcv_wa-source is initial.
+          cl_demo_output=&amp;gt;display( |Nothing found| ).
+          return.
+        endif.
+
+        cl_demo_output=&amp;gt;display( replace( val = ddlsrcv_wa-source
+                                          sub = |\n|
+                                          with = ``
+                                          occ = 0 ) ).
+
+      when others.
+
+*---get the source code (other then DDLS)
+        read report l_obj_name  into lt_source_cd.
+        if sy-subrc eq 0.
+
+          data(l_source_code) = reduce string( init lv_src type string
+*---Don't consider ANY commented code
+                                        for lw_source in lt_source_cd
+                                    index into lv_index
+                                      where ( table_line+0(1) ne '*' )
+                              next lv_src=to_upper( lv_src ) &amp;amp;&amp;amp;
+                              space &amp;amp;&amp;amp; to_upper( lw_source-src_cd )  &amp;amp;&amp;amp; | LINE#: { lv_index }#|   ).
+
+          clear lt_source_cd.
+
+          data(l_search_pattern) = `(?:LINE#: (\d)+)(?=#[\w\s]+` &amp;amp;&amp;amp; |{  l_ddls  }| &amp;amp;&amp;amp; `)`.
+          data(lv_result) = match(  val = l_source_code
+                                               regex = l_search_pattern
+                                               case = abap_false    ).
+          if lv_result is not initial.
+            data(lv_line) = match(
+                                     val = lv_result
+                                    regex = `(?:LINE#:\s)([0-9]+)`
+                                    case = abap_false
+                                     ).
+            split lv_line at ':' into data(l_part1) data(l_part2).
+            condense l_part2 no-gaps.
+
+
+          else.
+            message |Object: { l_ddls }, has no direct usage| type 'S'.
+          endif.
+
+        endif.
+        call function 'RS_TOOL_ACCESS'
+          exporting
+            operation           = 'SHOW'
+            object_name         = l_obj_name
+            object_type         = l_type
+            position            = cond char10( when l_part2 = 0 then space else ( l_part2 + 1 ) )
+          exceptions
+            not_executed        = 1
+            invalid_object_type = 2
+            others              = 3.
+        if sy-subrc &amp;lt;&amp;gt; 0.
+* Implement suitable error handling here
+        endif.
+    endcase.
+  endmethod.
+
+endclass.
+
+start-of-selection.
+
+*  case abap_true.
+*
+*    when p_rad1.
+
+*      IF p_ddls1 IS INITIAL.
+      if s_ddls1[] is initial.
+        message 'Enter a CDS View to proceed!' type 'S'.
+        leave list-processing.
+      endif.
+
+      loop at s_ddls1 into data(p_ddls1).
+
+
+
+        w_ddls_f = '\TY:' &amp;amp;&amp;amp; p_ddls1-low.
+
+*---Find parent DDLS (if any)
+        select * from ddls_ris_index
+        into table (t_ddls_where_used)
+        where used_artifact_fullname = @w_ddls_f.
+        if sy-subrc eq 0.
+          loop at t_ddls_where_used reference into data(lo_ddls).
+            append initial line to t_ddls_w reference into data(lo_ddls_wu).
+            split lo_ddls-&amp;gt;used_artifact_fullname at ':' into data(w_part1) data(w_part2).
+
+            lo_ddls_wu-&amp;gt;ddls = w_part2.
+            lo_ddls_wu-&amp;gt;o_type = 'DDLS'.
+            lo_ddls_wu-&amp;gt;obj_name = lo_ddls-&amp;gt;ddlsrc_name.
+          endloop.
+        endif.
+
+*----find all other ABAP Objects where input DDLS been used
+        select name,
+               include,
+               case repo~subc
+
+               when '1' then 'REPS'
+               when 'K' then 'CLAS'
+               when 'I' then 'INCL'
+               when 'F' then 'FUGR'
+               else 'UN'
+               end  as o_type
+
+            from wbcrossgt as wb
+            left outer join reposrc as repo
+            on wb~include = repo~progname
+        INTO table (lt_wbcrossgt)
+        where otype = 'TY'
+        and name = @p_ddls1-low
+        and indirect = .
+        if sy-subrc eq 0.
+          sort lt_wbcrossgt by name include o_type.
+
+*---Check for Function Modules
+          loop at lt_wbcrossgt reference into data(lo_wbcross) where o_type = 'UN'.
+            append initial line to t_func reference into data(lo_func).
+            lo_func-&amp;gt;funcname = lo_wbcross-&amp;gt;include.
+          endloop.
+
+          if t_func is not initial.
+            select  funcname,
+                    pname
+              from tfdir INTO table (t_tfdir)
+              for all entries in @t_func
+              where funcname = @t_func-funcname.
+            if sy-subrc eq 0.
+              sort t_tfdir by funcname.
+            endif.
+          endif.
+
+          loop at lt_wbcrossgt reference into lo_wbcross.
+            append initial line to t_ddls_w reference into lo_ddls_wu.
+
+            if lo_wbcross-&amp;gt;o_type = 'UN' and line_exists( t_tfdir[ funcname = lo_wbcross-&amp;gt;include ] ).
+              lo_ddls_wu-&amp;gt;ddls = p_ddls1.
+              lo_ddls_wu-&amp;gt;o_type = 'FUNC'.
+              lo_ddls_wu-&amp;gt;obj_name = lo_wbcross-&amp;gt;include.
+            else.
+
+              lo_ddls_wu-&amp;gt;ddls = p_ddls1.
+              lo_ddls_wu-&amp;gt;o_type = lo_wbcross-&amp;gt;o_type.
+              lo_ddls_wu-&amp;gt;obj_name = lo_wbcross-&amp;gt;include.
+            endif.
+
+          endloop.
+
+        endif.
+        append LINES OF t_ddls_w[] TO t_ddls_final[].
+        clear: t_ddls_w, t_func, t_tfdir.
+      endloop.
+
+*      WHEN OTHERS.
+*
+**
+**    when p_rad2.
+**      message 'This feature, not yet Supported' type 'S'.
+**      leave list-processing.
+*  endcase.
+
+*  if t_ddls_w is not initial.
+  if t_ddls_final[] is not initial.
+
+    call method cl_salv_table=&amp;gt;factory
+      importing
+        r_salv_table = data(lo_alv1)
+      changing
+        t_table      = t_ddls_final[].
+
+    if lo_alv1 is bound.
+      lo_alv1-&amp;gt;get_functions( )-&amp;gt;set_all( abap_true ).
+      lo_alv1-&amp;gt;get_columns( )-&amp;gt;set_optimize( abap_true ).
+
+      data(lo_evt_handler) = new lcl_event_handler( lo_alv1 ).
+      data(lo_events) = lo_alv1-&amp;gt;get_event( ).
+      set handler lo_evt_handler-&amp;gt;on_double_click for lo_events.
+
+      lo_evt_handler-&amp;gt;lt_alv = t_ddls_w.
+      lo_alv1-&amp;gt;display( ).
+    endif.
+
+*  else.
+*
+*    message 'No records found!' type 'S'.
+*    leave list-processing.
+*
+  endif.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;There is no line by line explanation or comment because the code is self-explanatory. Talk less code more &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/custom-program-to-generate-where-used-list-for-cds-ddls-object/ba-p/14137421"/>
+    <published>2025-06-26T10:31:12.615000+02:00</published>
+  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/i-built-langchain-lite-for-abap-and-solved-the-enterprise-ai-cold-start/ba-p/14140633</id>
     <title>I Built LangChain-lite for ABAP, and Solved the Enterprise AI Cold Start Problem</title>
@@ -3093,18 +3399,6 @@ START-OF-SELECTION.
     <content>&lt;P&gt;Many SAP customers are currently in the phase of migrating their SAP ERP systems to S/4HANA. For those who choose a brownfield or bluefield approach the old ERP system is converted and the customers extensions and own applications (Z* objects) become part of the new system.&lt;/P&gt;&lt;P&gt;Then, the process of Custom Code Adaptation kicks in where the ERP functionality is analyzed and corrected in a way that the objects run again in S/4HANA. See &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/get-started-with-the-abap-custom-code-migration-process/bc-p/14049622" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-sap/get-started-with-the-abap-custom-code-migration-process/bc-p/14049622&lt;/A&gt; or &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/sap-s-4hana-system-conversion-custom-code-adaptation-process/ba-p/13337309" target="_blank"&gt;https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/sap-s-4hana-system-conversion-custom-code-adaptation-process/ba-p/13337309&lt;/A&gt; for more details.&lt;/P&gt;&lt;P&gt;The custom code correction process can be time consuming and challenging depending on the size and complexity of the original ERP system. A big part of the custom code objects will be touched. The basis for the checks and corrections is the ABAP Test Cockpit (ATC) with the check variant for S/4HANA (e.g. S4HANA_READINESS_2023).&lt;/P&gt;&lt;P&gt;In case the customer wants to move functionality to SAP BTP ABAP or the S/4HANA (public) Cloud versions it is not sufficient to make the old ERP code just S/4HANA ready. The cloud versions have a heavily restricted set of the ABAP language (so called &lt;A href="https://help.sap.com/doc/abapdocu_latest_index_htm/latest/en-US/abenabap_versions.htm" target="_blank" rel="noopener noreferrer"&gt;language version 5&lt;/A&gt;&amp;nbsp;) and furthermore access to SAP standard objects is allowed to (relatively few) released objects only. For instance, you must not use the MARA table to read materials but the I_PRODUCT CDS. This information is stored in the so called cloudification repository (&lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/how-to-check-your-custom-code-for-abap-cloud/ba-p/13567124" target="_blank"&gt;https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/how-to-check-your-custom-code-for-abap-cloud/ba-p/13567124&lt;/A&gt; ) which is regularly updated. (See &lt;A href="https://github.com/SAP/abap-atc-cr-cv-s4hc" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/SAP/abap-atc-cr-cv-s4hc&lt;/A&gt; for the Raw data).&lt;/P&gt;&lt;P&gt;It contains as well successor information for some of the old ERP objects in particular for the data base tables which makes it particularly interesting for the custom code migration process. See note &lt;A href="https://launchpad.support.sap.com/#/notes/3284711" target="_blank" rel="noopener noreferrer"&gt;https://launchpad.support.sap.com/#/notes/3284711&lt;/A&gt; for installation of the according ATC check / check "Usage of Released APIs (Cloudification Repository)" &amp;nbsp;in releases before 2023 FP 3.&lt;/P&gt;&lt;P&gt;The idea is now to use the &lt;STRONG&gt;officially released successors for the objects which need to be corrected&lt;/STRONG&gt; anyway during the migration ERP -&amp;gt; S/4HANA.&lt;/P&gt;&lt;P&gt;A (simple) example: When accessing table SKA1 corrections could be necessary because of the new account type attributes e.g. GLACCOUNT_TYPE in S/4; secondary cost elements are saved now as well. This is found by the S4HANA_READINESS_2023. The same access is found by the "Usage of Released APIs (Cloudification Repository)" check as well:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="lutzi3_1-1750868218556.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/278795iABEA7BB84A2CEA10/image-size/large?v=v2&amp;amp;px=999" role="button" title="lutzi3_1-1750868218556.png" alt="lutzi3_1-1750868218556.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The solution to solve both issues is to check if secondary cost elements are concerned and to follow the recommendation in the finding. In the correction the successor object (DDLS I_GLACCOUNTINCHARTOFACCOUNTS) should be used directly:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="lutzi3_2-1750868251695.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/278796iC26AC3CAF29D6544/image-size/large?v=v2&amp;amp;px=999" role="button" title="lutzi3_2-1750868251695.png" alt="lutzi3_2-1750868251695.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;This combination approach makes a part of the own developments "cloud ready" and "S/4HANA ready" at the same time without a big additional effort. And anyway, it is better for upgrade stability to use officially released objects!&lt;/P&gt;&lt;P&gt;Here are 3 possible approaches to achieve this:&lt;/P&gt;&lt;H2 id="toc-hId-1733313264"&gt;Approach 1: Out of the box: Combined Check&lt;/H2&gt;&lt;P&gt;Create a Z ATC Check variant and select the checks from S4HANA_READINESS* and the check "Usage of Released APIs (Cloudification Repository)" . The easiest would be to copy S4HANA_READINESS* and then to select in the maintenance of the check variants (via transaction /nSCI):&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="lutzi3_0-1750869196948.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/278802i1DD4B336CBE0FBB5/image-size/medium?v=v2&amp;amp;px=400" role="button" title="lutzi3_0-1750869196948.png" alt="lutzi3_0-1750869196948.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Once you run the check you will see the result as in this example:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="lutzi3_1-1750869196955.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/278801iD2CC420733DC8702/image-size/large?v=v2&amp;amp;px=999" role="button" title="lutzi3_1-1750869196955.png" alt="lutzi3_1-1750869196955.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The findings from the combined check contain already all needed information but there are two shortcomings: the list contains many irrelevant entries; not all check categories (only when the successor is defined) nor all findings are relevant in the context of S/4HANA custom code adoption (e.g. Successor I_COUNTRY for T005 table doesn’t solve a Custom Code Migration issue).&lt;/P&gt;&lt;H2 id="toc-hId-1536799759"&gt;Approach 2: Add information from Cloudification Repo manually&lt;/H2&gt;&lt;P&gt;Instead of a combined check variant the successor information could be added via Excel / VLOOKUP (SVERWEIS in German) as well using these steps:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Run the standard ATC check for Custom Code Analysis (e.g. S4HANA_READINESS_2023)&lt;/LI&gt;&lt;LI&gt;Download the detailed list from ATC to Excel (include in any case the field reference object / Referenzobjekt)&lt;/LI&gt;&lt;LI&gt;Download the cloudification repo from here &lt;A href="https://github.com/SAP/abap-atc-cr-cv-s4hc/blob/main/src/objectReleaseInfoLatest.csv" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/SAP/abap-atc-cr-cv-s4hc/blob/main/src/objectReleaseInfoLatest.csv&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;Open the data in Excel and copy the sheet to your original excel in a new tab&lt;/LI&gt;&lt;LI&gt;Add a new column to the first tab from ATC data and combine the data via VLOOKUP: find a possible successor objects in the released objects for the reference objects&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;A possible result could look like this:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="lutzi3_0-1750917331297.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/278960i007475D15532D91F/image-size/large?v=v2&amp;amp;px=999" role="button" title="lutzi3_0-1750917331297.png" alt="lutzi3_0-1750917331297.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;I added an example excel for convenience reasons to Github here:&amp;nbsp;&lt;A href="https://github.com/Lutzi3/cloud_mig_atc/blob/main/ATC_S4HANA_CLOUDIF_REPO_EXAMPLE.xlsx" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/Lutzi3/cloud_mig_atc/blob/main/ATC_S4HANA_CLOUDIF_REPO_EXAMPLE.xlsx&lt;/A&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Then, when processing the ATC findings, the successor objects from Excel can be used directly in the corrections.&lt;/P&gt;&lt;H2 id="toc-hId-1340286254"&gt;Approach 3: Using a custom enhancement to the SAP ATC S/4HANA: Released objects as additional information&lt;/H2&gt;&lt;P&gt;In order to avoid the manual Excel steps and to have a lean combined list of the relevant findings only there is also the possibility to enhance the "additional information" section via an implicit enhancement or via another copy of the standard check classes in the S/4HANA Custom Code area. If you decide for the enhancement you can use the methode GET_DETAIL_FROM_DATA_BUFFER &amp;nbsp;from the central utility class CL_CI_S4H_COMMON and add the successor object information there.&lt;/P&gt;&lt;P&gt;The result is that if there is the successor object available it will be put to the Additional Information Section of the findings as shows the following &amp;nbsp;example:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="lutzi3_0-1751026443405.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/279803i0A0D2003AFA8C10C/image-size/large?v=v2&amp;amp;px=999" role="button" title="lutzi3_0-1751026443405.png" alt="lutzi3_0-1751026443405.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;There is an example version on Github for this as well:&amp;nbsp;&lt;A href="https://github.com/Lutzi3/cloud_mig_atc" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/Lutzi3/cloud_mig_atc&lt;/A&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Now the existing ATC S4HANA readiness check is enhanced by the new released object information such as that you can directly correct the old ERP object reference and replace it by the latest officially released SAP cloud ready object!&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/include-released-successor-objects-from-quot-cloudification-repo-quot-in/ba-p/14136908"/>
     <published>2025-07-17T15:35:03.728000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/searching-substrings-in-the-element-information-popup-in-adt-for-eclipse/ba-p/14135290</id>
-    <title>Searching Substrings in the Element Information Popup in ADT for Eclipse</title>
-    <updated>2025-07-23T12:15:07.838000+02:00</updated>
-    <author>
-      <name>wolfgang_woehrle</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/190964</uri>
-    </author>
-    <content>&lt;P&gt;Do you know the search capabilities for substrings in the element information popup? If no, grab a cup of coffee and enjoy reading my blog.&lt;/P&gt;&lt;P&gt;Your task:&amp;nbsp;A colleague asks you to fix a UI behavior for a given element of a CDS entity that is provided by an extension. You don’t know in which data definition the element is located in.&lt;/P&gt;&lt;P&gt;Your goal: You want to find out from which CDS entity extension an element is provided. Usually, a CDS entity contains a huge number of elements provided by multiple data definitions.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1604194298"&gt;Procedure&lt;/H1&gt;&lt;P&gt;Let's go into details and follow my instruction:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Open the relevant development object in ABAP Development Tools for Eclipse (ADT).&lt;/LI&gt;&lt;LI&gt;Navigate to the occurrence of the element in question in the source code and hit &lt;EM&gt;F2&lt;/EM&gt;.&lt;BR /&gt;The element information popup will then be opened.&lt;/LI&gt;&lt;LI&gt;Skim through the content.&lt;/LI&gt;&lt;LI&gt;Do you want to see all relating elements and their location in a CDS entity extension on a structured and clear way? Perfect. Switch to the structured display. Just choose the&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="extend_button.png" style="width: 20px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/282784i96628BC9A25A5BC2/image-size/large?v=v2&amp;amp;px=999" role="button" title="extend_button.png" alt="extend_button.png" /&gt;&lt;/span&gt;&amp;nbsp;&lt;STRONG&gt;Details view with include/append structure&lt;/STRONG&gt;&amp;nbsp;button on the toolbar on the bottom.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="step_2blog.png" style="width: 729px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/287263i0CC1EC89D7DDCD21/image-size/large?v=v2&amp;amp;px=999" role="button" title="step_2blog.png" alt="step_2blog.png" /&gt;&lt;/span&gt;&lt;BR /&gt;ADT then opens the structured element information:&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="4_extend_view_tree_tabular.png" style="width: 857px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/287653iEE9109E486A3614A/image-size/large?v=v2&amp;amp;px=999" role="button" title="4_extend_view_tree_tabular.png" alt="4_extend_view_tree_tabular.png" /&gt;&lt;/span&gt;&lt;BR /&gt;The elements are sorted like they are defined in the source code. In addition, this tabular structured display shows the CDS entity extension in which the elements are located in. For example, the &lt;EM&gt;elements seats_max&lt;/EM&gt; and &lt;EM&gt;seats_occuped&lt;/EM&gt; are located in &lt;EM&gt;DDLS DEMO_TEST_CDS_EXTEND_VIEW&lt;/EM&gt;.&lt;/LI&gt;&lt;LI&gt;You are now just a second away from your goal: Search for the substring. To open the search, hit the&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="search_button.png" style="width: 24px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/282785i37D0AF90AC731CE7/image-size/large?v=v2&amp;amp;px=999" role="button" title="search_button.png" alt="search_button.png" /&gt;&lt;/span&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;Search&lt;/STRONG&gt;&lt;SPAN&gt; button from the toolbar on the bottom.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="step_4blog.png" style="width: 793px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/287398iBF0122EE2EB33DB1/image-size/large?v=v2&amp;amp;px=999" role="button" title="step_4blog.png" alt="step_4blog.png" /&gt;&lt;/span&gt;&lt;BR /&gt;Note: The search feature in the structured display is supported&amp;nbsp;as of ADT client version 3.52.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;Enter your search pattern in the &lt;EM&gt;Find&lt;/EM&gt; input field and confirm with &lt;EM&gt;Enter&lt;/EM&gt;.&lt;/LI&gt;&lt;/OL&gt;&lt;H1 id="toc-hId-1407680793"&gt;Result&lt;/H1&gt;&lt;P&gt;Here we go! ADT highlights all findings for you! The first finding is highlighted with a blue box, all the remaining ones with a grey box.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tab_search_full2.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/282792iF5EF5D1FE716954D/image-size/large?v=v2&amp;amp;px=999" role="button" title="tab_search_full2.png" alt="tab_search_full2.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;To navigate to an element information popup of a target or a component type, hover and click the underlined name.&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1211167288"&gt;Related Information&lt;/H1&gt;&lt;P&gt;You want to find more ADT-specific tips &amp;amp; tricks? Have fun with this help content:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/abap-cloud/abap-development-tools-user-guide/tips-and-tricks-abap-core-tools" target="_self" rel="noopener noreferrer"&gt;ABAP core development&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/abap-cloud/abap-development-tools-user-guide/tips-tricks-abap-cds-tools-c8ecb49378e54fffa7ae929d711e6088" target="_self" rel="noopener noreferrer"&gt;ABAP CDS development&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/searching-substrings-in-the-element-information-popup-in-adt-for-eclipse/ba-p/14135290"/>
-    <published>2025-07-23T12:15:07.838000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/exposing-sap-s4-onprem-data-to-external-system-odata-service-btp/ba-p/14151915</id>
