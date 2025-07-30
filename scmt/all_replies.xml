@@ -2,179 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2025-07-30T16:44:01.473295+00:00</updated>
+  <updated>2025-07-30T16:59:01.230310+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/interface-execution-summary-exception-alert-for-logging-monitoring-and/ba-p/14165906</id>
-    <title>Interface Execution Summary/Exception Alert for Logging/Monitoring and Debugging</title>
-    <updated>2025-07-30T14:54:28.287000+02:00</updated>
-    <author>
-      <name>SS15</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/161784</uri>
-    </author>
-    <content>&lt;P&gt;Use case - As part of debugging/monitoring, commonly used approach is sending mail alert in exception sub process to the application maintenance team (here in refer as AM Team). Also, sending a success execution summary mail with relevant interface details is send across to AM team or user depending on business requirement.&lt;/P&gt;&lt;P&gt;Challenge - Tracer logs data for 10mins and at near real-time. In cases where AM team needs more data for debugging post runtime execution, info level data in the monitoring log is not adequate for debugging. In complex interfaces with modular flows and process directs, tracing the flow execution gets consuming.&lt;/P&gt;&lt;P&gt;Approach - Keeping above points in thought, below is solution which I have applied in my design which is reusable. It is combination of below -&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;groovy script&lt;/LI&gt;&lt;LI&gt;custom header&lt;/LI&gt;&lt;LI&gt;content modifier&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Implementation -&amp;nbsp;&lt;/P&gt;&lt;P&gt;1. Content Modifier - Set a variable with a custom text message according to your iflow logic. Key is to - set a logical text message which assist the Developer or AM Team to understand - which logic checkpoint is cleared or failed and why. This text message will appear in custom header and also in mail. One can set Content Modifier in Router branches, LIP, Exception subprocess, Multicast branches, before/after request reply call etc. as seem suited.&lt;/P&gt;&lt;P&gt;I am using variable - 'FlowExecutionStatusMsg' in Content modifier and Groovy script&amp;nbsp;&lt;/P&gt;&lt;P&gt;2. Below is the reusable Groovy Script which you can place in script collection or use locally in iflow. This needs to be placed in Exception Subprocess for Mail Alert and also at end of iflow for Interface Execution Summary Mail (optional). It captures the camel exception and runtime properties, headers and payload along with the custom text message set in the flow at the runtime.&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;/* Title - GS_InterfaceExecutionSummary.groovyscript.                  Objective - Groovy Script For Interface Execution Summary Mail ; captures runtime error, headers, properties and payload.
-*/
-
-import com.sap.gateway.ip.core.customdev.util.Message
-//import groovy.json.JsonOutput
-import java.text.SimpleDateFormat
-
-Message processData(Message message) {
-   
-    def messageLog = messageLogFactory.getMessageLog(message)
-      
-      //get message components
-      def body = message.getBody(String)
-    def headers = message.getHeaders()
-    def properties = message.getProperties()
-   
-    // Sort headers and properties alphabetically
-    def sortedHeaders = headers.sort { it.key }
-    def sortedProperties = properties.sort { it.key }
-
-    // Get timestamp in system timezone (runtime)
-    def sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss z")
-    def currentTimestamp = sdf.format(new Date())
-   
-    //for attachment file
-    def label = "FlowLog_" + currentTimestamp.replace(" ", "_").replace(":", "-")
-   
-      // get custom logger details from flow
-      def FlowExecutionStatusMsg = properties.get("FlowExecutionStatusMsg") ?: "Not Set"
-    def Iflow_Name = properties.get("Iflow_Name") ?: "Not Set"
-    def MPL_id = properties.get("SAP_MessageProcessingLogID") ?: "Not Set"
-
-    // Exception
-    def exceptionRaw = properties.get("CamelExceptionCaught")
-    def exceptionDetails = ""
-    if (exceptionRaw)
-      {
-        def exMsg = exceptionRaw.getMessage() ?: exceptionRaw.toString()
-        def exType = exceptionRaw.getClass().getSimpleName()
-        exceptionDetails = """
-
-Exception Type: ${exType}
-Message       : ${exMsg}
-
-Stack Trace:
-${exceptionRaw.toString()}
-"""
-    } else {
-        exceptionDetails = "--- NO Exception Captured ---"
-    }
-
-    // Start of Build HTML body
-    def html = new StringBuilder()
-    html.append("&amp;lt;html&amp;gt;&amp;lt;body&amp;gt;")
-    html.append("&amp;lt;p&amp;gt;&amp;lt;strong&amp;gt;Hello Team,&amp;lt;/strong&amp;gt;&amp;lt;/p&amp;gt;")
-    html.append("&amp;lt;p&amp;gt;&amp;lt;strong&amp;gt;Kindly find Interface Execution Summary below :&amp;lt;/strong&amp;gt;&amp;lt;/p&amp;gt;")
-   
-  //summary table start 
-      html.append("&amp;lt;table border='1' cellpadding='5' cellspacing='0'&amp;gt;")
-      html.append("&amp;lt;tr&amp;gt;&amp;lt;td&amp;gt;&amp;lt;b&amp;gt;Flow Name: &amp;lt;/b&amp;gt;&amp;lt;/td&amp;gt;&amp;lt;td&amp;gt; ${Iflow_Name}&amp;lt;/td&amp;gt;&amp;lt;/tr&amp;gt;")
-      html.append("&amp;lt;tr&amp;gt;&amp;lt;td&amp;gt;&amp;lt;b&amp;gt;Flow Execution CustomLogMessage :&amp;lt;/b&amp;gt;&amp;lt;/td&amp;gt;&amp;lt;td&amp;gt; ${FlowExecutionStatusMsg}&amp;lt;/td&amp;gt;&amp;lt;/tr&amp;gt;")
-      html.append("&amp;lt;tr&amp;gt;&amp;lt;td&amp;gt;&amp;lt;b&amp;gt;MPL ID :&amp;lt;/b&amp;gt;&amp;lt;/td&amp;gt;&amp;lt;td&amp;gt; ${MPL_id}&amp;lt;/td&amp;gt;&amp;lt;/tr&amp;gt;")
-      html.append("&amp;lt;tr&amp;gt;&amp;lt;td&amp;gt;&amp;lt;b&amp;gt;Timestamp:&amp;lt;/b&amp;gt;&amp;lt;/td&amp;gt;&amp;lt;td&amp;gt; ${currentTimestamp}&amp;lt;/td&amp;gt;&amp;lt;/tr&amp;gt;")
-    html.append("&amp;lt;tr&amp;gt;&amp;lt;td&amp;gt;&amp;lt;b&amp;gt;Refer to Attachment in SAP IS Monitoring : FileName - &amp;lt;/b&amp;gt;&amp;lt;/td&amp;gt;&amp;lt;td&amp;gt; ${label}&amp;lt;/td&amp;gt;&amp;lt;/tr&amp;gt;")
-      html.append("&amp;lt;tr&amp;gt;&amp;lt;td&amp;gt;&amp;lt;b&amp;gt;Exception Details : &amp;lt;/b&amp;gt;&amp;lt;/td&amp;gt;&amp;lt;td&amp;gt; ${exceptionDetails} &amp;lt;/td&amp;gt;&amp;lt;/tr&amp;gt;")
-      html.append("&amp;lt;tr&amp;gt;&amp;lt;td&amp;gt;&amp;lt;b&amp;gt;Message Payload Body At Runtime Step: &amp;lt;/b&amp;gt;&amp;lt;/td&amp;gt;&amp;lt;td&amp;gt; ${body} &amp;lt;/td&amp;gt;&amp;lt;/tr&amp;gt;")
-      html.append("&amp;lt;/table&amp;gt;&amp;lt;br&amp;gt;")
-//summary table end
-
-//start of properties table
-    html.append("&amp;lt;h4&amp;gt;Exchange Properties&amp;lt;/h4&amp;gt;")
-    html.append("&amp;lt;table border='1' cellpadding='5' cellspacing='0'&amp;gt;")
-    html.append("&amp;lt;tr&amp;gt;&amp;lt;th&amp;gt;Property Name&amp;lt;/th&amp;gt;&amp;lt;th&amp;gt;Value&amp;lt;/th&amp;gt;&amp;lt;/tr&amp;gt;")
-    sortedProperties.each
-      { k, v -&amp;gt;
-        html.append("&amp;lt;tr&amp;gt;&amp;lt;td&amp;gt;${k}&amp;lt;/td&amp;gt;&amp;lt;td&amp;gt;${v}&amp;lt;/td&amp;gt;&amp;lt;/tr&amp;gt;")
-    }
-    html.append("&amp;lt;/table&amp;gt;&amp;lt;br&amp;gt;")
-//end of properties table
-
-//headers start table
-    html.append("&amp;lt;h4&amp;gt;Message Headers&amp;lt;/h4&amp;gt;")
-    html.append("&amp;lt;table border='1' cellpadding='5' cellspacing='0'&amp;gt;")
-    html.append("&amp;lt;tr&amp;gt;&amp;lt;th&amp;gt;Header Name&amp;lt;/th&amp;gt;&amp;lt;th&amp;gt;Value&amp;lt;/th&amp;gt;&amp;lt;/tr&amp;gt;")
-    sortedHeaders.each
-      { k, v -&amp;gt;
-        html.append("&amp;lt;tr&amp;gt;&amp;lt;td&amp;gt;${k}&amp;lt;/td&amp;gt;&amp;lt;td&amp;gt;${v}&amp;lt;/td&amp;gt;&amp;lt;/tr&amp;gt;")
-    }
-    html.append("&amp;lt;/table&amp;gt;&amp;lt;br&amp;gt;")
-//headers end table
-   
-    html.append("&amp;lt;p&amp;gt;Kindly Do Not Reply to this auto-generated mail.Please contact SAP-Integration Support Team for further investigation.&amp;lt;/p&amp;gt;")
-    html.append("&amp;lt;p&amp;gt;Regards,&amp;lt;br&amp;gt; SAP CPI Admin&amp;lt;/p&amp;gt;")    
-
-    html.append("&amp;lt;/body&amp;gt;&amp;lt;/html&amp;gt;")
-
-    // Note - Set Mail Adapter MIME type to "text/html"
-    def logMessage = html.toString()
-    message.setBody(logMessage)
-   
-    // Log Attachment + Custom Header Property
-    if (messageLog != null)
-    {
-    messageLog.addAttachmentAsString(label, logMessage, "text/html")
-    messageLog.addCustomHeaderProperty("FlowExecutionStatusMsg", FlowExecutionStatusMsg)
-    }
-    message.setProperty("MailLogBody", logMessage)
-   
-    return message
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Below are steps/code snippets and configuration need to be done in the interface -&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (3).png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/293946i2A888149AC85F367/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image (3).png" alt="image (3).png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Add Custom text message (logically for your debugging/monitoring) as per the Interface flow.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Add Iflow name which acts as identifier in complex mutliple flows development and will be displayed in mail too.&lt;/P&gt;&lt;P&gt;Mail configuration: I have used externalization for ease of code transport.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Configure From, To, Subject with specific details.&lt;/P&gt;&lt;P&gt;Mail body has the value set by the groovy output, which would be visible in the outlook mail.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (4).png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/293947iA433F652E684F7A3/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image (4).png" alt="image (4).png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (5).png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/293948iBF21721C3FD151E3/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image (5).png" alt="image (5).png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In Monitoring tab, Custom Header below will reflect the custom text message set in the content modifier.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (6).png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/293949iD2232A67A8FCCCA3/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image (6).png" alt="image (6).png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The attachment Flow log with the timestamp is set by the groovy script and would be visible in Monitoring tab for later debugging. It would have the runtime execution details.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (7).png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/293950iA8C3C22741044A84/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image (7).png" alt="image (7).png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The Mail body would consist of below details - Summary table, Properties and Headers. (I have scrubbed data for usage)&amp;nbsp;&lt;/P&gt;&lt;P&gt;This can be altered in the groovy script as per one's use case requirement.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (8).png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/293965i4ACB522463006A1E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image (8).png" alt="image (8).png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Hope this assist you in smoother debugging.&amp;nbsp;&lt;/P&gt;&lt;P&gt;P.S - This is my first blog despite spending a decade in Integration space, hope to invest time and effort consciously in blogging henceforth after project implementations going forth. Thanks.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/interface-execution-summary-exception-alert-for-logging-monitoring-and/ba-p/14165906"/>
-    <published>2025-07-30T14:54:28.287000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/default-output-gst-tax-code-by-warehouse-code-in-sales-item-transaction/qaa-p/14166969#M4221444</id>
-    <title>Re: Default Output GST Tax Code by Warehouse Code in Sale...</title>
-    <updated>2025-07-30T14:55:43.707000+02:00</updated>
-    <author>
-      <name>kothandaraman_nagarajan</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/189787</uri>
-    </author>
-    <content>&lt;P&gt;Hi,&lt;/P&gt;&lt;P&gt;Use below FMS query&lt;/P&gt;&lt;P&gt;SELECT DISTINCT 'ZR' FROM RDR1 T0 WHERE $[$38.24.11] = 'HQ'&lt;/P&gt;&lt;P&gt;Note: Change tax code ZR to your code and ware house code HQ to your warehouse.&lt;/P&gt;&lt;P&gt;Thank you,&lt;/P&gt;&lt;P&gt;Nagarajan&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/default-output-gst-tax-code-by-warehouse-code-in-sales-item-transaction/qaa-p/14166969#M4221444"/>
-    <published>2025-07-30T14:55:43.707000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/handling-units-with-mto-sales-order-to-be-filled-automatically-mfhu/qaa-p/14166970#M4221445</id>
-    <title>Re: Handling units with MTO: Sales order to be filled aut...</title>
-    <updated>2025-07-30T14:56:36.009000+02:00</updated>
-    <author>
-      <name>baris_yalcin</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/193274</uri>
-    </author>
-    <content>&lt;P&gt;Hi Felix14,&lt;/P&gt;&lt;P&gt;handling units (HU) in repetitive manufacturing or discrete/process manufacturing does not have direct reference to a sales order. See also reply from Lakshmipathi.&lt;/P&gt;&lt;P&gt;If you create a planned HU in transaction MFP1, then sales order reference is not supported.&lt;/P&gt;&lt;P&gt;But if you create a realized HU in transaction MFP2/MFP22, then you get the sales order reference under certain circumstances.&lt;BR /&gt;Refer to SAP note &lt;A href="https://me.sap.com/notes/2524903" target="_blank" rel="noopener noreferrer"&gt;https://me.sap.com/notes/2524903&lt;/A&gt; "MFP22: Posting the HUs to the sales order stock"&lt;BR /&gt;Once you created a HU in transaction MFP22, then there is a flag/check box "sales order stock". If this check box is set and you press the button "Confirm HU (online)", then you navigate to transaction MFHU and here the sales order is filled. See attached screenshot.&lt;/P&gt;&lt;P&gt;The transaction MFHU is a multifunctional transaction, so all fields are available, even if they aren't needed for some actions.&lt;/P&gt;&lt;P&gt;I hope that this reply is helpful for you.&lt;/P&gt;&lt;P&gt;Best regards,&lt;BR /&gt;Barış&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/handling-units-with-mto-sales-order-to-be-filled-automatically-mfhu/qaa-p/14166970#M4221445"/>
-    <published>2025-07-30T14:56:36.009000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/pr-document/qaa-p/14166972#M4221446</id>
-    <title>Re: PR document</title>
-    <updated>2025-07-30T14:58:08.340000+02:00</updated>
-    <author>
-      <name>kothandaraman_nagarajan</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/189787</uri>
-    </author>
-    <content>&lt;P&gt;Hi,&lt;/P&gt;&lt;P&gt;Check any FMS is assigned at row level. If yes, remove the FMS and try to add.&lt;/P&gt;&lt;P&gt;Thank you,&lt;/P&gt;&lt;P&gt;Nagarajan&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/pr-document/qaa-p/14166972#M4221446"/>
-    <published>2025-07-30T14:58:08.340000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/the-next-phase-in-the-deprecation-of-the-classic-experience-in-sap/ba-p/14166173</id>
-    <title>The Next Phase in the Deprecation of the Classic Experience in SAP Analytics Cloud</title>
-    <updated>2025-07-30T15:00:00.021000+02:00</updated>
-    <author>
-      <name>Tunir</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/277217</uri>
-    </author>
-    <content>&lt;P&gt;As mentioned in the External Blog Post &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/important-notice-changes-in-sap-analytics-cloud-classic-stories-amp/bc-p/13987734/emcs_t/S2h8ZW1haWx8dG9waWNfc3Vic2NyaXB0aW9ufE01WjBBMkRRR1lBR1RLfDEzOTg3NzM0fFNVQlNDUklQVElPTlN8aEs" target="_blank"&gt;&lt;STRONG&gt;Important Notice: Changes in SAP Analytics Cloud Classic Stories &amp;amp; Analytic Applications&lt;/STRONG&gt;&lt;/A&gt;&lt;STRONG&gt;, &lt;/STRONG&gt;SAP Analytics Cloud has been in a phased approached to transition customers to the Optimized Experience.&lt;/P&gt;&lt;P&gt;With the 2025 Q3 QRC, SAP Analytics Cloud is entering its next phase. It reinforces our commitment to delivering a modern, high-performance, and consistent user experience within Business Data Cloud (BDC).&lt;/P&gt;&lt;H2 id="toc-hId-1736076351"&gt;What’s Changing?&lt;/H2&gt;&lt;P&gt;With this phase, customers will &lt;STRONG&gt;no longer&lt;/STRONG&gt; be able to create new Classic Stories or Analytic Applications. For example, clicking on a new Canvas or Responsive Page in the Stories Module will now automatically launch the Optimized Story Experience instead of prompting the Designer in choosing between Optimized Story Experience and Classic Story Experience. It ensures that all new content benefits from the performance, usability, and functional improvements available.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;span class="lia-unicode-emoji" title=":locked:"&gt;🔒&lt;/span&gt; Creation of New Classic Stories and Applications is now &lt;STRONG&gt;DISABLED&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;span class="lia-unicode-emoji" title=":white_heavy_check_mark:"&gt;✅&lt;/span&gt; Existing Classic Assets (Stories and Analytic Application) remain &lt;STRONG&gt;EDITABLE&lt;/STRONG&gt; and &lt;STRONG&gt;FULLY&lt;/STRONG&gt; &lt;STRONG&gt;MAINTAINABLE&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1668645565"&gt;Continued Access to Existing Classic Assets&lt;/H3&gt;&lt;P&gt;Even though new content creation in classic is disabled, existing Classic Stories and Analytic Applications can still be maintained. Our definition of maintainable includes:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;View, Edit, and Save Content&lt;/LI&gt;&lt;LI&gt;Share, Duplicate, and Delete&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-unicode-emoji" title=":warning:"&gt;⚠️&lt;/span&gt; Continued access to Classic Assets remains until the full deprecation in the 2026 Q2 QRC where these assets will &lt;STRONG&gt;no longer &lt;/STRONG&gt;be accessible. It means that customers should begin the migration to the Optimized Experience prior to this date.&lt;/P&gt;&lt;H3 id="toc-hId-1472132060"&gt;Enhancements to File Repository and Object Management&lt;/H3&gt;&lt;P&gt;With this phase, we’ve made several usability improvements in how assets are presented and managed:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Visual Distinction:&lt;/STRONG&gt; The File Repository now provides a clear visual distinction between Classic and Optimized Stories as well as Analytical Applications&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;(Deprecated) Labeling:&lt;/STRONG&gt; Deprecated object types now include a “(Deprecated)” suffix in their type&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Granular Filtering:&lt;/STRONG&gt; Object Type Filtering now has more granularity to filter between Classic Stories (Deprecated), Analytical Applications (Deprecated), and Stories&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Tunir_0-1753814299568.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/293607i97D3939E5BEC5FFC/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Tunir_0-1753814299568.png" alt="Tunir_0-1753814299568.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1275618555"&gt;Streamlining the User Interface&lt;/H3&gt;&lt;P&gt;We’ve taken additional steps to simplify the user experience by removing entry points that led to these deprecated assets. For example:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Analytic Applications module &lt;STRONG&gt;no longer &lt;/STRONG&gt;has a create button. It still displays the most recent Analytic Applications.&lt;/LI&gt;&lt;LI&gt;Stories module &lt;STRONG&gt;no longer&lt;/STRONG&gt; has Smart Discovery or Grid Pages as selectable tiles&lt;/LI&gt;&lt;LI&gt;Clicking Canvas, Responsive, or Template now opens the Optimized Story instead of prompting the Designer in choosing between Optimized Story Experience and Classic Story Experience&lt;/LI&gt;&lt;LI&gt;Modeller module &lt;STRONG&gt;no longer &lt;/STRONG&gt;has a Point of Interest Tab to create new Point of Interests&lt;/LI&gt;&lt;LI&gt;Actions from a Model to Create a new Canvas or Responsive opens the Optimized Story&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Tunir_1-1753814299582.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/293606i4CEB89DA8F9C9429/image-size/large?v=v2&amp;amp;px=999" role="button" title="Tunir_1-1753814299582.png" alt="Tunir_1-1753814299582.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1079105050"&gt;Increasing Awareness for the Designer&lt;/H3&gt;&lt;P&gt;Within the Classic Experience (Stories and Analytic Applications), we’ve increased the severity of our &lt;STRONG&gt;Deprecation Warning&lt;/STRONG&gt; to a &lt;STRONG&gt;Deprecation Notice&lt;/STRONG&gt;. It appears in a more prominent indicator reminding the Designer that the Classic Asset will be disabled starting mid-2026. This warning is only shown to Story Designers, the users best positioned to initiate migration.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Tunir_2-1753814299601.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/293608i821BF7FBA0B1A2BE/image-size/large?v=v2&amp;amp;px=999" role="button" title="Tunir_2-1753814299601.png" alt="Tunir_2-1753814299601.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-753508826"&gt;Preparing for Full Deprecation in 2026&lt;/H2&gt;&lt;P&gt;This phase marks a significant milestone in our journey toward unifying and modernizing the SAP Analytics Cloud experience. We encourage all customers to begin or continue transitioning their Classic Stories and Analytic Applications to the Optimized Experience before the 2026 Q2 QRC to avoid any disruption. There are a few resources that we recommend.&lt;/P&gt;&lt;H3 id="toc-hId-686078040"&gt;Mass Migration Tool&lt;/H3&gt;&lt;P&gt;With the 2024 Q4 QRC, we had released a Mass Migration Tool for Designers to migrate up to 50 assets to the Optimized Experience. There are a few steps that are involved which includes: &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Selection of Assets&lt;/LI&gt;&lt;LI&gt;Conversion Check &amp;amp; Status&lt;/LI&gt;&lt;LI&gt;Conversion Settings&lt;/LI&gt;&lt;LI&gt;Conversion Summary&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;You can learn more in the External Blog Post, &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/bulk-migration-tool-to-convert-classic-assets-to-the-optimized-experience/ba-p/13941312" target="_blank"&gt;Bulk Migration Tool to Convert Classic Assets to the Optimized Experience&lt;/A&gt;&lt;/P&gt;&lt;H3 id="toc-hId-489564535"&gt;Mass Deletion Tool for System Admins&lt;/H3&gt;&lt;P&gt;With the 2025 Q2 QRC, within the System Overview – Housekeeping, we had introduced an option for System Administers to delete specific objects, without the need of manual deletion object by object. There is a Last Access Date which helps System Administrators understand which objects are not actively used.&amp;nbsp;&lt;/P&gt;&lt;P&gt;But it doesn’t stop there. In addition to the primary object, all dependent objects are also automatically deleted. It means you no longer need to worry about unnecessary and unused objects adding up in your system and slowing down its performance.&lt;/P&gt;&lt;P&gt;You can learn more in the External Blog Post, &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/efficient-data-maintenance-in-sap-analytics-cloud-system-overview/ba-p/14057374" target="_blank"&gt;Efficient Data Maintenance in SAP Analytics Cloud System Overview - Housekeeping&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-unicode-emoji" title=":warning:"&gt;⚠️&lt;/span&gt; For Stories we do not support the distinction between Classic and Optimized Experience. It will be made available in a future release.&lt;/P&gt;&lt;H3 id="toc-hId-293051030"&gt;Resources&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/important-notice-changes-in-sap-analytics-cloud-classic-stories-amp/bc-p/13987734/emcs_t/S2h8ZW1haWx8dG9waWNfc3Vic2NyaXB0aW9ufE01WjBBMkRRR1lBR1RLfDEzOTg3NzM0fFNVQlNDUklQVElPTlN8aEs" target="_blank"&gt;Important Notice: Changes in SAP Analytics Cloud Classic Stories &amp;amp; Analytic Applications&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/bulk-migration-tool-to-convert-classic-assets-to-the-optimized-experience/ba-p/13941312" target="_blank"&gt;Bulk Migration Tool to Convert Classic Assets to Optimized Experience&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/the-new-table-building-experience-in-sap-analytics-cloud/ba-p/14159483" target="_blank"&gt;The New Table Building Experience in SAP Analytics Cloud (includes Blended Table)&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/SAP_ANALYTICS_CLOUD/00f68c2e08b941f081002fd3691d86a7/2d00f5ff0c9245a99a9df96cb83236a9.html" target="_blank" rel="noopener noreferrer"&gt;Optimized Experience Restrictions &amp;amp; Discontinued Features&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/efficient-data-maintenance-in-sap-analytics-cloud-system-overview/ba-p/14057374" target="_blank"&gt;Mass Deletion Tool for System Administrators&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/the-next-phase-in-the-deprecation-of-the-classic-experience-in-sap/ba-p/14166173"/>
-    <published>2025-07-30T15:00:00.021000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/prevent-empty-version-columns-in-table-for-version-restricted-measure/qaa-p/14166975#M4921379</id>
     <title>Re: Prevent empty version columns in table for version‐re...</title>
@@ -1314,5 +1145,65 @@ ${exceptionRaw.toString()}
     <content>&lt;P&gt;Hi&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2161733"&gt;@ElinaBC2025&lt;/a&gt;&amp;nbsp;, hopw you're doing good.&lt;/P&gt;&lt;P&gt;Please check below KBA, which informs how you can get access to the SAP Software Download Center items.&lt;/P&gt;&lt;P&gt;In case of error, this KBA also shows how you can get proper support, addressing the issue to the right component (&lt;SPAN&gt;XX-SER-SWFL-FCMS &lt;/SPAN&gt;). This KBA also informs what information must be shared in this Product Support ticket in case there's any issue in downloading the files.&lt;/P&gt;&lt;P&gt;&lt;A href="https://me.sap.com/notes/3153500" target="_blank" rel="noopener noreferrer"&gt;3153500 - How to Download Data Models, Picklists and other configuration files for Employee Central - SAP SuccessFactors&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Best Regards.&lt;/P&gt;&lt;P&gt;Thiago Eva&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/human-capital-management-q-a/unable-to-find-mdf-master-picklist-file-in-software-download-center/qaa-p/14167226#M45353"/>
     <published>2025-07-30T18:41:54.530000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/how-to-extract-the-data-from-odata-service-in-sap-bw/qaa-p/14167228#M4921408</id>
+    <title>Re: How to extract the data from Odata Service in SAP BW?</title>
+    <updated>2025-07-30T18:47:51.097000+02:00</updated>
+    <author>
+      <name>YairLopez</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2137590</uri>
+    </author>
+    <content>Buen dia, quisiera preguntar si se</content>
+    <link href="https://community.sap.com/t5/technology-q-a/how-to-extract-the-data-from-odata-service-in-sap-bw/qaa-p/14167228#M4921408"/>
+    <published>2025-07-30T18:47:51.097000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/financial-management-q-a/tag-n%C3%A3o-preenchida-no-total-do-xml/qaa-p/14167232#M252714</id>
+    <title>Re: TAG Não preenchida no total do XML</title>
+    <updated>2025-07-30T18:49:43.619000+02:00</updated>
+    <author>
+      <name>Marcio_Jnior</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1918003</uri>
+    </author>
+    <content>&lt;P&gt;Boa tarde. A questão é que a tabela gt_rfc_det_imp_ev_400[] tem valor IPI devolvido (&lt;!-- StartFragment  --&gt;&lt;SPAN&gt;v_ipidevol&lt;/SPAN&gt;&amp;nbsp;) e não atribui o percentual devolvido (&lt;!-- StartFragment  --&gt;&lt;SPAN&gt;p_devol&lt;/SPAN&gt;). Se o campo ls_rfc_det_imp_dev_400-p_devol for 0, não gera a TAG. Solução: ampliar o form "map_xmli_tab" no final do form no include de programa "LJ_1B_NFEF73" com a seguinte verificação:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Marcio_Jnior_2-1753894147387.png" style="width: 736px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/294115iCDFCAFFE0E69621F/image-dimensions/736x149/is-moderation-mode/true?v=v2" width="736" height="149" role="button" title="Marcio_Jnior_2-1753894147387.png" alt="Marcio_Jnior_2-1753894147387.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/financial-management-q-a/tag-n%C3%A3o-preenchida-no-total-do-xml/qaa-p/14167232#M252714"/>
+    <published>2025-07-30T18:49:43.619000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/supply-chain-management-blog-posts-by-members/ewm-mes-direct-integration-for-receiving-hus-in-ewm/bc-p/14167233#M6037</id>
+    <title>Re: EWM-MES Direct Integration For Receiving HUs in EWM</title>
+    <updated>2025-07-30T18:51:09.383000+02:00</updated>
+    <author>
+      <name>ABARBOSA</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1546940</uri>
+    </author>
+    <content>&lt;P&gt;Is it possible to post goods receipt directly, after executing the function, without PPF?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/supply-chain-management-blog-posts-by-members/ewm-mes-direct-integration-for-receiving-hus-in-ewm/bc-p/14167233#M6037"/>
+    <published>2025-07-30T18:51:09.383000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/supply-chain-management-blog-posts-by-sap/what-s-new-in-sap-asset-performance-management-2507/ba-p/14153908</id>
+    <title>What's New in SAP Asset Performance Management 2507</title>
+    <updated>2025-07-30T18:52:33.249000+02:00</updated>
+    <author>
+      <name>kate_dowle</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/604799</uri>
+    </author>
+    <content>&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="2507 blog banner.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/287265i305BF0ED6EEF2EB6/image-size/large?v=v2&amp;amp;px=999" role="button" title="2507 blog banner.png" alt="2507 blog banner.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The 2507 release brings a set of thoughtful enhancements designed to improve your user experience and efficiency.&lt;/P&gt;&lt;P&gt;At the center of this release is our new &lt;STRONG&gt;View Rule Logs&lt;/STRONG&gt; app, giving you immediate insight into rule execution and helping you take the right actions faster.&lt;/P&gt;&lt;P&gt;Let's take a closer look.&lt;/P&gt;&lt;H2 id="toc-hId-1735070933"&gt;Introducing Our New App - 'View Rule Logs'&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Understanding how your business rules perform is key to ensuring reliable automation. Our new app&amp;nbsp;&lt;STRONG&gt;View Rule Logs&lt;/STRONG&gt;, gives you real-time visibility into the execution of business rules—whether they ran successfully or encountered issues. With this insight, you can:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Verify execution outcomes, such as whether alerts were triggered, notifications were sent, or external events were created as expected.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;View and take recommended follow-up actions&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Quickly diagnose logic or data issues by pinpointing where rules failed due to missing inputs or configuration errors, so you don't have to work it out yourself.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="View Rule Logs.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/289299i7C00E3579BE54B61/image-size/large?v=v2&amp;amp;px=999" role="button" title="View Rule Logs.png" alt="View Rule Logs.png" /&gt;&lt;/span&gt;Watch this short video to see it in action.&lt;/P&gt;&lt;P&gt;&lt;A href="https://sapvideo.cfapps.eu10-004.hana.ondemand.com/?entry_id=1_w87wchf8" target="_self" rel="nofollow noopener noreferrer"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Video: View Rule Logs application" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/294112iF8DC7CC60505870F/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="2507 thumbnailv2tealView Logs effectively_v3.00_00_10_07.Still005.png" alt="Video: View Rule Logs application" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Video: View Rule Logs application&lt;/span&gt;&lt;/span&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;For more information, see the SAP Help Portal&amp;nbsp;&lt;A class="" title="https://help.sap.com/docs/SAP_APM/8c95dca44fda4d56a17f6494f421758d/d48eb538e2a3441994a1a4a84d3b9a85.html?version=Cloud" href="https://help.sap.com/docs/SAP_APM/8c95dca44fda4d56a17f6494f421758d/d48eb538e2a3441994a1a4a84d3b9a85.html?version=Cloud" target="_blank" rel="noopener noreferrer"&gt;View Rule Logs&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1538557428"&gt;Enhanced Filtering by Characteristic Value&lt;/H2&gt;&lt;P&gt;The &lt;EM&gt;Characteristic Value&lt;/EM&gt; value help popup in the Select Technical Object window has been enhanced in 2507 to improve usability and search efficiency.&lt;/P&gt;&lt;P&gt;Previously, users had to filter assets by first selecting a class and characteristic - even if they already knew the characteristic value. This was time-consuming and led to usability complaints.&lt;/P&gt;&lt;P&gt;With the new enhancements, users benefit from:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;A&lt;EM&gt; Characteristic Value&lt;/EM&gt; filter to refine results directly based on known values.&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;A free text search bar that quickly filters across class,&amp;nbsp;characteristic and characteristic value fields.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Now, if a user knows the characteristic value (e.g. &lt;EM&gt;Voltage = 220V),&lt;/EM&gt; they can enter it directly to filter assets. That means there's no need to navigate through class and characteristic first. The older method remains available for users who prefer it.&lt;/P&gt;&lt;P&gt;These improvements enable faster and more precise selection of technical objects, especially useful during &lt;STRONG&gt;assessments, &lt;STRONG&gt;recommendations, or &lt;STRONG&gt;rule processing.&lt;/STRONG&gt;&lt;/STRONG&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;STRONG&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Filter by characteristic value" style="width: 900px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/293825i80C5829FF73EA986/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="2507 filter by characteristics value.gif" alt="Filter by characteristic value" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Filter by characteristic value&lt;/span&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/STRONG&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1342043923"&gt;Spot Critical Alerts Faster with Deduplication Count in List View&lt;/H2&gt;&lt;P&gt;High-frequency alerts can indicate critical issues, but until now, spotting them at a glance wasn’t easy. Our latest enhancement to the &lt;EM&gt;Manage Alerts&lt;/EM&gt; screen solves this by introducing a visible &lt;STRONG&gt;Deduplication Count&lt;/STRONG&gt; directly in the list view.&lt;/P&gt;&lt;P&gt;This new column helps you immediately recognize which alert types are repeatedly triggering, without needing to open each alert detail page.&amp;nbsp;&lt;/P&gt;&lt;P&gt;The &lt;EM&gt;Deduplication Count&lt;/EM&gt; is now available under column settings and is enabled by default. When deduplication is active, the count begins at zero and increases as duplicate alerts are grouped. This helps you prioritize action based on real-time alert frequency.&lt;/P&gt;&lt;P&gt;For added usability, a new &lt;EM&gt;Last Updated On&lt;/EM&gt; column has also been positioned between &lt;EM&gt;Occurred On&lt;/EM&gt; and &lt;EM&gt;Deduplication Count&lt;/EM&gt;, making it easier to filter and track the most recent changes.&lt;/P&gt;&lt;P&gt;This small but powerful improvement brings greater clarity and responsiveness to alert management.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="2507 deduplication copy.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/293978iFB9CE2BF1849EE10/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="2507 deduplication copy.png" alt="2507 deduplication copy.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1145530418"&gt;&lt;SPAN&gt;Stay Informed and Get Involved&lt;/SPAN&gt;&lt;/H2&gt;&lt;UL&gt;&lt;UL&gt;&lt;LI&gt;For an exhaustive list of all new features, visit the&amp;nbsp;&lt;SPAN&gt;&lt;A href="https://help.sap.com/whats-new/f56d474a7b4344acb92a73921a30015b?Version=2507" target="_self" rel="noreferrer noopener"&gt;SAP Help Portal - What's New in SAP Asset Performance Management&lt;SPAN&gt;&lt;SPAN class=""&gt;..&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/A&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Submit or vote for the improvement you would like to see in the&lt;SPAN&gt;&amp;nbsp;&lt;A href="https://influence.sap.com/sap/ino/#campaign/3502" target="_blank" rel="noopener noreferrer"&gt;SAP Continuous Influence&lt;SPAN&gt;&amp;nbsp;&lt;SPAN&gt;session.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/A&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;SPAN&gt;See you soon for the 2508 update!&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/supply-chain-management-blog-posts-by-sap/what-s-new-in-sap-asset-performance-management-2507/ba-p/14153908"/>
+    <published>2025-07-30T18:52:33.249000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/supply-chain-management-q-a/upload-bank-items-without-bank-statement/qaq-p/14167236</id>
+    <title>Upload bank items without bank statement</title>
+    <updated>2025-07-30T18:58:45.124000+02:00</updated>
+    <author>
+      <name>Byrtule</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1506215</uri>
+    </author>
+    <content>&lt;P&gt;Hello,&amp;nbsp;&lt;/P&gt;&lt;P&gt;we are moving to S4HC public but some of the plants will stay in legacy system (SAGE). So we will operate for one year in two systems.&lt;/P&gt;&lt;P&gt;As into S4HC we are moving with lower portion of the business, we need to keep automatic statement upload into legacy system.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Does anyone has an idea, how efficiently upload bank items from bank statements without importing bank statement?&lt;/P&gt;&lt;P&gt;Thank you&lt;/P&gt;&lt;P&gt;Lucie&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/supply-chain-management-q-a/upload-bank-items-without-bank-statement/qaq-p/14167236"/>
+    <published>2025-07-30T18:58:45.124000+02:00</published>
   </entry>
 </feed>
