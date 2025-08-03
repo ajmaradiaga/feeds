@@ -2,119 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Event-Mesh-blog-posts.xml</id>
   <title>SAP Community - SAP Event Mesh</title>
-  <updated>2025-08-03T05:00:53.635163+00:00</updated>
+  <updated>2025-08-03T08:00:57.818136+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Event Mesh/pd-p/73554900100800000765" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Event Mesh blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/sap-business-events-initial-loads-using-rap-events/ba-p/14065678</id>
-    <title>SAP Business Events: Initial Loads using RAP Events</title>
-    <updated>2025-04-16T13:11:14.006000+02:00</updated>
-    <author>
-      <name>TimoMaier</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1485539</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-1578339500"&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;There are many different options to use for initial loads. One such options are events through an event broker like SAP Event Mesh or&amp;nbsp;&lt;SPAN&gt;SAP Integration Suite, advanced event mesh&lt;/SPAN&gt;. S/4HANA provides multiple different ways to produce such events. This blog will cover how initial loads can be done using RAP business events.&lt;/P&gt;&lt;H2 id="toc-hId-1510908714"&gt;Concept&lt;/H2&gt;&lt;P&gt;While S/4HANA provides many different standard business events out of the box, using them for initial loads is not advisable. The reason for this is that there can be a multitude of local event handlers that react to those standard events and produce unwanted side effects. To prevent these side effects dedicated initial load events should be used. That means that first a custom event has to be created and secondly an ABAP program has to be created that collects all of the required data and triggers each event.&lt;/P&gt;&lt;H2 id="toc-hId-1314395209"&gt;Creating the custom event&lt;/H2&gt;&lt;P&gt;To create a custom event the following blog can be referenced:&amp;nbsp;&lt;A href="https://community.sap.com/t5/technology-blogs-by-sap/rap-business-events-with-advanced-event-mesh-2-creating-custom-business/ba-p/13914171" target="_self"&gt;RAP Business Events with Advanced Event Mesh [2]: Creating custom business events&lt;/A&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Depending on the requirements the payload of the event can be adjusted within the abstract entity.&lt;/P&gt;&lt;P&gt;For this blog I'm using the following:&lt;/P&gt;&lt;P&gt;BO Data definition&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'BO for BP init load'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-
-define root view entity Z_INITLOAD_Event_BP as select from I_BusinessPartner
-{
-    key BusinessPartner
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;BO Behaviour definition&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed with unmanaged save implementation in class zbp_initload_event_bp unique;
-strict ( 2 );
-
-define behavior for Z_INITLOAD_Event_BP //alias &amp;lt;alias_name&amp;gt;
-lock master
-authorization master ( instance )
-//etag master &amp;lt;field_name&amp;gt;
-{
-    event BPCreatedInitLoad parameter Z_INITLOAD_EVENT_BP_PAYLOAD;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;Payload:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Payload for BP init load'
-define abstract entity Z_INITLOAD_EVENT_BP_PAYLOAD
-{   
-    BusinessPartnerCategory : abap.char(1);
-    AuthorizationGroup : abap.char(4);
-    BusinessPartnerUUID : abap.raw(16);
-    PersonNumber : abap.char(10);
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Global Class:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zbp_initload_event_bp DEFINITION PUBLIC ABSTRACT FINAL FOR BEHAVIOR OF z_initload_event_bp.
-
-    TYPES tt_events TYPE TABLE FOR EVENT z_initload_event_bp~BPCreatedInitLoad.
-
-    PUBLIC SECTION.
-        CLASS-METHODS raise_initload_create
-            IMPORTING it_events TYPE tt_events.
-ENDCLASS.
-
-CLASS zbp_initload_event_bp IMPLEMENTATION.
-    METHOD raise_initload_create.
-        lcl_event_handler=&amp;gt;on_InitLoad_Create( it_events ).
-    ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Local Class:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lcl_event_handler DEFINITION FRIENDS zbp_initload_event_bp.
-  PUBLIC SECTION.
-    CLASS-METHODS on_InitLoad_Create IMPORTING it_events TYPE zbp_initload_event_bp=&amp;gt;tt_events.
-ENDCLASS.
-
-CLASS lcl_event_handler IMPLEMENTATION.
-   METHOD on_InitLoad_Create.
-
-    RAISE ENTITY EVENT z_initload_event_bp~BPCreatedInitLoad FROM it_events.
-
-   ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Event Binding:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="TimoMaier_0-1743699528199.png" style="width: 775px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/246495iCD972189CD80FA87/image-dimensions/775x208?v=v2" width="775" height="208" role="button" title="TimoMaier_0-1743699528199.png" alt="TimoMaier_0-1743699528199.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1117881704"&gt;Trigger Program&lt;/H2&gt;&lt;P&gt;For triggering events there is no Out-of-the-Box feature with RAP Events. Therefor we need a trigger program that can be run by the user and creates all of the events.&lt;/P&gt;&lt;P&gt;To trigger the initial load events you have to load the data of the event and then trigger the event with it. I'm using an ABAP Class for that.&lt;/P&gt;&lt;P&gt;So let's create that class. I named mine&amp;nbsp;&lt;EM&gt;Z_INITIAL_LOAD_BP.&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;Next lets add the code:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_initload_bp DEFINITION
-  PUBLIC
-  FINAL
-  CREATE PUBLIC .
-
-  PUBLIC SECTION.
-    INTERFACES if_oo_adt_classrun.
-  PROTECTED SECTION.
-  PRIVATE SECTION.
-ENDCLASS.
-
-
-
-CLASS zcl_initload_bp IMPLEMENTATION.
-    METHOD if_oo_adt_classrun~main.
-
-        SELECT
-            FROM I_BusinessPartner
-            FIELDS BusinessPartner, BusinessPartnerCategory, BusinessPartnerUUID, PersonNumber
-            INTO TABLE &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1407137"&gt;@DATA&lt;/a&gt;(t_bupa).
-
-        DATA counter TYPE i VALUE 0.
-
-        LOOP AT t_bupa ASSIGNING FIELD-SYMBOL(&amp;lt;s_bupa&amp;gt;).
-
-            DATA(et_events) = VALUE zbp_initload_event_bp=&amp;gt;tt_events(
-                (
-                    BusinessPartner = &amp;lt;s_bupa&amp;gt;-BusinessPartner
-                    BusinessPartnerCategory = &amp;lt;s_bupa&amp;gt;-BusinessPartnerCategory
-                    BusinessPartnerUUID = &amp;lt;s_bupa&amp;gt;-BusinessPartnerUUID
-                    PersonNumber = &amp;lt;s_bupa&amp;gt;-PersonNumber
-                )
-            ).
-
-            zbp_initload_event_bp=&amp;gt;raise_initload_create( it_events = et_events ).
-
-            counter = counter + 1.
-
-        ENDLOOP.
-
-        out-&amp;gt;write( 'Initial load successfull!').
-        out-&amp;gt;write( counter &amp;amp;&amp;amp; ' Events were created' ).
-        commit work.
-    ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This code loads the data, loops trough the table and triggers an event for each business partner. Since it is just plain ABAP coding additional logic can be introduced for example for filtering objects following certain conditions.&lt;/P&gt;&lt;P&gt;You can then execute this code directly from eclipse.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-business-events-initial-loads-using-rap-events/ba-p/14065678"/>
-    <published>2025-04-16T13:11:14.006000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/integration-blog-posts/enable-sap-developer-hub-as-central-event-catalog/ba-p/14076495</id>
     <title>Enable SAP Developer Hub as central Event Catalog</title>
@@ -491,5 +382,17 @@ Message processData(Message message) {
 &amp;lt;/s:Envelope&amp;gt; &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;All &lt;/SPAN&gt;&lt;SPAN class=""&gt;together&lt;/SPAN&gt; &lt;SPAN class=""&gt;the&lt;/SPAN&gt;&amp;nbsp;complete&amp;nbsp;&lt;SPAN class=""&gt;iFlow&lt;/SPAN&gt; &lt;SPAN class=""&gt;looks&lt;/SPAN&gt;&lt;SPAN class=""&gt; like &lt;/SPAN&gt;&lt;SPAN class=""&gt;this&lt;/SPAN&gt;&lt;SPAN class=""&gt;:&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vanessadayanc_7-1752652431621.png" style="width: 690px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/287162i17A282525BFB8203/image-dimensions/690x231?v=v2" width="690" height="231" role="button" title="vanessadayanc_7-1752652431621.png" alt="vanessadayanc_7-1752652431621.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In the teaser one benefit of full state events was &lt;SPAN class=""&gt;&lt;SPAN class=""&gt;highlighted&lt;/SPAN&gt;&lt;/SPAN&gt;: &lt;EM&gt;&lt;STRONG&gt;Simplified Architectures&lt;/STRONG&gt;&lt;/EM&gt;&lt;SPAN&gt;&lt;EM&gt;: Reduceing dependency on S/4HANA APIs, and lowering system coupling and load.&lt;/EM&gt;&amp;nbsp;However, with the interface described above, the simplified architecture is not archieved. &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;To&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt; &lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;address&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt; &lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;this&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;, &lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;another&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt; &lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;solution&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt; &lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;is&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt; &lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;requir&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;ed&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;:&lt;/SPAN&gt;&lt;/SPAN&gt;&amp;nbsp;&lt;STRONG&gt;RAP event &lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;A RAP event can be used to archieve simpler architecture, providing pre-selected and filtered events.&amp;nbsp;Therefore, the solution chosen is to implement a custom RAP event.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;You&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt; &lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;can&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt; find &lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;more&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt; &lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;information&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt; in &lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;the&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;SPAN class=""&gt;next&lt;/SPAN&gt;&amp;nbsp;blog of&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;this&lt;/SPAN&gt; &lt;SPAN class=""&gt;serie&lt;/SPAN&gt;&lt;SPAN class=""&gt;: Event-&lt;/SPAN&gt;&lt;SPAN class=""&gt;driven&lt;/SPAN&gt;&lt;SPAN class=""&gt; Architecture: &lt;/SPAN&gt;&lt;SPAN class=""&gt;Creating&lt;/SPAN&gt; &lt;SPAN class=""&gt;Fullstate&lt;/SPAN&gt;&lt;SPAN class=""&gt; Events in SAP S/4HANA &lt;/SPAN&gt;&lt;SPAN class=""&gt;for&lt;/SPAN&gt;&lt;SPAN class=""&gt; SAP Event Mesh on Integration Suite (EMIS) - &lt;/SPAN&gt;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;RAP Edition&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt; &lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;(&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;coming&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt; &lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;soon&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;…).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/event-driven-architecture-creating-fullstate-events-in-sap-s-4hana-for-sap/ba-p/14153666"/>
     <published>2025-07-31T12:41:30.451000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/how-to-subscribe-or-fetch-data-from-solace-to-cpi-using-aem-adapter-part-5/ba-p/14163805</id>
+    <title>How to subscribe or fetch data from solace to CPI using AEM Adapter : part-5</title>
+    <updated>2025-08-03T09:08:18.668000+02:00</updated>
+    <author>
+      <name>pavanKolla</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2108029</uri>
+    </author>
+    <content>&lt;P&gt;Hello SAP Community!!!&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In the solace subscriber layer(fetching data from solace) solace is a powerful Event Broker which its mainly focus on Guaranteed message delivery and while fetching data from solace if the iflow ran into error the solace would retry sending messages even without checking weather its Recoverable or Non-recoverable errors .if its recoverable error the solace retry would meaningful and if it is the non-recoverable errors the doesn't goes to target if solace retry any number of times.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Implementation :&lt;BR /&gt;&lt;/STRONG&gt;&lt;SPAN&gt;Layer 1 – Solace AEM Sender Adapter subscribes to incoming messages. If an error occurs, it triggers Exception Subprocess for centralized handling, If Error doesn't occur then then the data successfully goes to sftp server.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-07-23 153710.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/292342i59FF6103E737A0DD/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-07-23 153710.png" alt="Screenshot 2025-07-23 153710.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;SPAN&gt;Layer 2 – Introduced a Groovy-based classification to detect recoverable vs. non-recoverable errors:&lt;/SPAN&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;Recoverable: Routed to a successful end (ensuring retry by Solace).&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-07-23 172045.png" style="width: 987px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/292343iD8E66D478623F5DB/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-07-23 172045.png" alt="Screenshot 2025-07-23 172045.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-07-23 172147.png" style="width: 528px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/292344i55769D95FB799CB6/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-07-23 172147.png" alt="Screenshot 2025-07-23 172147.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;Non-recoverable: Sends a custom property (false) back to Solace to prevent retries and routes to escalation.&lt;/SPAN&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;Escalation Layer – Built a downstream flow that integrates with Exception handling layer&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-07-24 105001.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/292345iBDC82724E6219F4A/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-07-24 105001.png" alt="Screenshot 2025-07-24 105001.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;This Error handling layer can implemented for notifying the type of error occurred with proper details&amp;nbsp;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;Email for developer alerting&lt;/SPAN&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;ServiceNow for incident creation&lt;/SPAN&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;Loggly for traceability&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;So, this is the implementation of solace subscriber&amp;nbsp; implementation&amp;nbsp;part and i had given the error handling part in the subscriber part as well so by this the end to end our Event Driven Architecture using solace Event Broker series has came to an End.Stay tuned for Upcoming blogs&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/how-to-subscribe-or-fetch-data-from-solace-to-cpi-using-aem-adapter-part-5/ba-p/14163805"/>
+    <published>2025-08-03T09:08:18.668000+02:00</published>
   </entry>
 </feed>
