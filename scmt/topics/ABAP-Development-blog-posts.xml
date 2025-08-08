@@ -2,435 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2025-08-08T11:00:03.992855+00:00</updated>
+  <updated>2025-08-08T14:00:04.550558+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/splitstorm-a-generic-splitter-configuration-tool/ba-p/14143875</id>
-    <title>Splitstorm - A Generic Splitter Configuration Tool</title>
-    <updated>2025-07-03T17:51:47.033000+02:00</updated>
-    <author>
-      <name>EnnoWulff</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/7046</uri>
-    </author>
-    <content>&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1734146665"&gt;Extracting and Restoring Splitter Container Configurations in SAP GUI with ABAP&lt;/H2&gt;&lt;P&gt;When working with complex SAP GUI applications, it's common to use CL_GUI_SPLITTER_CONTAINER to structure screens. These splitter configurations often evolve over time and differ between users, environments, or sSAPGUI-settings.&lt;/P&gt;&lt;P&gt;This article presents a simple but effective way to extract and later restore the current configuration of SAP splitter containers using a small local ABAP utility that I call &lt;STRONG&gt;SplitStorm&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;The core idea is not product-related. It's about treating layout configurations as &lt;STRONG&gt;data&lt;/STRONG&gt; that can be stored and restored. While SAP provides APIs to define and modify split containers, it lacks built-in support for introspection and persistence of these layout states.&lt;/P&gt;&lt;H3 id="toc-hId-1666715879"&gt;Problem Statement&lt;/H3&gt;&lt;P&gt;There are a few typical situations where this becomes relevant:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Users have different SAPGUI settings (theme, fonts or fontsize) which results in different output and hidden information.&amp;nbsp;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;Different users have different interest on different areas. One user needs to have a bigger view on the global ALV-Grid, another colleague wants to see more of the detail view.&lt;/LI&gt;&lt;LI&gt;Different screen resolutions result in unused screen areas, e.g. when the ratio is set to 30% for the left object tree, what fits great on FullHD but is to much for higher resolutions or wide screens&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1470202374"&gt;Approach&lt;/H3&gt;&lt;P&gt;Using recursive traversal and some clever techniques, it’s possible to extract the layout structure and size ratios of a splitter hierarchy. The data is stored in a simple, format that can later be used to reconstruct the exact same configuration.&lt;/P&gt;&lt;P&gt;The main features include:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Reading the layout hierarchy of nested CL_GUI_SPLITTER_CONTAINER instances&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Capturing the orientation, pane sizes, and nesting relationships&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Rebuilding the structure with the same layout at a later time&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1273688869"&gt;How does it work?&lt;/H3&gt;&lt;P&gt;The method ANALYZE_AND_SAVE analyzes the container hierarchy of the given main container. To retrieve the number of rows and columns of a splitter, I simply try to get all containers in a 20x20-Grid. If I do not get a valid container for row 3 and column 4 then I know that there are max 2 rows or max 3 columns.&lt;/P&gt;&lt;P&gt;The height and width for each pane will be read and stored in a simple matrix information&lt;/P&gt;&lt;P&gt;Data will be saved in the Index-Table INDX where data in any format can be stored easily. A better way would be to transform the data to JSON or serialize in a data object and store it in an own table. But for my purposes I think that INDX is okay.&lt;/P&gt;&lt;P&gt;Restoring the data reads the path to the current container and sets height and width.&amp;nbsp;&lt;/P&gt;&lt;P&gt;It's easy to build the standard layout and the restore the configuration from saved data.&lt;/P&gt;&lt;H3 id="toc-hId-1077175364"&gt;The Code&lt;/H3&gt;&lt;P&gt;The actual complete source code is available at github: &lt;A href="https://github.com/tricktresor/splitstorm" target="_self" rel="nofollow noopener noreferrer"&gt;Splitstorm&lt;/A&gt;&lt;/P&gt;&lt;H4 id="toc-hId-1009744578"&gt;Demo report&lt;/H4&gt;&lt;P&gt;The Demo report builds a sample configuration using splitter containers without any controls in it.&lt;/P&gt;&lt;P&gt;You can save the current configuration, load or delete an existing layout.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;REPORT zt9r_splitstorm_demo01.
-
-SELECTION-SCREEN PUSHBUTTON /1(20) TEXT-sav USER-COMMAND zsave.
-SELECTION-SCREEN PUSHBUTTON /1(20) TEXT-lod USER-COMMAND zload.
-SELECTION-SCREEN PUSHBUTTON /1(20) TEXT-del USER-COMMAND zdelete.
-
-INITIALIZATION.
-
-  DATA(docker) = NEW cl_gui_docking_container( ratio = 90 side = cl_gui_docking_container=&amp;gt;dock_at_bottom ).
-
-  DATA(sca)   = NEW cl_gui_splitter_container( parent = docker rows = 2 columns = 2 ).
-  DATA(sca1)  = NEW cl_gui_splitter_container( parent = sca-&amp;gt;get_container( row = 1 column = 1 ) rows = 1 columns = 2 ).
-  DATA(sca2)  = NEW cl_gui_splitter_container( parent = sca-&amp;gt;get_container( row = 2 column = 1 ) rows = 2 columns = 1 ).
-  DATA(scb1)  = NEW cl_gui_splitter_container( parent = sca2-&amp;gt;get_container( row = 1 column = 1 ) rows = 1 columns = 2 ).
-  DATA(scb2)  = NEW cl_gui_splitter_container( parent = sca2-&amp;gt;get_container( row = 2 column = 1 ) rows = 2 columns = 1 ).
-
-
-AT SELECTION-SCREEN.
-
-  DATA(info) = NEW zt9r_splitstorm( sy-cprog ).
-
-  CASE sy-ucomm.
-    WHEN 'ZSAVE'.
-      info-&amp;gt;analyze_and_save( docker ).
-    WHEN 'ZLOAD'.
-      info-&amp;gt;load_and_restore( docker ).
-    WHEN 'ZDELETE'.
-      info-&amp;gt;delete( ).
-  ENDCASE.&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId-813231073"&gt;Main class&lt;/H4&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zt9r_splitstorm DEFINITION PUBLIC.
-  PUBLIC SECTION.
-    TYPES: BEGIN OF ty_splitter_info,
-             path          TYPE string,
-             rows          TYPE i,
-             columns       TYPE i,
-             row_heights   TYPE STANDARD TABLE OF i WITH DEFAULT KEY,
-             column_widths TYPE STANDARD TABLE OF i WITH DEFAULT KEY,
-           END OF ty_splitter_info.
-
-    TYPES ty_splitter_info_tab TYPE STANDARD TABLE OF ty_splitter_info WITH DEFAULT KEY.
-
-    METHODS delete.
-
-    METHODS load_and_restore
-      IMPORTING
-        i_container TYPE REF TO cl_gui_container.
-
-    METHODS analyze_and_save
-      IMPORTING
-        i_container TYPE REF TO cl_gui_container.
-
-    METHODS constructor
-      IMPORTING
-        repid TYPE clike.
-
-  PRIVATE SECTION.
-    METHODS save.
-    METHODS load.
-
-    CONSTANTS mc_root TYPE string VALUE `ROOT`.
-
-    METHODS analyze_recursive
-      IMPORTING
-        i_container   TYPE REF TO cl_gui_control
-        i_path        TYPE string
-      RETURNING
-        VALUE(result) TYPE abap_bool.
-
-    METHODS get_row_count
-      IMPORTING
-        i_splitter    TYPE REF TO cl_gui_splitter_container
-      RETURNING
-        VALUE(result) TYPE i.
-
-    METHODS get_column_count
-      IMPORTING
-        i_splitter    TYPE REF TO cl_gui_splitter_container
-      RETURNING
-        VALUE(result) TYPE i.
-
-    METHODS restore_recursive
-      IMPORTING
-        i_container TYPE REF TO cl_gui_control
-        i_path      TYPE string.
-
-    METHODS get_splitter_row_height
-      IMPORTING
-        io_splitter   TYPE REF TO cl_gui_splitter_container
-      RETURNING
-        VALUE(r_size) TYPE i.
-
-    METHODS get_splitter_col_width
-      IMPORTING
-        io_splitter   TYPE REF TO cl_gui_splitter_container
-      RETURNING
-        VALUE(r_size) TYPE i.
-
-    METHODS analyze
-      IMPORTING
-        i_container   TYPE REF TO cl_gui_container
-      RETURNING
-        VALUE(result) TYPE ty_splitter_info_tab.
-
-    METHODS restore_sizes
-      IMPORTING
-        i_container TYPE REF TO cl_gui_container.
-
-    METHODS get_id
-      RETURNING
-        VALUE(r_id) TYPE char20.
-
-    DATA size_info TYPE ty_splitter_info_tab.
-    DATA repid     TYPE c LENGTH 40.
-ENDCLASS.
-
-
-
-CLASS ZT9R_SPLITSTORM IMPLEMENTATION.
-
-
-* &amp;lt;SIGNATURE&amp;gt;---------------------------------------------------------------------------------------+
-* | Instance Private Method ZT9R_SPLITSTORM-&amp;gt;ANALYZE
-* +-------------------------------------------------------------------------------------------------+
-* | [---&amp;gt;] I_CONTAINER                    TYPE REF TO CL_GUI_CONTAINER
-* | [&amp;lt;-()] RESULT                         TYPE        TY_SPLITTER_INFO_TAB
-* +--------------------------------------------------------------------------------------&amp;lt;/SIGNATURE&amp;gt;
-  METHOD analyze.
-    LOOP AT i_container-&amp;gt;children INTO DATA(child).
-      analyze_recursive( i_container = child
-                         i_path      = mc_root ).
-    ENDLOOP.
-
-    result = size_info.
-  ENDMETHOD.
-
-
-* &amp;lt;SIGNATURE&amp;gt;---------------------------------------------------------------------------------------+
-* | Instance Public Method ZT9R_SPLITSTORM-&amp;gt;ANALYZE_AND_SAVE
-* +-------------------------------------------------------------------------------------------------+
-* | [---&amp;gt;] I_CONTAINER                    TYPE REF TO CL_GUI_CONTAINER
-* +--------------------------------------------------------------------------------------&amp;lt;/SIGNATURE&amp;gt;
-  METHOD analyze_and_save.
-    analyze( i_container = i_container ).
-    save( ).
-  ENDMETHOD.
-
-
-* &amp;lt;SIGNATURE&amp;gt;---------------------------------------------------------------------------------------+
-* | Instance Private Method ZT9R_SPLITSTORM-&amp;gt;ANALYZE_RECURSIVE
-* +-------------------------------------------------------------------------------------------------+
-* | [---&amp;gt;] I_CONTAINER                    TYPE REF TO CL_GUI_CONTROL
-* | [---&amp;gt;] I_PATH                         TYPE        STRING
-* | [&amp;lt;-()] RESULT                         TYPE        ABAP_BOOL
-* +--------------------------------------------------------------------------------------&amp;lt;/SIGNATURE&amp;gt;
-  METHOD analyze_recursive.
-    TRY.
-        DATA(lo_splitter) = CAST cl_gui_splitter_container( i_container ).
-        result = abap_true.
-      CATCH cx_sy_move_cast_error.
-        result = abap_false.
-        RETURN.
-    ENDTRY.
-
-    DATA(lv_rows)    = get_row_count( lo_splitter ).
-    DATA(lv_columns) = get_column_count( lo_splitter ).
-
-    DATA lt_row_heights TYPE STANDARD TABLE OF i WITH DEFAULT KEY.
-    DATA lt_col_widths  TYPE STANDARD TABLE OF i WITH DEFAULT KEY.
-
-    DO lv_rows TIMES.
-      APPEND get_splitter_row_height( lo_splitter ) TO lt_row_heights.
-    ENDDO.
-
-    DO lv_columns TIMES.
-      APPEND get_splitter_col_width( lo_splitter ) TO lt_col_widths.
-    ENDDO.
-
-    APPEND VALUE ty_splitter_info( path          = i_path
-                                   rows          = lv_rows
-                                   columns       = lv_columns
-                                   row_heights   = lt_row_heights
-                                   column_widths = lt_col_widths )
-           TO size_info.
-
-    DATA(index_row) = 0.
-    DATA(index_col) = 0.
-    DO lv_rows TIMES.
-      index_col = 0.
-      index_row = index_row + 1.
-      DO lv_columns TIMES.
-        index_col = index_col + 1.
-        DATA(lo_container) = lo_splitter-&amp;gt;get_container( row    = index_row
-                                                         column = index_col ).
-        LOOP AT lo_container-&amp;gt;children INTO DATA(lo_child).
-          IF NOT analyze_recursive(
-                     i_container = lo_child
-                     i_path      = |{ i_path }[{ index_row },{ index_col }]| ).
-            EXIT. " from do
-          ENDIF.
-        ENDLOOP.
-      ENDDO.
-    ENDDO.
-  ENDMETHOD.
-
-
-* &amp;lt;SIGNATURE&amp;gt;---------------------------------------------------------------------------------------+
-* | Instance Public Method ZT9R_SPLITSTORM-&amp;gt;CONSTRUCTOR
-* +-------------------------------------------------------------------------------------------------+
-* | [---&amp;gt;] REPID                          TYPE        CLIKE
-* +--------------------------------------------------------------------------------------&amp;lt;/SIGNATURE&amp;gt;
-  METHOD constructor.
-    me-&amp;gt;repid = repid.
-  ENDMETHOD.
-
-
-* &amp;lt;SIGNATURE&amp;gt;---------------------------------------------------------------------------------------+
-* | Instance Public Method ZT9R_SPLITSTORM-&amp;gt;DELETE
-* +-------------------------------------------------------------------------------------------------+
-* +--------------------------------------------------------------------------------------&amp;lt;/SIGNATURE&amp;gt;
-  METHOD delete.
-    DATA(id) = get_id( ).
-    DELETE FROM DATABASE indx(z1) ID id.
-    IF sy-subrc = 0 AND size_info IS NOT INITIAL.
-      MESSAGE 'Splitter configuration deleted' TYPE 'S'.
-    ENDIF.
-  ENDMETHOD.
-
-
-* &amp;lt;SIGNATURE&amp;gt;---------------------------------------------------------------------------------------+
-* | Instance Private Method ZT9R_SPLITSTORM-&amp;gt;GET_COLUMN_COUNT
-* +-------------------------------------------------------------------------------------------------+
-* | [---&amp;gt;] I_SPLITTER                     TYPE REF TO CL_GUI_SPLITTER_CONTAINER
-* | [&amp;lt;-()] RESULT                         TYPE        I
-* +--------------------------------------------------------------------------------------&amp;lt;/SIGNATURE&amp;gt;
-  METHOD get_column_count.
-    result = 0.
-    DO 20 TIMES.
-      DATA(container) = i_splitter-&amp;gt;get_container( row    = 1
-                                                   column = sy-index ).
-      IF container IS INITIAL.
-        RETURN.
-      ELSE.
-        result = result + 1.
-      ENDIF.
-    ENDDO.
-  ENDMETHOD.
-
-
-* &amp;lt;SIGNATURE&amp;gt;---------------------------------------------------------------------------------------+
-* | Instance Private Method ZT9R_SPLITSTORM-&amp;gt;GET_ID
-* +-------------------------------------------------------------------------------------------------+
-* | [&amp;lt;-()] R_ID                           TYPE        CHAR20
-* +--------------------------------------------------------------------------------------&amp;lt;/SIGNATURE&amp;gt;
-  METHOD get_id.
-    r_id = |SPLITTER-{ repid }-{ sy-uname }|.
-  ENDMETHOD.
-
-
-* &amp;lt;SIGNATURE&amp;gt;---------------------------------------------------------------------------------------+
-* | Instance Private Method ZT9R_SPLITSTORM-&amp;gt;GET_ROW_COUNT
-* +-------------------------------------------------------------------------------------------------+
-* | [---&amp;gt;] I_SPLITTER                     TYPE REF TO CL_GUI_SPLITTER_CONTAINER
-* | [&amp;lt;-()] RESULT                         TYPE        I
-* +--------------------------------------------------------------------------------------&amp;lt;/SIGNATURE&amp;gt;
-  METHOD get_row_count.
-    result = 0.
-    DO 20 TIMES.
-      DATA(container) = i_splitter-&amp;gt;get_container( row    = sy-index
-                                                   column = 1 ).
-      IF container IS INITIAL.
-        RETURN.
-      ELSE.
-        result = result + 1.
-      ENDIF.
-
-    ENDDO.
-  ENDMETHOD.
-
-
-* &amp;lt;SIGNATURE&amp;gt;---------------------------------------------------------------------------------------+
-* | Instance Private Method ZT9R_SPLITSTORM-&amp;gt;GET_SPLITTER_COL_WIDTH
-* +-------------------------------------------------------------------------------------------------+
-* | [---&amp;gt;] IO_SPLITTER                    TYPE REF TO CL_GUI_SPLITTER_CONTAINER
-* | [&amp;lt;-()] R_SIZE                         TYPE        I
-* +--------------------------------------------------------------------------------------&amp;lt;/SIGNATURE&amp;gt;
-  METHOD get_splitter_col_width.
-    io_splitter-&amp;gt;get_column_width( EXPORTING
-                                     id     = sy-index
-                                   IMPORTING
-                                     result = r_size  ).
-    cl_gui_cfw=&amp;gt;flush( ).
-  ENDMETHOD.
-
-
-* &amp;lt;SIGNATURE&amp;gt;---------------------------------------------------------------------------------------+
-* | Instance Private Method ZT9R_SPLITSTORM-&amp;gt;GET_SPLITTER_ROW_HEIGHT
-* +-------------------------------------------------------------------------------------------------+
-* | [---&amp;gt;] IO_SPLITTER                    TYPE REF TO CL_GUI_SPLITTER_CONTAINER
-* | [&amp;lt;-()] R_SIZE                         TYPE        I
-* +--------------------------------------------------------------------------------------&amp;lt;/SIGNATURE&amp;gt;
-  METHOD get_splitter_row_height.
-    io_splitter-&amp;gt;get_row_height( EXPORTING
-                                   id     = sy-index
-                                 IMPORTING
-                                   result = r_size  ).
-    cl_gui_cfw=&amp;gt;flush( ).
-  ENDMETHOD.
-
-
-* &amp;lt;SIGNATURE&amp;gt;---------------------------------------------------------------------------------------+
-* | Instance Private Method ZT9R_SPLITSTORM-&amp;gt;LOAD
-* +-------------------------------------------------------------------------------------------------+
-* +--------------------------------------------------------------------------------------&amp;lt;/SIGNATURE&amp;gt;
-  METHOD load.
-    DATA(id) = get_id( ).
-    IMPORT splitter_info TO size_info FROM DATABASE indx(z1) ID id.
-    IF sy-subrc = 0 AND size_info IS NOT INITIAL.
-      MESSAGE 'Splitter configuration loaded' TYPE 'S'.
-    ENDIF.
-  ENDMETHOD.
-
-
-* &amp;lt;SIGNATURE&amp;gt;---------------------------------------------------------------------------------------+
-* | Instance Public Method ZT9R_SPLITSTORM-&amp;gt;LOAD_AND_RESTORE
-* +-------------------------------------------------------------------------------------------------+
-* | [---&amp;gt;] I_CONTAINER                    TYPE REF TO CL_GUI_CONTAINER
-* +--------------------------------------------------------------------------------------&amp;lt;/SIGNATURE&amp;gt;
-  METHOD load_and_restore.
-    load( ).
-    restore_sizes( i_container = i_container ).
-  ENDMETHOD.
-
-
-* &amp;lt;SIGNATURE&amp;gt;---------------------------------------------------------------------------------------+
-* | Instance Private Method ZT9R_SPLITSTORM-&amp;gt;RESTORE_RECURSIVE
-* +-------------------------------------------------------------------------------------------------+
-* | [---&amp;gt;] I_CONTAINER                    TYPE REF TO CL_GUI_CONTROL
-* | [---&amp;gt;] I_PATH                         TYPE        STRING
-* +--------------------------------------------------------------------------------------&amp;lt;/SIGNATURE&amp;gt;
-  METHOD restore_recursive.
-    TRY.
-        DATA(splitter) = CAST cl_gui_splitter_container( i_container ) ##NO_TEXT.
-      CATCH cx_sy_move_cast_error.
-        RETURN.
-    ENDTRY.
-
-    READ TABLE size_info INTO DATA(info) WITH KEY path = i_path.
-    IF sy-subrc &amp;lt;&amp;gt; 0 OR splitter IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    DATA(idx) = 1.
-
-    LOOP AT info-row_heights INTO DATA(lv_r).
-      splitter-&amp;gt;set_row_height( id = idx height = lv_r ).
-      idx = idx + 1.
-    ENDLOOP.
-
-    idx = 1.
-    LOOP AT info-column_widths INTO DATA(lv_c).
-      splitter-&amp;gt;set_column_width( id = idx width = lv_c ).
-      idx = idx + 1.
-    ENDLOOP.
-
-    " Rekursiv weiter
-    DATA(index_row) = 0.
-    DATA(index_col) = 0.
-    DO info-rows TIMES.
-      index_col = 0.
-      index_row = index_row + 1.
-      DO info-columns TIMES.
-        index_col = index_col + 1.
-        DATA(lo_container) = splitter-&amp;gt;get_container( row    = index_row
-                                                      column = index_col ).
-        DATA(lv_subpath) = |{ i_path }[{ index_row },{ index_col }]|.
-        LOOP AT lo_container-&amp;gt;children INTO DATA(lo_child).
-          restore_recursive( i_container = lo_child
-                             i_path      = lv_subpath ).
-        ENDLOOP.
-      ENDDO.
-    ENDDO.
-  ENDMETHOD.
-
-
-* &amp;lt;SIGNATURE&amp;gt;---------------------------------------------------------------------------------------+
-* | Instance Private Method ZT9R_SPLITSTORM-&amp;gt;RESTORE_SIZES
-* +-------------------------------------------------------------------------------------------------+
-* | [---&amp;gt;] I_CONTAINER                    TYPE REF TO CL_GUI_CONTAINER
-* +--------------------------------------------------------------------------------------&amp;lt;/SIGNATURE&amp;gt;
-  METHOD restore_sizes.
-    IF size_info IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    LOOP AT i_container-&amp;gt;children INTO DATA(child).
-      restore_recursive( i_container = child
-                         i_path      = mc_root ).
-    ENDLOOP.
-  ENDMETHOD.
-
-
-* &amp;lt;SIGNATURE&amp;gt;---------------------------------------------------------------------------------------+
-* | Instance Private Method ZT9R_SPLITSTORM-&amp;gt;SAVE
-* +-------------------------------------------------------------------------------------------------+
-* +--------------------------------------------------------------------------------------&amp;lt;/SIGNATURE&amp;gt;
-  METHOD save.
-    IF size_info IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    DATA(id) = get_id( ).
-    EXPORT splitter_info FROM size_info TO DATABASE indx(z1) ID id.
-    MESSAGE 'Splitter configuration saved' TYPE 'S'.
-  ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/splitstorm-a-generic-splitter-configuration-tool/ba-p/14143875"/>
-    <published>2025-07-03T17:51:47.033000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/replace-all-occurrences-in-multiple-fields-of-an-internal-table/ba-p/14137810</id>
     <title>Replace All Occurrences in Multiple Fields of an Internal Table</title>
@@ -2337,5 +1912,36 @@ DATA(lv_excel) = lo_exporter-&amp;gt;export_to_xlsx(
 ).&lt;/PRE&gt;&lt;H3 id="toc-hId-97435844"&gt;Automatic Hierarchical Flattening&lt;/H3&gt;&lt;P&gt;The add-on automatically handles complex nested structures that would require significant manual coding with vanilla abap2xlsx.&lt;/P&gt;&lt;H2 id="toc-hId-119093977"&gt;Real-World Impact&lt;/H2&gt;&lt;P&gt;This add-on has proven valuable for:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Rapid prototyping&lt;/STRONG&gt;: Get exports working quickly without configuration overhead&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Consistent interfaces&lt;/STRONG&gt;: Standardized approach across development teams&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Complex data structures&lt;/STRONG&gt;: Automatic handling of organizational hierarchies, product catalogs, and financial reporting trees&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Maintenance reduction&lt;/STRONG&gt;: Less boilerplate code to maintain&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId--77419528"&gt;Built for Production&lt;/H2&gt;&lt;P&gt;Unlike many community add-ons, this enhancement includes comprehensive test coverage and follows SOLID principles with dependency injection for reliable production use.&lt;/P&gt;&lt;H2 id="toc-hId--273933033"&gt;Call for Community Collaboration&lt;/H2&gt;&lt;P&gt;This project represents a step toward making ABAP Excel exports more developer-friendly, but it can be even better with your input:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-unicode-emoji" title=":magnifying_glass_tilted_left:"&gt;🔍&lt;/span&gt; We Need Your Feedback:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;What configuration scenarios are still too complex?&lt;/LI&gt;&lt;LI&gt;Are there hierarchical data patterns not yet supported?&lt;/LI&gt;&lt;LI&gt;What additional convenience features would help your workflow?&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-unicode-emoji" title=":handshake:"&gt;🤝&lt;/span&gt; Contribution Opportunities:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Performance optimizations for large datasets&lt;/LI&gt;&lt;LI&gt;Additional convenience methods for common scenarios&lt;/LI&gt;&lt;LI&gt;Enhanced field mapping capabilities&lt;/LI&gt;&lt;LI&gt;Integration examples with existing frameworks&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;🧪 Testing &amp;amp; Validation:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Test with your real-world data structures&lt;/LI&gt;&lt;LI&gt;Report edge cases or configuration challenges&lt;/LI&gt;&lt;LI&gt;Share success stories and simplified workflows&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId--470446538"&gt;Repository &amp;amp; Documentation&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;GitHub&lt;/STRONG&gt;: &lt;A href="https://github.com/kartefact/abap2xlsx-dynamic-export" target="_blank" rel="noopener nofollow noreferrer"&gt;kartefact/abap2xlsx-dynamic-export&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Base Framework&lt;/STRONG&gt;: &lt;A href="https://github.com/abap2xlsx/abap2xlsx" target="_blank" rel="noopener nofollow noreferrer"&gt;abap2xlsx/abap2xlsx&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Documentation&lt;/STRONG&gt;: &lt;A href="https://kartefact.github.io/abap2xlsx-docs" target="_blank" rel="noopener nofollow noreferrer"&gt;kartefact.github.io/abap2xlsx-docs&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;License&lt;/STRONG&gt;: Open source - contribute freely!&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId--666960043"&gt;Join the Discussion&lt;/H2&gt;&lt;P&gt;I'm particularly interested in hearing about:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Your current abap2xlsx setup pain points&lt;/LI&gt;&lt;LI&gt;Complex data structures you're working with&lt;/LI&gt;&lt;LI&gt;Configuration scenarios that could be simplified further&lt;/LI&gt;&lt;LI&gt;Integration patterns with existing applications&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Let's collaborate to make ABAP Excel exports more accessible and maintainable for everyone!&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/simplify-abap2xlsx-convention-over-configuration-for-abap-excel-exports/ba-p/14175604"/>
     <published>2025-08-08T11:40:00.020000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/sap-mdg-making-cr-descriptions-auto-populated-and-read-only/ba-p/14175729</id>
+    <title>SAP MDG: Making CR Descriptions Auto-Populated and Read-Only</title>
+    <updated>2025-08-08T13:26:27.440000+02:00</updated>
+    <author>
+      <name>sandeep_suggu</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/11644</uri>
+    </author>
+    <content>&lt;P&gt;HI SCN Folks,&amp;nbsp;&lt;/P&gt;&lt;P&gt;Hope you guys are doing great &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1866058417"&gt;Introduction&lt;/H3&gt;&lt;P&gt;In SAP Master Data Governance (MDG), whenever you create, change, or extend master data such as &lt;STRONG&gt;Customer&lt;/STRONG&gt;, &lt;STRONG&gt;Supplier&lt;/STRONG&gt;, or &lt;STRONG&gt;Material&lt;/STRONG&gt;, you start by choosing a &lt;STRONG&gt;Change Request (CR) Type&lt;/STRONG&gt;. Once the CR Type is selected, the system opens the &lt;STRONG&gt;Change Request&lt;/STRONG&gt; screen, where the &lt;EM&gt;Description&lt;/EM&gt; field is mandatory and must be filled in manually.&lt;/P&gt;&lt;P&gt;While this works, it often leads to inconsistent naming conventions, typos, or missing context—especially in large teams. A better approach is to &lt;STRONG&gt;automatically populate the CR Description based on the CR Type and Data Model&lt;/STRONG&gt; and make it &lt;STRONG&gt;read-only&lt;/STRONG&gt; so that users can’t change it. This ensures standardization, saves time, and reduces errors.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1669544912"&gt;Why Automate the CR Description?&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Consistency:&lt;/STRONG&gt; Every CR of the same type follows the same naming convention.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Efficiency:&lt;/STRONG&gt; Users don’t waste time typing repetitive descriptions.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Accuracy:&lt;/STRONG&gt; Eliminates human errors such as spelling mistakes or incomplete descriptions.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Governance:&lt;/STRONG&gt; Locks the field to ensure compliance with naming rules.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1473031407"&gt;The Requirement&lt;/H3&gt;&lt;P&gt;We want the system to:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;Detect the &lt;STRONG&gt;CR Type&lt;/STRONG&gt; and &lt;STRONG&gt;Data Model&lt;/STRONG&gt; when a CR is created.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Automatically fill in the &lt;STRONG&gt;Description&lt;/STRONG&gt; based on these values.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Make the field &lt;STRONG&gt;read-only&lt;/STRONG&gt; so it cannot be manually edited.&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;Example:&lt;BR /&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;CR Type&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;&lt;STRONG&gt;&amp;nbsp;Data Model&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;&lt;STRONG&gt;&amp;nbsp;Auto Description&lt;/STRONG&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;ZMAT01&lt;/TD&gt;&lt;TD&gt;MM&lt;/TD&gt;&lt;TD&gt;"Material Creation Request"&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;ZCUST01&lt;/TD&gt;&lt;TD&gt;BP&lt;/TD&gt;&lt;TD&gt;"Customer Creation Request"&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;ZSUPP02&lt;/TD&gt;&lt;TD&gt;BP&lt;/TD&gt;&lt;TD&gt;"Supplier Extension Request"&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;BR /&gt;&lt;H2 id="toc-hId-1147435183"&gt;&lt;STRONG&gt;Technical Implementation&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;We will achieve this using the &lt;STRONG&gt;BAdI USMD_CREQUEST_INTEGRATION&lt;/STRONG&gt;.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1080004397"&gt;&lt;STRONG&gt;&lt;span class="lia-unicode-emoji" title=":keycap_1:"&gt;1️⃣&lt;/span&gt;Create a BAdI Implementation&lt;/STRONG&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Go to transaction &lt;STRONG&gt;SE18&lt;/STRONG&gt; or &lt;STRONG&gt;SE19&lt;/STRONG&gt;.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Create an implementation for the BAdI USMD_CREQUEST_INTEGRATION.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Choose the &lt;STRONG&gt;filter values&lt;/STRONG&gt; for the relevant &lt;STRONG&gt;Data Model&lt;/STRONG&gt; (e.g., BP, MM).&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-883490892"&gt;&lt;STRONG&gt;&lt;span class="lia-unicode-emoji" title=":keycap_2:"&gt;2️⃣&lt;/span&gt;Method to Auto-Populate the Description&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Method:&lt;/STRONG&gt;&lt;BR /&gt;IF_EX_USMD_CREQUEST_INTEGR~GET_CREQUEST_ATTRIBUTES&lt;/P&gt;&lt;P&gt;In this method, we will:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Read the &lt;STRONG&gt;Data Model&lt;/STRONG&gt; (iv_model)&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Read the &lt;STRONG&gt;CR Type&lt;/STRONG&gt; (iv_crequest_type)&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Set the &lt;STRONG&gt;Description&lt;/STRONG&gt; (cv_description) accordingly&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Sample Code:&lt;BR /&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD if_ex_usmd_crequest_integr~get_crequest_attributes.
+
+  IF iv_model = 'BP' AND iv_crequest_type = 'ZMDGCUS01'.
+    cv_description = 'Create Customer'.   
+                            
+  ELSEIF iv_model = 'BP' AND iv_crequest_type = 'ZMDGSUP02'.
+    cv_description = 'Change Supplier'.
+
+  ELSEIF iv_model = 'MM' AND iv_crequest_type = 'ZMDGMAT03'.
+    cv_description = 'Extend Material'.
+
+  ENDIF.
+
+ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-686977387"&gt;&lt;STRONG&gt;&lt;span class="lia-unicode-emoji" title=":keycap_3:"&gt;3️⃣&lt;/span&gt;Method to Make the Field Read-Only&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Method:&lt;/STRONG&gt;&lt;BR /&gt;IF_EX_USMD_CREQUEST_INTEGR~GET_CREQUEST_FLD_PROP&lt;/P&gt;&lt;P&gt;Here, we change the &lt;STRONG&gt;field property&lt;/STRONG&gt; so the &lt;EM&gt;Description&lt;/EM&gt; field becomes &lt;STRONG&gt;Read-Only&lt;/STRONG&gt;.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;Sample Code:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD if_ex_usmd_crequest_integr~get_crequest_fld_prop.
+
+  IF iv_model = 'BP' OR iv_model = 'MM'.
+    cv_description_fld_prop = 'R'.  "R = Read-Only
+  ENDIF.
+
+ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-490463882"&gt;&lt;STRONG&gt;&lt;span class="lia-unicode-emoji" title=":keycap_4:"&gt;4️⃣&lt;/span&gt;Transport &amp;amp; Test&lt;/STRONG&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Create a new CR for each CR Type &amp;amp; Data Model combination.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Verify that:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;The &lt;EM&gt;Description&lt;/EM&gt; is automatically filled.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;The &lt;EM&gt;Description&lt;/EM&gt; field is read-only.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;After implementing the BAdI logic, we tested the functionality in SAP MDG to confirm that:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;The &lt;EM&gt;Description&lt;/EM&gt; field is &lt;STRONG&gt;auto-populated&lt;/STRONG&gt; based on the &lt;STRONG&gt;CR Type&lt;/STRONG&gt; and &lt;STRONG&gt;Data Model&lt;/STRONG&gt;.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;The &lt;EM&gt;Description&lt;/EM&gt; field is &lt;STRONG&gt;read-only&lt;/STRONG&gt; and cannot be manually edited.&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;H3 id="toc-hId-293950377"&gt;&lt;STRONG&gt;&lt;BR /&gt;Test Case Example&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Scenario:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Data Model:&lt;/STRONG&gt; BP&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Change Request Type:&lt;/STRONG&gt; ZMDGCUS01 (&lt;EM&gt;Customer Creation Request&lt;/EM&gt;)&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Expected Result:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Description auto-fills as &lt;STRONG&gt;"Customer Creation Request"&lt;/STRONG&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Field is non-editable&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Actual Result:&lt;/STRONG&gt; &lt;span class="lia-unicode-emoji" title=":white_heavy_check_mark:"&gt;✅&lt;/span&gt; &lt;EM&gt;Working as expected&lt;BR /&gt;&lt;/EM&gt;&lt;/P&gt;&lt;H3 id="toc-hId-97436872"&gt;&lt;STRONG&gt;Screenshots from Testing&lt;/STRONG&gt;&lt;/H3&gt;&lt;H4 id="toc-hId--467711009"&gt;&lt;STRONG&gt;Before&amp;nbsp;&lt;/STRONG&gt;&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Description field is empty and requires manual entry&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Field is editable&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="sandeep_suggu_0-1754651287805.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/298387iE20119EFF5E432BA/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="sandeep_suggu_0-1754651287805.png" alt="sandeep_suggu_0-1754651287805.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H4 id="toc-hId--664224514"&gt;&lt;STRONG&gt;After&lt;/STRONG&gt;&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Description automatically filled with: &lt;STRONG&gt;Customer Creation Request&lt;/STRONG&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Field is locked (read-only)&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="sandeep_suggu_2-1754651402562.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/298388i552160FC6E90B6E1/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="sandeep_suggu_2-1754651402562.png" alt="sandeep_suggu_2-1754651402562.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Here’s your &lt;STRONG&gt;Before vs After&lt;/STRONG&gt; comparison image.&amp;nbsp;This will clearly show the difference after implementing.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="sandeep_suggu_3-1754651838397.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/298389iBDB1CD2ABF6F6FE8/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="sandeep_suggu_3-1754651838397.png" alt="sandeep_suggu_3-1754651838397.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--567335012"&gt;&lt;STRONG&gt;Key Observations&lt;/STRONG&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Auto-filling eliminates manual typing errors&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Read-only property ensures naming consistency&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Enhancement works across different CR Types and Data Models defined in the BAdI logic&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--763848517"&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;With just one BAdI implementation, you can make your SAP MDG CR descriptions &lt;STRONG&gt;consistent, accurate, and locked&lt;/STRONG&gt;—improving user experience and enforcing governance standards. This small change saves time, avoids errors, and ensures that every CR is clearly described from the moment it’s created.&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Master+Data+Governance/pd-p/67837800100800004488" class="lia-product-mention" data-product="697-1"&gt;SAP Master Data Governance&lt;/a&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;BR /&gt;Thank You,&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;Sandeep Suggu.&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;&lt;A href="https://community.sap.com/t5/user/viewprofilepage/user-id/11644" target="_blank"&gt;SAP Community Profile&lt;/A&gt;&amp;nbsp;|&amp;nbsp;&lt;A href="https://profile.sap.com/u/sandeep_suggu" target="_blank" rel="noopener noreferrer"&gt;SAP Profile&lt;/A&gt;&amp;nbsp;|&amp;nbsp;&lt;A href="https://in.linkedin.com/in/suggu-sandeep" target="_blank" rel="noopener nofollow noreferrer"&gt;LinkedIn&lt;/A&gt;&lt;/STRONG&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/sap-mdg-making-cr-descriptions-auto-populated-and-read-only/ba-p/14175729"/>
+    <published>2025-08-08T13:26:27.440000+02:00</published>
   </entry>
 </feed>
