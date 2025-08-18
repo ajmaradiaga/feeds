@@ -2,465 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-RESTful-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2025-08-18T11:00:06.900633+00:00</updated>
+  <updated>2025-08-18T14:00:07.615367+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/deep-insert-in-unmanaged-rap/ba-p/14111318</id>
-    <title>Deep Insert in Unmanaged RAP</title>
-    <updated>2025-06-13T16:15:28.005000+02:00</updated>
-    <author>
-      <name>Faizan_khan1</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1451076</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Introduction&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In the evolving landscape of SAP development, the ABAP RESTful Application Programming Model (RAP) has emerged as a pivotal framework for building modern, cloud-ready applications. While RAP offers both managed and unmanaged scenarios, the unmanaged approach provides developers with greater flexibility and control over data persistence and business logic.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;One of the complex operations in application development is the deep insert—creating a parent entity along with its associated child entities in a single transactional call. Implementing deep insert in an unmanaged RAP scenario requires meticulous planning and a clear understanding of the underlying architecture.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In this blog post, I will walk you through the process of implementing deep insert functionality in an unmanaged RAP scenario. We'll explore the data model, define the necessary CDS views, set up behavior definitions, and implement the behavior classes to handle the deep insert logic effectively. This guide aims to provide a comprehensive understanding of the steps involved, ensuring a robust and efficient implementation.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Implementation Overview&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Step 1: &lt;STRONG&gt;Create Database Tables&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;First i have created two data base tables doing the create operation&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Header table&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Header Order Table' 
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE 
-@AbapCatalog.tableCategory : #TRANSPARENT 
-@AbapCatalog.deliveryClass : #A 
-@AbapCatalog.dataMaintenance : #RESTRICTED 
-
-define table zfa_dt_order { 
-key order_id : char10 not null; 
-product : char20; 
-product_brand : char20; 
-product_quantity : char4; 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;Item Table&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Pricing item table' 
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE 
-@AbapCatalog.tableCategory : #TRANSPARENT 
-@AbapCatalog.deliveryClass : #A 
-@AbapCatalog.dataMaintenance : #RESTRICTED
- 
-define table zfa_dt_pricing { 
-key order_id : abap.char(10) not null; 
-
-key product_id : abap.char(5) not null; 
-
-product_price : abap.char(4); 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;Step 2: Define Interface Views&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Then we have to create the interface Views upon both the table&lt;/SPAN&gt;&lt;STRONG&gt;&amp;nbsp; Header interface view&lt;/STRONG&gt; &lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Here we have to use the key word composition and need to mention cardinality&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Interface view for header' 
-@Metadata.ignorePropagatedAnnotations: true 
-
-define root view entity zfa_i_Order_header as select from zfa_dt_order 
-composition[1..1] of zfa_i_price_item as _Pricing 
-{ 
-key order_id as OrderId, 
-product as Product, 
-product_brand as ProductBrand, 
-product_quantity as ProductQuantity, 
-_Pricing // Make association public 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;STRONG&gt;Item interface view&amp;nbsp;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In the item view we&amp;nbsp; have to use association to parent&amp;nbsp; keyword&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE] 
-@AccessControl.authorizationCheck: #NOT_REQUIRED 
-@EndUserText.label: 'Interface view for item' 
-@Metadata.ignorePropagatedAnnotations: true 
-@ObjectModel.usageType:{ 
-serviceQuality: #X, 
-sizeCategory: #S, 
-dataClass: #MIXED 
-} 
-define view entity zfa_i_price_item as select from ZFA_DT_PRICING 
-association to parent zfa_i_Order_header as _Order on $projection.OrderId = _Order.OrderId 
-{ 
-key order_id as OrderId, 
-key product_id as ProductId, 
-product_price as ProductPrice, 
-_order 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;Step 3: Define Projection Views&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Now we have to create Projection view upon interface view&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&amp;nbsp; &amp;nbsp; Header Projection view&amp;nbsp;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED 
-@EndUserText.label: 'Order projection' 
-@Metadata.ignorePropagatedAnnotations: true 
-@Metadata.allowExtensions: true 
-define root view entity zfa_P_Order_header 
-provider contract transactional_query as projection on zfa_i_Order_header 
-{ 
-key OrderId, 
-Product, 
-ProductBrand, 
-ProductQuantity, 
-/* Associations */ 
-_Pricing : redirected to composition child zfa_P_price_item 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp; &amp;nbsp;&lt;STRONG&gt; Item projection view &lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED 
-@EndUserText.label: 'Price projection view' 
-@Metadata.ignorePropagatedAnnotations: true 
-@Metadata.allowExtensions: true 
-define view entity zfa_P_price_item 
-as projection on zfa_i_price_item 
-{ 
-key OrderId, 
-key ProductId, 
-ProductPrice,
-/* Associations */ 
-_order : redirected to parent zfa_P_Order_header 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;Step 4: Define Behavior Definitions&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Then we have to create the&amp;nbsp; behavior definition for both interface and projection view of the header&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;&lt;STRONG&gt;Header Interface view Behavior definition&amp;nbsp;&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;unmanaged implementation in class zbp_fa_i_order_header unique; 
-strict ( 2 ); 
-define behavior for zfa_i_Order_header //alias &amp;lt;alias_name&amp;gt; 
-late numbering 
-lock master 
-authorization master ( instance ) 
-//etag master &amp;lt;field_name&amp;gt; 
-{ 
-create; 
-update; 
-delete;
-field ( readonly ) OrderId; 
-association _Pricing { create; } 
-mapping for zfa_dt_order 
-{ 
-OrderId = order_id ; 
-Product = product; 
-ProductBrand = product_brand; 
-ProductQuantity = product_quantity; 
-} 
-} 
-define behavior for zfa_i_price_item //alias &amp;lt;alias_name&amp;gt; 
-late numbering 
-lock dependent by _order 
-authorization dependent by _order 
-//etag master &amp;lt;field_name&amp;gt; 
-{ 
-create; 
-update; 
-delete; 
-field ( readonly ) OrderId, ProductId; 
-association _order; 
-mapping for zfa_dt_pricing{ 
-OrderId = order_id; 
-ProductId = product_id; 
-ProductPrice = product_price; 
-} 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Header Projection view Behavior Definition&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection; 
-strict ( 2 ); 
-define behavior for zfa_P_Order_header //alias &amp;lt;alias_name&amp;gt; 
-{ 
-use create; 
-use update; 
-use delete; 
-use association _Pricing { create; } 
-} 
-define behavior for zfa_P_price_item //alias &amp;lt;alias_name&amp;gt; 
-{ 
-use update; 
-use delete; 
-use association _order; 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;Step 5: Implement Behavior Handler Classes&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;We have to write our implementation in behavior implementation class , I have used a Helper class for doing the deep insert and&amp;nbsp; I'm calling the methods in this class&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_zfa_i_Order_header DEFINITION INHERITING FROM cl_abap_behavior_handler. 
-PRIVATE SECTION. 
-METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION 
-IMPORTING keys REQUEST requested_authorizations FOR zfa_i_Order_header RESULT result. 
-
-METHODS create FOR MODIFY 
-IMPORTING entities FOR CREATE zfa_i_Order_header. 
-
-METHODS update FOR MODIFY 
-IMPORTING entities FOR UPDATE zfa_i_Order_header. 
-
-METHODS delete FOR MODIFY 
-IMPORTING keys FOR DELETE zfa_i_Order_header. 
-
-METHODS read FOR READ 
-IMPORTING keys FOR READ zfa_i_Order_header RESULT result. 
-
-METHODS lock FOR LOCK 
-IMPORTING keys FOR LOCK zfa_i_Order_header. 
-
-METHODS rba_Pricing FOR READ 
-IMPORTING keys_rba FOR READ zfa_i_Order_header\_Pricing FULL result_requested RESULT result LINK association_links. 
-
-METHODS cba_Pricing FOR MODIFY 
-IMPORTING entities_cba FOR CREATE zfa_i_Order_header\_Pricing. 
-ENDCLASS. 
-
-CLASS lhc_zfa_i_Order_header IMPLEMENTATION. 
-METHOD get_instance_authorizations. 
-ENDMETHOD. 
-
-METHOD create. 
-data(lo_order) = zfa_um_helper=&amp;gt;get_instance( ). 
-lo_order-&amp;gt;create_order( 
-EXPORTING 
-entities = entities 
-CHANGING 
-mapped = mapped 
-failed = failed 
-reported = reported 
-). 
-ENDMETHOD. 
-
-METHOD update. 
-ENDMETHOD. 
-
-METHOD delete. 
-ENDMETHOD. 
-
-METHOD read. 
-ENDMETHOD. 
-
-METHOD lock. 
-ENDMETHOD. 
-
-METHOD rba_Pricing. 
-ENDMETHOD. 
-
-METHOD cba_Pricing. 
-data(lo_pricing) = zfa_um_helper=&amp;gt;get_instance_price( ). 
-lo_pricing-&amp;gt;create_price( 
-EXPORTING 
-entities = entities_cba 
-CHANGING 
-mapped = mapped 
-failed = failed 
-reported = reported 
-). 
-ENDMETHOD. 
-ENDCLASS. 
-
-CLASS lhc_zfa_i_price_item DEFINITION INHERITING FROM cl_abap_behavior_handler. 
-PRIVATE SECTION. 
-METHODS update FOR MODIFY 
-IMPORTING entities FOR UPDATE zfa_i_price_item. 
-
-METHODS delete FOR MODIFY 
-IMPORTING keys FOR DELETE zfa_i_price_item. 
-
-METHODS read FOR READ 
-IMPORTING keys FOR READ zfa_i_price_item RESULT result. 
-
-METHODS rba_Order FOR READ 
-IMPORTING keys_rba FOR READ zfa_i_price_item\_Order FULL result_requested RESULT result LINK association_links. 
-
-METHODS create FOR MODIFY 
-IMPORTING entities FOR CREATE zfa_i_price_item. 
-ENDCLASS. 
-
-CLASS lhc_zfa_i_price_item IMPLEMENTATION. 
-
-METHOD update. 
-ENDMETHOD. 
-
-METHOD delete. 
-ENDMETHOD. 
-
-METHOD read. 
-ENDMETHOD. 
-
-METHOD rba_Order. 
-ENDMETHOD. 
-
-METHOD create. 
-ENDMETHOD. 
-
-ENDCLASS. 
-CLASS lsc_ZFA_I_ORDER_HEADER DEFINITION INHERITING FROM cl_abap_behavior_saver. 
-PROTECTED SECTION. 
-METHODS finalize REDEFINITION. 
-METHODS check_before_save REDEFINITION. 
-METHODS adjust_numbers REDEFINITION. 
-METHODS save REDEFINITION. 
-METHODS cleanup REDEFINITION. 
-METHODS cleanup_finalize REDEFINITION. 
-ENDCLASS. 
-
-CLASS lsc_ZFA_I_ORDER_HEADER IMPLEMENTATION. 
-METHOD finalize. 
-ENDMETHOD. 
-
-METHOD check_before_save. 
-ENDMETHOD. 
-
-METHOD adjust_numbers. 
-data(lo_order) = zfa_um_helper=&amp;gt;get_instance( ). 
-lo_order-&amp;gt;adjust_number( 
-CHANGING 
-mapped = mapped 
-reported = reported 
-). 
-ENDMETHOD. 
-
-METHOD save. 
-data(lo_save_order) = zfa_um_helper=&amp;gt;get_instance( ). 
-lo_save_order-&amp;gt;save_order( 
-CHANGING 
-reported = reported 
-). 
-select max( order_id ) from zfa_dt_order into table (lt_oid). 
-if lt_oid is not INITIAL. 
-data(lo_save_price) = zfa_um_helper=&amp;gt;get_instance_price( ). 
-lo_save_price-&amp;gt;save_price( 
-CHANGING 
-reported = reported 
-). 
-endif. 
-ENDMETHOD. 
-
-METHOD cleanup. 
-ENDMETHOD. 
-
-METHOD cleanup_finalize. 
-ENDMETHOD. 
-
-ENDCLASS. &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Step 6: Implement Helper Class for Deep Insert&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;This is my helper &lt;/SPAN&gt;&lt;SPAN class=""&gt;class ,&lt;/SPAN&gt; &lt;SPAN class=""&gt;Here&lt;/SPAN&gt;&lt;SPAN class=""&gt; we can see our actual logic &lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zfa_um_helper DEFINITION 
-PUBLIC 
-FINAL 
-CREATE PUBLIC . 
-PUBLIC SECTION. 
-
-TYPES : tt_order_create TYPE TABLE FOR CREATE zfa_i_Order_header, 
-tt_order_cba TYPE TABLE FOR CREATE zfa_i_Order_header\_Pricing, 
-tt_order_delete TYPE TABLE FOR DELETE zfa_i_Order_header, 
-tt_order_update TYPE TABLE FOR UPDATE zfa_i_order_header, 
-tt_reported_early TYPE RESPONSE FOR REPORTED EARLY zfa_i_Order_header, 
-tt_reported_late TYPE RESPONSE FOR REPORTED LATE zfa_i_Order_header, 
-tt_mapped_early TYPE RESPONSE FOR MAPPED EARLY zfa_i_Order_header, 
-tt_mapped_late TYPE RESPONSE FOR MAPPED LATE zfa_i_Order_header, 
-tt_price_create TYPE TABLE FOR CREATE zfa_i_price_item, 
-tt_price_delete TYPE TABLE FOR DELETE zfa_i_price_item, 
-tt_price_update TYPE TABLE FOR UPDATE zfa_i_price_item, 
-tt_failed_early TYPE RESPONSE FOR FAILED EARLY zfa_i_Order_header. 
-
-CLASS-METHODS get_instance RETURNING VALUE(ret_order) TYPE REF TO zfa_um_helper. 
-
-CLASS-METHODS get_instance_price RETURNING VALUE(ret_price) TYPE REF TO zfa_um_helper. 
-
-METHODS : create_order 
-IMPORTING entities TYPE tt_order_create 
-CHANGING 
-mapped TYPE tt_mapped_early 
-failed TYPE tt_failed_early 
-reported TYPE tt_reported_early, 
-
-create_price 
-IMPORTING entities TYPE tt_order_cba 
-CHANGING 
-mapped TYPE tt_mapped_early 
-failed TYPE tt_failed_early 
-reported TYPE tt_reported_early, 
-
-adjust_number 
-changing mapped type tt_mapped_late 
-reported type tt_reported_late, 
-
-save_order 
-CHANGING reported TYPE tt_reported_late, 
-
-save_price 
-CHANGING reported TYPE tt_reported_late. 
-PROTECTED SECTION. 
-PRIVATE SECTION. 
-CLASS-DATA : go_order TYPE REF TO zfa_um_helper, 
-go_price TYPE REF TO zfa_um_helper, 
-gt_order_create TYPE TABLE OF zfa_dt_order, 
-gt_price_create TYPE TABLE OF zfa_dt_pricing, 
-gt_price_create1 TYPE TABLE OF zfa_i_price_item , 
-gt_order_delete TYPE RANGE OF zfa_i_Order_header-OrderId, 
-gs_order TYPE zfa_dt_order. 
-ENDCLASS. 
-
-CLASS zfa_um_helper IMPLEMENTATION. 
-
-METHOD get_instance. 
-ret_order = go_order = COND #( WHEN go_order IS BOUND THEN go_order 
-ELSE NEW #( ) ). 
-ENDMETHOD. 
-
-METHOD get_instance_price. 
-ret_price = go_price = COND #( WHEN go_price IS BOUND THEN go_price 
-ELSE NEW #( ) ). 
-ENDMETHOD. 
-
-METHOD create_order. 
-gt_order_create = CORRESPONDING #( entities MAPPING FROM ENTITY ). 
-mapped-zfa_i_order_header = CORRESPONDING #( entities ). 
-ENDMETHOD. 
-
-METHOD create_price. 
-gt_price_create1 = CORRESPONDING #( entities[ 1 ]-%target ). 
-gt_price_create = CORRESPONDING #( gt_price_create1 MAPPING order_id = OrderId product_id = ProductId product_price = ProductPrice ). 
-mapped-zfa_i_price_item = CORRESPONDING #( entities ). 
-ENDMETHOD. 
-
-METHOD save_order. 
-IF gt_order_create IS NOT INITIAL. 
-INSERT zfa_dt_order FROM TABLE _order_create. 
-ENDIF. 
-ENDMETHOD. 
-
-METHOD save_price. 
-IF gt_price_create IS NOT INITIAL. 
-INSERT zfa_dt_pricing FROM TABLE _price_create. 
-ENDIF. 
-ENDMETHOD. 
-
-METHOD adjust_number. 
-data : lv_num TYPE char10, 
-lv_num2 TYPE char5. 
-if gt_order_create is NOT INITIAL. 
-SELECT max( order_id ) from zfa_dt_order into (lv_oid). 
-lv_num = COND #( when sy-subrc = 4 then 0000000001 
-ELSE lv_oid + 1 ). 
-gt_order_create[ 1 ]-order_id = lv_num . 
-ENDIF. 
-if gt_price_create is NOT INITIAL. 
-SELECT MAX( product_id ) from zfa_dt_pricing into (lv_pid). 
-lv_num2 = COND #( when sy-subrc = 4 then 00001 
-else lv_pid + 1 ). 
-gt_price_create[ 1 ]-product_id = lv_num2. 
-endif. 
-ENDMETHOD. 
-ENDCLASS. &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Step 7: Define Metadata Annotations&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;After All the implementation is &lt;/SPAN&gt;&lt;SPAN class=""&gt;done&lt;/SPAN&gt;&lt;SPAN class=""&gt; we have to create the meta data files for both the projection view&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Metadata for Header Projection view&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer:#CORE 
-annotate entity zfa_P_Order_header 
-with  
-{ 
-@UI.facet: [{ 
-purpose: #STANDARD, 
-position: 10, 
-label: 'Create Order', 
-type: #IDENTIFICATION_REFERENCE 
-}, 
-{  
-purpose: #STANDARD, 
-position: 20, 
-label: 'Create payment', 
-type: #LINEITEM_REFERENCE, 
-targetElement: '_Pricing' 
-}] 
-@UI.identification: [{ position: 10 , label: 'Order ID' }] 
-@UI.lineItem: [{ position: 10, label: 'Order ID' }] 
-OrderId; 
-@UI.identification: [{ position: 20 , label: 'Product' }] 
-@UI.lineItem: [{ position: 20, label: 'Product' }] 
-Product; 
-@UI.identification: [{ position: 30 , label: 'Product Brand' }] 
-@UI.lineItem: [{ position: 30, label: 'Product Brand' }] 
-ProductBrand; 
-@UI.identification: [{ position: 40 , label: 'Product Quantity' }] 
-@UI.lineItem: [{ position: 40, label: 'Product Quality' }] 
-ProductQuantity; 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;STRONG&gt;Metadata for item Projection view&lt;/STRONG&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CORE 
-annotate entity zfa_P_price_item 
-with  
-{ 
-@UI.facet: [{  
-purpose: #STANDARD, 
-position: 10, 
-label: 'Price creation', 
-type: #IDENTIFICATION_REFERENCE 
-} 
-] 
-@UI.identification: [{ position: 10 , label: 'Order ID' }] 
-@UI.lineItem: [{ position: 10}] 
-OrderId; 
-@UI.identification: [{ position: 20 , label: 'Product ID' }] 
-@UI.lineItem: [{ position: 20}] 
-ProductId; 
-@UI.identification: [{ position: 30 , label: 'Product Price' }] 
-@UI.lineItem: [{ position: 30 }] 
-ProductPrice; 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;Step 8: Create Service Definition and Binding&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;SPAN&gt;At last we have to create the service definition&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Service def For header' 
-define service Zfa_def_order { 
-expose zfa_P_Order_header; 
-expose zfa_P_price_item; 
-} &lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Upon the service definition we &lt;/SPAN&gt;&lt;SPAN class=""&gt;have to&lt;/SPAN&gt;&lt;SPAN class=""&gt; create the service Binding&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Faizan_khan1_0-1748411890235.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/266750i1BD30B1B6037A7FC/image-size/large?v=v2&amp;amp;px=999" role="button" title="Faizan_khan1_0-1748411890235.png" alt="Faizan_khan1_0-1748411890235.png" /&gt;&lt;/span&gt;Here You can see both the header and item &lt;SPAN class=""&gt;entity ,&lt;/SPAN&gt;&lt;SPAN class=""&gt; we need to select the header entity and click on preview&amp;nbsp;&lt;/SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Faizan_khan1_1-1748412015638.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/266753iD724B14419585751/image-size/large?v=v2&amp;amp;px=999" role="button" title="Faizan_khan1_1-1748412015638.png" alt="Faizan_khan1_1-1748412015638.png" /&gt;&lt;/span&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Click on Create for creating the Header data &lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Faizan_khan1_0-1748412128578.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/266754iE5F8421E30A6667A/image-size/large?v=v2&amp;amp;px=999" role="button" title="Faizan_khan1_0-1748412128578.png" alt="Faizan_khan1_0-1748412128578.png" /&gt;&lt;/span&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Here You can see header data has been created &lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Faizan_khan1_1-1748412155801.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/266755i3B58312601E1F2A4/image-size/large?v=v2&amp;amp;px=999" role="button" title="Faizan_khan1_1-1748412155801.png" alt="Faizan_khan1_1-1748412155801.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Now click on create to create the item data for the &lt;/SPAN&gt;&lt;SPAN class=""&gt;particular header&lt;/SPAN&gt;&lt;SPAN class=""&gt; data&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Faizan_khan1_0-1748412364079.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/266756iCAD28EF0FA487982/image-size/large?v=v2&amp;amp;px=999" role="button" title="Faizan_khan1_0-1748412364079.png" alt="Faizan_khan1_0-1748412364079.png" /&gt;&lt;/span&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/deep-insert-in-unmanaged-rap/ba-p/14111318"/>
-    <published>2025-06-13T16:15:28.005000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/application-development-and-automation-blog-posts/setup-your-btp-trial-account-and-abap-environment/ba-p/14131685</id>
     <title>Setup your BTP Trial account and ABAP environment</title>
@@ -3372,5 +2917,186 @@ annotate entity ZC_SpFlightSchedule
     <content>&lt;H3 id="toc-hId-1866859110"&gt;TLDR&lt;/H3&gt;&lt;P&gt;With 3-tier S/4HANA Public Cloud Edition you can now connect your ABAP Developer Tools (ADT, in Eclipse) directly to the system.&amp;nbsp; You can browse development objects including CDS views. Creating an ABAP Repository Tree allows you to browse by component and release status, to find released views to use in your extensions&lt;/P&gt;&lt;H3 id="toc-hId-1670345605"&gt;Remind me, what is&amp;nbsp;S/4HANA Public Cloud Edition?&lt;/H3&gt;&lt;P&gt;S/4HANA Public Cloud Edition (or Public CE) is SAP's &lt;A href="https://csrc.nist.gov/glossary/term/software_as_a_service" target="_blank" rel="noopener nofollow noreferrer"&gt;SaaS&lt;/A&gt; ERP. Formerly known as S/4HANA Cloud, and as S/4HANA Public Cloud, this flavour of S/4 emphasises a tight fit to standard business processes.&amp;nbsp; The solution is hosted and managed by SAP. Only clean-core extensions are possible and upgrades happen according to a published schedule&lt;/P&gt;&lt;H3 id="toc-hId-1473832100"&gt;Why does&amp;nbsp;S/4HANA Public Cloud Edition matter?&lt;/H3&gt;&lt;P&gt;Whilst the largest customers tend to draw most of the limelight in the SAP world, there are only so many of them.&amp;nbsp; As you widen your gaze to include progressively smaller and smaller customers their number increases more than proportionately.&amp;nbsp; In other words there are &lt;EM&gt;a lot&lt;/EM&gt; more companies with 10,000 employees that there are with 100,000 employees.&amp;nbsp; There are a &lt;EM&gt;heck of a lot&lt;/EM&gt; more companies with 1000 employees that there are with 10,000. This means that the total market is huge, even if each individual subscription is smaller&lt;/P&gt;&lt;P&gt;Ceteris paribus, these smaller customers are more likely to go for Public CE, because it can be more cost effective for them.&amp;nbsp; Indeed the inability to perform 'dirty' extensions &amp;amp; enhancements, and the inability to stay on a outdated release can be seen as &lt;EM&gt;advantages&lt;/EM&gt; of Public CE.&amp;nbsp; SAP's vision is that over time more and more customers will switch to Public CE, some after 'cleaning up' their legacy enhancements.&amp;nbsp; They hope that, over time, larger and larger customers will sign up&lt;/P&gt;&lt;H3 id="toc-hId-1277318595"&gt;How can&amp;nbsp;we extend S/4HANA Public Cloud Edition?&lt;/H3&gt;&lt;P&gt;Whilst a fit to standard processes is the goal, Public CE &lt;A href="https://learning.sap.com/learning-journeys/practicing-clean-core-extensibility-for-sap-s-4hana-cloud" target="_blank" rel="noopener noreferrer"&gt;can be extended&lt;/A&gt; and enhanced if needed.&amp;nbsp; There might be a small variation to fit a competitive advantage that that particular customer has, their 'special sauce' if you like.&amp;nbsp; Historically these extensions could be categorised as&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;On-stack key-user extensions&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Side-by-side developer-built extensions on BTP&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;To support the latter type we expose data via the SAP-standard &lt;A href="https://api.sap.com/products/SAPS4HANACloud/apis/all" target="_blank" rel="noopener noreferrer"&gt;published APIs&lt;/A&gt;, by creating custom CDS views or by creating custom business objects with a back-end service enabled. Events can also trigger extensions on BTP&lt;/P&gt;&lt;H3 id="toc-hId-1080805090"&gt;Why are&amp;nbsp;&lt;EM&gt;released&lt;/EM&gt; views precious?&lt;/H3&gt;&lt;P&gt;To expose &lt;EM&gt;standard&lt;/EM&gt; data that isn't part of a published API we must (if 2-tier) use the custom CDS view option. We can only use &lt;EM&gt;released&lt;/EM&gt; views as sources, and only a fraction of views are released.&amp;nbsp; Why is that?&amp;nbsp; Well, releasing a view is a big deal for SAP because it represents a promise to keep that view available and up to date.&amp;nbsp; If this wasn't the case our extensions could break every upgrade cycle, as standard views or fields on standard views were removed.&amp;nbsp; This would limit the viability of Public CE altogether&amp;nbsp;&lt;/P&gt;&lt;P&gt;Hence finding released views with the right data is an important part of extension design.&amp;nbsp; Happily, that task is getting easier, with the increased prevalence of the 3-tier landscape with Public CE&lt;/P&gt;&lt;H3 id="toc-hId-884291585"&gt;Why are 3 tiers better than 2?&lt;/H3&gt;&lt;P&gt;When my first customer went live with Public CE in 2019 all setups had Test and Prod environments only.&amp;nbsp; Having a background at big on-prem customers, with their 5 or 6 tier landscapes (e.g. Sandbox / Dev / Test / Pre-Prod / Prod / Training) I found this pretty scary!&lt;/P&gt;&lt;P&gt;Now all new Public CE customers get &lt;A href="https://blog.sap-press.com/the-sap-s4hana-cloud-three-system-landscape" target="_blank" rel="noopener nofollow noreferrer"&gt;3 tiers&lt;/A&gt; ( Dev / Test / Prod ) and existing customers are being migrated.&amp;nbsp; The Dev environment has 2 tenants, for development and for customizing. Under the hood, these represent client 80 and client 100. This facilitates the introduction of a new enhancement technique.&amp;nbsp; Using the embedded ABAP Cloud environment we can use RAP (the &lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/abap-restful-application-programming-model?version=s4hana_cloud" target="_blank" rel="noopener noreferrer"&gt;ABAP Restful Programming Model&lt;/A&gt;) to build OData services. This gives far greater flexibility that we get &lt;A href="https://fioriappslibrary.hana.ondemand.com/sap/fix/externalViewer/#/detail/Apps('F1866A')/S35" target="_blank" rel="noopener nofollow noreferrer"&gt;building custom CDS views in a Fiori app&lt;/A&gt; (as a 'key-user')&lt;/P&gt;&lt;P&gt;This on-stack extensibility was known for a while as&amp;nbsp;&lt;EM&gt;&lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/embedded-steampunk-some-more-details-for-abap-developers/ba-p/13532714" target="_blank"&gt;Embedded Steampunk&lt;/A&gt;&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;Of course, finding&amp;nbsp;&lt;EM&gt;released &lt;/EM&gt;CDS views is still important, because ABAP cloud will only allow us to use released CDS views as data sources. So what's the best way to find them?&lt;/P&gt;&lt;H3 id="toc-hId-687778080"&gt;What's the best way to find released CDS views in a 3-tier Public CE landscape?&lt;/H3&gt;&lt;P&gt;Once you've &lt;A href="https://help.sap.com/docs/SAP_S4HANA_CLOUD/6aa39f1ac05441e5a23f484f31e477e7/4b962c243a3342189f8af460cc444883.html?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;connected&lt;/A&gt; your &lt;A href="https://tools.hana.ondemand.com/#abap" target="_blank" rel="noopener nofollow noreferrer"&gt;ABAP Development Tools&lt;/A&gt; to your S/4HANA Public Cloud Edition system (development tenant/client 80) you can browse all of the development objects.&amp;nbsp; This is something that just wasn't possible before, because we were limited to what we could see in various Fiori apps&lt;/P&gt;&lt;P&gt;If you try to browse all of the CDS views, you will likely hit an issue as there are just too many to be rendered.&amp;nbsp; I recommend instead building your own ABAP Repository Tree (via File-&amp;gt;New).&lt;/P&gt;&lt;P&gt;On the first screen (of the repo tree wizard) select Core Data Services&lt;/P&gt;&lt;H3 id="toc-hId-491264575"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-08-15 at 12.24.56 pm.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/301259iCB813189376FFE23/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Screenshot 2025-08-15 at 12.24.56 pm.png" alt="Screenshot 2025-08-15 at 12.24.56 pm.png" /&gt;&lt;/span&gt;&lt;/H3&gt;&lt;P&gt;On the next screen, in the&amp;nbsp;&lt;EM&gt;Selected Tree Levels,&lt;/EM&gt;&amp;nbsp;remove package from level 3, and replace it with &lt;EM&gt;Application Component&lt;/EM&gt;.&amp;nbsp; Then select drag the &lt;EM&gt;API State&lt;/EM&gt; level over to level 4.&lt;/P&gt;&lt;H3 id="toc-hId-294751070"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-08-15 at 1.10.24 pm.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/301263iD8B6EF4DC1120DB7/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Screenshot 2025-08-15 at 1.10.24 pm.png" alt="Screenshot 2025-08-15 at 1.10.24 pm.png" /&gt;&lt;/span&gt;&lt;/H3&gt;&lt;P&gt;Click Finish. Now, in the tree, you can open &lt;EM&gt;Core Data Services&lt;/EM&gt;, &lt;EM&gt;Data Definitions&lt;/EM&gt; and then the component of your choice.&amp;nbsp; The released views are found under &lt;EM&gt;USE_IN_CLOUD_DEVELOPMENT&lt;/EM&gt;. You can open the individual view to see the definition.&lt;/P&gt;&lt;H3 id="toc-hId-98237565"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-08-15 at 1.15.25 pm.png" style="width: 289px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/301264i0E1F277A115AF0B2/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Screenshot 2025-08-15 at 1.15.25 pm.png" alt="Screenshot 2025-08-15 at 1.15.25 pm.png" /&gt;&lt;/span&gt;&lt;/H3&gt;&lt;P&gt;You can confirm that the view is released by considering the &lt;EM&gt;API State&lt;/EM&gt; tab in the properties, on the bottom right of your Eclipse screen. &lt;EM&gt;C1 Use System Internally&lt;/EM&gt; is the key part.&amp;nbsp; If it is &lt;EM&gt;Released&lt;/EM&gt; you should be able to use this view in a custom CDS view or in RAP development&lt;/P&gt;&lt;H3 id="toc-hId--173507309"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-08-15 at 1.21.02 pm.png" style="width: 333px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/301265i11086DA4417CA3A0/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Screenshot 2025-08-15 at 1.21.02 pm.png" alt="Screenshot 2025-08-15 at 1.21.02 pm.png" /&gt;&lt;/span&gt;&lt;/H3&gt;&lt;P&gt;Because you are connected to your dev system you can see the release status of every view which is available on your current release&lt;/P&gt;&lt;H3 id="toc-hId--370020814"&gt;What do you think?&lt;/H3&gt;&lt;P&gt;Are you an expert on extensions already?&amp;nbsp; Or are you surprised at how much scope there is for extension on S/4HANA Public Cloud Edition?&amp;nbsp; Extensions certainly got a little easier, now that we can see every view available. Let me know in the comments what you think, and if you have any tips for finding views&lt;/P&gt;&lt;P&gt;I would love to find a good way to find CDS views which use a given table as a source (directly or indirectly).&amp;nbsp; This &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-q-a/unreleased-cds-views/qaq-p/12675263" target="_blank"&gt;can be done in the View Browser app&lt;/A&gt;, but we &lt;A href="https://me.sap.com/notes/3439701" target="_blank" rel="noopener noreferrer"&gt;won't see all of the views&lt;/A&gt;. Perhaps in future SAP could &lt;A href="https://me.sap.com/notes/28022" target="_blank" rel="noopener noreferrer"&gt;support using the where-used feature&lt;/A&gt; in ADT&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/how-to-find-cds-views-in-s-4hana-public-cloud-edition/ba-p/14181383"/>
     <published>2025-08-15T06:27:25.148000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/random-numbers-and-probability-distributions-in-the-abap-environments-for/ba-p/14173266</id>
+    <title>Random Numbers and Probability Distributions in the ABAP Environments for 2508</title>
+    <updated>2025-08-18T13:00:51.072000+02:00</updated>
+    <author>
+      <name>kilian_kilger</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/204709</uri>
+    </author>
+    <content>&lt;H2 id="toc-hId-1736911432"&gt;Random Numbers and Probability Distributions in the ABAP Environments for 2508&lt;/H2&gt;&lt;H3 id="toc-hId-1669480646"&gt;1 Introduction&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Can ABAP generate random numbers? &lt;/STRONG&gt;If you're nodding yes, you're in the right place.&lt;/P&gt;&lt;P&gt;Most ABAP developers would instinctively say "yes"—after all, who hasn't used&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;CL_ABAP_RANDOM&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;for generating test data? But if you've ever looked under the hood, you'll know that not all random numbers are created equal. Every random number generator is tied to a &lt;STRONG&gt;probability distribution&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;Here's the twist: Until now, ABAP only spoke the language of&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;EM&gt;uniform&lt;/EM&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;randomness—a far cry from the rich, varied distributions that reflect real-world and business data.&lt;/P&gt;&lt;P&gt;The great news? With the latest ABAP releases, the answer has changed. ABAP now speaks the whole language of probability, supporting versatile random number generation for your advanced business needs!&lt;/P&gt;&lt;P&gt;It also has all the functionality to &lt;STRONG&gt;compute&amp;nbsp;&lt;/STRONG&gt;with probabilities. Just enough to make ABAP your probability workbench for every day's use.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; currently planned to be available on-premise and in the private cloud with the upcoming major SAP S/4HANA release in 2025. Please note that this plan is subject to change by SAP without prior notice.&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1472967141"&gt;2 Example: Customer Payment Date&lt;/H3&gt;&lt;P&gt;Suppose you want to generate realistic data for customer payment dates. Do you imagine that customers pay at random, with every date being equally likely?&lt;/P&gt;&lt;P&gt;Of course not!&lt;/P&gt;&lt;P&gt;In reality, most customers settle their bills close to the due date, with a few paying a bit early or late, and only a handful paying extremely early or well past the deadline.&lt;/P&gt;&lt;P&gt;These patterns can be captured with various probability distributions, such as &lt;STRONG&gt;normal&lt;/STRONG&gt;, &lt;STRONG&gt;beta&lt;/STRONG&gt;, or &lt;STRONG&gt;exponential&lt;/STRONG&gt; distributions. If you treat payment dates as discrete events, distributions like &lt;STRONG&gt;Poisson&lt;/STRONG&gt; or &lt;STRONG&gt;multinomial&lt;/STRONG&gt; may also fit.&lt;/P&gt;&lt;P&gt;For simplicity, we'll focus on the most common and versatile: the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;normal distribution&lt;/STRONG&gt;. The normal distribution's importance comes from a deep and beautiful mathematical result, the &lt;STRONG&gt;central limit theorem&lt;/STRONG&gt;. Simply put, it says:&lt;/P&gt;&lt;P&gt;&lt;EM&gt;If you average many independent random processes—even if each one follows a different pattern—their average or sum&amp;nbsp;will tend to form the familiar bell-shaped curve known as the normal distribution.&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;In short, the normal distribution is the most important probability distribution.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Probability density of the normal distribution" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/297174i767C0D2BE77657AA/image-size/medium?v=v2&amp;amp;px=400" role="button" title="normal_distrib.png" alt="Probability density of the normal distribution" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Probability density of the normal distribution&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The curve means that the normal distribution generates values around its mean value (here: zero) more often and values farther away less frequently. This can easily be adjusted to give a more realistic simulation of customer payment dates.&lt;/P&gt;&lt;P&gt;The ABAP code is surprisingly easy compared to other programming languages. It uses the new system class CL_ABAP_PROB_DISTRIBUTION and its method NEXT_RANDOM_NUMBER( ). This class needs an underlying uniform random number generator given by an interface IF_ABAP_RANDOM. The old class CL_ABAP_RANDOM happens to implement IF_ABAP_RANDOM.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;class payment_date_generator definition.
+  public section.
+    methods constructor importing rng type ref to if_abap_random. " new as well
+    methods generate_payment_date importing due_date type d
+                                  returning value(payment_date) type d.
+
+  private section.
+    data m_rng type ref to if_abap_random.
+    data m_system_date type d.
+    data m_distribution type ref to if_abap_prob_distribution.
+endclass.
+
+class payment_date_generator implementation.
+  method constructor.
+    m_rng = rng.
+    m_system_date = cl_abap_context_info=&amp;gt;get_system_date( ).
+    m_distribution = cl_abap_prob_distribution=&amp;gt;get_normal_distribution(
+      mean = 0
+      standard_deviation = 15 ). " 68% are within ±15 days around due date
+  endmethod.
+
+  method generate_payment_date.
+    while payment_date &amp;lt; m_system_date.
+      payment_date = due_date + 
+         conv i( m_distribution-&amp;gt;next_random_number( rng = m_rng ) ).
+    endwhile.
+  endmethod.
+endclass.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Using the new interface IF_ABAP_RANDOM, you can also&amp;nbsp;&lt;STRONG&gt;plug in your own uniform random number&lt;/STRONG&gt; generator. No need to take the ABAP one (just in case you need a cryptographically secure, normally distributed number). Using ABAP's CL_ABAP_RANDOM is faster, as special optimizations apply here.&lt;/P&gt;&lt;P&gt;Running the example on 2025/08/06 with due date 2025/08/20 and 1000 numbers gives the following histogram, for example:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="normal_example.png" style="width: 790px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/297179iA9C3D2643E7CBACA/image-size/large?v=v2&amp;amp;px=999" role="button" title="normal_example.png" alt="normal_example.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note:&amp;nbsp;&lt;/STRONG&gt;Although the normal distribution is symmetric around the mean value, we arrived at a non-symmetric distribution by "cutting off" the dates before the current date. This is called &lt;EM&gt;rejection sampling&lt;/EM&gt;&lt;SPAN&gt;&lt;EM&gt;,&amp;nbsp;&lt;/EM&gt;and it&lt;/SPAN&gt;&amp;nbsp;gives a totally new probability distribution, unique to this business problem.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Implementation:&lt;/STRONG&gt; There are two ABAP classes:&lt;/P&gt;&lt;TABLE border="1" width="100.00125876414536%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%"&gt;&lt;STRONG&gt;Class&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;&lt;STRONG&gt;Description&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;&lt;STRONG&gt;Hint&lt;/STRONG&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%"&gt;CL_ABAP_PROB_DISTRIBUTION&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;Calculate with F (= FLOAT) probabilities&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;Faster, more distributions&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%"&gt;CL_ABAP_PROB_DISTRIBUTION_DF34&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;Calculate with DECFLOAT34 probabilities&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;Much slower, fewer distributions&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;By default, the classes CL_ABAP_PROB_DISTRIBUTION and CL_ABAP_PROB_DISTRIBUTION_DF34 generate F or DECFLOAT34 numbers, but they can easily be cast to P, I, or other datatypes in different scenarios.&lt;/P&gt;&lt;P&gt;Both classes can generate I (= INT4) or INT8 random numbers for &lt;STRONG&gt;discrete&lt;/STRONG&gt; distributions by default using separate methods.&lt;/P&gt;&lt;H3 id="toc-hId-1276453636"&gt;3 Supported probability distributions&lt;/H3&gt;&lt;P&gt;In the ABAP environments 2508, the following distributions are supported:&lt;/P&gt;&lt;TABLE border="1" width="100.00000000000001%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="16.666666666666668%" height="57px"&gt;&lt;STRONG&gt;Distribution&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;&lt;STRONG&gt;Type&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="57px"&gt;&lt;STRONG&gt;CL_ABAP_PROB_DISTRIBUTION&lt;BR /&gt;(FLOAT Probabilities)&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="57px"&gt;&lt;STRONG&gt;CL_ABAP_PROB_DISTRIBUTION_DF34&lt;BR /&gt;(DECFLOAT34 Probabilities)&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="57px"&gt;&lt;STRONG&gt;Business Example&lt;/STRONG&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="16.666666666666668%" height="85px"&gt;Normal distribution&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;Continuous&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="85px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="85px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="85px"&gt;Customer satisfaction scores, Employee performance, and financial returns follow a normal distribution.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="16.666666666666668%" height="57px"&gt;Lognormal distribution&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;Continuous&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="57px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="57px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="57px"&gt;Revenue or units sold across a product catalog often follow a lognormal distribution.&amp;nbsp;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="16.666666666666668%" height="112px"&gt;Exponential distribution&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;Continuous&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="112px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="112px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="112px"&gt;&lt;SPAN&gt;The duration of customer service calls can be modeled using an exponential distribution.&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="16.666666666666668%" height="57px"&gt;Gamma distribution&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;Continuous&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="57px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="57px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="57px"&gt;A gamma distribution can model the time it takes to complete a project and the distribution of&amp;nbsp;&lt;SPAN&gt;customer lifetime values (CLV) in CRM.&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="16.666666666666668%" height="57px"&gt;Chi-Squared distribution&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;Continuous&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="57px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="57px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="57px"&gt;Test whether the customer prefers a new product feature over an existing one using the famous&lt;STRONG&gt; chi-squared test, which utilizes&lt;/STRONG&gt;&amp;nbsp;the chi-squared distribution.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="16.666666666666668%" height="30px"&gt;&lt;P&gt;Uniform-int/int8 distribution&lt;/P&gt;&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;&lt;P&gt;Discrete&lt;/P&gt;&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="30px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="30px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="30px"&gt;&lt;P&gt;Companies often conduct customer surveys in market research to gather feedback and insights. To ensure that the survey results represent the entire customer base, a uniform integer distribution can be used for random sampling.&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="16.666666666666668%" height="85px"&gt;Poisson distribution&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;Discrete&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="85px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="85px"&gt;No&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="85px"&gt;&lt;SPAN&gt;Understanding customer traffic is crucial for staffing and operational decisions in retail management. The Poisson distribution can model the number of customers arriving at a store within a specific time interval.&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="16.666666666666668%" height="30px"&gt;Binomial distribution&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;Discrete&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="30px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="30px"&gt;No&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="30px"&gt;&lt;P&gt;In manufacturing, the binomial distribution can be used to model the number of defective items (failures) in a sample of produced items.&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="16.666666666666668%" height="57px"&gt;Student's t-distribution&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;Continuous&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="57px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="57px"&gt;No&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="57px"&gt;Using the famous &lt;STRONG&gt;t-test&lt;/STRONG&gt; and the &lt;STRONG&gt;t-distribution&lt;/STRONG&gt;, one can test whether a new marketing campaign significantly affected sales.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="16.666666666666668%" height="30px"&gt;Hypergeometric distribution&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;Discrete&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="30px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="30px"&gt;No&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="30px"&gt;&lt;SPAN&gt;In inventory management, the hypergeometric distribution can be used to model the selection of items for inspection or audit from a finite inventory.&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="16.666666666666668%" height="30px"&gt;Geometric distribution&lt;/TD&gt;&lt;TD width="16.666666666666668%"&gt;Discrete&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="30px"&gt;Yes&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="30px"&gt;No&lt;/TD&gt;&lt;TD width="16.666666666666668%" height="30px"&gt;Model the number of customer interactions needed until the first sales occur.&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&lt;STRONG&gt;Note:&amp;nbsp;&amp;nbsp;&lt;/STRONG&gt;More probability distributions might evolve in future ABAP releases (not an official statement, no guarantee, no promise or roadmap item).&amp;nbsp;&lt;SPAN&gt;Please note that this plan is subject to change by SAP without prior notice.&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1079940131"&gt;4 Calculating with probabilities&lt;/H3&gt;&lt;P&gt;These new classes aren't just about rolling random numbers—they unlock many possibilities! Now you can compute probabilities, dive into advanced statistical analyses, and so much more.&lt;/P&gt;&lt;P&gt;The magic happens through the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;IF_ABAP_PROB_DISTRIBUTION&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;interface, which lets you calculate cumulative distribution functions (CDFs), quantiles, and a range of other powerful statistical operations. Plus, with dedicated sub-interfaces for discrete distributions, you get even more specialized tools right at your fingertips.&lt;/P&gt;&lt;P&gt;Here we only talk about two very important methods:&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="50%" height="30px"&gt;&lt;STRONG&gt;Method&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="50%" height="30px"&gt;&lt;STRONG&gt;Description&lt;/STRONG&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="50%" height="30px"&gt;CDF (Cumulative Distribution Function)&lt;/TD&gt;&lt;TD width="50%" height="30px"&gt;Calculates the probability that the distribution assumes values &amp;lt;= x. In mathematical terms: P(X &amp;lt;= x).&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Quantile&lt;/TD&gt;&lt;TD&gt;Inverse of the CDF.&amp;nbsp;The quantile function gives the smallest value &lt;EM&gt;x&lt;/EM&gt;  such that the cumulative probability (CDF) is at least &lt;EM&gt;p&lt;/EM&gt;.&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&lt;STRONG&gt;Business Problem for the CDF:&amp;nbsp;&lt;/STRONG&gt;What proportion of the bills are paid within 20 days of the due date?&lt;BR /&gt;&lt;STRONG&gt;Solution in ABAP:&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  final(dist) =
+    cl_abap_prob_distribution=&amp;gt;get_normal_distribution( mean = 0 standard_deviation = 15 ).
+  final(proportion) = dist-&amp;gt;cdf( 20 ).
+  cl_demo_output=&amp;gt;display( proportion ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Business Problem for the Quantile:&amp;nbsp;&lt;/STRONG&gt;You want to know when 95% of customers have paid their bills.&lt;BR /&gt;&lt;STRONG&gt;Solution in ABAP:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  data quantile type d.
+  final(dist) =
+    cl_abap_prob_distribution=&amp;gt;get_normal_distribution( mean = 0 standard_deviation = 15 ).
+  final(quantile_int) = conv i( ceil( dist-&amp;gt;quantile( '0.95' ) ) ).
+  quantile = due_date + quantile_int.  
+  cl_demo_output=&amp;gt;display( quantile ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This prints 2025/09/14 in my example from above, i.e., in mid-September, 95% of the customers paid their bill (simplified calculation for demo purposes, which does not account for the rejection sampling method applied above. Special applause to anyone posting the solution for the truncated normal distribution in the comments below.)&lt;/P&gt;&lt;P&gt;Note that&amp;nbsp;&lt;SPAN&gt;many valid statistical methods can be used to&amp;nbsp;&lt;STRONG&gt;find&amp;nbsp;&lt;/STRONG&gt;the correct probability distribution for your business problem. These can also be implemented now in ABAP&lt;/SPAN&gt;.&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-754343907"&gt;5 More Trivia&lt;/H2&gt;&lt;P&gt;With the new classes, you can also do funny stuff, which is not quite new, but was difficult or slow before.&lt;/P&gt;&lt;H4 id="toc-hId-815995840"&gt;5.1 Generate many random numbers at once&lt;/H4&gt;&lt;P&gt;Usually, you do not want to generate only one random number. You want to generate many random numbers. In the past, every generated random number was a single method call.&lt;/P&gt;&lt;P&gt;Example:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  types i_tab type standard table of i with empty key.
+  final(rng) = cl_abap_random=&amp;gt;create( ).
+  final(tab) = reduce i_tab( init _tab = value #( ) 
+                             for i = 1 then i + 1 until i &amp;gt; 1000
+                             next _tab = value #( base _tab ( rng-&amp;gt;int( ) ) ) ).  &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This is slow, as we have 1000 method calls and a FOR-LOOP.&lt;/P&gt;&lt;P&gt;Now, this can be sped up many times by doing the loop inside the ABAP kernel.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  final(rng) = cl_abap_random=&amp;gt;create( ).
+  final(distrib) = cl_abap_prob_distribution=&amp;gt;get_uniform_int_distribution( range = value #( ) ). " empty range =&amp;gt; all numbers
+  final(tab) = distrib-&amp;gt;next_random_numbers( count = 1000 rng = rng ).
+
+  cl_demo_output=&amp;gt;display( tab ).&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId-619482335"&gt;5.2 Analyzing range tables and generating random numbers in non-consecutive intervals&lt;/H4&gt;&lt;P&gt;Another nice example is generating uniformly distributed integer random numbers in arbitrary subsets of the integers (i.e., not in a single contiguous interval). The constructor for the uniform integer distribution accepts a &lt;STRONG&gt;range table.&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  data distrib type ref to if_abap_prob_distribution_int.
+  final(rng) = cl_abap_random=&amp;gt;create( ).
+  distrib = cl_abap_prob_distribution=&amp;gt;get_uniform_int_distribution(
+    range = value #( ( sign = 'I' option = 'BT' low = 1 high = 10 )
+                     ( sign = 'E' option = 'EQ' low = 5 ) ) ).
+  cl_demo_output=&amp;gt;write( distrib-&amp;gt;support_size( ) ).  " prints 9, i.e. we have 9 elements which are covered by the rangetab
+  cl_demo_output=&amp;gt;write( distrib-&amp;gt;median( ) ). " prints 6, which is the median of the set [1,2,3,4,6,7,8,9,10] in our definition  
+  final(random_numbers) = distrib-&amp;gt;next_random_numbers( count = 1000 rng = rng ). " generate random numbers from 1 to 10 excluding 5
+  cl_demo_output=&amp;gt;display( random_numbers ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion:&amp;nbsp;&lt;/STRONG&gt;&lt;SPAN&gt;You can easily generate random numbers that satisfy any condition specified by a range table. Keep in mind that the range table is treated as a set—so overlapping conditions like X &amp;lt; 6 and X &amp;lt; 7 simply combine to X &amp;lt; 7. Values that fall into both ranges (such as 5) are not given extra weight or counted multiple times.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Also, integers are "cut off" at the minimum/maximum INT4 or INT8 value, so you can't compute uniform discrete probabilities of an infinite set. Mathematics is safe here.&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-293886111"&gt;&lt;SPAN&gt;6 Overflows&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;When generating random numbers, a probability distribution can overflow. The normal distribution, for example, spans the whole real line. As FLOAT's value range is finite, this can lead to unexpected results for very large mean or standard deviation, or, if you are just "unlucky", also for small ones.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;We decided that random number generation &lt;STRONG&gt;should never overflow&lt;/STRONG&gt;. We achieve this by two means:&lt;/P&gt;&lt;P&gt;&amp;nbsp; &amp;nbsp; 1.&amp;nbsp; Restricting the parameters for the distribution in the constructor to "sensible" values reflecting real-world scenarios.&lt;BR /&gt;&amp;nbsp; &amp;nbsp; 2.&amp;nbsp; If you are unlucky anyhow, use rejection sampling until we are in the float range.&amp;nbsp;&lt;/P&gt;&lt;P&gt;This is an important compromise and something that is not done in most random number generator libraries. It also means that the distribution may not&amp;nbsp;&lt;EM&gt;exactly&amp;nbsp;&lt;/EM&gt;be (normally-, gamma-, ...) distributed at the borders of the float or decfloat range. This has no influence on any real-world scenario or calculation, however.&amp;nbsp;&lt;/P&gt;&lt;P&gt;On the contrary, you can be content that no overflow occurs, ever. This is an important feature of a random number generator.&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-97372606"&gt;7 Conclusion&lt;/H3&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;P&gt;This article showcased the new ABAP capabilities for generating random numbers from various probability distributions—and performing probability calculations—using the powerful system classes&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;CL_ABAP_PROB_DISTRIBUTION&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;CL_ABAP_PROB_DISTRIBUTION_DF34&lt;/STRONG&gt;.&lt;/P&gt;&lt;H3 id="toc-hId--174372268"&gt;8 The interface IF_ABAP_PROB_DISTRIBUTION&lt;/H3&gt;&lt;P&gt;For reference, here is the complete interface IF_ABAP_PROB_DISTRIBUTION with the implemented methods:&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;"! &amp;lt;p&amp;gt;Interface representing a probability distribution with probabilities of type F (=FLOAT). Used by class
+"!  {@link CL_ABAP_PROB_DISTRIBUTION }, which represents a probability distribution over the real line.&amp;lt;/p&amp;gt;
+interface if_abap_prob_distribution
+  public .
+
+  "! Table type to hold a collection of random numbers.
+  types random_numbers type standard table of f with empty key.
+
+  "! Returns the support of the probability distribution
+  "! @parameter kind | The kind of support the distribution provides.
+  methods support_kind
+    returning value(kind) type if_abap_prob_types=&amp;gt;support_kind.
+
+  "! Returns the kind of probability distribution
+  "! @parameter kind | The kind of the distribution.
+  methods distribution_kind
+    returning value(kind) type if_abap_prob_types=&amp;gt;distribution_kind.
+
+  "! Returns whether the probability distribution is continuous
+  "! @parameter continuous | Flag indicating if the distribution is continuous.
+  methods is_continuous
+    returning value(continuous) type abap_bool.
+
+  "! Returns the mean of the probability distribution
+  "! @parameter mean | The mean value of the distribution.
+  "! @raising CX_ABAP_PROB_UNSUPPORTED | if distribution has no mean
+  methods mean
+    returning value(mean) type f
+    raising   cx_abap_prob_unsupported.
+
+  "! Returns a possible mode of the probability distribution
+  "! @parameter mode | The mode of the distribution.
+  "! @raising CX_ABAP_PROB_UNSUPPORTED | if distribution has no mode
+  methods mode
+    returning value(mode) type f
+    raising   cx_abap_prob_unsupported.
+
+  "! Returns the variance of the probability distribution
+  "! @parameter variance | The variance of the distribution.
+  "! @raising CX_ABAP_PROB_UNSUPPORTED | if distribution has no variance
+  methods variance
+    returning value(variance) type f
+    raising   cx_abap_prob_unsupported.
+
+  "! Returns the (CDF-based) median of the probability distribution. Here, the median
+  "! is the smallest x in the support, such that P(X &amp;lt;= x) &amp;gt;= 0.5.
+  "! @parameter median | The median value of the distribution.
+  methods median
+    returning value(median) type f.
+
+  "! Returns the cumulative distribution function, i.e. the probability that the
+  "! distribution assumes values &amp;lt;= arg.
+  "! @parameter arg                      | The argument for which to calculate the cumulative distribution function.
+  "! @parameter probability              | P( X &amp;lt;= arg )
+  "! @raising cx_sy_arithmetic_overflow  | If an arithmetic overflow occurs.
+  "! @raising cx_parameter_invalid_range | If the parameter is outside of the support.
+  methods cdf
+    importing arg                type f
+    returning value(probability) type f
+    raising   cx_sy_arithmetic_overflow
+              cx_parameter_invalid_range.
+
+  "! Returns the probability density function (if continuous) or the probability mass function
+  "! (if not continuous)
+  "! @parameter arg                      | The argument for which to calculate the probability density or mass function.
+  "! @parameter value                    | The calculated density or mass value.
+  "! @raising cx_sy_arithmetic_overflow  | If an arithmetic overflow occurs.
+  "! @raising cx_parameter_invalid_range | If the parameter is outside of the support.
+  methods pdf_or_pmf
+    importing arg          type f
+    returning value(value) type f
+    raising   cx_sy_arithmetic_overflow
+              cx_parameter_invalid_range.
+
+  "! Returns the p-quantile of the the distribution,
+  "! @parameter probability              | The probability for which to calculate the quantile. Should be
+  "!                                       between 0 and 1.
+  "! @parameter quantile                 | The calculated quantile value.
+  "! @raising cx_parameter_invalid_range | If the parameter is out of range.
+  "! @raising cx_sy_arithmetic_overflow  | If an arithmetic overflow occurs.
+  methods quantile
+    importing probability     type f
+    returning value(quantile) type f
+    raising   cx_parameter_invalid_range
+              cx_sy_arithmetic_overflow.
+
+  "! Returns the minimum value the distribution can assume.
+  "! @parameter value | The minimum value in the distribution.
+  methods min_value
+    returning value(value) type f.
+
+  "! Returns the maximum value the distribution can assume
+  "! @parameter value | The maximum value in the distribution.
+  methods max_value
+    returning value(value) type f.
+
+  "! Returns a random number distributed according to the distribution
+  "! @parameter rng    | The random number generator to use.
+  "!                     When rng is of type {@link CL_ABAP_RANDOM }, other algorithms are used
+  "!                     which are significantly faster and generate different random numbers for some
+  "!                     distributions.
+  "! @parameter number | The next random number generated.
+  methods next_random_number
+    importing rng           type ref to if_abap_random
+    returning value(number) type f.
+
+  "! Returns an internal table of random number distributed according to the distribution
+  "! @parameter count   | The number of random numbers to generate.
+  "! @parameter rng     | The random number generator to use.
+  "!                      When rng is of type {@link CL_ABAP_RANDOM }, other algorithms are used
+  "!                      which are significantly faster and generate different random numbers for some
+  "!                      distributions.
+  "! @parameter numbers | A set of generated random numbers.
+  methods next_random_numbers
+    importing count          type i
+              rng            type ref to if_abap_random
+    returning value(numbers) type random_numbers.
+
+endinterface.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/random-numbers-and-probability-distributions-in-the-abap-environments-for/ba-p/14173266"/>
+    <published>2025-08-18T13:00:51.072000+02:00</published>
   </entry>
 </feed>
