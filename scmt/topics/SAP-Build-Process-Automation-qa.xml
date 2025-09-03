@@ -2,101 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Build-Process-Automation-qa.xml</id>
   <title>SAP Community - SAP Build Process Automation</title>
-  <updated>2025-09-03T11:00:35.893745+00:00</updated>
+  <updated>2025-09-03T14:00:47.134195+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Build Process Automation/pd-p/73554900100800003832" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Build Process Automation Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/automating-sap-hana-system-startup-in-a-distributed-hana-environment-on-gcp/qaq-p/14181033</id>
-    <title>Automating SAP HANA System Startup in a Distributed HANA Environment on GCP</title>
-    <updated>2025-08-14T17:02:34.599000+02:00</updated>
-    <author>
-      <name>NitinKhose</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1564702</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-1737773353"&gt;&lt;STRONG&gt;Overview&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;In a distributed SAP HANA environment hosted on Google Cloud Platform (GCP), starting SAP systems after a VM reboot can often be a manual and time-consuming process.&lt;BR /&gt;By creating automation scripts and integrating them with &lt;STRONG&gt;systemd services&lt;/STRONG&gt;, we can ensure that both the HANA database and SAP application servers start automatically when the VM is powered on from the GCP Console — without manual intervention.&lt;/P&gt;&lt;P&gt;This guide explains how we implemented and tested an automated startup sequence with detailed logging for monitoring.&lt;/P&gt;&lt;H3 id="toc-hId-1670342567"&gt;Architecture&lt;/H3&gt;&lt;P&gt;Our distributed SAP HANA setup consists of:&lt;/P&gt;&lt;UL class="lia-list-style-type-disc"&gt;&lt;LI&gt;&lt;STRONG&gt;Database Node –&lt;/STRONG&gt; runs the HANA database&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Application Node –&lt;/STRONG&gt; runs SAP ASCS and SAP Application Server&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;The goal:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL class="lia-list-style-type-disc"&gt;&lt;LI&gt;Start the HANA DB automatically when the DB VM boots.&lt;/LI&gt;&lt;LI&gt;Wait until the DB is online before starting the SAP ASCS and App instances.&lt;/LI&gt;&lt;LI&gt;Maintain detailed logs for troubleshooting .&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-1344746343"&gt;&lt;STRONG&gt;1. HANA DB Auto Start Script&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;File:&lt;/STRONG&gt; /usr/local/bin/start_hana_db.sh&lt;BR /&gt;&lt;STRONG&gt;Purpose:&lt;/STRONG&gt; Start the HANA DB service and log every step.&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;#!/bin/bash
-
-LOGFILE="/usr/sap/&amp;lt;SID&amp;gt;/start_hana_db.log"
-echo "=== Starting HANA DB at $(date) ===" &amp;gt;&amp;gt; "$LOGFILE"
-
-# Step 1: StartService
-echo "Running StartService..." &amp;gt;&amp;gt; "$LOGFILE"
-/usr/sap/hostctrl/exe/sapcontrol -nr 00 -function StartService &amp;lt;DB_SID&amp;gt; &amp;gt;&amp;gt; "$LOGFILE" 2&amp;gt;&amp;amp;1
-
-# Wait for 10 seconds
-echo "Sleeping for 10 seconds..." &amp;gt;&amp;gt; "$LOGFILE"
-sleep 10
-
-# Step 2: Start DB
-echo "Starting HANA DB..." &amp;gt;&amp;gt; "$LOGFILE"
-/usr/sap/hostctrl/exe/sapcontrol -nr 00 -function Start &amp;gt;&amp;gt; "$LOGFILE" 2&amp;gt;&amp;amp;1
-
-echo "=== HANA DB Startup Complete at $(date) ===" &amp;gt;&amp;gt; "$LOGFILE"&lt;/code&gt;&lt;/pre&gt;&lt;H2 id="toc-hId-1148232838"&gt;&lt;STRONG&gt;2. systemd Service Units&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;Database Node Service&lt;/STRONG&gt; (hana_start.service):&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;[Unit]
-Description=Start SAP HANA DB via sapcontrol
-After=network-online.target multi-user.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=&amp;lt;hana_admin_user&amp;gt;
-ExecStart=/usr/local/bin/start_hana_db.sh
-TimeoutStartSec=300
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target&lt;/code&gt;&lt;/pre&gt;&lt;H2 id="toc-hId-951719333"&gt;&lt;STRONG&gt;3. Enabling the Services&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;On &lt;STRONG&gt;Database Node&lt;/STRONG&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;sudo systemctl daemon-reexec
-sudo systemctl daemon-reload
-sudo systemctl enable hana_start.service
-sudo systemctl start hana_start.service
-sudo systemctl status hana_start.service&lt;/code&gt;&lt;/pre&gt;&lt;H2 id="toc-hId-755205828"&gt;&lt;STRONG&gt;4. SAP App Auto Start Script&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;File:&lt;/STRONG&gt; /usr/local/bin/start_sap_after_db.sh&lt;BR /&gt;&lt;STRONG&gt;Purpose:&lt;/STRONG&gt; Wait for HANA DB availability before starting SAP ASCS and App instances.&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;#!/bin/bash
-
-LOGFILE="/usr/sap/&amp;lt;SID&amp;gt;/sap_app_startup.log"
-
-echo "===== SAP Application Startup Script Triggered at $(date) =====" &amp;gt;&amp;gt; "$LOGFILE"
-
-echo "Checking if SAP application can connect to HANA DB using R3trans -d..." &amp;gt;&amp;gt; "$LOGFILE"
-
-# Wait until SAP can connect to DB
-while true; do
-    su - &amp;lt;sap_admin_user&amp;gt; -c 'R3trans -d' &amp;gt;&amp;gt; "$LOGFILE" 2&amp;gt;&amp;amp;1
-    if [ $? -eq 0 ]; then
-        echo "$(date): SAP Application can connect to DB. Proceeding with startup." &amp;gt;&amp;gt; "$LOGFILE"
-        break
-    else
-        echo "$(date): R3trans -d failed. Waiting 10s before retrying..." &amp;gt;&amp;gt; "$LOGFILE"
-        sleep 10
-    fi
-done
-
-# Start ASCS instance
-echo "$(date): Starting SAP ASCS Instance..." &amp;gt;&amp;gt; "$LOGFILE"
-su - &amp;lt;sap_admin_user&amp;gt; -c '/usr/sap/hostctrl/exe/sapcontrol -nr &amp;lt;ASCS_Instance_Number&amp;gt; -function Start' &amp;gt;&amp;gt; "$LOGFILE" 2&amp;gt;&amp;amp;1
-
-sleep 10
-
-# Start App Server instance
-echo "$(date): Starting SAP App Server Instance..." &amp;gt;&amp;gt; "$LOGFILE"
-su - &amp;lt;sap_admin_user&amp;gt; -c '/usr/sap/hostctrl/exe/sapcontrol -nr &amp;lt;App_Instance_Number&amp;gt; -function Start' &amp;gt;&amp;gt; "$LOGFILE" 2&amp;gt;&amp;amp;1
-
-echo "$(date): SAP ASCS and App Server started successfully." &amp;gt;&amp;gt; "$LOGFILE"&lt;/code&gt;&lt;/pre&gt;&lt;H2 id="toc-hId-558692323"&gt;&lt;STRONG&gt;5. systemd Service Units&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;Application Node Service (sapapp_start.service):&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;[Unit]
-Description=Start SAP Application After HANA DB is Ready
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/start_sap_after_db.sh
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target&lt;/code&gt;&lt;/pre&gt;&lt;H2 id="toc-hId-362178818"&gt;&lt;STRONG&gt;6. Enabling the Services&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;On Application Node:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;chmod +x /usr/local/bin/start_sap_after_db.sh
-sudo systemctl daemon-reexec
-sudo systemctl daemon-reload
-systemctl enable sapapp_start.service
-systemctl start sapapp_start.service&lt;/code&gt;&lt;/pre&gt;&lt;H2 id="toc-hId-165665313"&gt;&lt;STRONG&gt;7. Monitoring and Logs&lt;/STRONG&gt;&lt;/H2&gt;&lt;UL class="lia-list-style-type-disc"&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;DB Startup Logs&lt;/STRONG&gt;: /usr/sap/&amp;lt;DB_SID&amp;gt;/start_hana_db.log&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;App Startup Logs&lt;/STRONG&gt;: /usr/sap/&amp;lt;APP_SID&amp;gt;/sap_startup.log&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId--30848192"&gt;6. Benefits of this Setup&lt;/H2&gt;&lt;UL class="lia-list-style-type-disc"&gt;&lt;LI&gt;Zero manual intervention after VM boot from GCP Console&lt;/LI&gt;&lt;LI&gt;Timestamped logs for debugging&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;DB starts first, App waits until DB is ready&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-119892660"&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;With this setup:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL class="lia-list-style-type-disc"&gt;&lt;LI&gt;SAP HANA and application layers start automatically on reboot.&lt;/LI&gt;&lt;LI&gt;Logging is comprehensive, timestamped,&lt;/LI&gt;&lt;LI&gt;Startup sequence is well-coordinated — DB first, then App components.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This reduces manual work and enhances resilience for SAP environments running on GCP or similar platforms.&lt;/P&gt;&lt;P&gt;Regards,&lt;/P&gt;&lt;P&gt;Nitin Khose&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/automating-sap-hana-system-startup-in-a-distributed-hana-environment-on-gcp/qaq-p/14181033"/>
-    <published>2025-08-14T17:02:34.599000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/automatically-start-sybase-database-and-sap-application-on-the-same-host/qaq-p/14181093</id>
     <title>Automatically Start Sybase Database and SAP Application on the Same Host</title>
@@ -379,5 +288,17 @@ sudo systemctl status sybase_sap_start.service&lt;/code&gt;&lt;/pre&gt;&lt;H2 id
     <content>&lt;P&gt;ビジネスプロセスにcreate sales orderのアクションを使用し、SAP S/4HANA CLOUD PUBLIC に受注伝票を登録しようとしております。このビジネスプロセスをデプロイしようとすると宛先を選択する画面が出てくるのですが、選択肢に何も出力されません。&lt;/P&gt;&lt;P&gt;BTPCOKPITのDESTINATIONS（宛先）にSAP S/4HANA CLOUD PUBLICにつながるHTTP宛先、saphelpに載っていた&lt;SPAN&gt;sap_process_automation_service、sap_process_automation_service_user_accessは追加しております。&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;どのように設定すればデプロイ時の宛先の選択肢に出てくるでしょうか&lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/%E3%83%93%E3%82%B8%E3%83%8D%E3%82%B9%E3%83%97%E3%83%AD%E3%82%BB%E3%82%B9%E3%82%92%E3%83%87%E3%83%97%E3%83%AD%E3%82%A4%E3%81%99%E3%82%8B%E9%9A%9B%E3%81%AB%E5%AE%9B%E5%85%88%E3%82%92%E6%8C%87%E5%AE%9A%E3%81%99%E3%82%8B%E3%81%AE%E3%81%A7%E3%81%99%E3%81%8C-%E5%AE%9B%E5%85%88%E3%81%8C%E5%85%A8%E3%81%8F%E8%A1%A8%E7%A4%BA%E3%81%95%E3%82%8C%E3%81%BE%E3%81%9B%E3%82%93/qaq-p/14205294"/>
     <published>2025-09-03T02:38:46.446000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/is-it-possible-to-build-an-dictionary-in-sap-bpa-where-i-want-call-the-key/qaq-p/14206006</id>
+    <title>Is it possible to build an dictionary in SAP BPA ? Where i want call the key to get the value</title>
+    <updated>2025-09-03T14:21:28.477000+02:00</updated>
+    <author>
+      <name>Madhuvadala</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2217764</uri>
+    </author>
+    <content>&lt;P&gt;Hi All, I am new to Sap BPA trying to build the invoice extraction process. I want to create an dictionary which is capable to hold key pair values , by using the key I want to get the value , how can i achieve this?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/is-it-possible-to-build-an-dictionary-in-sap-bpa-where-i-want-call-the-key/qaq-p/14206006"/>
+    <published>2025-09-03T14:21:28.477000+02:00</published>
   </entry>
 </feed>
