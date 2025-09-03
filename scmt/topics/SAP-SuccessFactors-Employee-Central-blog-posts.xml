@@ -2,134 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-SuccessFactors-Employee-Central-blog-posts.xml</id>
   <title>SAP Community - SAP SuccessFactors Employee Central</title>
-  <updated>2025-09-03T11:13:48.456175+00:00</updated>
+  <updated>2025-09-03T23:13:55.398927+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP SuccessFactors Employee Central/pd-p/73555000100800000773" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP SuccessFactors Employee Central blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/human-capital-management-blog-posts-by-members/employee-time-report-as-individual-line-item-sap-successfactors/ba-p/14143209</id>
-    <title>Employee Time Report as Individual Line Item - SAP SuccessFactors</title>
-    <updated>2025-07-09T10:18:34.607000+02:00</updated>
-    <author>
-      <name>muralidharansrinivasan</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/875346</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Introduction:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This Report is all about a requirement from one from my clients where they wanted a Leave Report as an individual Line item rather than the aggregated form. It is also to be remembered that they do not own time tracking license and Story Reports are not enabled either.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;How was the Requirement Achieved?&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The Lack of Time Tracking License made things interesting and challenging. With time tracking license, Report fetched using Recorded time data v2 will deliver report with individual line items rather than the aggregated form. To better understand this, lets us take a case where an employee applies leave from Jan 01 - Jan 05, The Report fetched using Canva Reporting will deliver the output as Start Date Jan 01 and End Date Jan 05, which will not serve our purpose. The Expected result should be as follows:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="50%" height="30px"&gt;Jan 01&lt;/TD&gt;&lt;TD width="50%" height="30px"&gt;&amp;nbsp;Annual Leave&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="50%" height="30px"&gt;Jan 02&lt;/TD&gt;&lt;TD width="50%" height="30px"&gt;&amp;nbsp;Annual Leave&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="50%" height="30px"&gt;Jan 03&lt;/TD&gt;&lt;TD width="50%" height="30px"&gt;&amp;nbsp;Annual Leave&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="50%" height="30px"&gt;Jan 04&lt;/TD&gt;&lt;TD width="50%" height="30px"&gt;&amp;nbsp;Annual Leave&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="50%" height="30px"&gt;Jan 05&lt;/TD&gt;&lt;TD width="50%" height="30px"&gt;&amp;nbsp;Annual Leave&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;It was also confirmed by the Engineering Team of SAP, that this will not be feasible by Canva Reporting. So, I initially had a thought if this can be achieved using excel using VBA's which did not deliver output as expected. Then I started exploring open-source solutions and there I arrived at a solution using Python. Using Python, I input the file extracted from SAP SuccessFactors which would then split the records individually. However, the Headers mentioned in the Code should match with the Extracted Report from Sap SuccessFactors.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Python Code :&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import pandas as pd
-from datetime import timedelta
-from tkinter import Tk
-from tkinter.filedialog import askopenfilename, asksaveasfilename
- 
-def split_leave_records():
-    # Use tkinter to open a file dialog to select the input Excel file
-    Tk().withdraw()  # Close the root Tk window
-    file_path = askopenfilename(title="Select the Excel file containing aggregated leave records",
-                                filetypes=[("Excel files", "*.xlsx *.xls")])
-   
-    if not file_path:
-        print("No file selected.")
-        return
- 
-    # Read the Excel file
-    df = pd.read_excel(file_path)
- 
-    # Strip whitespace from column names and make them lowercase
-    df.columns = df.columns.str.strip().str.lower()
- 
-    # Print the column names to check for the correct names
-    print("Available columns in the file:", df.columns)
- 
-    # Dynamically check for the presence of expected columns
-    required_columns = ['start date', 'end date', 'employee id', 'employee name',
-                        'time type', 'approval status', 'quantity in days',
-                        'department', 'position', 'application date', 'created by']
-    missing_columns = [col for col in required_columns if col not in df.columns]
-   
-    if missing_columns:
-        print(f"Error: Missing columns in the input file: {', '.join(missing_columns)}")
-        return
- 
-    # Convert 'start date' and 'end date' to datetime
-    df['start date'] = pd.to_datetime(df['start date'], errors='coerce')
-    df['end date'] = pd.to_datetime(df['end date'], errors='coerce')
- 
-    # Check for invalid dates
-    if df['start date'].isnull().any() or df['end date'].isnull().any():
-        print("Error: Some 'start date' or 'end date' values could not be parsed.")
-        return
- 
-    # Initialize a list to hold split records
-    split_records = []
-   
-    # Iterate over each row to split the leave records
-    for index, row in df.iterrows():
-        employee_id = row['employee id']
-        employee_name = row['employee name']
-        start_date = row['start date']
-        end_date = row['end date']
-        time_type = row['time type']
-        approval_status = row['approval status']
-        quantity_in_days = row['quantity in days']
-        department = row['department']  # This may be blank
-        position_title = row['position']  # Renamed from position
-        application_date = row['application date']
-        created_by = row['created by']
- 
-        # Ensure start_date &amp;lt;= end_date
-        if start_date &amp;gt; end_date:
-            print(f"Error: Start date is after End date for Employee ID {employee_id}")
-            continue
- 
-        # Generate individual records for each date in the range
-        current_date = start_date
-        day_count = 0
-       
-        while current_date &amp;lt;= end_date:
-            split_records.append({
-                'Application Date': application_date.date() if pd.notnull(application_date) else '',  # Keep only date part
-                'Employee ID': employee_id,
-                'Employee Name': employee_name,
-                'Leave Date': current_date.date(),  # Keep only date part
-                'Department': department,  # Leave blank if there's no data
-                'Position Title': position_title,  # Renamed column
-                'Time Type': time_type,
-                'Quantity in Days': 1,      # Each split leave is considered 1 day
-                'Approval Status': approval_status,
-                'Created By': created_by
-            })
-            current_date += timedelta(days=1)
-            day_count += 1
-       
-        # Warn if the number of days split doesn't match the quantity
-        if day_count != quantity_in_days:
-            print(f"Warning: Day count ({day_count}) doesn't match expected quantity ({quantity_in_days}) for Employee ID {employee_id}")
- 
-    # Create a DataFrame for the split records
-    split_df = pd.DataFrame(split_records)
- 
-    # Reorder columns for the final output and remove 'Start Date' and 'End Date'
-    split_df = split_df[[
-        'Application Date', 'Employee ID', 'Employee Name', 'Leave Date',
-        'Department', 'Position Title', 'Time Type',
-        'Quantity in Days', 'Approval Status', 'Created By'
-    ]]
- 
-    # Use tkinter to save the output Excel file
-    output_file = asksaveasfilename(defaultextension=".xlsx",
-                                    filetypes=[("Excel files", "*.xlsx *.xls")],
-                                    title="Save the individual leave records to Excel file")
-   
-    if output_file:
-        # Export the split records to a new Excel file
-        split_df.to_excel(output_file, index=False)
-        print(f"Individual leave records saved to {output_file}")
-    else:
-        print("Save operation cancelled.")
- 
-# Run the function to split leave records
-split_leave_records()&lt;/code&gt;&lt;/pre&gt;&lt;DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;Please Ensure Latest version of Python is downloaded and installed in your System. There are multiple online sources to help you with the installation.&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;&amp;nbsp; &amp;nbsp;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;STRONG&gt;Sample Report with Headers :&lt;/STRONG&gt;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&lt;TABLE border="0" width="982" cellspacing="0" cellpadding="0"&gt;&lt;COLGROUP&gt;&lt;COL width="70" /&gt;&lt;COL width="149" /&gt;&lt;COL width="70" /&gt;&lt;COL width="112" /&gt;&lt;COL width="70" /&gt;&lt;COL width="161" /&gt;&lt;COL width="70" /&gt;&lt;/COLGROUP&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="70" height="34"&gt;Application Date&lt;/TD&gt;&lt;TD width="70"&gt;Employee ID&lt;/TD&gt;&lt;TD width="149"&gt;Employee Name&lt;/TD&gt;&lt;TD width="70"&gt;Start Date&lt;/TD&gt;&lt;TD width="70"&gt;End Date&lt;/TD&gt;&lt;TD width="70"&gt;Department&lt;/TD&gt;&lt;TD width="112"&gt;Time Type&lt;/TD&gt;&lt;TD width="70"&gt;Quantity in Days&lt;/TD&gt;&lt;TD width="161"&gt;Approval Status&lt;/TD&gt;&lt;TD width="70"&gt;Created By&lt;/TD&gt;&lt;TD width="70"&gt;Position&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="51"&gt;7-2-2025&lt;/TD&gt;&lt;TD&gt;11111111&lt;/TD&gt;&lt;TD width="149"&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;7-8-2025&lt;/TD&gt;&lt;TD&gt;7-27-2025&lt;/TD&gt;&lt;TD width="70"&gt;Security&amp;nbsp;&amp;nbsp;&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;14&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;2222222&lt;/TD&gt;&lt;TD width="70"&gt;&lt;P&gt;Branch Head&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;Report as Individual Line Items:&lt;/P&gt;&lt;TABLE border="0" width="1070" cellspacing="0" cellpadding="0"&gt;&lt;COLGROUP&gt;&lt;COL width="107" /&gt;&lt;/COLGROUP&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="107" height="20"&gt;Application Date&lt;/TD&gt;&lt;TD width="107"&gt;Employee ID&lt;/TD&gt;&lt;TD width="107"&gt;Employee Name&lt;/TD&gt;&lt;TD width="107"&gt;Leave Date&lt;/TD&gt;&lt;TD width="107"&gt;Department&lt;/TD&gt;&lt;TD width="107"&gt;Position Title&lt;/TD&gt;&lt;TD width="107"&gt;Time Type&lt;/TD&gt;&lt;TD width="107"&gt;Quantity in Days&lt;/TD&gt;&lt;TD width="107"&gt;Approval Status&lt;/TD&gt;&lt;TD width="107"&gt;Created By&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-08&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-09&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-10&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-11&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-12&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-13&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-14&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-15&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-16&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-17&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-18&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-19&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-20&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-21&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-22&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-23&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-24&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-25&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-26&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD height="20"&gt;2025-07-02&lt;/TD&gt;&lt;TD&gt;1111111&lt;/TD&gt;&lt;TD&gt;Joseph Mark&lt;/TD&gt;&lt;TD&gt;2025-07-27&lt;/TD&gt;&lt;TD&gt;Security&lt;/TD&gt;&lt;TD&gt;Branch Head&lt;/TD&gt;&lt;TD&gt;Annual Leave&lt;/TD&gt;&lt;TD&gt;1&lt;/TD&gt;&lt;TD&gt;PENDING&lt;/TD&gt;&lt;TD&gt;22222222&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;Just Download the Report from the SAP SuccessFactors with the headers mentioned above , Run the Code in any IDE , Select the file and You will have the report ready in the desired format.&lt;/P&gt;&lt;P&gt;Please remove the Exported to Excel on Date Header &lt;STRONG&gt;from the file after export.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This explains how open source together with Sap SuccessFactors can do wonders, without the need of Time Tracking and Story Reports enablement.&lt;/P&gt;&lt;P&gt;Feel Free to drop your comments and Thoughts!&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Let's make SuccessFactors, A Great and most Preferred HRMS!&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/human-capital-management-blog-posts-by-members/employee-time-report-as-individual-line-item-sap-successfactors/ba-p/14143209"/>
-    <published>2025-07-09T10:18:34.607000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/human-capital-management-blog-posts-by-members/successfactors-employee-central-automatic-job-relationship-record-creation/ba-p/14104648</id>
     <title>SuccessFactors Employee Central - Automatic Job Relationship Record Creation</title>
@@ -1997,5 +1873,17 @@ ns = {
     <content>&lt;H1 id="toc-hId-1629909636"&gt;Getting Ready for AI-Assisted Applicant Screening in SAP SuccessFactors&lt;/H1&gt;&lt;P&gt;Recruiting is one of the most time-consuming parts of HR. For many companies, every new job role attracts hundreds of CVs. Recruiters spend hours reading applications, hiring managers get frustrated waiting for shortlists, and candidates often feel lost in the process.&lt;/P&gt;&lt;P&gt;SAP SuccessFactors has introduced a new feature — &lt;STRONG&gt;AI-assisted applicant screening, powered by Joule&lt;/STRONG&gt; — to make this easier. The idea is simple: the system can read applications, match skills to the job, and even &lt;STRONG&gt;rank candidates&lt;/STRONG&gt; from best to least fit. This has the potential to change how recruiters work, but there is something important to understand.&lt;/P&gt;&lt;P&gt;This feature does not simply work out of the box. To get value from it, you first need to set up some important building blocks in your system.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1562478850"&gt;What you need before enabling AI-assisted screening&lt;/H2&gt;&lt;P&gt;Over the last few months of working with clients, I have seen that the success of AI-assisted screening depends on six key areas:&lt;/P&gt;&lt;H3 id="toc-hId-1495048064"&gt;1. Recruiting Management (RCM)&lt;/H3&gt;&lt;P&gt;This is the foundation. Without properly structured job requisitions, application templates, and candidate profiles, there is no data for AI to work on.&lt;/P&gt;&lt;H3 id="toc-hId-1298534559"&gt;2. Job Profile Builder (JPB)&lt;/H3&gt;&lt;P&gt;Job Profile Builder is where you define jobs, roles, competencies, and required skills. The better this is set up, the stronger the AI matching will be. Think of it as the dictionary that AI uses to understand your jobs.&lt;/P&gt;&lt;H3 id="toc-hId-1102021054"&gt;3. Talent Intelligence Hub (TIH)&lt;/H3&gt;&lt;P&gt;This is becoming more and more important. TIH provides a single skills framework across the system. When jobs and candidates speak the same “skills language,” the AI can make much better decisions about fit and ranking.&lt;/P&gt;&lt;H3 id="toc-hId-905507549"&gt;4. Joule with AI Units License&lt;/H3&gt;&lt;P&gt;Joule is the intelligence layer inside SAP SuccessFactors. With the AI Units license, Joule can power features such as skills extraction, candidate-job matching, stack ranking, and even generating interview questions. Without Joule and the license, the feature cannot be enabled.&lt;/P&gt;&lt;H3 id="toc-hId-708994044"&gt;5. Role-Based Permissions (RBP)&lt;/H3&gt;&lt;P&gt;Permissions are often overlooked. Recruiters and hiring managers need access to view AI insights, while system administrators need access to configure and monitor AI services.&lt;/P&gt;&lt;H3 id="toc-hId-512480539"&gt;6. Clean and consistent data&lt;/H3&gt;&lt;P&gt;The simplest, but often the hardest step. If job descriptions are vague, or candidate data is incomplete, the AI will not give useful results. Clean data is the backbone of any successful AI implementation.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-186884315"&gt;Why stack ranking makes a difference&lt;/H2&gt;&lt;P&gt;The most useful feature of AI-assisted screening is &lt;STRONG&gt;stack ranking&lt;/STRONG&gt;. This means applicants are automatically sorted from best fit to least fit based on the job requirements and the skills framework.&lt;/P&gt;&lt;P&gt;This helps in many ways:&lt;/P&gt;&lt;UL class="lia-list-style-type-disc"&gt;&lt;LI&gt;&lt;P&gt;Recruiters save time by not manually scanning hundreds of CVs.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Hiring managers get a clear shortlist and understand why certain candidates are ranked higher.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Every applicant is checked in the same way, which makes the process more consistent and fair.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Recruiters get more time to focus on meaningful conversations with candidates instead of repetitive screening tasks.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H2 id="toc-hId--9629190"&gt;A real example from practice&lt;/H2&gt;&lt;P&gt;One global technology company I worked with introduced AI-assisted screening for their campus hiring. They received thousands of applications for a single drive. Normally, this would take recruiters several weeks to manage.&lt;/P&gt;&lt;P&gt;With stack ranking enabled, the system automatically highlighted the most relevant candidates. The results:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Screening time reduced by &lt;STRONG&gt;40 percent&lt;/STRONG&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Recruiters could finally spend more time engaging with students&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Hiring managers felt the shortlist was of much higher quality&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The company is now planning to extend this approach to experienced hiring as well.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-141111662"&gt;Final thoughts&lt;/H2&gt;&lt;P&gt;AI-assisted applicant screening in SAP SuccessFactors is not about replacing recruiters. It is about helping them focus on people, not paperwork.&lt;/P&gt;&lt;P&gt;But success depends on getting the basics right. &lt;STRONG&gt;Recruiting Management, Job Profile Builder, Talent Intelligence Hub, Joule with AI Units, Role-Based Permissions, and clean data&lt;/STRONG&gt; — these are the real prerequisites.&lt;/P&gt;&lt;P&gt;Once these are in place, stack ranking can truly change the way hiring teams work — making recruitment faster, fairer, and more consistent.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/human-capital-management-blog-posts-by-members/getting-ready-for-ai-assisted-applicant-screening-in-sap-successfactors/ba-p/14200871"/>
     <published>2025-09-02T09:00:53.487000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-blog-posts-by-sap/sap-successfactors-the-business-technology-platform-btp-september-17th/ba-p/14206115</id>
+    <title>SAP SuccessFactors + the Business Technology Platform (BTP) - September 17th Webinar</title>
+    <updated>2025-09-03T15:25:43.441000+02:00</updated>
+    <author>
+      <name>MickCollins</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/25929</uri>
+    </author>
+    <content>&lt;P&gt;&lt;SPAN&gt;Join SAP and Gavdi for our "Frictionless HR" webinar on September 17th.&lt;/SPAN&gt; &lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;It's ideal if you're an HR professional hearing more about the integration, extension, and automation capabilities of BTP but unsure about how they can be used with your SAP SuccessFactors solutions.&lt;/SPAN&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;- Reimagining the Employee Experience with SAP BTP&lt;/SPAN&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;- Adapting SAP SuccessFactors to your organisational needs&lt;/SPAN&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;- Uncover how SAP BTP enables rapid extensions to HR processes&lt;/SPAN&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;A class="" href="https://lnkd.in/eyCvxjme" target="_self" rel="nofollow noopener noreferrer"&gt;https://events.teams.microsoft.com/event/54d61f49-3bd2-4751-92ca-2844ba3eb8ae@dc817646-b36b-4f39-82e4-1a8beadec837&lt;/A&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-blog-posts-by-sap/sap-successfactors-the-business-technology-platform-btp-september-17th/ba-p/14206115"/>
+    <published>2025-09-03T15:25:43.441000+02:00</published>
   </entry>
 </feed>
