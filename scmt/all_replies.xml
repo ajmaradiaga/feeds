@@ -2,219 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2025-09-09T03:14:02.400984+00:00</updated>
+  <updated>2025-09-09T03:29:01.582126+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/supply-chain-management-q-a/s4hana-private-split-fu-creation-for-delivery-note-based-on-dynamic/qaa-p/14211085#M206920</id>
-    <title>Re: S4HANA private - split FU creation for delivery note...</title>
-    <updated>2025-09-08T17:55:49.808000+02:00</updated>
-    <author>
-      <name>mpavan_kumar</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2248146</uri>
-    </author>
-    <content>&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;" Class implementation for BADI /SCMTMS/FUB_CORE
-CLASS zcl_tms_dynamic_fu_split DEFINITION PUBLIC FINAL CREATE PUBLIC.
-  PUBLIC SECTION.
-    INTERFACES /scmtms/if_fub_core.
-  PRIVATE SECTION.
-    METHODS:
-      " Main method to handle dynamic splitting
-      split_fu_based_on_optimization
-        IMPORTING
-          it_fu_root     TYPE /scmtms/t_tor_root_k
-          it_fu_item     TYPE /scmtms/t_tor_item_tr_k
-        CHANGING
-          ct_fu_root     TYPE /scmtms/t_tor_root_k
-          ct_fu_item     TYPE /scmtms/t_tor_item_tr_k
-          ct_fu_stop     TYPE /scmtms/t_tor_stop_k
-          ct_fu_stop_seq TYPE /scmtms/t_tor_stop_seq_k,
-      
-      " Get optimization data from external TMS
-      get_optimization_data
-        IMPORTING
-          iv_delivery_number TYPE vbeln
-        RETURNING
-          VALUE(rt_opt_data) TYPE ztt_tms_optimization_data,
-      
-      " Create FU items with split quantities
-      create_split_fu_items
-        IMPORTING
-          is_original_item   TYPE /scmtms/s_tor_item_tr_k
-          it_optimization    TYPE ztt_tms_optimization_data
-        CHANGING
-          ct_fu_root         TYPE /scmtms/t_tor_root_k
-          ct_fu_item         TYPE /scmtms/t_tor_item_tr_k
-          ct_fu_stop         TYPE /scmtms/t_tor_stop_k
-          ct_fu_stop_seq     TYPE /scmtms/t_tor_stop_seq_k.
-ENDCLASS.
-
-CLASS zcl_tms_dynamic_fu_split IMPLEMENTATION.
-  METHOD /scmtms/if_fub_core~prepare_fub.
-    " Only process if we have FU items to potentially split
-    IF it_fu_item IS NOT INITIAL.
-      split_fu_based_on_optimization(
-        EXPORTING
-          it_fu_root     = it_fu_root
-          it_fu_item     = it_fu_item
-        CHANGING
-          ct_fu_root     = ct_fu_root
-          ct_fu_item     = ct_fu_item
-          ct_fu_stop     = ct_fu_stop
-          ct_fu_stop_seq = ct_fu_stop_seq
-      ).
-    ENDIF.
-  ENDMETHOD.
-
-  METHOD split_fu_based_on_optimization.
-    DATA:
-      lt_optimization_data TYPE ztt_tms_optimization_data,
-      lv_delivery_number   TYPE vbeln.
-    
-    " Group items by delivery note
-    DATA(lt_items_by_delivery) = VALUE /scmtms/t_tor_item_tr_k( 
-      FOR GROUPS &amp;lt;group&amp;gt; OF &amp;lt;item&amp;gt; IN it_fu_item
-      GROUP BY &amp;lt;item&amp;gt;-base_btd_tco WITHOUT MEMBERS ( &amp;lt;item&amp;gt; ) ).
-    
-    LOOP AT lt_items_by_delivery ASSIGNING FIELD-SYMBOL(&amp;lt;ls_item_group&amp;gt;).
-      " Extract delivery number from reference
-      lv_delivery_number = &amp;lt;ls_item_group&amp;gt;-base_btd_id.
-      
-      " Get optimization data from external TMS
-      lt_optimization_data = get_optimization_data( lv_delivery_number ).
-      
-      " Only proceed if we have optimization data
-      IF lt_optimization_data IS NOT INITIAL.
-        " Process each item in this delivery
-        LOOP AT it_fu_item ASSIGNING FIELD-SYMBOL(&amp;lt;ls_original_item&amp;gt;)
-          WHERE base_btd_id = lv_delivery_number.
-          
-          " Create split FU items based on optimization data
-          create_split_fu_items(
-            EXPORTING
-              is_original_item = &amp;lt;ls_original_item&amp;gt;
-              it_optimization  = lt_optimization_data
-            CHANGING
-              ct_fu_root       = ct_fu_root
-              ct_fu_item       = ct_fu_item
-              ct_fu_stop       = ct_fu_stop
-              ct_fu_stop_seq   = ct_fu_stop_seq
-          ).
-        ENDLOOP.
-      ENDIF.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD get_optimization_data.
-    " This method would interface with your external TMS
-    " For demonstration, we'll use a mock implementation
-    
-    " In a real scenario, you would call the TMS API or read from a custom table
-    " that stores the optimization results by delivery number
-    
-    " Mock data for testing - replace with actual TMS integration
-    CASE iv_delivery_number.
-      WHEN '80000001'. " First delivery note with 60 tons
-        rt_opt_data = VALUE #(
-          ( sequence = 1 optimal_quantity = 25 unit = 'TON' )
-          ( sequence = 2 optimal_quantity = 20 unit = 'TON' )
-          ( sequence = 3 optimal_quantity = 15 unit = 'TON' )
-        ).
-      WHEN '80000002'. " Second delivery note with 60 tons
-        rt_opt_data = VALUE #(
-          ( sequence = 1 optimal_quantity = 20 unit = 'TON' )
-          ( sequence = 2 optimal_quantity = 21 unit = 'TON' )
-          ( sequence = 3 optimal_quantity = 19 unit = 'TON' )
-        ).
-      WHEN OTHERS.
-        " For other deliveries, return empty to use standard behavior
-    ENDCASE.
-  ENDMETHOD.
-
-  METHOD create_split_fu_items.
-    DATA:
-      lv_fu_count        TYPE i,
-      lv_total_processed TYPE /scmtms/tor_quantity,
-      lv_remaining_qty   TYPE /scmtms/tor_quantity.
-    
-    " Calculate initial values
-    lv_fu_count = lines( ct_fu_root ).
-    lv_remaining_qty = is_original_item-quantity.
-    
-    " Create a new FU for each optimization entry
-    LOOP AT it_optimization ASSIGNING FIELD-SYMBOL(&amp;lt;ls_optimization&amp;gt;).
-      " Check if we've already allocated the full quantity
-      IF lv_remaining_qty &amp;lt;= 0.
-        EXIT.
-      ENDIF.
-      
-      " Determine quantity for this FU (don't exceed remaining)
-      DATA(lv_fu_quantity) = nmin( val1 = &amp;lt;ls_optimization&amp;gt;-optimal_quantity
-                                   val2 = lv_remaining_qty ).
-      
-      " Adjust remaining quantity
-      lv_remaining_qty = lv_remaining_qty - lv_fu_quantity.
-      lv_fu_count = lv_fu_count + 1.
-      
-      " Create new FU root entry
-      DATA(ls_new_fu_root) = VALUE /scmtms/s_tor_root_k(
-        " Copy most attributes from original FU
-        node_id     = /scmtms/cl_tor_services=&amp;gt;get_new_node_id( )
-        tor_id      = |{ is_original_item-base_btd_id }-{ lv_fu_count }|
-        tproc       = ct_fu_root[ 1 ]-tproc
-        tor_cat     = /scmtms/if_tor_const=&amp;gt;sc_tor_category-freight_unit
-        " ... copy other relevant attributes
-      ).
-      APPEND ls_new_fu_root TO ct_fu_root.
-      
-      " Create new FU item
-      DATA(ls_new_fu_item) = is_original_item.
-      ls_new_fu_item-node_id       = /scmtms/cl_tor_services=&amp;gt;get_new_node_id( ).
-      ls_new_fu_item-parent_node_id = ls_new_fu_root-node_id.
-      ls_new_fu_item-quantity      = lv_fu_quantity.
-      ls_new_fu_item-base_quantity = lv_fu_quantity.
-      " ... set other item attributes as needed
-      APPEND ls_new_fu_item TO ct_fu_item.
-      
-      " Copy stop sequences (simplified - in reality would need more logic)
-      LOOP AT ct_fu_stop_seq ASSIGNING FIELD-SYMBOL(&amp;lt;ls_stop_seq&amp;gt;)
-        WHERE parent_node_id = is_original_item-parent_node_id.
-        DATA(ls_new_stop_seq) = &amp;lt;ls_stop_seq&amp;gt;.
-        ls_new_stop_seq-node_id = /scmtms/cl_tor_services=&amp;gt;get_new_node_id( ).
-        ls_new_stop_seq-parent_node_id = ls_new_fu_root-node_id.
-        APPEND ls_new_stop_seq TO ct_fu_stop_seq.
-      ENDLOOP.
-    ENDLOOP.
-    
-    " Remove the original FU if we created splits
-    IF lines( it_optimization ) &amp;gt; 0 AND lv_remaining_qty = 0.
-      " Remove original FU root
-      DELETE ct_fu_root WHERE node_id = is_original_item-parent_node_id.
-      
-      " Remove original FU items
-      DELETE ct_fu_item WHERE parent_node_id = is_original_item-parent_node_id.
-      
-      " Remove original stop sequences
-      DELETE ct_fu_stop_seq WHERE parent_node_id = is_original_item-parent_node_id.
-    ENDIF.
-  ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;</content>
-    <link href="https://community.sap.com/t5/supply-chain-management-q-a/s4hana-private-split-fu-creation-for-delivery-note-based-on-dynamic/qaa-p/14211085#M206920"/>
-    <published>2025-09-08T17:55:49.808000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/unravelling-the-technical-user-propagation-scenarios-in-sap-integration/bc-p/14211087#M184373</id>
-    <title>Re: Unravelling the ‘technical user’ propagation scenarios in SAP Integration Suite</title>
-    <updated>2025-09-08T17:58:56.393000+02:00</updated>
-    <author>
-      <name>vinayak_adkoli</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/216068</uri>
-    </author>
-    <content>&lt;P&gt;Hi&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/648748"&gt;@tomastoth&lt;/a&gt;&amp;nbsp;, Here's a screenshot of the snippet in the blog where i've called out that the 'Authorization' header needs to be passed along, for it to be accessible. Hope that helps.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-09-08 at 8.58.18 AM.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/311195i6821871DCC436391/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Screenshot 2025-09-08 at 8.58.18 AM.png" alt="Screenshot 2025-09-08 at 8.58.18 AM.png" /&gt;&lt;/span&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/unravelling-the-technical-user-propagation-scenarios-in-sap-integration/bc-p/14211087#M184373"/>
-    <published>2025-09-08T17:58:56.393000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/same-code-different-results-obsolete-version-in-dsp-cache/bc-p/14211092#M175357</id>
     <title>Re: Same code, different results. Obsolete Version in DSP cache?</title>
@@ -1409,5 +1200,29 @@ ENDCLASS.&lt;/code&gt;&lt;/pre&gt;</content>
     <content>&lt;P&gt;Dear Customer,&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thanks for contacting SAP.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Regarding health monitoring under Cloud ALM, we would like to know what the specific issue you face now?&lt;/P&gt;&lt;P&gt;Are you facing issue unable to access health monitoring or you have no idea how to connect the service/system to Cloud ALM for health monitoring?&lt;/P&gt;&lt;P&gt;If you cannot access health monitoring, you may need to contact the global administrator in your company who is responsible for Cloud ALM,&lt;/P&gt;&lt;P&gt;then ask him/her to assign one of the following roles:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Health Monitoring Administrator&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;Create, edit, delete, and manage configuration settings, including the display of monitoring data&lt;/SPAN&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Health Monitoring Viewer&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;View health overview and metrics of cloud services&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;P&gt;if this is not the problem you face, kindly let me know the problem in details.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;For more details, kindly refer to&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;A href="https://support.sap.com/en/alm/sap-cloud-alm/operations/expert-portal/health-monitoring.html" target="_blank" rel="noopener noreferrer"&gt;https://support.sap.com/en/alm/sap-cloud-alm/operations/expert-portal/health-monitoring.html&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/cloud-alm/applicationhelp/health-monitoring" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/cloud-alm/applicationhelp/health-monitoring&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thanks and Regards,&lt;/P&gt;&lt;P&gt;Sunny&lt;/P&gt;&lt;P&gt;SAP Support&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/health-monitoring/qaa-p/14211284#M4925590"/>
     <published>2025-09-09T04:56:21.484000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/%E5%8D%B3%E5%88%BB%E5%85%8D%E8%B4%B9%E8%A7%A3%E9%94%81-sap-s-4hana-cloud-public-edition-%E5%9F%BA%E7%A1%80-ai-%E5%8C%85-base-ai-%E7%95%85%E4%BA%AB-joule-%E4%B8%8E%E5%86%85%E7%BD%AE-ai/bc-p/14211289#M61761</id>
+    <title>Re: 即刻免费解锁：SAP S/4HANA Cloud Public Edition 基础 AI 包 (BASE AI)，畅享 Joule 与内置 AI 功能开通指南</title>
+    <updated>2025-09-09T05:17:45.721000+02:00</updated>
+    <author>
+      <name>devinchao</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/826401</uri>
+    </author>
+    <content>&lt;H4 id="toc-hId-1427728663" id="toc-hId-2018105378"&gt;&lt;STRONG&gt;您好,请问嵌入式基础&lt;/STRONG&gt;&lt;STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;AI&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;STRONG&gt;功能现在大陆地区可以申请激活嘛&lt;/STRONG&gt;&lt;/H4&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/%E5%8D%B3%E5%88%BB%E5%85%8D%E8%B4%B9%E8%A7%A3%E9%94%81-sap-s-4hana-cloud-public-edition-%E5%9F%BA%E7%A1%80-ai-%E5%8C%85-base-ai-%E7%95%85%E4%BA%AB-joule-%E4%B8%8E%E5%86%85%E7%BD%AE-ai/bc-p/14211289#M61761"/>
+    <published>2025-09-09T05:17:45.721000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/subject-inquiry-regarding-x-509-ssl-client-certificate-renewal-for-seegene/qaq-p/14211295</id>
+    <title>Subject: Inquiry Regarding X.509 SSL Client Certificate Renewal for SEEGENE CPI</title>
+    <updated>2025-09-09T05:23:02.721000+02:00</updated>
+    <author>
+      <name>maeng</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1573914</uri>
+    </author>
+    <content>&lt;P&gt;&lt;STRONG&gt;Subject:&lt;/STRONG&gt; Inquiry Regarding X.509 SSL Client Certificate Renewal for SEEGENE CPI&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Dear SAP Support Team,&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;I hope you are doing well.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;I am the person in charge of SEEGENE CPI. Recently, I received the following email regarding the renewal of the X.509 SSL client certificate:&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;SAP Integration Suite&lt;STRONG&gt;System Number:&lt;/STRONG&gt;&lt;BR /&gt;741850516&lt;BR /&gt;&lt;STRONG&gt;System ID:&lt;/STRONG&gt;&lt;BR /&gt;CLOUD&lt;BR /&gt;&lt;STRONG&gt;System Name:&lt;/STRONG&gt;&lt;BR /&gt;SEEGENE CPI&lt;BR /&gt;&lt;STRONG&gt;System Role:&lt;/STRONG&gt;&lt;BR /&gt;Production&lt;BR /&gt;&lt;STRONG&gt;Subaccount ID:&lt;/STRONG&gt;&lt;BR /&gt;4377ead7-a5c1-49af-bbce-4d351580e884&lt;BR /&gt;&lt;STRONG&gt;Subaccount Name:&lt;/STRONG&gt;&lt;BR /&gt;SEEGENE CPI&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thank you very much for your support. I look forward to your reply.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/subject-inquiry-regarding-x-509-ssl-client-certificate-renewal-for-seegene/qaq-p/14211295"/>
+    <published>2025-09-09T05:23:02.721000+02:00</published>
   </entry>
 </feed>
