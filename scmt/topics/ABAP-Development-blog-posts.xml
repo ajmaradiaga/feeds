@@ -2,71 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2025-09-10T14:00:02.767932+00:00</updated>
+  <updated>2025-09-10T17:00:04.046134+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/understanding-the-read-only-flag-and-how-to-solve-move-to-lit-notallowed/ba-p/14189905</id>
-    <title>Understanding the read-only flag and how to solve MOVE_TO_LIT_NOTALLOWED_NODATA</title>
-    <updated>2025-08-24T16:59:04.588000+02:00</updated>
-    <author>
-      <name>Sandra_Rossi</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/145194</uri>
-    </author>
-    <content>&lt;P&gt;I had a few difficulties after refactoring some code via Extract Method in ADT (Ctrl+Shift+M), I thought that it was a safe operation, which should not lead to regressions, but the code failed with errors like the exception class CX_SY_DYN_CALL_ILLEGAL_TYPE or the runtime error MOVE_TO_LIT_NOTALLOWED_NODATA.&lt;/P&gt;&lt;P&gt;These errors are due to the read-only flag which is set at runtime on data objects (importing parameters by reference, internal table key fields, explicit READ-ONLY public class attributes).&lt;/P&gt;&lt;P&gt;I will try to explain what this internal flag is, and how to work around this limitation.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The internal read-only flag is set either at runtime or at compile times, as follows:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;“The key fields of the primary table key of sorted tables and hashed tables are always read-only.” Source: &lt;A href="https://help.sap.com/doc/abapdocu_758_index_htm/7.58/en-US/index.htm?file=abenitab_key_primary.htm" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/doc/abapdocu_758_index_htm/7.58/en-US/index.htm?file=abenitab_key_primary.htm&lt;/A&gt;.&lt;/LI&gt;&lt;LI&gt;For methods and function modules, “Input parameters for which pass by reference is defined must not be accessed with write access in the procedure.” Source: &lt;A href="https://help.sap.com/doc/abapdocu_758_index_htm/7.58/en-US/index.htm?file=abeninput_parameter_glosry.htm" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/doc/abapdocu_758_index_htm/7.58/en-US/index.htm?file=abeninput_parameter_glosry.htm&lt;/A&gt;.&lt;/LI&gt;&lt;LI&gt;The direct access to a public class attribute defined explicitly as READ-ONLY, from outside the class. Source: &lt;A href="https://help.sap.com/doc/abapdocu_758_index_htm/7.58/en-US/index.htm?file=abapdata_options.htm#!ABAP_ADDITION_2@2@" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/doc/abapdocu_758_index_htm/7.58/en-US/index.htm?file=abapdata_options.htm#!ABAP_ADDITION_2@2@&lt;/A&gt;. The attribute can be changed if the attribute is accessed from inside the class or from a friend class, and it remains ignored if this class or friend class passes the attribute by reference to a procedure outside the class or friend class.&lt;/LI&gt;&lt;LI&gt;If a reference is created from a read-only field obtained by one of the three previous cases, it inherits the internal read-only flag (whatever it's off or on).&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1608937520"&gt;CX_SY_DYN_CALL_ILLEGAL_TYPE when calling a method&lt;/H1&gt;&lt;P&gt;I wanted to refactor this code:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;    DATA mandants TYPE SORTED TABLE OF t000 WITH UNIQUE KEY mandt.
-    mandants = VALUE #( ( mandt = '100' mtext = ' test' ) ).
-    LOOP AT mandants ASSIGNING FIELD-SYMBOL(&amp;lt;mandant&amp;gt;).
-      &amp;lt;mandant&amp;gt;-mtext = condense( &amp;lt;mandant&amp;gt;-mtext ).
-    ENDLOOP.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;I refactored the code by applying Extract Method to the line inside the loop. The method CONDENSE_MANDANT_TEXT was created:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;    DATA mandants TYPE SORTED TABLE OF t000 WITH UNIQUE KEY mandt.
-    mandants = VALUE #( ( mandt = '100' mtext = ' test' ) ).
-    LOOP AT mandants ASSIGNING FIELD-SYMBOL(&amp;lt;mandant&amp;gt;).
-      condense_mandant_text( CHANGING c_mandant = &amp;lt;mandant&amp;gt; ).
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD condense_mandant_text.
-    c_mandant-mtext = condense( c_mandant-mtext ).
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;When running this refactored code, the exception CX_SY_DYN_CALL_ILLEGAL_TYPE happens when attempting to call the method CONDENSE_MANDANT_TEXT (it’s not even called).&lt;/P&gt;&lt;P&gt;This CX_SY_DYN_CALL_ILLEGAL_TYPE exception had this message: "Call of the method CONDENSE_MANDANT_TEXT of the class LCL_APP has failed; the actual parameter for C_MANDANT is write-protected"&lt;/P&gt;&lt;P&gt;This error happened due to the fact that the internal table MANDANTS is of type «&amp;nbsp;SORTED&amp;nbsp;» (it would also happen with «&amp;nbsp;HASHED&amp;nbsp;») with key field MANDT, so this key field is implicitly read-only.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;There are two workarounds:&lt;/P&gt;&lt;P&gt;1/ The “easiest” (*) way: change the internal table primary key to STANDARD and use a secondary key instead.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;    DATA mandants TYPE STANDARD TABLE OF t000 WITH EMPTY KEY
-                  WITH UNIQUE SORTED KEY by_mandt COMPONENTS mandt.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Be careful, a unique secondary key may be a problem if one of its key fields is updated, it would lead to the runtime error MOVE_TO_LIT_NOTALLOWED_NODATA. If that’s the case, see the next chapter.&lt;/P&gt;&lt;P&gt;(*) In fact, this solution is not so easy because moving a key from primary to secondary may change the behavior like a duplicate unique key may not be seen immediately if a Delayed Update happens (see Delayed Update: &lt;A href="https://help.sap.com/doc/abapdocu_758_index_htm/7.58/en-US/index.htm?file=abenitab_key_secondary_update.htm" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/doc/abapdocu_758_index_htm/7.58/en-US/index.htm?file=abenitab_key_secondary_update.htm&lt;/A&gt;). You also have to verify all reads of the internal table and indicate explicitly if needed the use of the secondary key (e.g. mandants[ KEY by_mandt COMPONENTS mandt = '100' ]). See also the recommendations when to use or not to use secondary keys: &lt;A href="https://help.sap.com/doc/abapdocu_758_index_htm/7.58/en-US/index.htm?file=abenitab_key_secondary_usage.htm" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/doc/abapdocu_758_index_htm/7.58/en-US/index.htm?file=abenitab_key_secondary_usage.htm&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;2/ The second solution is to transfer the whole internal table instead of one line i.e., refactor the whole loop:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;    condense_all_mandant_texts( CHANGING c_mandants = mandants ).
-  ENDMETHOD.
-
-  METHOD condense_all_mandant_texts.
-    LOOP AT c_mandants ASSIGNING FIELD-SYMBOL(&amp;lt;mandant&amp;gt;).
-      &amp;lt;mandant&amp;gt;-mtext = condense( &amp;lt;mandant&amp;gt;-mtext ).
-    ENDLOOP.
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1412424015"&gt;Runtime error MOVE_TO_LIT_NOTALLOWED_NODATA Assignment error: Overwriting of a protected field.&lt;/H1&gt;&lt;P&gt;The examples below all lead to the runtime error MOVE_TO_LIT_NOTALLOWED_NODATA if the sorted or hashed internal table has a primary key:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA mandants TYPE SORTED TABLE OF t000 WITH UNIQUE KEY mandt.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;1/ Because it’s a key field:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;mandants[ 1 ]-mandt = '100'. " Runtime error MOVE_TO_LIT_NOTALLOWED_NODATA&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;OR&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA(ref_mandant) = REF #( mandants[ 1 ] ).
-ref_mandant-&amp;gt;mandt = '100'. " Runtime error MOVE_TO_LIT_NOTALLOWED_NODATA&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;NB: in both cases, it’s possible to maintain any non-key field e.g., MTEXT:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;mandants[ 1 ]-mtext = test'. " No error
-ref_mandant-&amp;gt;mtext = test'. " No error&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;2/ Because the whole line is updated and contains a key field, although the key field is “changed to the same value”:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;    DATA(new_mandant) = VALUE t000( mandt = '100' mtext = ' test 2' ).
-    mandants[ 1 ] = new_mandant. " Runtime error MOVE_TO_LIT_NOTALLOWED_NODATA&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;3/ Because the reference was obtained from an importing parameter:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA(ref_mandant) = get_mandant_reference( mandants[ 1 ] ).
-ref_mandant-&amp;gt;mtext = 'test'. " Runtime error MOVE_TO_LIT_NOTALLOWED_NODATA
-
-    METHODS get_mandant_reference
-      IMPORTING i_mandant TYPE t000 " i_mandant is assigned the read-only flag
-      RETURNING VALUE(r_ref_mandant) TYPE REF TO t000.
-
-  METHOD get_mandant_reference.
-    r_ref_mandant = REF #( i_mandant ). " the reference inherits the read-only flag from i_mandant
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The only workaround for changing the key fields in the case 1, is to change the internal table primary key to STANDARD (or any key which doesn’t contain the key fields to update) and use a secondary key instead, which lead to either a Lazy Update (non-unique secondary key) or a Delayed Update (unique secondary key, but the update must be done only via a data reference or a field symbol).&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;    DATA mandants TYPE STANDARD TABLE OF t000 WITH EMPTY KEY
-                  WITH UNIQUE SORTED KEY by_mandt COMPONENTS mandt.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The change of a key field will update the secondary index only the next time the internal table is read. This will NOT produce a runtime error:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;    mandants = VALUE #( ( mandt = '100' mtext = ' test' )
-                        ( mandt = '110' mtext = 'test 2' ) ).
-    DATA(ref_mandant) = REF #( mandants[ 1 ] ).
-    DATA(ref_mandant_2) = REF #( mandants[ 2 ] ).
-    ref_mandant-&amp;gt;mandt = '110'.
-    ref_mandant_2-&amp;gt;mandt = '100'.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;For more information about Lazy Update and Delayed Update, see: &lt;A href="https://help.sap.com/doc/abapdocu_758_index_htm/7.58/en-US/index.htm?file=abenitab_key_secondary_update.htm" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/doc/abapdocu_758_index_htm/7.58/en-US/index.htm?file=abenitab_key_secondary_update.htm&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;Be careful, the next statement leads to the runtime error ITAB_DUPLICATE_KEY because it’s a unique key and the change is done neither via a data reference nor via a field-symbol and so the index is updated immediately instead of using a Delayed Update:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;mandants[ 1 ]-mandt = '110'.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In the case 2, it’s possible to use MODIFY TABLE to avoid the runtime error, it ignores the key fields:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;MODIFY TABLE mandants FROM new_mandant.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;If you know the line index to update (sorted tables only), you may also use the line index number, provided that the key values are equal to the ones of the modified line (otherwise, the runtime error ITAB_ACTIVE_KEY_VIOLATION happens):&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;MODIFY mandants INDEX 1 FROM new_mandant.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In the case 3, you may use CHANGING instead of IMPORTING to be able to write to the data reference:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA(ref_mandant) = get_mandant_reference( CHANGING c_mandant = mandants[ 1 ] ).
-ref_mandant-&amp;gt;mtext = 'test'. " No runtime error
-
-    METHODS get_mandant_reference
-      CHANGING c_mandant TYPE t000
-      RETURNING VALUE(r_ref_mandant) TYPE REF TO t000.
-
-  METHOD get_mandant_reference.
-    r_ref_mandant = REF #( c_mandant ).
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1215910510"&gt;Compiler warning: The "ITAB" is key table. Writes cannot be performed on a full row and produce runtime errors.&lt;/H1&gt;&lt;P&gt;For information, the compiler may send a warning if it detects an attempt to change a line from an internal table with a sorted or hashed primary key e.g., it can be any of these two situations:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;condense_mandant_text( CHANGING c_mandant = mandants[ 1 ] ). " Exception CX_SY_DYN_CALL_ILLEGAL_TYPE
-mandants[ 1 ] = new_mandant. " Runtime error MOVE_TO_LIT_NOTALLOWED_NODATA&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The warning (that’s the message MESSAGEGJO in table TRMSG): The "MANDANTS" is key table. Writes cannot be performed on a full row and produce runtime errors.&lt;/P&gt;&lt;P&gt;It’s a warning but if the code above runs, it systematically raises an exception or a runtime error.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1019397005"&gt;Conclusion&lt;/H1&gt;&lt;P&gt;As far as I understand, the parameters, references or field symbols are each made of:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;A pointer to a data object i.e., the value of a variable or constant. This pointer is probably the memory offset, possibly the length.&lt;/LI&gt;&lt;LI&gt;Read-only flag (true or false)&lt;/LI&gt;&lt;LI&gt;Internal table to which the data belongs (if applicable). It helps the system know which are the key fields and what index to update if a key field is changed.&lt;/LI&gt;&lt;LI&gt;NB: unrelated to read-only, a fourth attribute could be considered, which is the data type, either the original one or the one obtained via casting (ASSIGN CASTING).&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;After this blog post, you should know:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;That Extract Method can lead to regressions&lt;/LI&gt;&lt;LI&gt;How the read-only flag works&lt;/LI&gt;&lt;LI&gt;How to avoid and solve the exception CX_SY_DYN_CALL_ILLEGAL_TYPE and the runtime error MOVE_TO_LIT_NOTALLOWED_NODATA&lt;/LI&gt;&lt;LI&gt;That the secondary indexes can be updated immediately or late via Lazy Update or Delayed Update&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/understanding-the-read-only-flag-and-how-to-solve-move-to-lit-notallowed/ba-p/14189905"/>
-    <published>2025-08-24T16:59:04.588000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/abap-cloud-sessions-at-devtoberfest-2025/ba-p/14188138</id>
     <title>ABAP Cloud Sessions at Devtoberfest 2025</title>
@@ -99,7 +38,7 @@ mandants[ 1 ] = new_mandant. " Runtime error MOVE_TO_LIT_NOTALLOWED_NODATA&lt;/c
       <name>jose_sequeira</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/285608</uri>
     </author>
-    <content>&lt;P&gt;Hello World! Tudo bem?&lt;/P&gt;&lt;P&gt;Após o encerramento com sucesso do primeiro SAP Inside Track Londrina (2025), que foi um evento somente presencial e contou com muitas apresentações de qualidade, resolvi criar esse material aqui na comunidade para aqueles que não puderam comparecer pessoalmente.&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Evento 2025.jpeg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/305144i1F014271F2B730B8/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Evento 2025.jpeg" alt="Evento 2025.jpeg" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Então segue a apresentação do conteúdo do SIT Londrina 2025, em formato "Live":&lt;/P&gt;&lt;P&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FNcAlhFdOR5A%3Ffeature%3Doembed&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNcAlhFdOR5A&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2FNcAlhFdOR5A%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="400" height="225" scrolling="no" title="Segurança em Aplicações/Serviços no BTP em épocas de IA - SIT Londrina 2025" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;Mas se ainda não se contextualizou, sugiro antes de assistir o material acima ler todo o conteúdo abaixo e entender a evolução até o evento SIT Londrina 2025, ok?&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;Se você não conhece SAP e chegou até aqui, segue um pequeno resumo:&lt;/P&gt;&lt;P&gt;&lt;I&gt;SAP é um software de gestão empresarial usado pelas maiores e mais importantes empresas do mundo para integrar e otimizar processos de negócios cruciais, como finanças e logística. Ele centraliza dados para fornecer uma visão completa e em tempo real, permitindo decisões estratégicas mais rápidas e eficientes. A sua importância reside em ser uma espinha dorsal tecnológica que garante a eficiência e a competitividade global dessas corporações.&lt;/I&gt;&lt;/P&gt;&lt;P&gt;No evento, realizei a apresentação “Segurança em Aplicações/Serviços no BTP em épocas de IA” sobre Cyber Security no mundo SAP, para aplicações desenvolvidas em um modelo bem específico. Mas com esse post aqui, o objetivo é atingir e disponibilizar o conteúdo a todos da comunidade SAP, bem como os curiosos e interessados pelo tema de segurança da informação. Como muitos podem estar lendo pela primeira vez sobre o tema e o que eu já fiz até então, vou detalhar a historia desde o começo de uma maneira resumida até chegar no SIT Londrina 2025, ok?&lt;/P&gt;&lt;P&gt;Tudo começou na Pandemia, no ano de 2020/2021, onde estava fazendo uma pesquisa para um blog que iria escrever sobre um tutorial de um tipo desenvolvimento Web especifico (SAPUI5) . Esse tutorial seria sobre o desenvolvimento de aplicações UI5/FIORI ao publico B2C, ou seja usuários que em sua maioria nunca teriam visto nada sobre SAP e que para eles seria como uma aplicação Web qualquer, também aplicações essas que seriam disponibilizadas na internet para acesso do publico em geral. No Blog eu iria abordar a arquitetura recomendada, exemplos de códigos fonte, etc., porém na etapa de pesquisa para apresentar alguns “exemplos” já existentes no mercado, me deparei com cenários muito assustadores!&lt;/P&gt;&lt;P&gt;Para contextualizar, “o sistema SAP” sempre é em sua maioria um sistema “fechado”, onde o acesso é feito geralmente por quem de fato precisa do mesmo (até por questão de custo de licença). Analisando a minha experiencia, de colegas e muitos estudos, conseguia afirmar então que os profissionais que desenvolvem, desenham e/ou especificam soluções SAP ao “publico geral”, em sua maioria não tem uma preocupação com os quesitos de segurança. No mundo SAP, os desenvolvimentos geralmente ficam dentro do sistema e/ou na rede interna do cliente, então esse tópico nunca foi muito explorado pelos profissionais e consultorias que desenvolvem soluções customizadas, e esse aqui foi o principal motivador de iniciar todo o conteúdo. Ou seja, profissionais do mundo SAP precisam se atentar e se preparar ao criar soluções desse tipo, pois os impactos de não fazer algo correto podem ser enormes (que verá logo mais alguns exemplos). Pois se algum desses casos caísse nas mãos erradas, não só a imagem da empresa em questão que usa SAP, independente do país que está localizada, seria impactada com prejuízos financeiros e até implicações legais, mas nós profissionais do mundo SAP também seriamos impactados pela “imagem” que seria passada que o sistema SAP é de alguma maneira "inseguro".&lt;/P&gt;&lt;P&gt;Antes de entrarmos no detalhe tenho que falar algo importante, tudo que falarei daqui em diante diz respeito a &lt;STRONG&gt;aplicações/serviços customizados&lt;/STRONG&gt; e &lt;U&gt;não standard SAP&lt;/U&gt;, ou seja foram soluções desenvolvidas por alguém para atender o requisito daquele cliente em específico, e não algo que “vem” no produto SAP. Soluções SAP a nível de produto no geral são muitos seguras, onde a mesma investe muito para manter o mais alto nível de segurança, utilizando todas as ferramentas e métodos de mercado para tal. Até ter programas onde pode “contratar” profissionais de cyber segurança para tentar explorar e descobrir como deixar seus produtos mais seguros (onde eu posso ou não ter participado. NDA). Recomendo os links &lt;A href="https://www.sap.com/about/trust-center/security.html%20" target="_self" rel="noopener noreferrer"&gt;1&lt;/A&gt; e &lt;A href="https://www.sap.com/products/financial-management/what-is-cybersecurity.html%20" target="_self" rel="noopener noreferrer"&gt;2&lt;/A&gt; para quem deseja se aprofundar mais no tema de segurança no nível de produto SAP. Outro ponto importante, é que demonstro como essas aplicações customizadas podem ser facilmente encontradas na internet por ferramentas como Google Buscador.&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Na pesquisa fui encontrando muitas empresas vulneráveis em um numero altíssimo, quase podendo afirmar que mais 30% das que encontrei, tinham algum problema. Então o que era um tutorial mudou para uma pesquisa mais aprofundada do tema, e com isso resolvi criar o movimento &lt;A href="https://safesapui5.web.app/" target="_self" rel="nofollow noopener noreferrer"&gt;#SafeSAPUI5&lt;/A&gt;. Que basicamente iniciaria com a criação de material e conscientização dos profissionais para termos aplicações e serviços SAP seguros que estão expostos na internet. Pois aqui entra um detalhe técnico bem agravante, para muitos casos o requerimento do cliente (ou seja, o que ele precisa) é ter uma aplicação customizada porem sem ter a necessidade de &lt;STRONG&gt;nenhum tipo de autenticação&lt;/STRONG&gt; por parte do usuário que vai acessar. Ou seja, ao clicar na URL ele já deve entrar na aplicação customizada e poder fazer a ação necessária, cenário esse que foge bem do “padrão” SAP e existem muitas e &lt;U&gt;muitas aplicações como essa espalhadas pelo mundo&lt;/U&gt;.&lt;SPAN class=""&gt;&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Os materiais do #SafeSAPUI5 podem ser encontrados &lt;A href="https://safesapui5.web.app/" target="_self" rel="nofollow noopener noreferrer"&gt;aqui&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;Além dos mesmos, como já estava pronto para escrever, resolvi criar um Ebook gratuito sobre o tema, juntando um pouco de historia, exemplos, dicas e casos reais. Com isso, nasceu o ebook UI5 Hacker, que pode ser encontrado gratuitamente &lt;A href="https://ui5hacker.web.app/" target="_self" rel="nofollow noopener noreferrer"&gt;aqui&lt;/A&gt; (Português e Inglês).&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Juntando tudo isso apresentei a primeira palestra do tema, ainda na Pandemia, no evento UI5 Con 2021 (em Inglês) que é a conferencia global de SAPUI5, biblioteca utilizada para realizar esses desenvolvimentos (mais detalhes na palestra ou ebook).&lt;/P&gt;&lt;P&gt;UI5CON 2021: #SafeSAPUI5:&amp;nbsp;&lt;SPAN class=""&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FIyLPftaF8CA%3Ffeature%3Doembed&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DIyLPftaF8CA&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2FIyLPftaF8CA%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="400" height="225" scrolling="no" title="#SafeSAPUI5" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Depois da mesma, com a ajuda da própria SAP, consegui espalhar essa conscientização e também comunicar os clientes ao redor do mundo que estavam inseguros e foram citados nos exemplos da palestra e ebook (alguns com vulnerabilidades muito graves, como cópia do passaporte de todos os usuários pronta para ser extraída por exemplo). Importante, era possível conseguir isso sem precisar realizar nenhum tipo de hack, apenas saber executar um serviço/API que está exposto na internet (até pelo próprio navegador).&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Então em 2023, resolvi fazer um compilado do material de 2021 em Português (com alguns novos exemplos) e apresentar no SIT SP 2023 (Serviços Seguros &amp;amp; Aplicações Seguras), trazendo a tona novamente o material e o tema (agora focado mais em Português).&lt;/P&gt;&lt;P&gt;A palestra pode ser vista no Youtube aqui:&lt;/P&gt;&lt;P&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FrBvyOuJZDHA%3Fstart%3D2219%26feature%3Doembed%26start%3D2219&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DrBvyOuJZDHA&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2FrBvyOuJZDHA%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="400" height="225" scrolling="no" title="Serviços Seguros &amp;amp; Aplicações Seguras (BTP, FIORI, S/4 e Segurança da Informação)" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/P&gt;&lt;P&gt;Com isso tive muitos feedbacks positivos de profissionais e de clientes SAP que resolveram suas vulnerabilidades e passaram a adotar as praticas em seu dia a dia, para esse e outros requisitos. Mas é importante falar, &lt;STRONG&gt;é possível SIM&lt;/STRONG&gt; fazer uma aplicação WEB como essa que descrevi acima de maneira segura e protegida para o seu cliente, só seguir as boas praticas e utilizar as ferramentas corretas. Acontece que nesse "meio tempo", a adoção do &lt;A href="https://help.sap.com/docs/btp" target="_self" rel="noopener noreferrer"&gt;SAP BTP&lt;/A&gt; (oferta da SAP de serviços Cloud, assim como os outros grandes players de tecnologia) cresceu exponencialmente no mundo todo. Se iniciou então um movimento de muitos clientes para levarem suas soluções para o BTP (conhecido como o movimento “move to cloud”), e alguns deles com aplicações se enquadrando nas possíveis vulnerabilidades descritas.&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Mas e então, apenas levar as aplicações ao BTP as deixam seguras?&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;E com a chegada, popularização e massiva utilização/evolução das &lt;A href="https://pt.wikipedia.org/wiki/Intelig%C3%AAncia_artificial" target="_self" rel="nofollow noopener noreferrer"&gt;Inteligências Artificiais (IAs)&lt;/A&gt; impactam nisso tudo?&lt;/P&gt;&lt;P&gt;Para responder as questões acima e trazer a tona novamente o tema, resolvi criar o material da palestra apresentada no SIT Londrina 2025: “Segurança em Aplicações/Serviços no BTP em épocas de IA”. Mas como comentei antes, o evento foi somente presencial e por conta disso resolvi realizar uma “live” com o mesmo material e conteúdo para disponibilizar a todos o mesmo. Colocando em uma linha do tempo então, ficaria assim:&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="MKT.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/305145i1798EC4FADAC8DCB/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="MKT.png" alt="MKT.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;O PDF do material apresentado no SIT Londrina 2025 pode ser encontrado &lt;A href="http://tiny.cc/SITLON2025" target="_self" rel="nofollow noopener noreferrer"&gt;aqui&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;Após a apresentação desse material (PDF e "Live"), demonstro que uma simples ida ao SAP BTP com aplicações nesse modelo não te deixará mais seguro. E com a chegada das IAs, existe hoje uma rápida revolução no segmento de Cyber Security (assim como o mundo em geral) que as empresas que utilizam soluções SAP devem estar atentas e preparadas.&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Espero que tenha gostado do conteúdo e lhe ajudado, e que de alguma maneira tenha agregando algo ao seu conhecimento atual.&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Obrigado e nos vemos nas próximas aventuras do “Hacker do Bem”.&lt;/P&gt;</content>
+    <content>&lt;P&gt;Hello World! Tudo bem?&lt;/P&gt;&lt;P&gt;Após o encerramento com sucesso do primeiro SAP Inside Track Londrina (2025), que foi um evento somente presencial e contou com muitas apresentações de qualidade, resolvi criar esse material aqui na comunidade para aqueles que não puderam comparecer pessoalmente.&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Evento 2025.jpeg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/305144i1F014271F2B730B8/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Evento 2025.jpeg" alt="Evento 2025.jpeg" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Então segue a apresentação do conteúdo do SIT Londrina 2025, em formato "Live":&lt;/P&gt;&lt;P&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FNcAlhFdOR5A&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNcAlhFdOR5A&amp;amp;image=http%3A%2F%2Fi.ytimg.com%2Fvi%2FNcAlhFdOR5A%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="400" height="225" scrolling="no" title="YouTube embed" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;Mas se ainda não se contextualizou, sugiro antes de assistir o material acima ler todo o conteúdo abaixo e entender a evolução até o evento SIT Londrina 2025, ok?&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;Se você não conhece SAP e chegou até aqui, segue um pequeno resumo:&lt;/P&gt;&lt;P&gt;&lt;I&gt;SAP é um software de gestão empresarial usado pelas maiores e mais importantes empresas do mundo para integrar e otimizar processos de negócios cruciais, como finanças e logística. Ele centraliza dados para fornecer uma visão completa e em tempo real, permitindo decisões estratégicas mais rápidas e eficientes. A sua importância reside em ser uma espinha dorsal tecnológica que garante a eficiência e a competitividade global dessas corporações.&lt;/I&gt;&lt;/P&gt;&lt;P&gt;No evento, realizei a apresentação “Segurança em Aplicações/Serviços no BTP em épocas de IA” sobre Cyber Security no mundo SAP, para aplicações desenvolvidas em um modelo bem específico. Mas com esse post aqui, o objetivo é atingir e disponibilizar o conteúdo a todos da comunidade SAP, bem como os curiosos e interessados pelo tema de segurança da informação. Como muitos podem estar lendo pela primeira vez sobre o tema e o que eu já fiz até então, vou detalhar a historia desde o começo de uma maneira resumida até chegar no SIT Londrina 2025, ok?&lt;/P&gt;&lt;P&gt;Tudo começou na Pandemia, no ano de 2020/2021, onde estava fazendo uma pesquisa para um blog que iria escrever sobre um tutorial de um tipo desenvolvimento Web especifico (SAPUI5) . Esse tutorial seria sobre o desenvolvimento de aplicações UI5/FIORI ao publico B2C, ou seja usuários que em sua maioria nunca teriam visto nada sobre SAP e que para eles seria como uma aplicação Web qualquer, também aplicações essas que seriam disponibilizadas na internet para acesso do publico em geral. No Blog eu iria abordar a arquitetura recomendada, exemplos de códigos fonte, etc., porém na etapa de pesquisa para apresentar alguns “exemplos” já existentes no mercado, me deparei com cenários muito assustadores!&lt;/P&gt;&lt;P&gt;Para contextualizar, “o sistema SAP” sempre é em sua maioria um sistema “fechado”, onde o acesso é feito geralmente por quem de fato precisa do mesmo (até por questão de custo de licença). Analisando a minha experiencia, de colegas e muitos estudos, conseguia afirmar então que os profissionais que desenvolvem, desenham e/ou especificam soluções SAP ao “publico geral”, em sua maioria não tem uma preocupação com os quesitos de segurança. No mundo SAP, os desenvolvimentos geralmente ficam dentro do sistema e/ou na rede interna do cliente, então esse tópico nunca foi muito explorado pelos profissionais e consultorias que desenvolvem soluções customizadas, e esse aqui foi o principal motivador de iniciar todo o conteúdo. Ou seja, profissionais do mundo SAP precisam se atentar e se preparar ao criar soluções desse tipo, pois os impactos de não fazer algo correto podem ser enormes (que verá logo mais alguns exemplos). Pois se algum desses casos caísse nas mãos erradas, não só a imagem da empresa em questão que usa SAP, independente do país que está localizada, seria impactada com prejuízos financeiros e até implicações legais, mas nós profissionais do mundo SAP também seriamos impactados pela “imagem” que seria passada que o sistema SAP é de alguma maneira "inseguro".&lt;/P&gt;&lt;P&gt;Antes de entrarmos no detalhe tenho que falar algo importante, tudo que falarei daqui em diante diz respeito a &lt;STRONG&gt;aplicações/serviços customizados&lt;/STRONG&gt; e &lt;U&gt;não standard SAP&lt;/U&gt;, ou seja foram soluções desenvolvidas por alguém para atender o requisito daquele cliente em específico, e não algo que “vem” no produto SAP. Soluções SAP a nível de produto no geral são muitos seguras, onde a mesma investe muito para manter o mais alto nível de segurança, utilizando todas as ferramentas e métodos de mercado para tal. Até ter programas onde pode “contratar” profissionais de cyber segurança para tentar explorar e descobrir como deixar seus produtos mais seguros (onde eu posso ou não ter participado. NDA). Recomendo os links &lt;A href="https://www.sap.com/about/trust-center/security.html%20" target="_self" rel="noopener noreferrer"&gt;1&lt;/A&gt; e &lt;A href="https://www.sap.com/products/financial-management/what-is-cybersecurity.html%20" target="_self" rel="noopener noreferrer"&gt;2&lt;/A&gt; para quem deseja se aprofundar mais no tema de segurança no nível de produto SAP. Outro ponto importante, é que demonstro como essas aplicações customizadas podem ser facilmente encontradas na internet por ferramentas como Google Buscador.&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Na pesquisa fui encontrando muitas empresas vulneráveis em um numero altíssimo, quase podendo afirmar que mais 30% das que encontrei, tinham algum problema. Então o que era um tutorial mudou para uma pesquisa mais aprofundada do tema, e com isso resolvi criar o movimento &lt;A href="https://safesapui5.web.app/" target="_self" rel="nofollow noopener noreferrer"&gt;#SafeSAPUI5&lt;/A&gt;. Que basicamente iniciaria com a criação de material e conscientização dos profissionais para termos aplicações e serviços SAP seguros que estão expostos na internet. Pois aqui entra um detalhe técnico bem agravante, para muitos casos o requerimento do cliente (ou seja, o que ele precisa) é ter uma aplicação customizada porem sem ter a necessidade de &lt;STRONG&gt;nenhum tipo de autenticação&lt;/STRONG&gt; por parte do usuário que vai acessar. Ou seja, ao clicar na URL ele já deve entrar na aplicação customizada e poder fazer a ação necessária, cenário esse que foge bem do “padrão” SAP e existem muitas e &lt;U&gt;muitas aplicações como essa espalhadas pelo mundo&lt;/U&gt;.&lt;SPAN class=""&gt;&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Os materiais do #SafeSAPUI5 podem ser encontrados &lt;A href="https://safesapui5.web.app/" target="_self" rel="nofollow noopener noreferrer"&gt;aqui&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;Além dos mesmos, como já estava pronto para escrever, resolvi criar um Ebook gratuito sobre o tema, juntando um pouco de historia, exemplos, dicas e casos reais. Com isso, nasceu o ebook UI5 Hacker, que pode ser encontrado gratuitamente &lt;A href="https://ui5hacker.web.app/" target="_self" rel="nofollow noopener noreferrer"&gt;aqui&lt;/A&gt; (Português e Inglês).&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Juntando tudo isso apresentei a primeira palestra do tema, ainda na Pandemia, no evento UI5 Con 2021 (em Inglês) que é a conferencia global de SAPUI5, biblioteca utilizada para realizar esses desenvolvimentos (mais detalhes na palestra ou ebook).&lt;/P&gt;&lt;P&gt;UI5CON 2021: #SafeSAPUI5:&amp;nbsp;&lt;SPAN class=""&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FIyLPftaF8CA%3Ffeature%3Doembed&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DIyLPftaF8CA&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2FIyLPftaF8CA%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="400" height="225" scrolling="no" title="#SafeSAPUI5" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Depois da mesma, com a ajuda da própria SAP, consegui espalhar essa conscientização e também comunicar os clientes ao redor do mundo que estavam inseguros e foram citados nos exemplos da palestra e ebook (alguns com vulnerabilidades muito graves, como cópia do passaporte de todos os usuários pronta para ser extraída por exemplo). Importante, era possível conseguir isso sem precisar realizar nenhum tipo de hack, apenas saber executar um serviço/API que está exposto na internet (até pelo próprio navegador).&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Então em 2023, resolvi fazer um compilado do material de 2021 em Português (com alguns novos exemplos) e apresentar no SIT SP 2023 (Serviços Seguros &amp;amp; Aplicações Seguras), trazendo a tona novamente o material e o tema (agora focado mais em Português).&lt;/P&gt;&lt;P&gt;A palestra pode ser vista no Youtube aqui:&lt;/P&gt;&lt;P&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FrBvyOuJZDHA%3Fstart%3D2219%26feature%3Doembed%26start%3D2219&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DrBvyOuJZDHA&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2FrBvyOuJZDHA%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="400" height="225" scrolling="no" title="Serviços Seguros &amp;amp; Aplicações Seguras (BTP, FIORI, S/4 e Segurança da Informação)" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/P&gt;&lt;P&gt;Com isso tive muitos feedbacks positivos de profissionais e de clientes SAP que resolveram suas vulnerabilidades e passaram a adotar as praticas em seu dia a dia, para esse e outros requisitos. Mas é importante falar, &lt;STRONG&gt;é possível SIM&lt;/STRONG&gt; fazer uma aplicação WEB como essa que descrevi acima de maneira segura e protegida para o seu cliente, só seguir as boas praticas e utilizar as ferramentas corretas. Acontece que nesse "meio tempo", a adoção do &lt;A href="https://help.sap.com/docs/btp" target="_self" rel="noopener noreferrer"&gt;SAP BTP&lt;/A&gt; (oferta da SAP de serviços Cloud, assim como os outros grandes players de tecnologia) cresceu exponencialmente no mundo todo. Se iniciou então um movimento de muitos clientes para levarem suas soluções para o BTP (conhecido como o movimento “move to cloud”), e alguns deles com aplicações se enquadrando nas possíveis vulnerabilidades descritas.&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Mas e então, apenas levar as aplicações ao BTP as deixam seguras?&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;E com a chegada, popularização e massiva utilização/evolução das &lt;A href="https://pt.wikipedia.org/wiki/Intelig%C3%AAncia_artificial" target="_self" rel="nofollow noopener noreferrer"&gt;Inteligências Artificiais (IAs)&lt;/A&gt; impactam nisso tudo?&lt;/P&gt;&lt;P&gt;Para responder as questões acima e trazer a tona novamente o tema, resolvi criar o material da palestra apresentada no SIT Londrina 2025: “Segurança em Aplicações/Serviços no BTP em épocas de IA”. Mas como comentei antes, o evento foi somente presencial e por conta disso resolvi realizar uma “live” com o mesmo material e conteúdo para disponibilizar a todos o mesmo. Colocando em uma linha do tempo então, ficaria assim:&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="MKT.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/305145i1798EC4FADAC8DCB/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="MKT.png" alt="MKT.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;O PDF do material apresentado no SIT Londrina 2025 pode ser encontrado &lt;A href="http://tiny.cc/SITLON2025" target="_self" rel="nofollow noopener noreferrer"&gt;aqui&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;Após a apresentação desse material (PDF e "Live"), demonstro que uma simples ida ao SAP BTP com aplicações nesse modelo não te deixará mais seguro. E com a chegada das IAs, existe hoje uma rápida revolução no segmento de Cyber Security (assim como o mundo em geral) que as empresas que utilizam soluções SAP devem estar atentas e preparadas.&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Espero que tenha gostado do conteúdo e lhe ajudado, e que de alguma maneira tenha agregando algo ao seu conhecimento atual.&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Obrigado e nos vemos nas próximas aventuras do “Hacker do Bem”.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/londrina-blog-posts/sitlon-2025-seguran%C3%A7a-em-aplica%C3%A7%C3%B5es-servi%C3%A7os-no-btp-em-%C3%A9pocas-de-ia-e-toda/ba-p/14192829"/>
     <published>2025-08-26T22:48:18.118000+02:00</published>
   </entry>
@@ -1589,5 +1528,1067 @@ VTBFHAPO_DZTERM &amp;gt;= $session. system_date&lt;/code&gt;&lt;/pre&gt;&lt;P&gt
            INTO TABLE @FINAL(windowed_order_descending). &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Result:&lt;/P&gt;&lt;TABLE border="0"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;CHAR1&lt;/TD&gt;&lt;TD&gt;CHAR2&lt;/TD&gt;&lt;TD&gt;NUM1&lt;/TD&gt;&lt;TD&gt;CNT&lt;/TD&gt;&lt;TD&gt;RNUM&lt;/TD&gt;&lt;TD&gt;RANK&lt;/TD&gt;&lt;TD&gt;SCHLANK&lt;/TD&gt;&lt;TD&gt;MAX&lt;/TD&gt;&lt;TD&gt;MIN&lt;/TD&gt;&lt;TD&gt;SUM&lt;/TD&gt;&lt;TD&gt;PERC&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;100.0&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;16&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;12.5&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;16&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;25.0&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;7&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;23&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;30.43&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;8&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;8&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;9&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;88.89&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;8&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;9&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;11.11&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;6&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;8&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;15&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;40.0&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;25&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;40.0&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;6&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;5&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;5&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;35&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;5.71&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;8&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;6&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;6&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;5&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;35&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;22.86&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;9&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;9&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;21&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;42.86&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;9&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;21&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4.76&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;9&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;21&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;19.05&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;7&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;9&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;21&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;33.33&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;5&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;5&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;5&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;9&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;22&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4.55&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;8&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;6&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;6&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;9&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;35&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;11.43&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;8&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;8&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;7&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;6&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;9&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;35&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;22.86&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;8&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;8&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;6&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;9&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;35&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2.86&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;7&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;7&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;17&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;41.18&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;1&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;7&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;17&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;58.82&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;BA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;2&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;7&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;27&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;37.04&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;7&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;49&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;6.12&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;7&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;7&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;5&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;49&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;14.29&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;6&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;7&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;6&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;49&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;12.24&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AA&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;AB&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;6&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;7&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;7&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;4&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;10&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;3&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;49&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN class=""&gt;12.24&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/compilation-of-abap-sql-window-functions-from-the-abap-keyword/ba-p/14213253"/>
     <published>2025-09-10T14:36:04.151000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/excel-upload-download-template-download-processed-data-in-sap-fiori-without/ba-p/14212916</id>
+    <title>Excel Upload/ Download Template/ Download Processed Data in SAP Fiori Without SAPUI5 - Using SAP RAP</title>
+    <updated>2025-09-10T16:00:28.980000+02:00</updated>
+    <author>
+      <name>AmanSaxena</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/145025</uri>
+    </author>
+    <content>&lt;P&gt;In many projects, there is a common requirement to develop utilities for mass creation or update of business objects such as Purchase Orders, Materials, Sales Orders, Billing Documents etc. With the adoption of SAP S/4HANA, customers are increasingly opting for SAP Fiori applications over traditional classical reports for such use cases.&lt;/P&gt;&lt;P&gt;A frequent question arises:&lt;BR /&gt;&lt;STRONG&gt;Can we develop a Fiori application to upload files without building a custom SAPUI5 front end?&lt;BR /&gt;&lt;STRONG&gt;Yes, we can!&lt;/STRONG&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Thanks to SAP’s RESTful Application Programming (RAP) model and the use of specific annotations, it is possible to handle file uploads directly within a Fiori Elements application. No need for custom UI5 development.&lt;/P&gt;&lt;P&gt;To enable file uploads in RAP, the following annotation is crucial:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Semantics.largeObject&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This annotation allows handling of large file content (LOBs) in the RAP model. However, there is one important requirement:&lt;BR /&gt;You need to create a dedicated database table to store the uploaded file as a large object.&lt;/P&gt;&lt;P&gt;In below Example, I am explaining how Billing Date can be changed through Mass Upload.&lt;/P&gt;&lt;P&gt;In Excel Template I have two columns&lt;BR /&gt;Billing Document and New Billing date (DD.MM.YYYY).&lt;BR /&gt;Let’s walk through the steps to implement this.&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1889058957"&gt;Create Database and Draft Tables&lt;/H3&gt;&lt;P&gt;We will begin by creating two database tables and their respective draft tables:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Parent Table&lt;/STRONG&gt; – Stores file metadata and the file content itself (LOB).&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Child Table&lt;/STRONG&gt; – Stores the extracted data from the uploaded file. In this example, we will process a XLSX file.&lt;/LI&gt;&lt;/OL&gt;&lt;H5 id="toc-hId-1950710890"&gt;Parent Table – ZTOM_T_USER&lt;/H5&gt;&lt;P&gt;This table will store the uploaded file and its metadata. Here’s a sample structure:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'User Table for Excel Processing'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table ztom_t_user {
+  key mandt             : mandt not null;
+  key end_user          : syuname not null;
+  status                : abap.char(20);
+  attachment            : ztom_de_attach;
+  mimetype              : abap.char(128);
+  filename              : abap.char(128);
+  local_created_by      : abp_creation_user;
+  local_created_at      : abp_creation_tstmpl;
+  local_last_changed_by : abp_locinst_lastchange_user;
+  local_last_changed_at : abp_locinst_lastchange_tstmpl;
+  last_changed_at       : abp_lastchange_tstmpl;
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This setup ensures the uploaded file can be stored as a RAWSTRING (LENGTH 0) in the backend.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId-1754197385"&gt;Parent Draft Table –&amp;nbsp;&lt;SPAN&gt;ZTOM_T_USERD&lt;/SPAN&gt;&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'User Draft Table for Excel Processing'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table ztom_t_userd {
+  key mandt             : mandt not null;
+  key end_user          : syuname not null;
+  status                : abap.char(20);
+  attachment            : ztom_de_attach;
+  mimetype              : abap.char(128);
+  filename              : abap.char(128);
+  local_created_by      : abp_creation_user;
+  local_created_at      : abp_creation_tstmpl;
+  local_last_changed_by : abp_locinst_lastchange_user;
+  local_last_changed_at : abp_locinst_lastchange_tstmpl;
+  last_changed_at       : abp_lastchange_tstmpl;
+  "%admin"              : include sych_bdl_draft_admin_inc;
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId-1557683880"&gt;Child Table – ZTOM_T_EXCEL&lt;/H5&gt;&lt;P&gt;This table will store the extracted data from the uploaded file. In this example, we will process a XLSX file. Here’s a sample structure:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Excel Data Table'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table ztom_t_excel {
+  key mandt    : mandt not null;
+  @AbapCatalog.foreignKey.screenCheck : false
+  key end_user : syuname not null
+    with foreign key ztom_t_user
+      where end_user = ztom_t_excel.end_user;
+  key vbeln    : vbeln_vf not null;
+  new_fkdat    : abap.char(10);
+  prev_fkdat   : abap.char(10);
+  type         : bapi_mtype;
+  message      : bapi_msg;
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId-1361170375"&gt;Child Draft Table – ZTOM_T_EXCELD&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Excel Data Draft Table'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table ztom_t_exceld {
+  key mandt    : mandt not null;
+  key end_user : syuname not null;
+  key vbeln    : vbeln_vf not null;
+  new_fkdat    : abap.char(10);
+  prev_fkdat   : abap.char(10);
+  type         : bapi_mtype;
+  message      : bapi_msg;
+  "%admin"     : include sych_bdl_draft_admin_inc;
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-906491432"&gt;Create Interface View&lt;/H3&gt;&lt;P&gt;Now, let's create Interface views on top of the tables we just created.&lt;/P&gt;&lt;H5 id="toc-hId-968143365"&gt;Parent Interface View – ZCDS_TOM_I_USER&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Interface View - Excel User'
+@Metadata.allowExtensions: true
+
+define root view entity ZCDS_TOM_I_USER
+  as select from    usr02       as _user
+    left outer join ztom_t_user as _XLUser on _user.bname = _XLUser.end_user
+  composition [0..*] of ZCDS_TOM_I_EXCEL as _XLData
+{
+  key _user.bname                   as end_user,
+      _XLUser.status                as status,
+      _XLUser.attachment            as Attachment,
+      @Semantics.mimeType: true
+      _XLUser.mimetype              as MimeType,
+      _XLUser.filename              as Filename,
+      @Semantics.user.createdBy: true
+      _XLUser.local_created_by      as Local_Created_By,
+      @Semantics.systemDateTime.createdAt: true
+      _XLUser.local_created_at      as Local_Created_At,
+      @Semantics.user.lastChangedBy: true
+      _XLUser.local_last_changed_by as Local_Last_Changed_By,
+      //local ETag field --&amp;gt; OData ETag
+      @Semantics.systemDateTime.localInstanceLastChangedAt: true
+      _XLUser.local_last_changed_at as Local_Last_Changed_At,
+      //total ETag field
+      @Semantics.systemDateTime.lastChangedAt: true
+      _XLUser.last_changed_at       as Last_Changed_At,
+
+      _XLData
+}
+where
+  _user.bname = $session.user&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId-771629860"&gt;Child Entity Interface View – ZCDS_TOM_I_EXCEL&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Interface View - Excel Data'
+@Metadata.allowExtensions: true
+
+define view entity ZCDS_TOM_I_EXCEL
+  as select from ztom_t_excel
+  association to parent ZCDS_TOM_I_USER as _XLUser on $projection.end_user = _XLUser.end_user
+{
+  key end_user                as end_user,
+  key ztom_t_excel.vbeln      as Vbeln,
+      ztom_t_excel.new_fkdat  as New_Fkdat,
+      ztom_t_excel.prev_fkdat as Prev_Fkdat,
+      ztom_t_excel.type       as Type,
+      ztom_t_excel.message    as Message,
+
+      _XLUser
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-316950917"&gt;Create Projection/ Consumption View&lt;/H3&gt;&lt;P&gt;Now, let's create Projection/ Consumption views on top of the Interfaces we just created.&lt;/P&gt;&lt;H5 id="toc-hId-378602850"&gt;Parent Projection/ Consumption View – ZCDS_TOM_C_USER&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Projection Entity - Excel User'
+@Metadata.allowExtensions: true
+
+define root view entity ZCDS_TOM_C_USER
+  provider contract transactional_query
+  as projection on ZCDS_TOM_I_USER
+{
+  key end_user,
+      @EndUserText.label: 'Processing Status'
+      status as status,
+      @Semantics.largeObject: {
+          mimeType: 'MimeType',
+          fileName: 'Filename',
+          acceptableMimeTypes: [ 'application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ],
+          contentDispositionPreference: #INLINE } // This will store the File into our table
+      Attachment,
+      MimeType,
+      Filename,
+      Local_Created_By,
+      Local_Created_At,
+      Local_Last_Changed_By,
+      @EndUserText.label: 'Last Changed At'
+      Local_Last_Changed_At,
+      Last_Changed_At,
+
+      /* Associations */
+      _XLData : redirected to composition child ZCDS_TOM_C_EXCEL
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId--738113476"&gt;Child Entity Projection/ Consumption View – ZCDS_TOM_C_EXCEL&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Projection Entity - Excel Data'
+@Metadata.allowExtensions: true
+
+define view entity ZCDS_TOM_C_EXCEL
+  as projection on ZCDS_TOM_I_EXCEL
+{
+  key end_user,
+  key Vbeln,
+      New_Fkdat,
+      Prev_Fkdat,
+      Type,
+      Message,
+      /* Associations */
+      _XLUser : redirected to parent ZCDS_TOM_C_USER
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--347820967"&gt;Create Metadata Extensions&lt;/H3&gt;&lt;P&gt;Now, let's create Metadata Extensions on top of the Projection/ Consumption views we just created.&lt;/P&gt;&lt;H5 id="toc-hId--1131140486"&gt;Parent Metadata Extension – ZCDS_TOM_C_USER&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CORE
+@UI.headerInfo: {
+    typeName: 'Mass Upload for Billing Date Change',
+    typeNamePlural: 'Mass Upload for Billing Date Change'
+}
+annotate entity ZCDS_TOM_C_USER with
+{
+  .facet: [
+  { id: 'idEndUser',    purpose: #HEADER,       position: 10,   type: #DATAPOINT_REFERENCE,     targetQualifier: 'tqEndUser'
+  },
+  { id: 'idChgAt',      purpose: #HEADER,       position: 20,   type: #DATAPOINT_REFERENCE,     targetQualifier: 'tqChgAt'
+  },
+  { id: 'idStatus',     purpose: #HEADER,       position: 30,   type: #DATAPOINT_REFERENCE,     targetQualifier: 'tqStatus'
+  },
+  { id: 'idFile',       purpose: #STANDARD,     position: 50,   type: #IDENTIFICATION_REFERENCE,    label: 'File Upload/ Download'
+  },
+  { id: 'idData',       purpose: #STANDARD,     position: 60,   type: #LINEITEM_REFERENCE,          label: 'Excel Data',    targetElement: '_XLData'
+  } ]
+
+  .lineItem: [{ position: 10, label: 'Person Responsible' }]
+  .dataPoint: { qualifier: 'tqEndUser', title: 'Person Responsible' }
+  .identification: [{ type: #FOR_ACTION, dataAction: 'downloadData', label: 'Download Data' }] //Needed in oDataV2 to download excel Data, for oDataV4 comment this
+  end_user;
+  .lineItem: [{ position: 20, label: 'File Status' }]
+  .dataPoint: { qualifier: 'tqStatus', title: 'File Status' }
+  status;
+  .identification: [{ position: 10, label: 'Upload/ Download Template &amp;amp; Excel File' }]
+  Attachment;
+  .lineItem: [{ type: #FOR_ACTION, dataAction: 'downloadTemplate', label: 'Download Template' }]
+  .identification: [{ type: #FOR_ACTION, dataAction: 'downloadTemplate', label: 'Download Template' }]
+  .hidden: true
+  MimeType;
+  .lineItem: [{ position: 30, label: 'Filename' }]
+  Filename;
+  .hidden: true
+  Local_Created_By;
+  .hidden: true
+  Local_Created_At;
+  .hidden: true
+  Local_Last_Changed_By;
+  .dataPoint: { qualifier: 'tqChgAt', title: 'Last Changed At' }
+  .lineItem: [{ position: 40, label: 'Last Changed At' }]
+  Local_Last_Changed_At;
+  .hidden: true
+  Last_Changed_At;
+  /* Associations */
+  .hidden: true
+  _XLData;
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId--1327653991"&gt;Child Entity Metadata Extension – ZCDS_TOM_C_EXCEL&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CORE
+@UI.headerInfo: {
+    typeName: 'Processed Billing Data',
+    typeNamePlural: 'Processed Billing Data'
+}
+annotate entity ZCDS_TOM_C_EXCEL with
+{
+  .hidden: true
+  //  .lineItem: [{ type: #FOR_ACTION, label: 'Display Document', dataAction: 'displayDocument' }]
+  end_user;
+  .lineItem: [{ position: 10, label: 'Billing Document' }]
+  Vbeln;
+  .lineItem: [{ position: 20, label: 'New Billing Date' }]
+  New_Fkdat;
+  .lineItem: [{ position: 30, label: 'Previous Billing Date' }]
+  Prev_Fkdat;
+  .lineItem: [{ position: 40, label: 'Status' }]
+  Type;
+  .lineItem: [{ position: 50, label: 'Message' }]
+  Message;
+  /* Associations */
+  .hidden: true
+  _XLUser;
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--937361482"&gt;Create Behavior Definitions Behavior Implementation and Behavior Projection&lt;/H3&gt;&lt;P&gt;Now, let's create Behavior Definitions on top of the Parent Interface View and Behavior Projection on Parent Projection/ Consumption View we just created.&lt;/P&gt;&lt;H5 id="toc-hId--1720681001"&gt;Behavior Definition – ZCDS_TOM_I_USER&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed implementation in class zbp_cl_cds_tom_i_user unique;
+strict ( 2 );
+with draft;
+
+define behavior for ZCDS_TOM_I_USER alias XLHead
+persistent table ztom_t_user
+lock master
+total etag end_user
+draft table ztom_t_userd
+//early numbering
+authorization master ( instance )
+etag master end_user
+{
+  create;
+  update;
+  delete;
+
+  field ( readonly ) end_user;
+
+  action ( features : instance ) downloadTemplate result [1] $self;
+  action ( features : instance ) downloadData result [1] $self; //Needed in oDataV2 to download excel Data, for oDataV4 comment this
+
+  // Logic to read excel data into into internal table and save to the child entity
+  action ( features : instance ) uploadExcelData result [1] $self;
+
+  association _XLData { create; with draft; }
+
+  // Logic to trigger action uploadExcelData
+  determination fields on modify { field Filename; }
+
+  //Draft actions
+  draft action Edit;
+  draft action Activate;
+  draft action Discard;
+  draft action Resume;
+  draft determine action Prepare;
+
+}
+
+define behavior for ZCDS_TOM_I_EXCEL alias XLData
+persistent table ztom_t_excel
+draft table ztom_t_exceld
+lock dependent by _XLUser
+authorization dependent by _XLUser
+etag master New_Fkdat
+{
+  update;
+  delete;
+  field ( readonly ) end_user;
+
+  association _XLUser { with draft; }
+
+  //  action displayDocument result [1] $self; //IF WANT TO ADD A NEW ACTION
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId--1917194506"&gt;Behavior Implementation – ZBP_CL_CDS_TOM_I_USER&lt;/H5&gt;&lt;UL&gt;&lt;LI&gt;Global Class&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zbp_cl_cds_tom_i_user DEFINITION
+  PUBLIC
+  ABSTRACT
+  FINAL
+  FOR BEHAVIOR OF zcds_tom_i_user .
+
+  PUBLIC SECTION.
+    TYPES: BEGIN OF gty_input,
+             vbeln      TYPE vbeln_vf,
+             new_fkdat  TYPE char10,
+             prev_fkdat TYPE char10,
+             type       TYPE bapi_mtype,
+             message    TYPE bapi_msg,
+           END OF gty_input.
+
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+ENDCLASS.
+
+CLASS zbp_cl_cds_tom_i_user IMPLEMENTATION.
+ENDCLASS.​&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;Local Type&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;*"* use this source file for the definition and implementation of
+*"* local helper classes, interface definitions and type
+*"* declarations
+CLASS lhc_XLHead DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
+
+    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
+      IMPORTING keys REQUEST requested_authorizations FOR XLHead RESULT result.
+
+    METHODS downloadTemplate FOR MODIFY
+      IMPORTING keys FOR ACTION XLHead~downloadTemplate RESULT result.
+
+    METHODS fields FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR XLHead~Fields.
+
+    METHODS uploadExcelData FOR MODIFY
+      IMPORTING keys FOR ACTION XLHead~uploadExcelData RESULT result.
+
+    "Needed in oDataV2 to download excel Data, for oDataV4 comment this method
+    METHODS downloadData FOR MODIFY
+      IMPORTING keys FOR ACTION XLHead~downloadData RESULT result.
+
+*    METHODS earlynumbering_create FOR NUMBERING
+*      IMPORTING entities FOR CREATE XLHead.
+
+    METHODS get_instance_features FOR INSTANCE FEATURES
+      IMPORTING keys REQUEST requested_features FOR XLHead RESULT result.
+
+ENDCLASS.
+
+
+CLASS lhc_XLHead IMPLEMENTATION.
+  METHOD get_instance_authorizations.
+  ENDMETHOD.
+
+  METHOD downloadTemplate.
+*-- Local Variable Declaration
+    DATA: lv_content   TYPE xstring,
+          lv_mime_type TYPE string.
+
+*-- Local Internal Table Declaration
+    DATA: lt_bin TYPE STANDARD TABLE OF solix.
+
+    "Clear all local objects
+    CLEAR: lv_content, lv_mime_type, lt_bin.
+
+*-- Retrieve File From MIME Repository
+*-- accessing the file path '/SAP/PUBLIC/ZTOM_MASS_BILLING_DATE_UPD/Billing Date Update Template.xlsx'
+    cl_mime_repository_api=&amp;gt;if_mr_api~get_api( )-&amp;gt;get( EXPORTING  i_url              = TEXT-001
+                                                                  i_check_authority  = abap_false
+                                                       IMPORTING  e_content          = lv_content
+                                                                  e_mime_type        = lv_mime_type
+                                                       EXCEPTIONS parameter_missing  = 1
+                                                                  error_occured      = 2
+                                                                  not_found          = 3
+                                                                  permission_failure = 4
+                                                                  OTHERS             = 5 ).
+
+    IF sy-subrc &amp;lt;&amp;gt; 0.
+      "Handle Error Messages
+      INSERT new_message( id       = sy-msgid
+                          number   = sy-msgno
+                          severity = if_abap_behv_message=&amp;gt;severity-error
+                          v1       = sy-msgv1
+                          v2       = sy-msgv2
+                          v3       = sy-msgv3
+                          v4       = sy-msgv4 )
+             INTO TABLE reported-%other.
+    ELSE.
+      "Modify Root Entity
+      MODIFY ENTITIES OF zcds_tom_i_user IN LOCAL MODE
+      ENTITY XLHead
+      UPDATE FROM VALUE #( FOR key IN keys
+                           ( end_user            = key-end_user
+                             status              = TEXT-002 "Template Downloaded
+                             Attachment          = lv_content
+                             Filename            = TEXT-003 "Billing Date Update Template
+                             MimeType            = lv_mime_type
+                             %control-status     = if_abap_behv=&amp;gt;mk-on
+                             %control-Attachment = if_abap_behv=&amp;gt;mk-on
+                             %control-Filename   = if_abap_behv=&amp;gt;mk-on
+                             %control-MimeType   = if_abap_behv=&amp;gt;mk-on ) )
+      MAPPED DATA(ls_mapped_update)
+      REPORTED DATA(ls_reported_update)
+      FAILED DATA(ls_failed_update).
+
+      "Read Updated Entry
+      READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
+      ENTITY XLHead
+      ALL FIELDS WITH
+      CORRESPONDING #( Keys )
+      RESULT DATA(lt_XLHead).
+
+      "Send Status back to front end
+      result = VALUE #( FOR lwa_upd_head IN lt_XLHead
+                        ( %tky   = lwa_upd_head-%tky
+                          %param = lwa_upd_head ) ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD fields.
+    SELECT  INTO (lv_valid) FROM ztom_t_user UP TO 1 ROWS WHERE end_user = -uname.
+    ENDSELECT.
+
+    IF lv_valid &amp;lt;&amp;gt; abap_true.
+      INSERT ztom_t_user FROM @( VALUE #( end_user = sy-uname ) ).
+    ENDIF.
+
+    IF keys[ 1 ]-%is_draft = '01'. "for oDataV4 '01' needs to be replaced with '00'
+      MODIFY ENTITIES OF zcds_tom_i_user IN LOCAL MODE
+      ENTITY XLHead
+      EXECUTE uploadexceldata
+      FROM CORRESPONDING #( keys ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD uploadExcelData.
+*-- Local Variable Declaration
+    DATA: lv_index    TYPE sy-index.
+
+*-- Local Workarea Declaration
+    DATA: ls_vbrk_i TYPE vbrk.
+
+*-- Local Internal Table Declaration
+    DATA: lt_excel TYPE STANDARD TABLE OF zbp_cl_cds_tom_i_user=&amp;gt;gty_input,
+          lt_data  TYPE TABLE FOR CREATE zcds_tom_i_user\_XLData.
+
+*-- Local Object Declaration
+    DATA: lo_table_descr  TYPE REF TO cl_abap_tabledescr,
+          lo_struct_descr TYPE REF TO cl_abap_structdescr.
+
+*-- Local Field Symbol Declaration
+    FIELD-SYMBOLS:  &amp;lt;lfs_col_header&amp;gt; TYPE any.
+
+    "Clear all local objects
+    CLEAR: lv_index, lt_excel, lt_data.
+
+    SELECT  INTO (lv_valid) FROM ztom_t_user UP TO 1 ROWS WHERE end_user = -uname.
+    ENDSELECT.
+
+    IF lv_valid &amp;lt;&amp;gt; abap_true.
+      INSERT ztom_t_user FROM @( VALUE #( end_user = sy-uname ) ).
+    ENDIF.
+
+    DATA(lv_user) = cl_abap_context_info=&amp;gt;get_user_technical_name( ).
+
+    READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
+    ENTITY XLHead
+    ALL FIELDS WITH
+    CORRESPONDING #( keys )
+    RESULT DATA(lt_file_entity).
+
+    DATA(lv_attachment) = lt_file_entity[ 1 ]-attachment.
+
+    IF lv_attachment IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    "Move Excel Data to Internal Table
+    DATA(lo_xlsx) = xco_cp_xlsx=&amp;gt;document-&amp;gt;for_file_content( iv_file_content = lv_attachment )-&amp;gt;read_access( ).
+    DATA(lo_worksheet) = lo_xlsx-&amp;gt;get_workbook( )-&amp;gt;worksheet-&amp;gt;at_position( 1 ).
+    DATA(lo_selection_pattern) = xco_cp_xlsx_selection=&amp;gt;pattern_builder-&amp;gt;simple_from_to( )-&amp;gt;get_pattern( ).
+    DATA(lo_execute) = lo_worksheet-&amp;gt;select( lo_selection_pattern )-&amp;gt;row_stream( )-&amp;gt;operation-&amp;gt;write_to(
+                                                                      REF #( lt_excel ) ).
+    lo_execute-&amp;gt;set_value_transformation( xco_cp_xlsx_read_access=&amp;gt;value_transformation-&amp;gt;string_value )-&amp;gt;if_xco_xlsx_ra_operation~execute( ).
+
+    "Get number of columns in upload file for validation
+    TRY.
+        lo_table_descr ?= cl_abap_tabledescr=&amp;gt;describe_by_data( p_data = lt_excel ).
+        lo_struct_descr ?= lo_table_descr-&amp;gt;get_table_line_type( ).
+        DATA(lv_no_of_cols) = lines( lo_struct_descr-&amp;gt;components ).
+      CATCH cx_sy_move_cast_error INTO DATA(lo_sy_move_cast_error).
+
+        "Implement error handling
+        INSERT new_message( id       = sy-msgid
+                            number   = sy-msgno
+                            severity = if_abap_behv_message=&amp;gt;severity-error
+                            v1       = sy-msgv1
+                            v2       = sy-msgv2
+                            v3       = sy-msgv3
+                            v4       = sy-msgv4 )
+               INTO TABLE reported-%other.
+    ENDTRY.
+
+*-- Remove Headings of Columns from Excel data
+    IF lt_excel IS NOT INITIAL.
+      DELETE lt_excel INDEX 1.
+    ENDIF.
+
+*-- Remove all entries where Billing document is not available
+    IF lt_excel IS NOT INITIAL.
+      DELETE lt_excel WHERE vbeln IS INITIAL.
+    ENDIF.
+
+*-- Remove all duplicates
+    IF lt_excel IS NOT INITIAL.
+      DELETE ADJACENT DUPLICATES FROM lt_excel.
+    ENDIF.
+
+    IF lt_excel IS NOT INITIAL.
+      LOOP AT lt_excel ASSIGNING FIELD-SYMBOL(&amp;lt;lfs_excel&amp;gt;).
+        DO lv_no_of_cols TIMES.
+          lv_index = sy-index.
+          ASSIGN COMPONENT lv_index OF STRUCTURE &amp;lt;lfs_excel&amp;gt; TO &amp;lt;lfs_col_header&amp;gt;.
+          IF &amp;lt;lfs_col_header&amp;gt; IS NOT ASSIGNED.
+            CONTINUE.
+          ENDIF.
+          DATA(lv_has_error) = abap_false.
+          CASE lv_index.
+            WHEN 1. "Billing Document Number
+              CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+                EXPORTING
+                  input  = &amp;lt;lfs_col_header&amp;gt;
+                IMPORTING
+                  output = &amp;lt;lfs_col_header&amp;gt;.
+
+              SELECT SINGLE fkdat
+                FROM vbrk
+                INTO (lv_fkdat)
+                WHERE vbeln = @&amp;lt;lfs_col_header&amp;gt;.
+
+              IF sy-subrc = 0.
+                &amp;lt;lfs_excel&amp;gt;-prev_fkdat = |{ lv_fkdat+6(2) }.{ lv_fkdat+4(2) }.{ lv_fkdat(4) }|.
+                CLEAR: lv_fkdat.
+              ENDIF.
+
+            WHEN 2.  "New Billing Date
+              FIND PCRE '(\d{1,2}[.]\d{1,2}[.]\d{4})' IN &amp;lt;lfs_col_header&amp;gt;.
+              IF sy-subrc = 0.
+                CALL FUNCTION '/SAPDMC/LSM_DATE_CONVERT'
+                  EXPORTING
+                    date_in             = &amp;lt;lfs_col_header&amp;gt;
+                    date_format_in      = 'DDMY'
+                    to_output_format    = ' '
+                    to_internal_format  = 'X'
+                  IMPORTING
+                    date_out            = &amp;lt;lfs_col_header&amp;gt;
+                  EXCEPTIONS
+                    illegal_date        = 1
+                    illegal_date_format = 2
+                    no_user_date_format = 3
+                    OTHERS              = 4.
+                IF sy-subrc &amp;lt;&amp;gt; 0.
+                  &amp;lt;lfs_excel&amp;gt;-type    = 'E'.
+                  &amp;lt;lfs_excel&amp;gt;-message = TEXT-004.   "Invalid Date
+                ELSE.
+                  IF &amp;lt;lfs_col_header&amp;gt;+0(2) EQ '00'.
+                    &amp;lt;lfs_excel&amp;gt;-type    = 'E'.
+                    &amp;lt;lfs_excel&amp;gt;-message = TEXT-004.   "Invalid Date
+                  ELSE.
+                    lv_fkdat = &amp;lt;lfs_col_header&amp;gt;.
+                  ENDIF.
+                ENDIF.
+              ELSE.
+                &amp;lt;lfs_excel&amp;gt;-type    = 'E'.
+                &amp;lt;lfs_excel&amp;gt;-message = TEXT-004.   "Invalid Date
+              ENDIF.
+            WHEN 3 OR 4 OR 5.
+              "Do Nothing!!
+*              lv_has_error = COND #( WHEN &amp;lt;lfs_col_header&amp;gt; &amp;lt;&amp;gt; ' ' THEN abap_true ELSE lv_has_error ).
+            WHEN OTHERS. "More than 5 columns (error)
+              lv_has_error = abap_true.
+          ENDCASE.
+          UNASSIGN &amp;lt;lfs_col_header&amp;gt;.
+        ENDDO.
+        IF lv_has_error = abap_true.
+          APPEND VALUE #( %tky = lt_file_entity[ 1 ]-%tky ) TO failed-xlhead.
+          APPEND VALUE #( %tky = lt_file_entity[ 1 ]-%tky
+                          %msg = new_message_with_text( severity = if_abap_behv_message=&amp;gt;severity-error
+                                                        text     = TEXT-005 ) ) "Wrong File Format!!
+          TO reported-xlhead.
+          UNASSIGN &amp;lt;lfs_col_header&amp;gt;.
+          EXIT.
+        ELSE. "Process Data
+          "Update Billing Date
+          IF &amp;lt;lfs_excel&amp;gt;-type &amp;lt;&amp;gt; 'E'.
+            TRY.
+                zcl_tom_billing_date_upd=&amp;gt;zfm_tom_billing_date_upd( EXPORTING fkdat   = lv_fkdat
+                                                                              vbeln   = &amp;lt;lfs_excel&amp;gt;-vbeln
+*                                                                              _dest_  = 'NONE'
+                                                                    CHANGING  message = &amp;lt;lfs_excel&amp;gt;-message
+                                                                              mtype   = &amp;lt;lfs_excel&amp;gt;-type ).
+              CATCH cx_aco_application_exception INTO DATA(lo_aco_application_exception).
+              CATCH cx_aco_communication_failure INTO DATA(lo_aco_communication_failure).
+              CATCH cx_aco_system_failure INTO DATA(lo_aco_system_failure).
+
+                "Implement error handling
+                INSERT new_message( id       = sy-msgid
+                                    number   = sy-msgno
+                                    severity = if_abap_behv_message=&amp;gt;severity-error
+                                    v1       = sy-msgv1
+                                    v2       = sy-msgv2
+                                    v3       = sy-msgv3
+                                    v4       = sy-msgv4 )
+                       INTO TABLE reported-%other.
+            ENDTRY.
+
+            "Change Format to DD.MM.YYYY
+            &amp;lt;lfs_excel&amp;gt;-new_fkdat = |{ &amp;lt;lfs_excel&amp;gt;-new_fkdat+6(2) }.{ &amp;lt;lfs_excel&amp;gt;-new_fkdat+4(2) }.{ &amp;lt;lfs_excel&amp;gt;-new_fkdat(4) }|.
+
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+
+    ELSE.
+      APPEND VALUE #( %tky = lt_file_entity[ 1 ]-%tky ) TO failed-xlhead.
+      APPEND VALUE #( %tky = lt_file_entity[ 1 ]-%tky
+                      %msg = new_message_with_text( severity = if_abap_behv_message=&amp;gt;severity-error
+                                                    text     = TEXT-006 ) ) "No Input Data to Process in Excel!!
+      TO reported-xlhead.
+      EXIT.
+    ENDIF.
+
+*-- Sort with Error &amp;amp; Success type
+    IF lt_excel IS NOT INITIAL.
+      SORT: lt_excel ASCENDING BY type vbeln.
+    ENDIF.
+
+    "Prepare Data for Child Entity (XLData)
+    lt_data = VALUE #( ( %cid_ref  = keys[ 1 ]-%cid_ref
+                         %is_draft = keys[ 1 ]-%is_draft
+                         end_user  = keys[ 1 ]-end_user
+                         %target   = VALUE #( FOR lwa_excel IN lt_excel
+                                              ( %cid      = keys[ 1 ]-%cid_ref
+                                                %is_draft = keys[ 1 ]-%is_draft
+                                                %data     = VALUE #( end_user   = keys[ 1 ]-end_user
+                                                                     Vbeln      = lwa_excel-vbeln
+                                                                     New_Fkdat  = lwa_excel-new_fkdat
+                                                                     Prev_Fkdat = lwa_excel-prev_fkdat
+                                                                     Type       = lwa_excel-type
+                                                                     Message    = lwa_excel-message )
+                                                %control  = VALUE #( end_user   = if_abap_behv=&amp;gt;mk-on
+                                                                     Vbeln      = if_abap_behv=&amp;gt;mk-on
+                                                                     New_Fkdat  = if_abap_behv=&amp;gt;mk-on
+                                                                     Prev_Fkdat = if_abap_behv=&amp;gt;mk-on
+                                                                     Type       = if_abap_behv=&amp;gt;mk-on
+                                                                     Message    = if_abap_behv=&amp;gt;mk-on ) ) ) ) ).
+
+    "Checking Existing entry in child entity for user if any
+    READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
+    ENTITY XLHead
+    BY \_XLData
+    ALL FIELDS WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_existing_XLData).
+
+    IF lt_existing_XLData IS NOT INITIAL.
+      "Delete already existing entries from child entity
+      MODIFY ENTITIES OF zcds_tom_i_user IN LOCAL MODE
+      ENTITY XLData DELETE FROM VALUE #( FOR lwa_data IN lt_existing_XLData
+                                         ( %key      = lwa_data-%key
+                                           %is_draft = lwa_data-%is_draft ) )
+      MAPPED DATA(ls_del_mapped)
+      REPORTED DATA(ls_del_reported)
+      FAILED DATA(ls_del_failed).
+    ENDIF.
+
+    "Modify Root View data (Change Status)
+    MODIFY ENTITIES OF zcds_tom_i_user IN LOCAL MODE
+    ENTITY XLHead
+    UPDATE FROM VALUE #( FOR key IN keys
+                         ( %is_draft       = key-%is_draft
+                           end_user        = key-end_user
+                           status          = TEXT-007 "File Processed
+                           %control-status = if_abap_behv=&amp;gt;mk-on ) )
+    MAPPED DATA(ls_mapped_update)
+    REPORTED DATA(ls_reported_update)
+    FAILED DATA(ls_failed_update).
+
+    "Add New Entry for XLData (association)
+    MODIFY ENTITIES OF zcds_tom_i_user IN LOCAL MODE
+    ENTITY XLHead
+    CREATE BY \_XLData
+    AUTO FILL CID
+    WITH lt_data.
+
+    "Read Updated Entry
+    READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
+    ENTITY XLHead
+    ALL FIELDS WITH
+    CORRESPONDING #( Keys )
+    RESULT DATA(lt_updated_XLHead).
+
+    "Send Status back to front end
+    result = VALUE #( FOR lwa_upd_head IN lt_updated_XLHead
+                      ( %tky   = lwa_upd_head-%tky
+                        %param = lwa_upd_head ) ).
+  ENDMETHOD.
+
+  "Needed in oDataV2 to download excel Data, for oDataV4 comment this method
+  METHOD downloadData.
+*-- Local Variable Declaration
+    DATA: lo_columns TYPE REF TO cl_salv_columns_table.
+    DATA: lo_column TYPE REF TO cl_salv_column.
+
+    "Fetch Processed Data
+    SELECT * FROM ztom_t_excel
+    INTO TABLE (lt_final)
+    WHERE end_user = -uname.
+
+    IF lt_final IS NOT INITIAL.
+      "Get Time Stamp
+      GET TIME STAMP FIELD DATA(lv_timestampl).
+
+      "Convert Internal table data to xstring.
+      DATA(lv_filename) = |{ TEXT-008 } { lv_timestampl }|. "Billing Date Update Log
+
+      "Convert internal table data to excel and download.
+      TRY.
+          cl_salv_table=&amp;gt;factory( IMPORTING r_salv_table = DATA(lo_table)
+                                  CHANGING  t_table      = lt_final ).
+
+          "Get ALV Column
+          lo_columns = lo_table-&amp;gt;get_columns( ).
+
+          TRY.
+              lo_column = lo_columns-&amp;gt;get_column( 'NEW_FKDAT' ).
+              lo_column-&amp;gt;set_long_text( TEXT-009 ). "New Billing Date
+              lo_column-&amp;gt;set_output_length( '15' ).
+            CATCH cx_salv_not_found INTO DATA(lo_salv_not_found).
+
+              "Implement error handling
+              INSERT new_message( id       = sy-msgid
+                                  number   = sy-msgno
+                                  severity = if_abap_behv_message=&amp;gt;severity-error
+                                  v1       = sy-msgv1
+                                  v2       = sy-msgv2
+                                  v3       = sy-msgv3
+                                  v4       = sy-msgv4 )
+                     INTO TABLE reported-%other.
+          ENDTRY.
+
+          TRY.
+              lo_column = lo_columns-&amp;gt;get_column( 'PREV_FKDAT' ).
+              lo_column-&amp;gt;set_long_text( TEXT-010 ).  "Previous Billing Date
+              lo_column-&amp;gt;set_output_length( '15' ).
+            CATCH cx_salv_not_found INTO lo_salv_not_found.
+
+              "Implement error handling
+              INSERT new_message( id       = sy-msgid
+                                  number   = sy-msgno
+                                  severity = if_abap_behv_message=&amp;gt;severity-error
+                                  v1       = sy-msgv1
+                                  v2       = sy-msgv2
+                                  v3       = sy-msgv3
+                                  v4       = sy-msgv4 )
+                     INTO TABLE reported-%other.
+          ENDTRY.
+
+          DATA(lv_content) = lo_table-&amp;gt;to_xml( xml_type = if_salv_bs_xml=&amp;gt;c_type_xlsx ).
+
+        CATCH cx_salv_msg INTO DATA(lo_salv_msg).
+
+          "Implement error handling
+          INSERT new_message( id       = sy-msgid
+                              number   = sy-msgno
+                              severity = if_abap_behv_message=&amp;gt;severity-error
+                              v1       = sy-msgv1
+                              v2       = sy-msgv2
+                              v3       = sy-msgv3
+                              v4       = sy-msgv4 )
+                 INTO TABLE reported-%other.
+      ENDTRY.
+
+      "Modify Root Entity
+      MODIFY ENTITIES OF zcds_tom_i_user IN LOCAL MODE
+      ENTITY XLHead
+      UPDATE FROM VALUE #( FOR key IN keys
+                           ( end_user            = key-end_user
+                             status              = TEXT-011 "Data Downloaded
+                             Attachment          = lv_content
+                             Filename            = lv_filename
+                             MimeType            = TEXT-012   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+                             %control-status     = if_abap_behv=&amp;gt;mk-on
+                             %control-Attachment = if_abap_behv=&amp;gt;mk-on
+                             %control-Filename   = if_abap_behv=&amp;gt;mk-on
+                             %control-MimeType   = if_abap_behv=&amp;gt;mk-on ) )
+      MAPPED DATA(ls_mapped_update)
+      REPORTED DATA(ls_reported_update)
+      FAILED DATA(ls_failed_update).
+
+      "Read Updated Entry
+      READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
+      ENTITY XLHead
+      ALL FIELDS WITH
+      CORRESPONDING #( Keys )
+      RESULT DATA(lt_XLHead).
+
+      "Send Status back to front end
+      result = VALUE #( FOR lwa_upd_head IN lt_XLHead
+                        ( %tky   = lwa_upd_head-%tky
+                          %param = lwa_upd_head ) ).
+    ENDIF.
+  ENDMETHOD.
+
+*  METHOD earlynumbering_create.
+*  DATA(lv_user) = cl_abap_context_info=&amp;gt;get_user_technical_name( ).
+*    LOOP AT entities ASSIGNING FIELD-SYMBOL(&amp;lt;lfs_entities&amp;gt;).
+*      APPEND CORRESPONDING #( &amp;lt;lfs_entities&amp;gt; ) TO mapped-xlhead
+*          ASSIGNING FIELD-SYMBOL(&amp;lt;lfs_xlhead&amp;gt;).
+*      &amp;lt;lfs_xlhead&amp;gt;-end_user = lv_user.
+*    ENDLOOP.
+*  ENDMETHOD.
+
+  METHOD get_instance_features.
+    READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
+    ENTITY XLHead
+    FIELDS ( end_user )
+    WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_file).
+
+    result = VALUE #( FOR ls_file IN lt_file
+                      ( %key                              = ls_file-%key
+                        %is_draft                         = ls_file-%is_draft
+                        %features-%action-uploadexceldata = COND #( WHEN ls_file-%is_draft = '00'
+                                                                    THEN if_abap_behv=&amp;gt;fc-f-read_only
+                                                                    ELSE if_abap_behv=&amp;gt;fc-f-unrestricted ) ) ).
+  ENDMETHOD.
+ENDCLASS.
+
+
+*CLASS lhc_XLData DEFINITION INHERITING FROM cl_abap_behavior_handler.
+*
+*  PRIVATE SECTION.
+*    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
+*      IMPORTING keys REQUEST requested_authorizations FOR XLData RESULT result.
+*
+*    METHODS displayDocument FOR MODIFY
+*      IMPORTING keys FOR ACTION XLData~displayDocument RESULT result.
+*
+*ENDCLASS.
+*
+*
+*CLASS lhc_XLData IMPLEMENTATION.
+*  METHOD get_instance_authorizations.
+*  ENDMETHOD.
+*
+*  METHOD displayDocument.
+*    "Read Child Entity
+*    READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
+*        ENTITY XLData
+*        ALL FIELDS WITH
+*        CORRESPONDING #( keys )
+*        RESULT FINAL(lt_data).
+*
+*    IF lt_data IS NOT INITIAL.
+*      "Convert Internal table data for excel
+*
+*      "Read Updated Entry
+*      READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
+*      ENTITY XLData
+*      ALL FIELDS WITH
+*      CORRESPONDING #( Keys )
+*      RESULT DATA(lt_XLData).
+*
+*      "Send Status back to front end
+*      result = VALUE #( FOR lwa_upd_data IN lt_XLData
+*                        ( %tky   = lwa_upd_data-%tky
+*                          %param = lwa_upd_data ) ).
+*    ENDIF.
+*  ENDMETHOD.
+*ENDCLASS.​&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;Function Module used in RAP to update Billing Date -&lt;BR /&gt;we have created a remote enabled custom FM ZFM_TOM_BILLING_DATE_UPD as we don't have released SAP APIs available in our system. Then we have rapped it by transaction ACO_PROXY and created a proxy class ZCL_TOM_BILLING_DATE_UPD.&lt;BR /&gt;This proxy class will be called in behavior Implementation class to update billing date.&lt;BR /&gt;Click on Hyperlink to check full blog&amp;nbsp;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/how-to-generate-a-wrapper-for-function-modules-bapis-for-missing-released/ba-p/13692790" target="_blank"&gt;How to generate a wrapper for function modules (BAPIs) for missing released SAP APIs&lt;/A&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;Function module logic is mentioned below:&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;FUNCTION zfm_tom_billing_date_upd
+  IMPORTING
+    VALUE(vbeln) TYPE vbeln_vf
+    VALUE(fkdat) TYPE fkdat
+  CHANGING
+    VALUE(mtype) TYPE bapi_mtype OPTIONAL
+    VALUE(message) TYPE bapi_msg OPTIONAL
+  EXCEPTIONS
+    no_authority.
+
+
+
+  DATA: ls_vbrk_i TYPE vbrk,
+        ls_vbrk_e TYPE vbrk,
+        ls_vbsk   TYPE vbsk.
+
+  DATA: lt_xkomv  TYPE STANDARD TABLE OF komv,
+        lt_xvbpa  TYPE STANDARD TABLE OF vbpavb,
+        lt_xvbrk  TYPE STANDARD TABLE OF vbrkvb,
+        lt_xvbrp  TYPE STANDARD TABLE OF vbrpvb,
+        lt_xkomfk TYPE STANDARD TABLE OF komfk,
+        lt_xvbfs  TYPE STANDARD TABLE OF vbfs,
+        lt_xthead TYPE STANDARD TABLE OF theadvb,
+        lt_xvbss  TYPE STANDARD TABLE OF vbss.
+
+  CLEAR: ls_vbrk_i,
+  ls_vbrk_e,
+  ls_vbsk.
+
+  REFRESH: lt_xkomv,
+  lt_xvbpa,
+  lt_xvbrk,
+  lt_xvbrp,
+  lt_xkomfk,
+  lt_xvbfs,
+  lt_xthead,
+  lt_xvbss.
+
+  ls_vbrk_i-vbeln = vbeln.
+
+  TRY.
+      "Read billing doc
+      CALL FUNCTION 'RV_INVOICE_DOCUMENT_READ'
+        EXPORTING
+*         ACTIVITY     = '  '
+          konv_read    = 'X'
+*         NO_NAST      = ' '
+          vbrk_i       = ls_vbrk_i
+*         I_NO_AUTHORITY_CHECK = ' '
+*         OIA_UNZIP_FEES =
+*         I_GV_ERDAT_SEL =
+*         IV_NO_PRICING_BUFFER = ABAP_FALSE
+        IMPORTING
+          vbrk_e       = ls_vbrk_e
+*         VBUK_E       =
+        TABLES
+          xkomv        = lt_xkomv
+          xvbpa        = lt_xvbpa
+          xvbrk        = lt_xvbrk
+          xvbrp        = lt_xvbrp
+          xkomfk       = lt_xkomfk
+          xvbfs        = lt_xvbfs
+          xthead       = lt_xthead
+          xvbss        = lt_xvbss
+*        CHANGING
+*         i_data_read_from_archive =
+        EXCEPTIONS
+          no_authority = 1
+          OTHERS       = 2.
+      IF sy-subrc &amp;lt;&amp;gt; 0.
+* If BAPI is not successful, Implement error handling
+        mtype    = 'E'.
+        message = TEXT-001.  "Error in Reading Billing Document
+
+      ELSE.
+        "Change Billing Date
+        ls_vbrk_e-fkdat = fkdat.   "New Billing date
+
+        "Apply Changes
+        CALL FUNCTION 'RV_INVOICE_HEAD_MAINTAIN'
+          EXPORTING
+*           FCODE_I = '    '
+            vbrk_i = ls_vbrk_e
+          TABLES
+            xkomfk = lt_xkomfk
+            xkomv  = lt_xkomv
+            xthead = lt_xthead
+            xvbfs  = lt_xvbfs
+            xvbpa  = lt_xvbpa
+            xvbrk  = lt_xvbrk
+            xvbrp  = lt_xvbrp
+            xvbss  = lt_xvbss.
+
+        IF sy-subrc &amp;lt;&amp;gt; 0.
+* If BAPI is not successful, Implement error handling
+          mtype    = 'E'.
+          message = TEXT-002.    "Error in Applying Changes
+
+        ELSE.
+          ls_vbsk-mandt = sy-mandt.
+          ls_vbsk-ernam = ls_vbrk_e-ernam.
+          ls_vbsk-erdat = ls_vbrk_e-erdat.
+          ls_vbsk-uzeit = ls_vbrk_e-erzet.
+
+          "Save the Changes
+          CALL FUNCTION 'RV_INVOICE_DOCUMENT_ADD'
+            EXPORTING
+              vbsk_i = ls_vbsk
+*             with_posting = 'X'
+*             WITHOUT_REFRESH = ' '
+*             PREISFINDUNGSART = 'A'
+*             I_NO_VBLOG = ' '
+*             I_NO_NAST = ' '
+*             I_NO_PRICING = ' '
+*             I_NO_FI_DOC = ' '
+*             I_BLART = ' '
+*             IS_FI_ADD_INPUT =
+*             I_NO_COLLECTIVE_BILLING =
+*             IV_SNAPSHOT_ACTIVATION = ABAP_FALSE
+*             IV_SUPPRESS_GTS_IN_SIM_MODE = ABAP_FALSE
+*             IV_NO_TAX_CALC_IN_SIM_MODE = ABAP_FALSE
+*             IMPORTING
+*             VBSK_E =
+            TABLES
+              xkomfk = lt_xkomfk
+              xkomv  = lt_xkomv
+              xthead = lt_xthead
+              xvbfs  = lt_xvbfs
+              xvbpa  = lt_xvbpa
+              xvbrk  = lt_xvbrk
+              xvbrp  = lt_xvbrp
+              xvbss  = lt_xvbss.
+
+          IF sy-subrc &amp;lt;&amp;gt; 0.
+* If BAPI is not successful, Implement error handling
+            mtype    = 'E'.
+            message = TEXT-003.  "Error in Saving the Changes
+          ELSE.
+            mtype    = 'S'.
+            message = TEXT-004.  "Billing Date Changed Successfully
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+    CATCH cx_root INTO DATA(lx).
+
+  ENDTRY.
+
+ENDFUNCTION.​&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId--2113708011"&gt;Behavior Projection – ZCDS_TOM_C_USER&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection;
+strict ( 2 );
+use draft;
+
+define behavior for ZCDS_TOM_C_USER //alias XLHead
+{
+  //  use create;
+  use update;
+  use delete;
+
+  field ( readonly ) end_user, status, Local_Last_Changed_At;
+
+  use action downloadTemplate;
+  use action downloadData; //Needed in oDataV2 to download excel Data, for oDataV4 comment this
+
+  use action Edit;
+  use action Activate;
+  use action Discard;
+  use action Resume;
+  use action Prepare;
+
+  use association _XLData { create; with draft; }
+}
+
+define behavior for ZCDS_TOM_C_EXCEL //alias XLData
+{
+  //  use update; //IF WANT USER TO ENABLE EDIT IN EXCEL DATA UNCOMMENT THIS
+  //  use delete; //IF WANT USER TO DELETE PROCESSED EXCEL DATA UNCOMMENT THIS
+
+  use association _XLUser { with draft; }
+
+  //  use action displayDocument; //IF WANT TO ADD A NEW ACTION
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--1723415502"&gt;Create Service Definition&lt;/H3&gt;&lt;P&gt;Now, let's create Service Definitions, exposing both Behavior Definition and Projection we just created.&lt;/P&gt;&lt;H5 id="toc-hId-1788232275"&gt;Service Definition – &lt;SPAN&gt;ZCDS_TOM_SD_MASS_FKDAT&lt;/SPAN&gt;&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Service Definition for Projection Views'
+define service ZCDS_TOM_SD_MASS_FKDAT {
+  expose ZCDS_TOM_C_USER as XLHead;
+  expose ZCDS_TOM_C_EXCEL as XLData;
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--1948258821"&gt;Create Service Binding&lt;/H3&gt;&lt;P&gt;Now, let's create Service Binding (I tested with V2) on top of Service Definition we just created.&lt;BR /&gt;&lt;BR /&gt;If You are using V4 Services, you don't need to create separate action downloadData (comment it out) as we are already having an option to export the data as an excel in V4 Services.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--2144772326"&gt;See the &lt;SPAN&gt;wonders...&lt;span class="lia-unicode-emoji" title=":glowing_star:"&gt;🌟&lt;/span&gt;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;The list report page would look like below for V2 Services, in V4 Services you will see an extra option to export data as an excel-&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Click on Go -&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 143754.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312163i4F93E09465B374AF/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 143754.png" alt="Screenshot 2025-09-10 143754.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Person Responsible will be the Session User, Click anywhere on the line or on arrow -&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 131117.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312151i6D0C0AA8EEDEA0A7/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 131117.png" alt="Screenshot 2025-09-10 131117.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Click on Download Template button to Load Template, this action can be performed on first screen as well by selection line item and click download template, Template will be loaded successfully as an excel attachment.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 131209.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312153i9F19A9925D49E4D2/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 131209.png" alt="Screenshot 2025-09-10 131209.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Click on Hyperlink to download Template.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 131422.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312154i2F746DF9B2D47AA3/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 131422.png" alt="Screenshot 2025-09-10 131422.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Template can be deleted by clicking on Delete Button, this same delete button will be used to delete processed data entries.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 131525.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312155i918EE6DF0C403359/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 131525.png" alt="Screenshot 2025-09-10 131525.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Click on Edit button on previous screen and You can now update entries in the template and upload the data.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 131602.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312156i75E258B132404DEB/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 131602.png" alt="Screenshot 2025-09-10 131602.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Data will be processed, now click on save.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 131856.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312157i945EFB19A8FACD56/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 131856.png" alt="Screenshot 2025-09-10 131856.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Status will be changed to 'File Processed'.&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 132016.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312161iCBDBFE4677078830/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 132016.png" alt="Screenshot 2025-09-10 132016.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Click on Download Data to load Processed Data as an Excel Attachment.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 132125.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312160iDB6D54DC85751EFF/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 132125.png" alt="Screenshot 2025-09-10 132125.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Hope it will be helpful!!&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/excel-upload-download-template-download-processed-data-in-sap-fiori-without/ba-p/14212916"/>
+    <published>2025-09-10T16:00:28.980000+02:00</published>
   </entry>
 </feed>
