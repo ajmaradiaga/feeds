@@ -2,156 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2025-09-18T10:14:34.569845+00:00</updated>
+  <updated>2025-09-18T10:29:01.202549+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/s4hc-public-cloud-eclipse-created-cds-and-amdp/qaa-p/14220933#M4926694</id>
-    <title>Re: S4HC Public Cloud Eclipse created CDS and AMDP</title>
-    <updated>2025-09-18T09:01:41.679000+02:00</updated>
-    <author>
-      <name>peter_munt4</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/267001</uri>
-    </author>
-    <content>&lt;P&gt;I have now got this working.&amp;nbsp; The error that I first received was a Red Herring&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":shrimp:"&gt;🦐&lt;/span&gt;&amp;nbsp; - it led me down a rabbit hole&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":rabbit_face:"&gt;🐰&lt;/span&gt; that I did not need to enter.&lt;span class="lia-unicode-emoji" title=":tired_face:"&gt;😫&lt;/span&gt;&amp;nbsp; It said&amp;nbsp;&lt;EM&gt;The client handling annotation was wrong...&amp;nbsp; &lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/EM&gt;well that was only part of the problem.&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":flag_in_hole:"&gt;⛳&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In S/4HANA Public Cloud&amp;nbsp;there are restrictions - mainly on that Blog example I found (I now know it is only suits on-premise - a very important point) it is that ACDOCA is not a table that can be selected directly in public cloud at least- another related CDS in S/4 is to be found - I used&amp;nbsp;I_JournalEntryItem.&amp;nbsp; At least in my version it is also quite particular about client/mandt, declarations of parameter types, database function select of data using the parameters,API state contracts.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Here is what I did&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Define view entity ZVE_JournalData&lt;/STRONG&gt; - &lt;EM&gt;and this has the API State&amp;nbsp;Contract C1: Use System-Internally set.&lt;/EM&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'CDS ViewEntityon I_JOURNALENTRYITEMCUBE'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-define view entity ZVE_JournalData 
-  with parameters
-
-    p_bukrs : abap.char(4), //MAYBE ALSO DO NOT USE TYPE BUKRS here either - as class method gets error SQLSCRIPT message: invalid identifier: parameterized sql view ZVE_JOURNALDATA without input arguments
-
-    p_gjahr : abap.char(4) //MAYBE ALSO DO NOT USE TYPE gjahr here either
-    
-as select from I_JournalEntryItem as J
-{
-
-  J.Ledger              as RLDNR,
-
-  J.CompanyCode         as RBUKRS,
-
-  J.FiscalYear          as GJAHR,
-
-  J.AccountingDocument  as BELNR    
-}
-where
-
-  J.CompanyCode = $parameters.p_bukrs
-
-  and J.FiscalYear = $parameters.p_gjahr;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Define table function Z_JOURNAL_DATA&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Journal Data'
-
-
-@ClientHandling.algorithm: #SESSION_VARIABLE //the client_element_name column is filled from the session client (sy-mandt).
-@ClientHandling.type: #CLIENT_DEPENDENT
-@AccessControl.authorizationCheck: #NOT_REQUIRED // No auth checks (default)
-
-define table function Z_JOURNAL_DATA
-with parameters 
-     i_RBUKRS  : abap.char( 4 ), //do not use type BUKRS as class gets error The object DTEL BUKRS must not be used here, because it is not released for usage in AMDP methods.
-     i_GJAHR   : abap.char(4) ////do not use type GJAHR as class gets error The object DTEL GJAHR must not be used here, because it is not released for usage in AMDP methods.
-    
-returns {
-    rclnt :mandt; //Z_JOURNAL_DATA is marked as client-specific so this is NEEDED 
-    
-    RLDNR : fins_ledger; 
-    RBUKRS: bukrs; 
-    GJAHR : gjahr; 
-    BELNR : belnr_d; 
-  
-}
-
-implemented by method zcl_acc_je_dat=&amp;gt;GET_JE_DATA;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Define the AMDP Class&amp;nbsp;zcl_acc_je_dat&amp;nbsp;METHOD GET_JE_DATA BY DATABASE FUNCTION&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;I am not entirely happy with the SELECT returning that CLIENT but was the only way I could get it to work.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_acc_je_dat DEFINITION PUBLIC.
-PUBLIC SECTION.
-
-INTERFACES if_amdp_marker_hdb.
-    CLASS-METHODS  GET_JE_DATA
- FOR TABLE FUNCTION Z_JOURNAL_DATA.
-
-ENDCLASS.
-
-CLASS zcl_acc_je_dat IMPLEMENTATION.
-METHOD GET_JE_DATA BY DATABASE FUNCTION FOR HDB LANGUAGE SQLSCRIPT OPTIONS READ-ONLY USING ZVE_JOURNALDATA.
-
-RETURN SELECT
-                  SESSION_CONTEXT('CLIENT') as rclnt,
-                  rldnr,
-                  rbukrs,
-                  gjahr,
-                  belnr
-           FROM ZVE_JOURNALDATA( p_bukrs =&amp;gt; :i_rbukrs, p_gjahr =&amp;gt; :i_gjahr );
-
-ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;The data can be previewed in Eclipse when I connect to my data client 100 (objects developed in my dev client 080)&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="peter_munt4_1-1758179763053.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/316296iB1A01399ADF500DC/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="peter_munt4_1-1758179763053.png" alt="peter_munt4_1-1758179763053.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;I also wanted to create in my &lt;U&gt;&lt;STRONG&gt;S/4 public cloud application&lt;/STRONG&gt;&lt;/U&gt; &lt;span class="lia-unicode-emoji" title=":office_building:"&gt;🏢&lt;/span&gt; a Custom CDS View &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;For that I have also a&amp;nbsp;&lt;STRONG&gt;define view entity ZVE_Z_JOURNAL_DATA.&amp;nbsp;&amp;nbsp;&lt;/STRONG&gt;This also needed the API State System-Internally contract C1 set&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'CDS View on TableFunction.For S4 CustCDS'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-    serviceQuality: #X,
-    sizeCategory: #S,
-    dataClass: #MIXED
-}
-define view entity ZVE_Z_JOURNAL_DATA
-  with parameters
-    p_bukrs : bukrs,
-    p_gjahr : gjahr
-
-  as select from Z_JOURNAL_DATA (
-                     i_RBUKRS: $parameters.p_bukrs,
-                     i_GJAHR : $parameters.p_gjahr
-                   ) as d
-{
-  key d.BELNR,
-      d.RLDNR,
-      d.RBUKRS,
-      d.GJAHR
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;and so my S/4 application the Custom CDS View was created on that view entity.&amp;nbsp; Seen displayed here with the parameters entered&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="peter_munt4_0-1758179539891.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/316295i57A327710E135883/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="peter_munt4_0-1758179539891.png" alt="peter_munt4_0-1758179539891.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/s4hc-public-cloud-eclipse-created-cds-and-amdp/qaa-p/14220933#M4926694"/>
-    <published>2025-09-18T09:01:41.679000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/i-am-developing-an-iflow-i-am-getting-the-below-mentioned-error-after/qaa-p/14220937#M4926695</id>
-    <title>Re: I am developing an iflow ,I am getting the below mentioned error after deploying it.</title>
-    <updated>2025-09-18T09:05:58.865000+02:00</updated>
-    <author>
-      <name>ElenaCalugaru</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1865444</uri>
-    </author>
-    <content>I have the same issue java.lang.NoSuchMethodException: No signature of method: java.lang.String.call() is applicable for argument types: (script25__Script$_processData_closure6$_closure8$_closure9$_closure10) values: [script25__Script$_processData_closure6$_closure8$_closure9$_closure10@c323e5e] Possible solutions: wait(), chars(), any(), wait(long), any(groovy.lang.Closure), take(int) with my groovy script import com.sap.gateway.ip.core.customdev.util.Message import groovy.xml.MarkupBuilder import groovy.util.XmlSlurper def Message processData(Message message) { // Country → countryKey_code and currency_code mapping def countryMap = [ "Romania" : [key: "RO", currency: "RON"], "USA" : [key: "US", currency: "USD"], "Canada" : [key: "CA", currency: "CAD"], "Germany" : [key: "DE", currency: "EUR"], "United Kingdom": [key: "GB", currency: "GBP"] ] // Retrieve orgs def matchedOrgs = message.getProperty("MatchedOrgs") ?: [] def missingAddresses = message.getProperty("MissingAddresses") ?: [] // Initialize list of addresses def aggregatedAddresses = [] def sapAddressList = message.getProperty("SapAddressList") ?: [] // Process missing addresses from incoming XML if (!missingAddresses.isEmpty()) { def aggregatorBody = message.getBody(String) if (aggregatorBody) { def xml = new XmlSlurper().parseText(aggregatorBody) aggregatedAddresses = xml.AddressResponse.collect { addr -&amp;gt; [ ID : addr.ID.text(), address : addr.address.text(), street : addr.street.text(), number : addr.houseNumber.text(), city : addr.city.text(), country : addr.country.text(), countryKey_code: addr.countryKeyCode.text() ] } } } // Merge SAP + newly created addresses (unique by ID) def allAddresses = (sapAddressList + aggregatedAddresses).unique { it.ID } message.setProperty("AggregatedAddresses", aggregatedAddresses) message.setProperty("AllAddresses", allAddresses) // Combine matched and missing orgs into allOrgs def allOrgs = [] // Add matched orgs matchedOrgs.each { org -&amp;gt; allOrgs &amp;lt;&amp;lt; [ Name : org.Name ?: "", Street : org.Street ?: "", Number : org.Number ?: "", City : org.City ?: "", Country : org.Country ?: "", addressID_ID : org.addressID_ID ?: "", address : org.address ?: "${org.Street ?: ""} ${org.City ?: ""} ${org.Country ?: ""} ${org.Number ?: ""}".trim() ] } // Add missing addresses missingAddresses.each { org -&amp;gt; def addr = aggregatedAddresses.find { it.street.equalsIgnoreCase(org.Street ?: "") &amp;amp;&amp;amp; it.city.equalsIgnoreCase(org.City ?: "") &amp;amp;&amp;amp; it.country.equalsIgnoreCase(org.Country ?: "") &amp;amp;&amp;amp; ((it.number ?: "") == (org.Number ?: "")) } allOrgs &amp;lt;&amp;lt; [ Name : org.Name ?: "", Street : org.Street ?: "", Number : org.Number ?: "", City : org.City ?: "", Country : org.Country ?: "", addressID_ID : addr?.ID ?: "", address : addr?.address ?: "${org.Street ?: ""} ${org.City ?: ""} ${org.Country ?: ""} ${org.Number ?: ""}".trim(), countryKey_code: addr?.countryKey_code ?: "" ] } // Generate unique 4-character company codes def usedCodes = [:].withDefault { 0 } def writer = new StringWriter() def xmlBuilder = new MarkupBuilder(writer) def correlationId = java.util.UUID.randomUUID().toString() message.setProperty("ammsOrgId", correlationId) message.setProperty("expectedCompanyCodeCount", allOrgs.size()) xmlBuilder.Organisations { allOrgs.each { org -&amp;gt; // Clean organization name def cleanName = (org.Name ?: "ORG").replaceAll("\\s","").toUpperCase() def baseCode = cleanName.take(4) // Ensure unique code def count = usedCodes[baseCode] def companyCode = count == 0 ? baseCode : baseCode.take(Math.max(0, 4 - count.toString().length())) + count.toString() usedCodes[baseCode] = count + 1 // Country &amp;amp; currency info def countryInfo = countryMap[org.Country] ?: [key: "", currency: "EUR"] // Build Organisation node safely using mkp.yield Organisation(ammsOrgId: correlationId) { companyCode { mkp.yield companyCode } companyCodeName { mkp.yield (org.Name ?: "") } countryKey_code { mkp.yield (org.countryKey_code ?: countryInfo.key) } currency_code { mkp.yield countryInfo.currency } addressID_ID { mkp.yield (org.addressID_ID ?: "") } address { mkp.yield (org.address ?: "${org.Street ?: ""} ${org.City ?: ""} ${org.Country ?: ""} ${org.Number ?: ""}".trim()) } } } } message.setBody(writer.toString()) // Logging def log = messageLogFactory.getMessageLog(message) if (log) { log.addAttachmentAsString("SAP_Addresses", sapAddressList.toString(), "application/json") log.addAttachmentAsString("NewlyCreated_Addresses", aggregatedAddresses.toString(), "application/json") log.addAttachmentAsString("AllAddresses", allAddresses.toString(), "application/json") log.addAttachmentAsString("Org_XML_for_Splitter", writer.toString(), "application/xml") log.addAttachmentAsString("AMMS_ammsOrgId", correlationId.toString(), "text/plain") log.addAttachmentAsString("expectedCompanyCodeCount", allOrgs.size().toString(), "text/plain") } return message }</content>
-    <link href="https://community.sap.com/t5/technology-q-a/i-am-developing-an-iflow-i-am-getting-the-below-mentioned-error-after/qaa-p/14220937#M4926695"/>
-    <published>2025-09-18T09:05:58.865000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/sac-charts-y-axis-line/qaa-p/14220938#M4926696</id>
-    <title>Re: SAC # Charts # Y Axis Line</title>
-    <updated>2025-09-18T09:07:27.263000+02:00</updated>
-    <author>
-      <name>N1kh1l</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/124370</uri>
-    </author>
-    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2027779"&gt;@Anandasai&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Currently the Y axis lines are not available. Only X axis line is available.&lt;/P&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/technology-q-a/can-t-you-display-the-y-axis-on-the-sac-chart/qaq-p/14192155" target="_blank"&gt;Can't you display the Y-axis on the SAC chart? - SAP Community&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Nikhil&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/sac-charts-y-axis-line/qaa-p/14220938#M4926696"/>
-    <published>2025-09-18T09:07:27.263000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/how-to-create-and-upload-custom-business-objects/qaq-p/14220939</id>
-    <title>How to create and upload custom business objects</title>
-    <updated>2025-09-18T09:07:40.485000+02:00</updated>
-    <author>
-      <name>SAPSupport</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/121003</uri>
-    </author>
-    <content>&lt;P&gt;Dear Support,&lt;/P&gt;&lt;P&gt;Hello.&lt;/P&gt;&lt;P&gt;I have a question about Custom Business Object.&lt;/P&gt;&lt;P&gt;Is there a function to upload and create custom business objects?&lt;BR /&gt;&lt;BR /&gt;Since we need to register thousands of entries to a custom business object, this feature would be very helpful.&lt;/P&gt;&lt;BR /&gt;------------------------------------------------------------------------------------------------------------------------------------------------&lt;BR /&gt;&lt;B&gt;Learn more about the SAP Support user and program &lt;A target="_blank" href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/maximizing-the-power-of-sap-community-at-product-support/ba-p/13501276"&gt;here&lt;/A&gt;.&lt;/B&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/how-to-create-and-upload-custom-business-objects/qaq-p/14220939"/>
-    <published>2025-09-18T09:07:40.485000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/how-to-create-and-upload-custom-business-objects/qaa-p/14220940#M4227493</id>
     <title>Re: How to create and upload custom business objects</title>
@@ -1303,5 +1157,53 @@ define view entity ZVE_Z_JOURNAL_DATA
     <content>&lt;P&gt;You are working on Public cloud, you can extend with key user ext or developer ext.&amp;nbsp;&lt;/P&gt;&lt;P&gt;But the BAdI does not trigger for the new "Manage Sales Order - Version 2" fiori APP, only for the old tcode via HTML GUI &lt;span class="lia-unicode-emoji" title=":disappointed_face:"&gt;😞&lt;/span&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/sap-s-4hana-cloud-public-edition-abap-environment-case-2-customizing-sales/bc-p/14221128#M61862"/>
     <published>2025-09-18T12:10:18.361000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-architecture-blog-posts/custom-events-trigger-from-s-4-hana-to-sap-btp-event-mesh/bc-p/14221132#M896</id>
+    <title>Re: Custom events trigger from S/4 Hana to SAP BTP Event Mesh</title>
+    <updated>2025-09-18T12:14:41.896000+02:00</updated>
+    <author>
+      <name>Pratik_Ingawale</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/5793</uri>
+    </author>
+    <content>&lt;P&gt;Hello Bhamhani,&lt;BR /&gt;&lt;BR /&gt;&lt;SPAN&gt;I am doing a select query to fetch details from DB table, and passing the in ls_pnwtyh so that its available in Event payload.&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-architecture-blog-posts/custom-events-trigger-from-s-4-hana-to-sap-btp-event-mesh/bc-p/14221132#M896"/>
+    <published>2025-09-18T12:14:41.896000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/how-to-make-storage-location-field-read-only-in-co11n-screen-in-sap-s-4/qaq-p/14221140</id>
+    <title>How to make storage location field READ-ONLY in CO11N screen in SAP S/4 HANA PUBLIC EDITION?</title>
+    <updated>2025-09-18T12:21:28.413000+02:00</updated>
+    <author>
+      <name>SaiBhargav396</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1396297</uri>
+    </author>
+    <content>&lt;P&gt;Hi SAP Experts,&lt;/P&gt;&lt;P&gt;Could you please advise on how to make the &lt;STRONG&gt;Storage Location&lt;/STRONG&gt; field &lt;STRONG&gt;read-only&lt;/STRONG&gt; in the &lt;STRONG&gt;CO11N&lt;/STRONG&gt;&amp;nbsp;transaction, under the &lt;STRONG&gt;Goods Movement&lt;/STRONG&gt; tab&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="SaiBhargav396_0-1758190717755.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/316369i91C266638E87E281/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="SaiBhargav396_0-1758190717755.png" alt="SaiBhargav396_0-1758190717755.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;We would like to restrict manual editing of this field during confirmation.&lt;/P&gt;&lt;P&gt;Any guidance or suggestions would be greatly appreciated.&lt;/P&gt;&lt;P&gt;Thank you in advance for your support.&lt;/P&gt;&lt;P&gt;Regards,&lt;/P&gt;&lt;P&gt;Sai Bhargav&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/how-to-make-storage-location-field-read-only-in-co11n-screen-in-sap-s-4/qaq-p/14221140"/>
+    <published>2025-09-18T12:21:28.413000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sydney-events/sydney-sap-stammtisch-23-10-paragon-hotel/ev-p/14221145</id>
+    <title>Sydney SAP Stammtisch 23/10 (Paragon Hotel)</title>
+    <updated>2025-09-18T12:24:20.959000+02:00</updated>
+    <author>
+      <name>MikeDoyle</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/13892</uri>
+    </author>
+    <content>&lt;P&gt;The next #SAPStammtischSYD will be at The Paragon Hotel, Circular Quay on Thursday 23rd October&lt;/P&gt;&lt;P&gt;We had a &lt;A href="https://community.sap.com/t5/sydney-blog-posts/sydney-stammtisch-recap-2411/ba-p/13939856" target="_blank"&gt;great time at this venue last November&lt;/A&gt;. We'll be upstairs at The Garden Bar, which has a retractable roof (look for table 14).&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="GardenBarL.jpg" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/188270i46F33F8D00328A12/image-size/medium?v=v2&amp;amp;px=400" role="button" title="GardenBarL.jpg" alt="GardenBarL.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;They have a range of beers and other drinks, as well as decent pub food.&lt;/P&gt;&lt;P&gt;hotelparagon.com.au&lt;/P&gt;&lt;P&gt;The pub is just across the street from Circular Quay station, so ferries, trains and buses are close by. Wynyard is a easy stroll away.&lt;/P&gt;&lt;P&gt;We'll kick off at 5pm, but it's fine to join later on. Everyone's welcome, so please spread the word!&lt;/P&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/sydney-blog-posts/what-is-sydney-sap-stammtisch/ba-p/124746" target="_blank"&gt;https://community.sap.com/t5/sydney-blog-posts/what-is-sydney-sap-stammtisch/ba-p/124746&lt;/A&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/sydney-events/sydney-sap-stammtisch-23-10-paragon-hotel/ev-p/14221145"/>
+    <published>2025-09-18T12:24:20.959000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/how-to-set-up-the-email-notification-for-flexible-workflow-in-sap-s-4hana/bc-p/14221146#M72026</id>
+    <title>Re: How to Set Up the Email Notification for Flexible Workflow in SAP S/4HANA Cloud</title>
+    <updated>2025-09-18T12:24:57.446000+02:00</updated>
+    <author>
+      <name>rmz01</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/725901</uri>
+    </author>
+    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/141717"&gt;@KjetilKilhavn&lt;/a&gt;&amp;nbsp;I have copied an email template notify recipients with scenario&amp;nbsp;&lt;SPAN&gt;00800238. But emails are not sent to recipient upon PO creation.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/how-to-set-up-the-email-notification-for-flexible-workflow-in-sap-s-4hana/bc-p/14221146#M72026"/>
+    <published>2025-09-18T12:24:57.446000+02:00</published>
   </entry>
 </feed>
