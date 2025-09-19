@@ -2,195 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2025-09-19T11:00:02.811780+00:00</updated>
+  <updated>2025-09-19T14:00:03.521812+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/pm-order-attachments-downloads-from-sap-business-document-service-bds/ba-p/14200753</id>
-    <title>PM order attachments downloads from SAP Business Document Service - BDS</title>
-    <updated>2025-09-02T09:08:57.820000+02:00</updated>
-    <author>
-      <name>MiljanDjuric</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1533184</uri>
-    </author>
-    <content>&lt;P&gt;We develop simple program that enables the download of attachments linked to PM (Plant Maintenance) orders from the SAP Business Document Service (BDS). It confirms the PM order data from &lt;STRONG&gt;AUFK&lt;/STRONG&gt;, determines attachment relationships via &lt;STRONG&gt;BDS connection tables&lt;/STRONG&gt;, and exports the attached files (e.g., PDFs, JPGs, DOCs) to a specified local directory in a readable format. This tool enables download of multiple attachments per order and ensures that users can access and store PM-related documentation outside of SAP for reporting, analysis.&lt;BR /&gt;Take a note that this program does not provide download of attachments if they are saved in Generic Object Services. You can check you BDS tables:&amp;nbsp;BDS_CON00 |&amp;nbsp;CLASSNAME: '&lt;EM&gt;BUS2007&lt;/EM&gt;'&amp;nbsp;-&amp;gt;&amp;nbsp;OBJECT_KEY&amp;nbsp;(PM order),&amp;nbsp;OBJECT_KEY&amp;nbsp;-&amp;gt;&amp;nbsp;LOIO_ID, stored documents in final BDS_CONT1 table for confirmation of BDS use.&lt;BR /&gt;&lt;BR /&gt;Code base of our solution:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;*&amp;amp;---------------------------------------------------------------------*
-*&amp;amp; Report ypm_download_pm_attachments
-*&amp;amp;---------------------------------------------------------------------*
-*&amp;amp;
-*&amp;amp;---------------------------------------------------------------------*
-REPORT ypm_download_pm_attachments.
-
-TABLES: aufk.
-
-*----------------------------------------------------------------------*
-* SELECTION SCREEN
-*----------------------------------------------------------------------*
-SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
-*  PARAMETERS: p_aufnr TYPE aufk-aufnr OBLIGATORY, "PM Order Number
-  SELECT-OPTIONS s_aufnr FOR aufk-aufnr NO INTERVALS.
-
-  PARAMETERS:  p_path  TYPE string     OBLIGATORY. "Local Folder Path
-SELECTION-SCREEN END OF BLOCK b1.
-
-*----------------------------------------------------------------------*
-* EVENTS
-*----------------------------------------------------------------------*
-AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_path.
-  " Provide F4 help to browse for a local directory
-  cl_gui_frontend_services=&amp;gt;directory_browse(
-    EXPORTING
-      window_title    = 'Select a Folder'
-      initial_folder  = 'C:\'
-    CHANGING
-      selected_folder = p_path
-    EXCEPTIONS
-      cntl_error      = 1
-      OTHERS          = 2
-  ).
-  IF sy-subrc &amp;lt;&amp;gt; 0.
-    MESSAGE 'Could not open directory browser.' TYPE 'E'.
-  ENDIF.
-
-START-OF-SELECTION.
-  " Data declarations
-  DATA: lv_object_key TYPE bds_typeid,
-        lv_class_name TYPE bds_clsnam VALUE 'BUS2007', " Business Object for PM Order
-        lv_class_type TYPE bds_clstyp VALUE 'BO',      " Class Type for Business Object
-        lv_full_path  TYPE string,
-        lv_counter    TYPE i VALUE 0.
-
-  " This internal table will receive ALL document data and properties
-  DATA: lt_documents TYPE TABLE OF bapicompon.
-  DATA: lt_signatures TYPE TABLE OF bapisignat.
-  DATA: lt_content TYPE TABLE OF bapiconten.
-  DATA: ls_content LIKE LINE OF lt_content.
-  "This internal table will be used to fetch individual document content
-  DATA: lt_signatures_docs TYPE TABLE OF bapisignat.
-  DATA: lt_components_docs TYPE TABLE OF bapicompon.
-  DATA: ls_sig LIKE LINE OF lt_signatures.
-
-  LOOP AT s_aufnr INTO DATA(lr_aufnr). ""PM order number loop
-
-    "Validate PM Order existence
-    SELECT SINGLE aufnr FROM aufk
-      INTO &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1407137"&gt;@DATA&lt;/a&gt;(lv_aufnr)
-      WHERE aufnr = &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/12268"&gt;@LR&lt;/a&gt;_aufnr-low.
-
-    IF sy-subrc &amp;lt;&amp;gt; 0.
-      WRITE: / |Order '{ lr_aufnr-low }' not found in table AUFK.|.
-    ENDIF.
-
-    lv_object_key = lv_aufnr.
-
-    "Get ALL attachments and their data in a SINGLE call
-    REFRESH: lt_signatures, lt_documents, lt_content.
-    CALL FUNCTION 'BDS_BUSINESSDOCUMENT_GET_TAB'
-      EXPORTING
-        classname     = lv_class_name
-        classtype     = lv_class_type
-        object_key    = lv_object_key
-      TABLES
-        signature     = lt_signatures
-        components    = lt_documents
-        content       = lt_content
-      EXCEPTIONS
-        nothing_found = 1
-        OTHERS        = 2.
-
-    IF sy-subrc &amp;lt;&amp;gt; 0 OR lt_documents IS INITIAL.
-      WRITE: / |No attachments found for PM Order '{ lv_aufnr }'.|.
-    ENDIF.
-    WRITE: /.
-    WRITE: / |Downloading attachments for PM Order: { lv_aufnr }|.
-    ULINE.
-
-    DATA: ls_doc TYPE bapicompon.
-
-    "Loop through the returned documents table
-    LOOP AT lt_documents INTO ls_doc. ""Documents loop
-
-      REFRESH: lt_content, lt_signatures_docs, lt_components_docs.
-      CLEAR: ls_sig.
-
-      IF ls_doc-doc_count IS INITIAL.
-        " Skip if there is no content in the document
-        CONTINUE.
-      ENDIF.
-
-      AT NEW doc_count.
-
-        " Clear previous content tables
-        READ TABLE lt_signatures INTO ls_sig WITH KEY doc_count = ls_doc-doc_count.
-        IF  sy-subrc = 0.
-
-          CALL FUNCTION 'BDS_DOCUMENT_GET_TABLE'
-            EXPORTING
-*             CLIENT          = SY-MANDT
-              doc_id          = ls_sig-doc_id
-*             BINARY_FLAG     = 'X'
-            TABLES
-              signature       = lt_signatures_docs
-              components      = lt_components_docs
-              content         = lt_content
-*             ASCII_CONTENT   =
-            EXCEPTIONS
-              nothing_found   = 1
-              parameter_error = 2
-              not_allowed     = 3
-              error_kpro      = 4
-              internal_error  = 5
-              not_authorized  = 6
-              OTHERS          = 7.
-          IF sy-subrc &amp;lt;&amp;gt; 0.
-*error
-          ENDIF.
-
-        ENDIF.
-
-      ENDAT.
-
-      " The filename is available directly in the  COMP_ID field.
-      DATA(lv_file_name) = ls_doc-comp_id.
-
-      " Full local path and trigger the download
-      TRY.
-          lv_full_path = p_path &amp;amp;&amp;amp; '\' &amp;amp;&amp;amp; lv_aufnr &amp;amp;&amp;amp; '_' &amp;amp;&amp;amp; lv_file_name.
-
-          cl_gui_frontend_services=&amp;gt;gui_download(
-            EXPORTING
-              filename                = lv_full_path
-              filetype                = 'BIN' " Use binary mode for all file types
-            CHANGING
-              data_tab                = lt_content
-            EXCEPTIONS
-              file_write_error        = 1
-              no_batch                = 2
-              gui_refuse_filetransfer = 3
-              invalid_type            = 4
-              OTHERS                  = 5
-          ).
-
-          IF sy-subrc = 0.
-            ADD 1 TO lv_counter.
-            WRITE: / |SUCCESS: Downloaded '{ lv_file_name }'|.
-          ELSE.
-            WRITE: / |ERROR: Failed to download '{ lv_file_name }'. SY-SUBRC: { sy-subrc }|.
-          ENDIF.
-
-        CATCH cx_root.
-          MESSAGE 'A front-end services error occurred. Check your SAP GUI installation and authorizations.' TYPE 'E'.
-      ENDTRY.
-
-    ENDLOOP. ""Documents loop
-  ENDLOOP. ""PM order number loop
-
-  ULINE.
-  WRITE: / |Target Directory: { p_path }|.
-  WRITE: / |Download complete. Total files downloaded: { lv_counter }|.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;The program outputs all attachments into the selected folder, with the PM order number concatenated at the beginning of each file name.&lt;BR /&gt;&lt;BR /&gt;For archiving purposes different approach should be considered in order to be able to run program in background and have some kind of mass monitoring for successful downloads and logs. However, for quick download of few PM order's attachments this program could suffice.&lt;BR /&gt;I hope this saves some time to someone.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/pm-order-attachments-downloads-from-sap-business-document-service-bds/ba-p/14200753"/>
-    <published>2025-09-02T09:08:57.820000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/sort-order-of-segments-in-idoc-data-insert/ba-p/14205909</id>
     <title>Sort order of segments in IDOC_DATA_INSERT</title>
@@ -2602,5 +2417,17 @@ START-OF-SELECTION.
     <content>&lt;P&gt;&lt;STRONG&gt;SAP S/4 HANA: -&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;SAP S/4 HANA is the latest version of SAP. The full form of SAP S/4 HANA is SAP Business Suite 4th generation ERP High Performance Analytic Appliance.&lt;BR /&gt;There are 3 layers that are present in SAP namely:-&amp;nbsp;&amp;nbsp;&lt;BR /&gt;1. Presentation layer&lt;BR /&gt;2. Application Layer&lt;BR /&gt;3. Database Layer&lt;/P&gt;&lt;P&gt;In the 1990’s a new architecture was introduced, and it was R/3. In R/3 architecture we can observe the three layers namely presentation layer, application layer and database layer.&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;The speed of R/3 architecture is fast when compared with R/2 architecture. The algorithms in R/2 architecture were in the database layer whereas the algorithms in R/3 architecture are in the application layer. The database layer can be anyone like oracle, Microsoft etc...&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="neeraj_putluru_1-1757323146536.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/310999i2E0E2C137496BAC9/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="neeraj_putluru_1-1757323146536.png" alt="neeraj_putluru_1-1757323146536.png" /&gt;&lt;/span&gt;&lt;STRONG&gt;FIG : - R/3 Architecture&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;1. Presentation Layer:-&lt;BR /&gt;&lt;/STRONG&gt;&lt;SPAN&gt;The presentation layer is a screen where user can interact with the system. For example we can take Monitor of a computer or laptop screen. So for SAP it is&lt;STRONG&gt; GUI --&amp;gt; Graphical User Interface.&amp;nbsp;&lt;/STRONG&gt;Here user will interact with SAP data base with the help of SAP GUI which is a software that will be installed on laptops.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;2. Application Layer:-&lt;BR /&gt;&lt;/STRONG&gt;This is the main advantage of SAP R/3 architecture. Here it acts as like middle wear between presentation layer and database layer. Here it will process the user input , applies business rules and execute the programs in this layer.&lt;BR /&gt;Here in this layer it will collects all the details or actions that are being carried out by the user and interacts with the database system and represents them on the output screen.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Dispatcher:-&amp;nbsp;&lt;/STRONG&gt;Dispatcher will collects the request and will decide which type of request it is whether it is dialog, update, background, spool , enqueue. After getting to know about the spool request type it will also check for the work processor which is idle.&lt;BR /&gt;&lt;STRONG&gt;Work Processor:-&amp;nbsp;&lt;/STRONG&gt;After getting the request into work processor it will co-ordinate with the database management and will perform the operation or action on the database and will also gets a acknowledgement .&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;3. Database layer:-&amp;nbsp;&lt;BR /&gt;&lt;/STRONG&gt;After getting the request or command form the database management the database layer will process it and will update the request.&lt;/P&gt;&lt;P&gt;The below diagram is the in-depth process of how the database layer will function.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="neeraj_putluru_0-1757321618599.jpeg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/310974i243797FB2FADB038/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="neeraj_putluru_0-1757321618599.jpeg" alt="neeraj_putluru_0-1757321618599.jpeg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;DATABASE LAYER FUNCTION FLOW: -&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The request from the work processor will first enter into the session manager and the &lt;STRONG&gt;session manager&lt;/STRONG&gt; will makes user to automatic behaviour and transaction isolation level.&lt;/LI&gt;&lt;LI&gt;Once the request got established the request moves to the &lt;STRONG&gt;planning engine&lt;/STRONG&gt; which analyses SQL.&lt;/LI&gt;&lt;LI&gt;And here &lt;STRONG&gt;SQL engine&lt;/STRONG&gt; will runs the machine.&lt;/LI&gt;&lt;LI&gt;The &lt;STRONG&gt;transaction manager&lt;/STRONG&gt; assigns a transaction ID and ensures that every operation follows the principle, transactions to the SQL engine and data engine.&lt;/LI&gt;&lt;LI&gt;The &lt;STRONG&gt;data engine&lt;/STRONG&gt; takes over the user request and performs it on the database.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Index Server&lt;/STRONG&gt; → Executes SQL/MDX queries, does actual processing.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Name Server&lt;/STRONG&gt; → Knows &lt;EM&gt;where&lt;/EM&gt; the data lives.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Pre-processor&lt;/STRONG&gt; → Text &amp;amp; search.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;XS Engine&lt;/STRONG&gt; → Application services.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Persistence Layer&lt;/STRONG&gt; → Save points + logs.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="neeraj_putluru_2-1757326728977.jpeg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/311054iCF30853F3422ADFF/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="neeraj_putluru_2-1757326728977.jpeg" alt="neeraj_putluru_2-1757326728977.jpeg" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In 2015 the SAP S/4 HANA has been introduced and here the database is HANA, and this is SAP’S own database. The Hana database can also be called as in-memory database.&lt;/P&gt;&lt;P&gt;S/4 HANA is also called &lt;STRONG&gt;4th generation SAP&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;Versions of SAP S/4 HANA are released in the following years: -&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;VERSION&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;YY MM&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;1st Version of SAP S/4 HANA &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; 1511(2015 11th)&lt;/P&gt;&lt;P&gt;2nd Version of SAP S/4 HANA&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; 1610 (2016 10th)&lt;/P&gt;&lt;P&gt;3rd Version of SAP S/4 HANA&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; 1709(2019 9th)&lt;/P&gt;&lt;P&gt;4th Version of SAP S/4 HANA&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; 1809 (2018 9th)&lt;/P&gt;&lt;P&gt;5th Version of SAP S/4 HANA&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; 1909(2019 9th)&lt;/P&gt;&lt;P&gt;6th Version of SAP S/4 HANA &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; 2020 (YYYY)&lt;/P&gt;&lt;P&gt;7th Version of SAP S/4 HANA&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; 2021(YYYY)&lt;/P&gt;&lt;P&gt;8th Version of SAP S/4 HANA&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; 2022(YYYY)&lt;/P&gt;&lt;P&gt;9th Version of SAP S/4 HANA&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; 2023(YYYY)&lt;/P&gt;&lt;P&gt;SAP S/4 Hana works with Fiori NetWeaver GUI.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Advantages of sap s/4hana: &lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The performance and speed have been improved due to databases.&lt;/LI&gt;&lt;LI&gt;Embedded analytics have been embedded in sap s/4hana&lt;/LI&gt;&lt;LI&gt;In ECC we can only perform operations, and some extract basic reports can be extracted in ECC, but not more complex reports can be extracted, when it comes to s/4 Hana we can easily extract the complex reports easily.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;OLTP – Online Transaction processing (ECC) &lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;OLAP – Online Analytical Processing (BI/BW)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;OLTP + OLAP + Planning – SAP S/4 HANA &lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Planning -&amp;gt; &lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;MRP line&lt;/LI&gt;&lt;LI&gt;PD MRP&lt;/LI&gt;&lt;LI&gt;ATP (advanced available to promise)&lt;/LI&gt;&lt;LI&gt;PDS (production planning and detailed scheduling)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;SAP HANA: - &lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/STRONG&gt;This Hana is a database which is also called an in-memory database, and this provides or is capable of analytics, data models and library for code writing.&lt;/P&gt;&lt;P&gt;The HANA database can be accessed through &lt;STRONG&gt;HANA STUDIO.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SAP HANA: - &lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/STRONG&gt;This Hana is a database which is also called an in-memory database, and this provides or is capable of analytics, data models and library for code writing.&lt;/P&gt;&lt;P&gt;The HANA database can be accessed through &lt;STRONG&gt;HANA STUDIO.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SAP BW powered by HANA (BW for HANA): - &lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SIDE CAR: -&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; For suppose you have an ECC system which is working on any database and now you want to connect it with the HANA database then there will be a middle wear SLT which is a software brings the data from table to HANA database.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;HANA live is a tool which can be used to view the analytics of data.&lt;/LI&gt;&lt;LI&gt;Lumera system is a toll which is being used to represent or visualize the analytical data.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="neeraj_putluru_0-1758019300808.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/315105iF8AA8AA777E01A6F/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="neeraj_putluru_0-1758019300808.png" alt="neeraj_putluru_0-1758019300808.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Benefits of a side car: -&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Main cars are not being distributed.&lt;/LI&gt;&lt;LI&gt;It can be implemented in 1.5 to 2 months.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Drawback: -&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Data footprint increases:&lt;/STRONG&gt; - the data is being replicated from the production system to the side car so more space will be occupied.&lt;/LI&gt;&lt;LI&gt;The landscape is very complex.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;SAP BW POWERED BY HANA: -&lt;BR /&gt;&lt;/STRONG&gt;&amp;nbsp;It was introduced in 2012 and here the analytical can be obtained. The complex reports can be fetched within seconds only.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SAP BUSINESS SUIT POWERED BY SAP HANA: -&lt;BR /&gt;&lt;/STRONG&gt;It was introduced in 2013 in this enhancement pack (EHP 7 or and here the system is ECC, and the database is HANA.)&lt;/P&gt;&lt;P&gt;OLAP + OLTP.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SAP SIMPLE FINANCE POWERED BY SAP HANA: -&lt;BR /&gt;&lt;/STRONG&gt;ECC with HANA Database but the difference between this and SOH is only the fico module as they have simplified the data module for FICO and introduced Fiori apps separately for fico and &lt;STRONG&gt;ACDOCA&lt;/STRONG&gt; table which is single source of truth table.&lt;/P&gt;&lt;P&gt;Apart from fico modules the other modules will work as they were functioning in the same manner as ECC on any other database.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;S/4 HANA: -&lt;BR /&gt;&lt;/STRONG&gt;This was introduced in &lt;STRONG&gt;2015 &lt;/STRONG&gt;they have simplified the data model for all the modules. They have introduced MATDOC, ACDOCA table and innovations + Fiori apps for all the modules&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;APP_L&lt;/STRONG&gt; -&amp;gt; Technical application for ECC.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;S/4 core&lt;/STRONG&gt; -&amp;gt; Technical application for HANA.&lt;/P&gt;&lt;P&gt;So the above blog is a synopsis of how the 3 tier architecture will co ordinate with each other and performs the actions.&lt;/P&gt;&lt;P&gt;Feel free to comment.&lt;/P&gt;&lt;P&gt;Regards,&lt;BR /&gt;Neeraj.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/sap-s-4-hana-architecture-functional-flow/ba-p/14210760"/>
     <published>2025-09-18T11:52:37.027000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/reducing-weeks-to-minutes-ai-abap-and-low-code-in-sap-development/ba-p/14221758</id>
+    <title>Reducing Weeks to Minutes: AI, ABAP, and Low-Code in SAP Development</title>
+    <updated>2025-09-18T20:55:01.913000+02:00</updated>
+    <author>
+      <name>rogeriobalassiano</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/718349</uri>
+    </author>
+    <content>&lt;H2 id="toc-hId-1760868172"&gt;Introduction&lt;/H2&gt;&lt;P&gt;The creation of SAP applications has always required a combination of technical and functional knowledge. In many scenarios, ABAP developers need to master SAPUI5 to deliver modern, SAP Fiori-style applications that meet end-user expectations.&lt;/P&gt;&lt;P&gt;However, the integration of &lt;STRONG&gt;Artificial Intelligence (AI) tools&lt;/STRONG&gt; with &lt;STRONG&gt;low-code platforms&lt;/STRONG&gt; opens a new path: enabling ABAP developers to build complete applications without needing SAPUI5 knowledge, while still allowing continuous maintenance in a simple and secure way.&lt;/P&gt;&lt;P&gt;Tachyonix has developed an innovative approach that transforms business specifications into technical specifications through specialized AI tools, significantly accelerating the development process and drastically reducing delivery time.&lt;/P&gt;&lt;H2 id="toc-hId-1564354667"&gt;Architecture&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Slide1.PNG" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/316673iA6727980214CE4C6/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Slide1.PNG" alt="Slide1.PNG" /&gt;&lt;/span&gt;&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Flow with LLM&lt;BR /&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Slide2.PNG" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/316674iC5429CCDF4A117EA/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Slide2.PNG" alt="Slide2.PNG" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Flow with Tachyonix Builder&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1367841162"&gt;How ABAP Integration with AI Works&lt;/H2&gt;&lt;P&gt;The flow begins with a specification provided by the user. For example: &lt;EM&gt;“I need a report that shows pending sales orders.”&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;From this request, different AI tools are triggered (these are some examples):&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;ABAP Package Tool&lt;/STRONG&gt;: identifies the correct technical package where the application will be created.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Data Source Tool&lt;/STRONG&gt;: selects the best source of data, indicating one or more relevant CDS Views.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Field Retrieval Tool&lt;/STRONG&gt;: suggests the most appropriate fields to compose the application’s main list, based on the user’s description.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Floorplan Tool&lt;/STRONG&gt;: recommends the visual structure of the application (for example, &lt;EM&gt;Master-Detail&lt;/EM&gt;).&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;After these agents work together, a consolidated &lt;STRONG&gt;JSON&lt;/STRONG&gt; containing the full technical specification is generated. This artifact is then used by the application creation agent:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Application Creation Tool&lt;/STRONG&gt;: automatically builds the application according to the selected floorplan and the technical specifications provided by the other tools.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This flow allows complete applications to be created without manual programming, while still adhering to SAP best practices and design standards.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1171327657"&gt;Integration with the Tachyonix Low-Code Platform&lt;/H2&gt;&lt;P&gt;The main differentiator lies in the integration of this automation with the Tachyonix low-code platform. The generated application is not delivered as rigid, hard-to-maintain source code. On the contrary — it remains fully editable and extensible, allowing ABAP developers to continue evolving the solution without dealing directly with SAPUI5 or JavaScript.&lt;/P&gt;&lt;P&gt;This approach differs from what is sometimes called &lt;EM&gt;vibe-coding&lt;/EM&gt;, in which an LLM directly generates source code. In the Tachyonix model, the LLM does not generate code. Instead, it produces structured technical specifications, which are then processed by a creation agent. This design ensures:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Security and predictability&lt;/STRONG&gt; of the result.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Ease of maintenance and customization.&lt;/STRONG&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;No risks&lt;/STRONG&gt; associated with unreadable or unsupportable generated code.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-974814152"&gt;Practical Advantages&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Speed&lt;/STRONG&gt;: a process that could take weeks is reduced to minutes.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Productivity&lt;/STRONG&gt;: developers spend only a few hours making final adjustments and personalizations.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Accessibility&lt;/STRONG&gt;: even without SAPUI5 expertise, ABAP developers can deliver modern applications.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Flexibility&lt;/STRONG&gt;: applications evolve continuously within the low-code platform, without technical barriers.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-778300647"&gt;Knowledge Graph as AI Support&lt;/H2&gt;&lt;P&gt;At the time of writing this article, SAP Joule does not yet provide a public API for external consumption. For this reason, Tachyonix developed its own &lt;STRONG&gt;Knowledge Graph&lt;/STRONG&gt;, which brings together SAP business scenarios.&lt;/P&gt;&lt;P&gt;This repository is used as a &lt;STRONG&gt;Retrieval-Augmented Generation (RAG)&lt;/STRONG&gt; mechanism, ensuring that the LLM always has access to reliable, contextual information throughout the process.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-581787142"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;The combination of &lt;STRONG&gt;ABAP tools&lt;/STRONG&gt; with a &lt;STRONG&gt;low-code platform&lt;/STRONG&gt; represents a significant step forward for the ABAP community. This approach does not replace the developer — it empowers them. With it, value can be delivered faster, more securely, and more sustainably, even without SAPUI5 knowledge.&lt;/P&gt;&lt;P&gt;In a market where &lt;STRONG&gt;time is a competitive advantage&lt;/STRONG&gt;, solutions like Tachyonix reduce development cycles from weeks to minutes and establish a new paradigm for SAP application development.&lt;BR /&gt;&lt;BR /&gt;As we are discussing AI, I leveraged HeyGen, an AI-based video creator, to demonstrate the process&lt;BR /&gt;Link:&amp;nbsp;&lt;A href="https://youtu.be/_VPU-Dps0sA" target="_blank" rel="noopener nofollow noreferrer"&gt;https://youtu.be/_VPU-Dps0sA&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/reducing-weeks-to-minutes-ai-abap-and-low-code-in-sap-development/ba-p/14221758"/>
+    <published>2025-09-18T20:55:01.913000+02:00</published>
   </entry>
 </feed>
