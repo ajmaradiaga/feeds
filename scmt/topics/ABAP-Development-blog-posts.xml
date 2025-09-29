@@ -2,258 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2025-09-29T20:00:02.612545+00:00</updated>
+  <updated>2025-09-29T23:00:02.619869+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/abap-salv-table-with-checkbox-column-select-deselect-all-and-email-export/ba-p/14218665</id>
-    <title>ABAP SALV Table with Checkbox Column, Select/Deselect All, and Email Export Functionality</title>
-    <updated>2025-09-17T12:39:28.116000+02:00</updated>
-    <author>
-      <name>manijangiti</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2174619</uri>
-    </author>
-    <content>&lt;P&gt;Hi all,&lt;/P&gt;&lt;P&gt;I have developed an ABAP report that displays employee data in a SALV table with a checkbox column. Users can select/deselect rows using custom toolbar buttons, and send the selected data as an Excel attachment via email.&lt;/P&gt;&lt;P&gt;The SALV table includes clickable checkboxes that toggle selection, and I handle user commands for selecting all, deselecting all, and sending email.&lt;/P&gt;&lt;P&gt;Please review the code below. Any suggestions on improving performance, best practices, or adding additional features would be appreciated!&lt;/P&gt;&lt;P&gt;Thank you!&lt;BR /&gt;&lt;STRONG&gt;Tcode&lt;/STRONG&gt; :SE41&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="manijangiti_1-1758024872694.png" style="width: 535px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/315140i61B5FA0E2B3ED74A/image-dimensions/535x396/is-moderation-mode/true?v=v2" width="535" height="396" role="button" title="manijangiti_1-1758024872694.png" alt="manijangiti_1-1758024872694.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Create a PF Status&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="manijangiti_2-1758024932106.png" style="width: 649px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/315141iFD679A6FD20F693E/image-dimensions/649x330/is-moderation-mode/true?v=v2" width="649" height="330" role="button" title="manijangiti_2-1758024932106.png" alt="manijangiti_2-1758024932106.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;REPORT zsalv_factory_disply_checkbox.
-
-" Type definition for internal table representing employee data with a checkbox
-TYPES: BEGIN OF t_zemployee,
-         checkbox       TYPE c LENGTH 1,                " Checkbox for selection
-         employee_id    TYPE zemploye-employee_id,     " Employee ID
-         company_code   TYPE zemploye-company_code,    " Company code
-         bankid         TYPE zemploye-bankid,          " Bank ID
-         insurance_id   TYPE zemploye-insurance_id,    " Insurance ID
-         empname        TYPE zemploye-empname,         " Employee Name
-         remarks        TYPE zemploye-remarks,         " Remarks
-         date_of_join   TYPE zemploye-date_of_join,     " Date of Joining
-         date_of_resign TYPE zemploye-date_of_resign,  " Date of Resignation
-         salary         TYPE zemploye-salary,           " Salary
-         currency       TYPE zemploye-currency,         " Currency
-         commission     TYPE zemploye-commission,       " Commission
-         currency23     TYPE zemploye-currency23,       " Additional Currency
-       END OF t_zemployee.
-
-" Global internal tables to hold employee data and selected records
-DATA: gt_data  TYPE STANDARD TABLE OF t_zemployee,
-      seleted  TYPE STANDARD TABLE OF t_zemployee,
-      gv_repid TYPE sy-repid VALUE sy-repid.
-
-CLASS lcl_app DEFINITION.
-  PUBLIC SECTION.
-    CLASS-METHODS:
-      get_data,                        " Fetch data from DB into internal table
-      display_data,                    " Display SALV table with checkbox
-      refresh_display,                 " Refresh the SALV table display
-      send_email,                     " Send selected data as email attachment
-      convert_itab_to_xls_xstring     " Convert internal table to XLS XSTRING
-        RETURNING VALUE(rv_xstring) TYPE xstring,
-      on_link_click FOR EVENT link_click OF cl_salv_events_table
-        IMPORTING row column,         " Event handler for checkbox click
-      handle_user_command FOR EVENT added_function OF cl_salv_events_table
-        IMPORTING e_salv_function.    " Handler for custom toolbar functions
-
-  PRIVATE SECTION.
-    CLASS-DATA: gr_table TYPE REF TO cl_salv_table.   " Reference to SALV table object
-ENDCLASS.
-
-CLASS lcl_app IMPLEMENTATION.
-
-  " Method to fetch employee data from database and initialize checkbox field
-  METHOD get_data.
-    IF gt_data IS INITIAL.
-      SELECT * FROM zemploye INTO CORRESPONDING FIELDS OF TABLE gt_data.
-      LOOP AT gt_data ASSIGNING FIELD-SYMBOL(&amp;lt;fs&amp;gt;).
-        &amp;lt;fs&amp;gt;-checkbox = ''.  " Initialize checkbox as empty (unchecked)
-      ENDLOOP.
-    ENDIF.
-  ENDMETHOD.
-
-  " Method to display the SALV table with checkbox and event handlers
-  METHOD display_data.
-    lcl_app=&amp;gt;get_data( ).  " Load data
-
-    IF gr_table IS INITIAL.
-      TRY.
-          cl_salv_table=&amp;gt;factory(
-            IMPORTING r_salv_table = gr_table
-            CHANGING  t_table      = gt_data ).
-        CATCH cx_salv_msg INTO DATA(lx).
-          MESSAGE lx-&amp;gt;get_text( ) TYPE 'E'.
-          RETURN.
-      ENDTRY.
-
-      " Enable all standard functions in SALV toolbar
-      gr_table-&amp;gt;get_functions( )-&amp;gt;set_all( ).
-
-      TRY.
-          " Set custom GUI status with custom functions (PF-STATUS 'ZTOOLBAR')
-          gr_table-&amp;gt;set_screen_status(
-            EXPORTING
-              report        = gv_repid
-              pfstatus      = 'ZTOOLBAR'
-              set_functions = gr_table-&amp;gt;c_functions_all ).
-        CATCH cx_salv_msg.
-      ENDTRY.
-
-      " Set checkbox column as hotspot to allow click events
-      DATA lr_columns TYPE REF TO cl_salv_columns_table.
-      DATA lr_column  TYPE REF TO cl_salv_column_table.
-      lr_columns = gr_table-&amp;gt;get_columns( ).
-      lr_columns-&amp;gt;set_optimize( abap_true ).
-
-      TRY.
-          lr_column ?= lr_columns-&amp;gt;get_column( 'CHECKBOX' ).
-          lr_column-&amp;gt;set_cell_type( if_salv_c_cell_type=&amp;gt;checkbox_hotspot ).
-          lr_column-&amp;gt;set_short_text( 'Select' ).
-        CATCH cx_salv_not_found.
-      ENDTRY.
-
-      " Register event handlers for checkbox clicks and user commands
-      DATA lo_events TYPE REF TO cl_salv_events_table.
-      lo_events = gr_table-&amp;gt;get_event( ).
-      SET HANDLER lcl_app=&amp;gt;on_link_click FOR lo_events.
-      SET HANDLER lcl_app=&amp;gt;handle_user_command FOR lo_events.
-
-    ELSE.
-      " Refresh SALV table if already created
-      gr_table-&amp;gt;refresh( ).
-    ENDIF.
-
-    gr_table-&amp;gt;display( ).
-  ENDMETHOD.
-
-  " Refresh display wrapper method
-  METHOD refresh_display.
-    lcl_app=&amp;gt;display_data( ).
-  ENDMETHOD.
-
-  " Event handler to toggle checkbox on clicking checkbox cell
-  METHOD on_link_click.
-    FIELD-SYMBOLS: &amp;lt;fs&amp;gt; TYPE t_zemployee.
-    READ TABLE gt_data ASSIGNING &amp;lt;fs&amp;gt; INDEX row.
-    IF sy-subrc = 0.
-      IF &amp;lt;fs&amp;gt;-checkbox = 'X'.
-        &amp;lt;fs&amp;gt;-checkbox = ''.
-      ELSE.
-        &amp;lt;fs&amp;gt;-checkbox = 'X'.
-      ENDIF.
-    ENDIF.
-    lcl_app=&amp;gt;refresh_display( ).
-  ENDMETHOD.
-
-  " Convert selected internal table data to XLS XSTRING format for attachment
-  METHOD convert_itab_to_xls_xstring.
-    TRY.
-        cl_salv_table=&amp;gt;factory(
-          EXPORTING
-            list_display = abap_false
-          IMPORTING
-            r_salv_table = DATA(lo_salv_table)
-          CHANGING
-            t_table      = seleted ).
-      CATCH cx_salv_msg INTO DATA(lx_mail).
-        MESSAGE lx_mail TYPE 'E'.
-    ENDTRY.
-
-    rv_xstring = lo_salv_table-&amp;gt;to_xml( xml_type = if_salv_bs_xml=&amp;gt;c_type_xlsx ).
-  ENDMETHOD.
-
-  " Send email with the selected employee data as an Excel attachment
-  METHOD send_email.
-    TRY.
-        " Create persistent email object
-        DATA(lo_mail) = cl_bcs=&amp;gt;create_persistent( ).
-
-        " Sender email address
-        DATA(lo_sender_address) = cl_cam_address_bcs=&amp;gt;create_internet_address(
-                                    i_address_string = 'maniyadav2585@gmail.com' ).
-        lo_mail-&amp;gt;set_sender( lo_sender_address ).
-
-        " Recipient email address
-        DATA(recipient_address) = cl_cam_address_bcs=&amp;gt;create_internet_address(
-                                    i_address_string = 'maniyadav2585@gmail.com' ).
-        lo_mail-&amp;gt;add_recipient( i_recipient = recipient_address ).
-
-        " Create email document with subject and body text
-        DATA(lo_document) = cl_document_bcs=&amp;gt;create_document(
-                              i_type    = 'htm'
-                              i_subject = `Excel Attachment`
-                              i_text    = VALUE #( ( CONV #( 'Excel Attachment' ) ) )
-                              i_sender  = lo_sender_address ).
-
-        " Convert selected data to XLS format for attachment
-        DATA(lv_excel_data) = convert_itab_to_xls_xstring( ).
-
-        " Add the Excel attachment
-        lo_document-&amp;gt;add_attachment(
-          i_attachment_type     = 'XLS'
-          i_attachment_subject  = 'Employee Information'
-          i_attachment_size     = xstrlen( lv_excel_data )
-          i_att_content_hex     = cl_bcs_convert=&amp;gt;xstring_to_solix( lv_excel_data ) ).
-
-        lo_mail-&amp;gt;set_document( lo_document ).
-        lo_mail-&amp;gt;set_send_immediately( abap_true ).
-
-        " Send the email
-        DATA(lv_send_success) = lo_mail-&amp;gt;send( ).
-        COMMIT WORK.
-
-      CATCH cx_send_req_bcs cx_address_bcs cx_document_bcs INTO DATA(lx_mail).
-        MESSAGE lx_mail TYPE 'E'.
-    ENDTRY.
-  ENDMETHOD.
-
-  " Handle custom toolbar commands (Select All, Deselect All, Send, Back)
-  METHOD handle_user_command.
-    FIELD-SYMBOLS: &amp;lt;fs&amp;gt; TYPE t_zemployee.
-    DATA lv_count TYPE i VALUE 0.
-
-    CASE e_salv_function.
-      WHEN 'SELALL'.
-        LOOP AT gt_data ASSIGNING &amp;lt;fs&amp;gt;.
-          &amp;lt;fs&amp;gt;-checkbox = 'X'.
-        ENDLOOP.
-        lcl_app=&amp;gt;refresh_display( ).
-
-      WHEN 'DESALL'.
-        LOOP AT gt_data ASSIGNING &amp;lt;fs&amp;gt;.
-          &amp;lt;fs&amp;gt;-checkbox = ''.
-        ENDLOOP.
-        lcl_app=&amp;gt;refresh_display( ).
-
-      WHEN 'SEND'.
-        " Collect selected records for sending
-        LOOP AT gt_data ASSIGNING &amp;lt;fs&amp;gt; WHERE checkbox = 'X'.
-          lv_count = lv_count + 1.
-          APPEND &amp;lt;fs&amp;gt; TO seleted.
-        ENDLOOP.
-
-        IF lv_count = 0.
-          MESSAGE 'Please select at least one record before sending.' TYPE 'E'.
-          RETURN.
-        ENDIF.
-
-        lcl_app=&amp;gt;convert_itab_to_xls_xstring( ).
-        lcl_app=&amp;gt;send_email( ).
-
-        IF sy-subrc = 0.
-          MESSAGE |{ lv_count } row(s) selected and sent.| TYPE 'S'.
-        ENDIF.
-
-      WHEN 'BACK'.
-        LEAVE TO SCREEN 0.
-    ENDCASE.
-  ENDMETHOD.
-
-ENDCLASS.
-
-" Program starts here
-START-OF-SELECTION.
-  SET PF-STATUS 'ZTOOLBAR'.  " Set custom toolbar with your custom functions
-  lcl_app=&amp;gt;display_data( ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;OutPut:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="manijangiti_0-1758024807559.png" style="width: 712px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/315139i59D0CAB15A7A4418/image-dimensions/712x251/is-moderation-mode/true?v=v2" width="712" height="251" role="button" title="manijangiti_0-1758024807559.png" alt="manijangiti_0-1758024807559.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Connectivity/pd-p/266264953119842772207986043063520" class="lia-product-mention" data-product="313-1"&gt;ABAP Connectivity&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/abap-salv-table-with-checkbox-column-select-deselect-all-and-email-export/ba-p/14218665"/>
-    <published>2025-09-17T12:39:28.116000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/sap-s-4hana-table-maintenance-reimagined-choosing-the-right-framework/ba-p/14218970</id>
     <title>SAP S/4HANA Table Maintenance Reimagined: Choosing the Right Framework</title>
@@ -1679,5 +1431,17 @@ ENDIF.&lt;/code&gt;&lt;/pre&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Wrapper Functio
     <content>&lt;P&gt;On September 26, 2025, IBM has released version 1.4.0 of its ABAP® Software Development Kit (SDK) for IBM® watsonx™ services. The &lt;A href="https://www.ibm.com/products/watsonx-ai" target="_self" rel="nofollow noopener noreferrer"&gt;watsonx.ai&lt;/A&gt; service can be used to train, validate, tune, and deploy foundation and machine learning models. The &lt;A href="https://cloud.ibm.com/catalog/services/watsonxai-runtime" target="_self" rel="nofollow noopener noreferrer"&gt;watsonx.ai Runtime&lt;/A&gt; is used to build, run and manage generative AI and machine learning applications with built-in performance and scalabilityThe ABAP SDK provides a class library that can be downloaded to SAP systems using &lt;A href="https://abapgit.org/" target="_self" rel="nofollow noopener noreferrer"&gt;abapGit&lt;/A&gt; and comes in two flavors:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://github.com/IBM/abap-sdk-nwas-x" target="_self" rel="nofollow noopener noreferrer"&gt;ABAP SDK for IBM watsonx, using SAP NetWeaver&lt;/A&gt; for the SAP Business Suite running on SAP NetWeaver 7.50 or above and for the SAP S/4HANA on-premises edition.&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://github.com/IBM/abap-sdk-btp-x" target="_self" rel="nofollow noopener noreferrer"&gt;ABAP SDK for IBM watsonx, using SAP BTP ABAP Environment&lt;/A&gt; for the SAP Business Technology Platform ABAP Environment.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Enhancements in this release include new watsonx.ai methods in the groups Prompt Sessions and Prompts. More information about the changes in version 1.4.0 can be found in the repositories in the migration document &lt;A href="https://github.com/IBM/abap-sdk-nwas-x/blob/main/MIGRATION-V1.4.0.md" target="_self" rel="nofollow noopener noreferrer"&gt;MIGRATION-V1.4.0.md&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;Detailed information on how to setup and use the SDK can be found in the README.md files of the GitHub repositories. The README.md files also provide two comprehensive examples to show how the supported services can be used. An even more elaborated article about how use watsonx services with the ABAP SDK can be found in Joachim Rese's blog article &lt;A href="https://community.sap.com/t5/application-development-blog-posts/how-to-bring-generative-ai-to-your-abap-program-using-the-abap-sdk-for-ibm/ba-p/13694067" target="_self"&gt;How to Bring Generative AI to Your ABAP Program Using the ABAP SDK for IBM watsonx&lt;/A&gt;.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-abap-sdk-for-ibm-watsonx-v1-4-0-released/ba-p/14230743"/>
     <published>2025-09-29T16:50:19.279000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/abap-general-blog-posts/smart-debugger/ba-p/14231014</id>
+    <title>Smart Debugger</title>
+    <updated>2025-09-29T23:51:26.297000+02:00</updated>
+    <author>
+      <name>yury_sichov</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/200363</uri>
+    </author>
+    <content>&lt;P&gt;Hello everyone. I invented a new&lt;A href="https://github.com/ysichov/Smart-Debugger" target="_self" rel="nofollow noopener noreferrer"&gt; Abap debugger&lt;/A&gt; ) This is an &lt;A href="https://github.com/ysichov/Smart-Debugger/blob/master/src/z_smart_debugger_test.prog.abap" target="_self" rel="nofollow noopener noreferrer"&gt;ABAP Script&lt;/A&gt; which can be used like addon to the standard debugger.&lt;/P&gt;&lt;P&gt;The main feature is that&amp;nbsp;&lt;SPAN&gt;&amp;nbsp;it can work as debugger time machine which store every variables changes on every steps and show it in convenient format. Usuful to analyse deep structures, several tables simultaneously and search changes in the past!&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Instance variables, structures and deep structures are shown as&amp;nbsp; hierarchiсal trees so we can have a 'helicopter view' for all variables at any step! Double-click on any table variable or table inside a deep structure will show it in separate window! And we don't have no limitations for windows quantity. If you have a big display you can open more then 10 tables simultaneously and analyse it!&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="deep.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/321385i2DD6CDE8A9D9199E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="deep.png" alt="deep.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Also it can show &lt;A href="https://github.com/WegnerDan/abapMermaid" target="_self" rel="nofollow noopener noreferrer"&gt;mermaid&lt;/A&gt; diagram with calls execution or draw execution flow&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Stack calls" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/321372i4CC82D2F14B0A223/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="ice.jfif" alt="Stack calls" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Stack calls&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;After double-click on any variable it works as watchpoint and collects not only selected variables but dependents also (forms/methods/functions call). Button "Calculation Flow" will paint all steps in the code where variables were changed and paints Mermaid diagram for it.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The main profit for me is to getting calculation history quick. As I am an HR developer I tested salary calculations cases. In the classic debugger I can set a watchpoint. But in real program variables names are altered by calls. I name it outer and inners names. And in real debugging I should find manually all that altering to get the origin of all calculations. With Smart Debugger I get calculations history immediately because it can track all that names changes and can collect history path for selected variable by me.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="calc.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/321376i361A8008B388948E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="calc.png" alt="calc.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://github.com/ysichov/Smart-Debugger/blob/master/Z_SDDE_mermaid" target="_self" rel="nofollow noopener noreferrer"&gt;Mermaid version is here&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;We can Set/Delete Session/External breakpoints and run standard debug buttons( F5. F6, F7, F8). Also we can get back to the past steps and see variables state at that moment.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;So set break-points in any abap code and run. After break-point is triggered, go to the last tab "script" and paste the script.&amp;nbsp;Choose radio button "Execute directly" and press "Start Script" button.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="start.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/321386i676776CC08C8038A/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="start.png" alt="start.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Feel free to open any issue or Idea/requests for changes.&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/abap-general-blog-posts/smart-debugger/ba-p/14231014"/>
+    <published>2025-09-29T23:51:26.297000+02:00</published>
   </entry>
 </feed>
