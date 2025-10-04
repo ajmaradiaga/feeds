@@ -2,647 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-RESTful-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2025-10-04T20:00:07.362675+00:00</updated>
+  <updated>2025-10-04T23:00:07.068249+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/a-simple-example-of-a-sap-rap-application-based-on-legacy-api-without-uuid/ba-p/14184282</id>
-    <title>A simple example of a SAP RAP Application based on Legacy API without UUID keys</title>
-    <updated>2025-09-01T11:19:39.744000+02:00</updated>
-    <author>
-      <name>cseijas</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/102138</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-1608782083"&gt;Introduction&lt;/H1&gt;&lt;P&gt;In SAP RAP, it is very easy to develop an application when the entities involved use UUIDs as keys. However, there are lots of legacy APIs and data models that does not have these type of keys. Usually this legacy APIs have the following characteristics in common:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;They have a CREATE operation that generates the entity (and subentities) in one call. The successful execution of this create operation generates the new entity Id (e.g.&amp;nbsp;BAPI_PO_CREATE1 with internal numbering)&lt;/LI&gt;&lt;LI&gt;They have an UPDATE operation that changes the entity (and subentities) in one call. Usually this operation contains&amp;nbsp; BAPIUPDATE structures to indicate which fields are being changed (e.g.&amp;nbsp;BAPI_PO_CHANGE).&lt;/LI&gt;&lt;LI&gt;Somentimes they have a DELETE operation.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Although RAP framework allows to reuse these objects, I had some doubts when implementing my first real cases (when to call each API Operation, for example), so I write this blog in order to summarize my findings and provide a simple example of an RAP application with a UI that allows to execute CRUD operations in an entity that has a Legacy API to maintain it.&amp;nbsp;&lt;/P&gt;&lt;P&gt;In order to keep things simple and do not depend in the specific configuration of any system, the development has been based in the Unmanaged Transactional App example of the ABAP Restful Programming Model Documentation (&lt;A href="https://help.sap.com/docs/ABAP_PLATFORM_NEW/fc4c71aa50014fd1b43721701471913d/f6cb3e3402694f5585068e5e5161a7c1.html?locale=en-US" target="_self" rel="noopener noreferrer"&gt;Developing Unmanaged Transactional Apps&lt;/A&gt;), although in our case we will implement a managed app with unmanaged save and late numbering. Also, only the relevant elements for the example have been included in this article, not covering other elements that are similar to the Unmanaged Transactional App Example (Behavior Projection, Projection Views, Metadata Extensions, etc...). The complete source code of the application can be found in this GitHub repository:&amp;nbsp;&lt;A href="https://github.com/cesarsn/RAP-LateNumbering-UnmanagedSave.git" target="_self" rel="nofollow noopener noreferrer"&gt;https://github.com/cesarsn/RAP-LateNumbering-UnmanagedSave.git&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Mor information can be found in the following blogs that were used as reference along with SAP Help:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/using-bapis-in-rap/ba-p/13560875" target="_self"&gt;Using BAPIs in RAP&lt;/A&gt;&amp;nbsp;by Marcel Hermanns&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/exposing-bapi-as-odata-api-using-rap-facade/ba-p/13571926" target="_self"&gt;Exposing BAPI as OData API using RAP Facade&lt;/A&gt;&amp;nbsp; by Marcel Wahl&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1412268578"&gt;Legacy Data Model&lt;/H1&gt;&lt;P&gt;As was stated previously, in order to do the example, we will use the Flight Reference Scenario of SAP RAP (&lt;A href="https://github.com/SAP-samples/abap-platform-refscen-flight" target="_self" rel="nofollow noopener noreferrer"&gt;https://github.com/SAP-samples/abap-platform-refscen-flight&lt;/A&gt;), using the legacy objects that are defined in package&amp;nbsp;/DMO/FLIGHT_LEGACY.&amp;nbsp;&amp;nbsp;We will use the following API function modules to maintain Travels (table&amp;nbsp;/DMO/TRAVEL) and Bookings (table /DMO/BOOKING):&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;/DMO/FLIGHT_TRAVEL_CREATE: creates a new travel (and bookings).&lt;/LI&gt;&lt;LI&gt;/DMO/FLIGHT_TRAVEL_UPDATE: updates a travel (and its bookings)&lt;/LI&gt;&lt;LI&gt;/DMO/FLIGHT_TRAVEL_DELETE: deletes a travel (and its bookings)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;For this example, we will&amp;nbsp;try to avoid numbering gaps when creating travels, and&amp;nbsp; the user should be allowed to manually inform the booking id during creation of a new booking (similar to giving the item id for the Purchase Order or Sales Order), with the system proposing next booking id to be used.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1215755073"&gt;RAP Entities&lt;/H1&gt;&lt;H3 id="toc-hId-1277407006"&gt;Travel data&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Travel data'
-@Metadata.ignorePropagatedAnnotations: true
-define root view entity ZI_Travel_U_CSN 
-  as select from /dmo/travel as Travel -- the travel table is the data source for this view
-  composition [0..*] of ZI_Booking_U_CSN as _Booking
-  association [0..1] to /DMO/I_Agency    as _Agency   on $projection.AgencyID = _Agency.AgencyID
-  association [0..1] to /DMO/I_Customer  as _Customer on $projection.CustomerID = _Customer.CustomerID
-  association [0..1] to I_Currency       as _Currency on $projection.CurrencyCode = _Currency.Currency
-  association [1..1] to /DMO/I_Travel_Status_VH as _TravelStatus on $projection.Status = _TravelStatus.TravelStatus
-{
-    
-  key Travel.travel_id     as TravelID,
-      Travel.agency_id     as AgencyID,
-      Travel.customer_id   as CustomerID,
-      Travel.begin_date    as BeginDate,
-      Travel.end_date      as EndDate,    
-      @Semantics.amount.currencyCode: 'CurrencyCode'
-      Travel.booking_fee   as BookingFee,
-      @Semantics.amount.currencyCode: 'CurrencyCode'
-      Travel.total_price   as TotalPrice,
-      Travel.currency_code as CurrencyCode,
-      Travel.description   as Memo,
-      Travel.status        as Status,
-      @Semantics.systemDateTime.localInstanceLastChangedAt: true 
-      cast( '0' as abp_locinst_lastchange_tstmpl ) as LocalLastChangeDateTime,
-      Travel.createdat as CreatedAt,
-      Travel.createdby as CreatedBy,
-      Travel.lastchangedat as LastChangedAt,
-      Travel.lastchangedby as LastChangedBy,
-      /* Associations */
-      _Booking,
-      _Agency,
-      _Customer,
-      _Currency,
-      _TravelStatus
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;It has been added a fixed value for attribute&amp;nbsp;LocalLastChangeDateTime as this will be the local Etag field that will be used in draft entity.&lt;/P&gt;&lt;H3 id="toc-hId-1080893501"&gt;Booking Data&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Booking data'
-@Metadata.ignorePropagatedAnnotations: true
-define view entity ZI_Booking_U_CSN 
-  as select from /dmo/booking as Booking
-  association        to parent ZI_Travel_U_CSN     as _Travel     on  $projection.TravelID = _Travel.TravelID
-  association [1..1] to /DMO/I_Customer            as _Customer   on  $projection.CustomerID = _Customer.CustomerID
-  association [1..1] to /DMO/I_Carrier             as _Carrier    on  $projection.AirlineID = _Carrier.AirlineID
-  association [1..1] to /DMO/I_Connection          as _Connection on  $projection.AirlineID    = _Connection.AirlineID
-                                                                  and $projection.ConnectionID = _Connection.ConnectionID
-{
-  key Booking.travel_id     as TravelID,
-  key Booking.booking_id    as BookingID,
-      Booking.booking_date  as BookingDate,
-      Booking.customer_id   as CustomerID,
-      Booking.carrier_id    as AirlineID,
-      Booking.connection_id as ConnectionID,
-      Booking.flight_date   as FlightDate,
-      @Semantics.amount.currencyCode: 'CurrencyCode'
-      Booking.flight_price  as FlightPrice,
-      Booking.currency_code as CurrencyCode,
-      /* Associations */
-      _Travel,
-      _Customer,
-      _Carrier,
-      _Connection
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Take into account that natural keys have been chosen (TravelId and BookingId) for this entity. This will have and impact in our numbering procedure as will be explained later.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-626214558"&gt;Behavior Definition&lt;/H1&gt;&lt;P&gt;The Behavior Definition of this BO is as follows:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed implementation in class zbp_i_travel_u_csn unique;
-strict ( 2 );
-with draft;
-
-define behavior for ZI_Travel_U_CSN alias Travel
-with unmanaged save
-draft table ZITRVL_UCSND
-lock master
-total etag LastChangedAt
-authorization master ( instance )
-etag master LocalLastChangeDateTime
-late numbering
-{
-  create;
-  update;
-  delete;
-  field ( readonly ) TravelID;
-  association _Booking { create {default function GetDefaultsForBookings;} with draft;  }
-
-  draft action Edit;
-  draft action Activate optimized;
-  draft action Discard;
-  draft action Resume;
-  draft determine action Prepare;
-
-  mapping for /dmo/s_travel_in
-  control /dmo/s_travel_intx
-    {
-      AgencyID      = agency_id;
-      BeginDate     = begin_date;
-      BookingFee    = booking_fee;
-      CurrencyCode  = currency_code;
-      CustomerID    = customer_id;
-      EndDate       = end_date;
-      Memo          = description;
-      Status        = status;
-      TotalPrice    = total_price;
-      TravelID      = travel_id;
-    }
-}
-
-define behavior for ZI_Booking_U_CSN alias Booking
-with unmanaged save
-draft table ZIBKNG_UCSND
-lock dependent by _Travel
-authorization dependent by _Travel
-etag dependent by _Travel
-late numbering
-{
-  update;
-  delete;
-  field ( readonly ) TravelID;
-  field (readonly:update) BookingID;
-
-  association _Travel {with draft;}
-
-  mapping for /DMO/S_BOOKING_IN control /dmo/s_booking_intx
-    {
-      AirlineID    = carrier_id;
-      BookingDate  = booking_date;
-      BookingID    = booking_id;
-      ConnectionID = connection_id;
-      CurrencyCode = currency_code;
-      CustomerID   = customer_id;
-      FlightDate   = flight_date;
-      FlightPrice  = flight_price;
-      TravelID     = travel_id;
-    }
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Take into account that in order to keep the example simple and focus on the updating logic, we do not include any validation or determination that will improve the usability of the application (for example mandatory fields, date coherence checks, etc...).&lt;/P&gt;&lt;P&gt;Let us check now the relevant points of this Behavior Definition.&lt;/P&gt;&lt;H2 id="toc-hId-558783772"&gt;Managed Implementation with Unmanaged Save&lt;/H2&gt;&lt;P&gt;Being the application Managed allows us to avoid all the coding that has to be implemented in an unmanaged applicationm and at the same time be able to reuse the API functions when saving data with the Unmanaged Save.&lt;/P&gt;&lt;P&gt;From my point of view, this is the easiest option to develop and app when we have a Legacy API: the runtime takes care of all the logic to create/update the entities during the interaction phase, while we can focus on business logic and fine tuning the application by using determinations, validations, side effects, ect...&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-362270267"&gt;Late Numbering&lt;/H2&gt;&lt;P&gt;In our case, Travel entity is created by API function&amp;nbsp;/DMO/FLIGHT_TRAVEL_CREATE with the id of the Travel being generated in this call.&amp;nbsp; As we prefer not to have gaps in our application, we are forced to use Late Numbering (as with Early Numbering an assigned travel Id will be lost if the user discards the draft during creation). This decission has however the following implications:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Draft table will have a new key field (&lt;SPAN&gt;draftuuid) that allows the assigment of a temporary key during entity creation. This is traslated to OData entity, where we have one additional key attribute (DraftUUID).&amp;nbsp; Take into account that DraftUUID is only informed by the runtime when creating new entities. When editing an existing entity it will be empty.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;As Booking entity includes Key fields of the Tavel Key (TravelId), this forces us to define also Late Numbering for this entity.&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-165756762"&gt;Other relevant points&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;As an UI App will be generated, draft handling is defined for this BO.&lt;/LI&gt;&lt;LI&gt;It is included a mapping for the structures that uses our API functions (both for actual values and for updated flags).&lt;/LI&gt;&lt;LI&gt;As we want to propose next booking id for the user when creating a Booking entity, we define a defaults function&amp;nbsp;&lt;SPAN&gt;GetDefaultsForBookings for the "create by association" operation.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--159839462"&gt;Behavior Implementation&lt;/H1&gt;&lt;P&gt;Behavior is implemented with Behavior Pool&amp;nbsp;&lt;SPAN&gt;zbp_i_travel_u_csn. Let us check the relevant elements for Local Types include, when the RAP BO Business Logic is defined.&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId-119984109"&gt;&lt;SPAN&gt;Handler class LHC_TRAVEL&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;This class correspond to Business Logic of entity Travel.&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_Travel DEFINITION INHERITING FROM cl_abap_behavior_handler.
-  PRIVATE SECTION.
-
-    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-      IMPORTING keys REQUEST requested_authorizations FOR Travel RESULT result.
-
-    METHODS GetDefaultsForBookings FOR READ
-      IMPORTING keys FOR FUNCTION Travel~GetDefaultsForBookings RESULT result.
-ENDCLASS.
-
-CLASS lhc_Travel IMPLEMENTATION.
-
-  METHOD get_instance_authorizations.
-    "To-do: Implement instance authorization
-  ENDMETHOD.
-
-  METHOD GetDefaultsForBookings.
-    "This method will default the id of the new booking by reading all the bookings of
-    "the travel and incrementing the highest id by 1.
-    "Also, the booking date is set to the current system date.
-    DATA: lt_read_keys TYPE TABLE FOR READ IMPORT ZI_Travel_U_CSN\\Travel\_Booking,
-          ls_read_key  LIKE LINE OF lt_read_keys,
-          ls_result    LIKE LINE OF result.
-    DATA: lv_new_booking_id TYPE /dmo/booking_id.
-
-    LOOP AT keys INTO DATA(ls_key).
-      ls_read_key-%tky = ls_key-%tky.   "%TKY includes %is_draft, %pid and TravelId
-      INSERT ls_read_key INTO TABLE lt_read_keys.
-    ENDLOOP.
-
-    READ ENTITIES OF ZI_Travel_U_CSN IN LOCAL MODE
-        ENTITY Travel BY \_Booking
-           FIELDS ( TravelID BookingId )
-           WITH lt_read_keys
-           RESULT DATA(lt_bookings).
-
-    SORT lt_bookings BY %is_draft %pidparent TravelId BookingId DESCENDING.
-    DELETE ADJACENT DUPLICATES FROM lt_bookings COMPARING %is_draft %pidparent TravelId.
-
-    LOOP AT keys INTO ls_key.
-      CLEAR: ls_result, lv_new_booking_id.
-      TRY.
-          DATA(ls_booking) = lt_bookings[ KEY entity %is_draft = ls_key-%is_draft %pidparent = ls_key-%pid TravelId = ls_key-TravelID ].
-          lv_new_booking_id = ls_booking-BookingID + 1.
-        CATCH cx_root.
-          lv_new_booking_id = 1.
-      ENDTRY.
-      ls_result-%tky = ls_key-%tky.
-      ls_result-%param-TravelID    = ls_key-TravelID.
-      ls_result-%param-BookingID   = lv_new_booking_id.
-      ls_result-%param-BookingDate = cl_abap_context_info=&amp;gt;get_system_date( ).
-      INSERT ls_result INTO TABLE result.
-    ENDLOOP.
-  ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;As you can see, in method GetDefaultsForBookings we retrieve the current Bookings that are defined for a Travel, and include in RESULT attribute the next booking id and the system date as default values for the new entity that will be created. The relevant point to signal out is that, as we have Late Numbering for travel, %TKY has a new component (%PID) that will include the preliminary Id (draftuuid) when creating a new entity. Hence, all the EML operations should take into account this component when retrieving/updating values.&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId--76529396"&gt;&lt;SPAN&gt;Saver Class LSC_ZI_TRAVEL_U_CSN&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;This class is responsible for the save logic of our Business Object. As we are going to call the API functions for CRUD operations in methods that as default are not supposed to raise errors (ADJUST_NUMBERS and SAVE_MODIFIED, explained later), we have to change the default superclass (CL_ABAP_BEHAVIOR_SAVER) with CL_ABAP_BEHAVIOR_SAVER_FAILED, that includes changing parameters for failed keys and response messages for these methods. &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The general logic is then:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;In ADJUST_NUMBERS the API function for the Travel CREATE will be called (optionally including its bookings), as the returned Travel Id has to be mapped in this method with the premilinary id.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;In SAVE_MODIFIED method it is included the UPDATE/DELETE API Calls.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;It has to be noted that SAVE_MODIFIED will be also called during the CREATE operation after the ADJUST_NUMBERS. Hence, we have to take care of not executing any logic in this case, as the CREATE API function has already been executed in ADJUST_NUMBERS.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;With this, the definition of the class is as follows (there are some axiliary types and methods defined that will be explained later):&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lsc_ZI_TRAVEL_U_CSN DEFINITION INHERITING FROM cl_abap_behavior_saver_failed.
-  PROTECTED SECTION.
-    TYPES: BEGIN OF ts_key,
-             travelid      TYPE /dmo/travel_id,
-             delete_entity TYPE abap_boolean,
-           END OF ts_key,
-           tt_keys TYPE STANDARD TABLE OF ts_key WITH DEFAULT KEY.
-
-    METHODS adjust_numbers REDEFINITION.
-
-    METHODS save_modified REDEFINITION.
-
-    METHODS cleanup_finalize REDEFINITION.
-
-  PRIVATE SECTION.
-    TYPES: ts_read_result_travel  TYPE STRUCTURE FOR READ RESULT zi_travel_u_csn,
-           ts_read_result_booking TYPE TABLE FOR READ RESULT zi_booking_u_csn,
-           ts_failed              TYPE RESPONSE FOR FAILED LATE zi_travel_u_csn,
-           ts_reported            TYPE RESPONSE FOR REPORTED LATE zi_travel_u_csn,
-           ts_mapped              TYPE RESPONSE FOR MAPPED LATE zi_travel_u_csn,
-           ts_request_change      TYPE REQUEST FOR CHANGE zi_travel_u_csn,
-           ts_request_delete      TYPE REQUEST FOR DELETE zi_travel_u_csn.
-
-    METHODS _add_deleted_bookings
-      IMPORTING
-        is_key      TYPE lsc_zi_travel_u_csn=&amp;gt;ts_key
-        delete      TYPE ts_request_delete
-      CHANGING
-        ct_booking  TYPE /dmo/t_booking_in
-        ct_bookingx TYPE /dmo/t_booking_inx.
-
-    METHODS _add_updated_bookings
-      IMPORTING
-        is_key      TYPE lsc_zi_travel_u_csn=&amp;gt;ts_key
-        update      TYPE ts_request_change
-      CHANGING
-        ct_booking  TYPE /dmo/t_booking_in
-        ct_bookingx TYPE /dmo/t_booking_inx.
-
-    METHODS _add_new_bookings
-      IMPORTING
-        is_key      TYPE lsc_zi_travel_u_csn=&amp;gt;ts_key
-        create      TYPE ts_request_change
-      CHANGING
-        ct_booking  TYPE /dmo/t_booking_in
-        ct_bookingx TYPE /dmo/t_booking_inx.
-
-    METHODS _process_key
-      IMPORTING
-        is_key   TYPE lsc_zi_travel_u_csn=&amp;gt;ts_key
-        create   TYPE ts_request_change
-        update   TYPE ts_request_change
-        delete   TYPE ts_request_delete
-      CHANGING
-        failed   TYPE ts_failed
-        reported TYPE ts_reported.
-
-    METHODS _delete_travel
-      IMPORTING
-        is_key      TYPE lsc_zi_travel_u_csn=&amp;gt;ts_key
-      EXPORTING
-        et_messages TYPE /dmo/t_message.
-
-    METHODS _update_travel
-      IMPORTING
-        is_key      TYPE lsc_zi_travel_u_csn=&amp;gt;ts_key
-        create      TYPE ts_request_change
-        update      TYPE ts_request_change
-        delete      TYPE ts_request_delete
-      EXPORTING
-        et_messages TYPE /dmo/t_message.
-
-    METHODS _get_processed_root_keys
-      IMPORTING
-        create          TYPE ts_request_change
-        update          TYPE ts_request_change
-        delete          TYPE ts_request_delete
-      RETURNING
-        VALUE(r_result) TYPE lsc_zi_travel_u_csn=&amp;gt;tt_keys.
-
-    METHODS _create_travel
-      IMPORTING
-        is_travel    TYPE ts_read_result_travel
-        it_bookings  TYPE ts_read_result_booking
-      EXPORTING
-        ev_travel_id TYPE /dmo/travel_id
-      CHANGING
-        failed       TYPE ts_failed
-        reported     TYPE ts_reported
-        mapped       TYPE ts_mapped.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Now, we will review the relevant methods that we have to implement.&lt;/P&gt;&lt;H3 id="toc-hId--566445908"&gt;Method ADJUST_NUMBERS&lt;/H3&gt;&lt;P&gt;The signature of this method is as follows:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 508px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/304086i3C6735E5F4565065/image-size/large?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;As you can see, it includes FAILED and REPORTED parameters as is a subclass of&amp;nbsp;&lt;SPAN&gt;cl_abap_behavior_saver_failed class. It has also a MAPPED parameter to include the mapping between the preliminary ID (%PID) and the final Id of the new objects. This MAPPED structure contains two tables, one for the Travel and another for the Bookings.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="MAPPED.jpg" style="width: 475px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/304092i90E5F96C8D5CE066/image-size/large?v=v2&amp;amp;px=999" role="button" title="MAPPED.jpg" alt="MAPPED.jpg" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In these tables, each record contains the premilinary id (%PID) of the new entity, the final id of each entity (component group %KEY) and an structure (%TMP) with the temporary key values that already have these entities in the interaction buffer. The objective of this method is to call the CREATE API function and populate %KEY structure with the corresponding Ids.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;For example, when creating a Travel with a Booking, MAPPED structure enters the method with this values (notice that BOOKING[1] - %TMP contains manually assigned Booking Id 1):&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="TRAVEL_BOOKING_IN.jpg" style="width: 507px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/304280i47F6FFBFD59E45D3/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="TRAVEL_BOOKING_IN.jpg" alt="TRAVEL_BOOKING_IN.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;And after the successful creation of the new travel with the booking, the updated values are as follows:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="TRAVEL_BOOKING_OUT.jpg" style="width: 511px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/304283i5C80B322B631B318/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="TRAVEL_BOOKING_OUT.jpg" alt="TRAVEL_BOOKING_OUT.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Take into account that when creating a new booking for a existing travel, as the booking id is assigned during interaction phase, although no API call is done in this method, BOOKINGIDs have to be included in MAPPED structure by copying %TMP - BOOKINGID value.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Given this, the source code of methods ADJUST_NUMBERS and _CREATE_TRAVEL is then:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  METHOD adjust_numbers.
-    "Create processing logic to adjust numbers if needed
-    "Read travel and booking data from buffer, call the API function and
-    "create travel
-
-    "Two create options:
-    "1.- Create a new travel (with bookings)
-    "2.- Crate a new booking for a existing travel
-
-    DATA: lt_travel_key TYPE TABLE FOR READ IMPORT ZI_Travel_U_CSN\\Travel.
-    DATA: lt_booking_key TYPE TABLE FOR READ IMPORT ZI_Travel_U_CSN\\Booking.
-
-    "Process only if there are changes
-    CHECK mapped-travel IS NOT INITIAL OR mapped-booking IS NOT INITIAL.
-
-    "Read operation is done with %PID, %TMP-TRAVELID (this is initial for new travels)
-    LOOP AT mapped-travel INTO DATA(ls_mapped_travel).
-      INSERT VALUE #( %pid = ls_mapped_travel-%pid %key = ls_mapped_travel-%tmp ) INTO TABLE lt_travel_key.
-    ENDLOOP.
-    "Read operation is done with %PID, %TMP-TRAVELID, %TMP-BOOKINGID
-    LOOP AT mapped-booking INTO DATA(ls_mapped_booking).
-      INSERT VALUE #( %pid = ls_mapped_booking-%pid %key = ls_mapped_booking-%tmp ) INTO TABLE lt_booking_key.
-    ENDLOOP.
-
-    READ ENTITIES OF ZI_Travel_U_CSN IN LOCAL MODE
-        ENTITY Travel
-           ALL FIELDS WITH CORRESPONDING #( lt_travel_key )
-           RESULT DATA(lt_all_travels).
-
-    READ ENTITIES OF ZI_Travel_U_CSN IN LOCAL MODE
-        ENTITY Booking
-           ALL FIELDS WITH CORRESPONDING #( lt_booking_key )
-           RESULT DATA(lt_all_bookings).
-
-    "Create travel with bookings (case 1)
-    LOOP AT lt_all_travels INTO DATA(ls_travel).
-      DATA(lt_bookings) = lt_all_bookings.
-      DELETE lt_bookings WHERE %pidparent &amp;lt;&amp;gt; ls_travel-%pid.
-      _create_travel(
-        EXPORTING
-          is_travel      = ls_travel
-          it_bookings    = lt_bookings
-        IMPORTING
-          ev_travel_id   = ls_travel-TravelID
-        CHANGING
-          failed         = failed
-          reported       = reported
-          mapped         = mapped
-      ).
-
-    ENDLOOP.
-
-    "Assign pending booking id from preliminary identifiers. Take into account that this values
-    "are assigned during interaction phase
-    "At this point, we will assign new bookings ids for existing travels (case 2)
-    LOOP AT mapped-booking ASSIGNING FIELD-SYMBOL(&amp;lt;fs_booking&amp;gt;)
-    WHERE bookingid IS INITIAL AND
-          %tmp-TravelID IS NOT INITIAL AND
-          %tmp-BookingID IS NOT INITIAL.
-      &amp;lt;fs_booking&amp;gt;-TravelID  = &amp;lt;fs_booking&amp;gt;-%tmp-TravelID.
-      &amp;lt;fs_booking&amp;gt;-Bookingid = &amp;lt;fs_booking&amp;gt;-%tmp-Bookingid.
-    ENDLOOP.
-
-  ENDMETHOD.
-
-  METHOD _create_travel.
-
-    "Call /DMO/FLIGHT_TRABEL_CREATE function to create travel and bookings
-    "Take into account that this API requires two calls: 1 for create and 1 for save (persist data in database)
-
-    DATA: ls_travel_out  TYPE /dmo/travel,
-          ls_travel_in   TYPE /dmo/s_travel_in,
-          ls_booking_in  TYPE /dmo/s_booking_in,
-          lt_bookings_in TYPE /dmo/t_booking_in,
-          lt_messages    TYPE /dmo/t_message.
-
-    "Initialize buffers
-    CALL FUNCTION '/DMO/FLIGHT_TRAVEL_INITIALIZE'.
-
-    ls_travel_in = CORRESPONDING #( is_travel MAPPING FROM ENTITY ).
-    LOOP AT it_bookings INTO DATA(ls_booking).
-      CLEAR: ls_booking_in.
-      ls_booking_in = CORRESPONDING #( ls_booking MAPPING FROM ENTITY ).
-      INSERT ls_booking_in INTO TABLE lt_bookings_in.
-    ENDLOOP.
-
-    CALL FUNCTION '/DMO/FLIGHT_TRAVEL_CREATE'
-      EXPORTING
-        is_travel   = ls_travel_in
-        it_booking  = lt_bookings_in
-      IMPORTING
-        es_travel   = ls_travel_out
-        et_messages = lt_messages.
-
-    "Map errors as failed
-    DELETE lt_messages WHERE msgty NA 'EAX'.
-
-    IF lt_messages[] IS NOT INITIAL.
-      LOOP AT lt_messages INTO DATA(ls_message).
-        INSERT VALUE #( %tky = is_travel-%tky
-                        %msg = new_message( id       = ls_message-msgid
-                                            severity = if_abap_behv_message=&amp;gt;severity-error
-                                            number   = ls_message-msgno
-                                            v1       = ls_message-msgv1
-                                            v2       = ls_message-msgv2
-                                            v3       = ls_message-msgv3
-                                            v4       = ls_message-msgv4 )
-                        ) INTO TABLE reported-travel.
-      ENDLOOP.
-      INSERT VALUE #( %tky = is_travel-%tky ) INTO TABLE failed-travel.
-      RETURN.
-    ENDIF.
-
-    "Save to database
-    CALL FUNCTION '/DMO/FLIGHT_TRAVEL_SAVE'.
-
-    "Map final ids
-    "Travel
-    READ TABLE mapped-travel ASSIGNING FIELD-SYMBOL(&amp;lt;fs_mapped_travel&amp;gt;)
-      WITH KEY id COMPONENTS %pid = is_travel-%pid.
-    &amp;lt;fs_mapped_travel&amp;gt;-TravelID = ls_travel_out-travel_id.
-
-    "Bookings for this travel
-    LOOP AT it_bookings ASSIGNING FIELD-SYMBOL(&amp;lt;fs_booking&amp;gt;)
-      WHERE %pidparent = is_travel-%pid.
-      "Map booking id
-      READ TABLE mapped-booking ASSIGNING FIELD-SYMBOL(&amp;lt;fs_mapped_booking&amp;gt;)
-        WITH KEY id COMPONENTS %pid = &amp;lt;fs_booking&amp;gt;-%pid.
-      &amp;lt;fs_mapped_booking&amp;gt;-BookingId = &amp;lt;fs_booking&amp;gt;-BookingId.
-      &amp;lt;fs_mapped_booking&amp;gt;-TravelID  = ls_travel_out-travel_id.
-    ENDLOOP.
-
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId--762959413"&gt;Method SAVE_MODIFIED&lt;/H3&gt;&lt;P&gt;This method is called by the runtime once all the preliminary ids have been mapped to the final ids in ADJUST_NUMBERS method. Hence, this is the point where we have to implement the calls to the UPDATE / DELETE APIs. As was stated previously, we have to exclude the Travel CREATE operation (as it has been processed in ADJUST_NUMBERS method), although we have to process the Booking CREATE records for a exisiting Travel, as this corresponds to an UPDATE API call of a Travel.&lt;/P&gt;&lt;P&gt;The interface of this methods is as follows (again, notice the FAILED and REPORTED parameters included as this class is a subclass of &lt;SPAN&gt;cl_abap_behavior_saver_failed).&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="SAVE_MODIFIED.jpg" style="width: 481px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/304288i8098B51A8A06D94D/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="SAVE_MODIFIED.jpg" alt="SAVE_MODIFIED.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;CREATE, UPDATE and DELETE structures contains each one TRAVEL and BOOKING tables with the relevant entities that are being saved.&lt;/P&gt;&lt;P&gt;The general logic that has been implemented is:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;First, all the relevant travel ids that are being processed are grouped in internal table LT_PROCESSED_KEYS (method _GET_PROCESSED_ROOT_KEYS), discarding new created travels.&lt;/LI&gt;&lt;LI&gt;For each key, method _PROCESS_KEY is called, where etither method _DETELE_TRAVEL (when the operation corresponds to a deletion) or _UPDATE_TRAVEL are executed. Within each method, the corresponding API functions are called. If there are any reported errors, FAILED and REPORTED structures are updated accordingly.&lt;/LI&gt;&lt;LI&gt;There are some auxiliary methods defined (_ADD_DELETED_BOOKINGS, _ADD_NEW_BOOKINGS, _ADD_UPDATED_BOOKINGS) to populate UPDATE API importing parameters for modified bookings.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The source code of the relevant methods is then:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  METHOD save_modified.
-    "Update processing logic to save modified data
-    "Process only updated travels. Created travels are processed in adjust_numbers method
-
-    DATA: lt_processed_keys TYPE tt_keys.
-
-    lt_processed_keys = _get_processed_root_keys( create = create
-                                                  update = update
-                                                  delete = delete ).
-
-    LOOP AT lt_processed_keys INTO DATA(ls_key).
-      _process_key( EXPORTING is_key = ls_key
-                               create = create
-                               update = update
-                               delete = delete
-                     CHANGING  failed   = failed
-                               reported = reported ).
-    ENDLOOP.
-
-  ENDMETHOD.
-  METHOD _get_processed_root_keys.
-
-    LOOP AT create-booking INTO DATA(ls_booking).
-      INSERT VALUE #( travelid = ls_booking-TravelID ) INTO TABLE r_result.
-    ENDLOOP.
-
-    LOOP AT update-booking INTO ls_booking.
-      INSERT VALUE #( travelid = ls_booking-TravelID ) INTO TABLE r_result.
-    ENDLOOP.
-
-    LOOP AT update-travel INTO DATA(ls_travel).
-      INSERT VALUE #( travelid = ls_travel-TravelID ) INTO TABLE r_result.
-    ENDLOOP.
-
-    LOOP AT delete-travel INTO DATA(ls_delete_travel).
-      INSERT VALUE #( travelid = ls_delete_travel-TravelID delete_entity = abap_true ) INTO TABLE r_result.
-    ENDLOOP.
-
-    LOOP AT delete-booking INTO DATA(ls_delete_booking).
-      INSERT VALUE #( travelid = ls_delete_booking-TravelID ) INTO TABLE r_result.
-    ENDLOOP.
-
-    "Discard created travels as they are processed in adjust_numbers method
-    LOOP AT create-travel INTO ls_travel.
-      DELETE r_result WHERE travelid = ls_travel-TravelID.
-    ENDLOOP.
-
-    SORT r_result BY travelid delete_entity DESCENDING.
-    DELETE ADJACENT DUPLICATES FROM r_result COMPARING travelid.
-
-
-  ENDMETHOD.
-
-
-  METHOD _update_travel.
-
-
-    DATA: ls_travel   TYPE /dmo/s_travel_in,
-          ls_travelx  TYPE /dmo/s_travel_inx,
-          lt_booking  TYPE /dmo/t_booking_in,
-          lt_bookingx TYPE /dmo/t_booking_inx.
-
-    "Updated value for travel?
-    TRY.
-        DATA(ls_update_travel) = update-travel[ KEY id TravelID = is_key-travelid ].
-        ls_travel = CORRESPONDING #( ls_update_travel MAPPING FROM ENTITY ).
-        ls_travelx = CORRESPONDING #(  CORRESPONDING /dmo/s_travel_intx( ls_update_travel MAPPING FROM ENTITY USING CONTROL ) ).
-      CATCH cx_root.
-    ENDTRY.
-    ls_travel-travel_id = is_key-travelid.
-    ls_travelx-travel_id = is_key-travelid.
-    "Bookings created
-    _add_new_bookings( EXPORTING is_key = is_key
-                                 create = create
-                      CHANGING
-                        ct_booking = lt_booking
-                        ct_bookingx = lt_bookingx ).
-
-    "Bookings updated
-    _add_updated_bookings( EXPORTING is_key = is_key
-                                 update = update
-                      CHANGING
-                        ct_booking = lt_booking
-                        ct_bookingx = lt_bookingx ).
-
-
-    "Bookings deleted
-    _add_deleted_bookings( EXPORTING is_key = is_key
-                                 delete = delete
-                      CHANGING
-                        ct_booking = lt_booking
-                        ct_bookingx = lt_bookingx ).
-
-    CALL FUNCTION '/DMO/FLIGHT_TRAVEL_UPDATE'
-      EXPORTING
-        is_travel   = ls_travel
-        is_travelx  = ls_travelx
-        it_booking  = lt_booking
-        it_bookingx = lt_bookingx
-      IMPORTING
-        et_messages = et_messages.
-
-  ENDMETHOD.
-
-
-  METHOD _delete_travel.
-
-    CALL FUNCTION '/DMO/FLIGHT_TRAVEL_DELETE'
-      EXPORTING
-        iv_travel_id = is_key-travelid
-      IMPORTING
-        et_messages  = et_messages.
-
-  ENDMETHOD.
-
-
-  METHOD _process_key.
-
-    DATA: lt_messages TYPE /dmo/t_message.
-
-    "Initialize buffers
-    CALL FUNCTION '/DMO/FLIGHT_TRAVEL_INITIALIZE'.
-
-    IF is_key-delete_entity = abap_true.
-      _delete_travel( EXPORTING is_key = is_key
-                          IMPORTING et_messages = lt_messages ).
-    ELSE.
-      _update_travel( EXPORTING is_key = is_key
-                                    create = create
-                                    update = update
-                                    delete = delete
-                          IMPORTING et_messages = lt_messages ).
-    ENDIF.
-
-    DELETE lt_messages WHERE msgty NA 'EAX'.
-    IF lt_messages[] IS NOT INITIAL.
-      LOOP AT lt_messages INTO DATA(ls_message).
-        INSERT VALUE #( travelid = is_key-travelid
-                        %msg = new_message( id       = ls_message-msgid
-                                            severity = if_abap_behv_message=&amp;gt;severity-error
-                                            number   = ls_message-msgno
-                                            v1       = ls_message-msgv1
-                                            v2       = ls_message-msgv2
-                                            v3       = ls_message-msgv3
-                                            v4       = ls_message-msgv4 )
-                        ) INTO TABLE reported-travel.
-      ENDLOOP.
-      INSERT VALUE #( travelid = is_key-travelid ) INTO TABLE failed-travel.
-      RETURN.
-    ENDIF.
-
-    "Save to database
-    CALL FUNCTION '/DMO/FLIGHT_TRAVEL_SAVE'.
-
-
-
-  ENDMETHOD.
-
-
-  METHOD _add_new_bookings.
-
-    DATA: ls_booking_in  TYPE /dmo/s_booking_in,
-          ls_booking_inx TYPE /dmo/s_booking_inx.
-
-    LOOP AT create-booking INTO DATA(ls_booking)
-        USING KEY id WHERE TravelID = is_key-travelid.
-      "Add new booking
-      CLEAR: ls_booking_in, ls_booking_inx.
-
-      ls_booking_in  = CORRESPONDING #( ls_booking MAPPING FROM ENTITY ).
-      ls_booking_inx = CORRESPONDING #( CORRESPONDING /dmo/s_booking_intx( ls_booking MAPPING FROM ENTITY USING CONTROL ) ).
-      ls_booking_inx-action_code = 'C'.
-      ls_booking_inx-booking_id  = ls_booking_in-booking_id.
-      INSERT ls_booking_in INTO TABLE ct_booking.
-      INSERT ls_booking_inx INTO TABLE ct_bookingx.
-    ENDLOOP.
-
-
-  ENDMETHOD.
-
-
-  METHOD _add_updated_bookings.
-
-    DATA: ls_booking_in  TYPE /dmo/s_booking_in,
-          ls_booking_inx TYPE /dmo/s_booking_inx.
-
-    LOOP AT update-booking INTO DATA(ls_booking)
-        USING KEY id WHERE TravelID = is_key-travelid.
-      "Add updated booking
-      CLEAR: ls_booking_in, ls_booking_inx.
-
-      ls_booking_in  = CORRESPONDING #( ls_booking MAPPING FROM ENTITY ).
-      ls_booking_inx = CORRESPONDING #( CORRESPONDING /dmo/s_booking_intx( ls_booking MAPPING FROM ENTITY USING CONTROL ) ).
-      ls_booking_inx-action_code = 'U'.
-      ls_booking_inx-booking_id  = ls_booking_in-booking_id.
-      INSERT ls_booking_in INTO TABLE ct_booking.
-      INSERT ls_booking_inx INTO TABLE ct_bookingx.
-    ENDLOOP.
-
-  ENDMETHOD.
-
-
-  METHOD _add_deleted_bookings.
-
-    DATA: ls_booking_in  TYPE /dmo/s_booking_in,
-          ls_booking_inx TYPE /dmo/s_booking_inx.
-
-    LOOP AT delete-booking INTO DATA(ls_booking)
-        USING KEY entity WHERE TravelID = is_key-travelid.
-      "add delete booking
-      CLEAR: ls_booking_inx, ls_booking_in.
-      ls_booking_in-travel_id = is_key-travelid.
-      ls_booking_in-booking_id = ls_booking-BookingId.
-      INSERT ls_booking_in INTO TABLE ct_booking.
-      ls_booking_inx-action_code = 'D'.
-      ls_booking_inx-booking_id  = ls_booking-BookingId.
-      INSERT ls_booking_inx INTO TABLE ct_bookingx.
-    ENDLOOP.
-
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--372666904"&gt;Conclussions&lt;/H1&gt;&lt;P&gt;I hope that this blog has clarified how to develop a RAP UI to execute CRUD operation in an entity that has a legacy API to maintain it.&amp;nbsp;I think that this can be more or less easily adapted to other APIs.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/a-simple-example-of-a-sap-rap-application-based-on-legacy-api-without-uuid/ba-p/14184282"/>
-    <published>2025-09-01T11:19:39.744000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/excel-upload-download-template-download-processed-data-in-sap-fiori-without/ba-p/14212916</id>
     <title>Excel Upload/ Download Template/ Download Processed Data in SAP Fiori Without SAPUI5 - Using SAP RAP</title>
@@ -3660,5 +3023,233 @@ define abstract entity ZSM_ABSTRACT_CDS_ENTITY
                TO reported-zr_booking_d1.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/abap-cloud-blog-posts/validation-in-draft-with-state-messages-in-rap/ba-p/14228996"/>
     <published>2025-10-03T16:34:11.013000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/abap-rap-excel-upload-through-custom-action-popup-no-ui5-extension-no/ba-p/14234872</id>
+    <title>ABAP RAP : Excel upload through custom action popup ( No UI5 Extension , No Object Page workaround )</title>
+    <updated>2025-10-05T00:52:51.623000+02:00</updated>
+    <author>
+      <name>Ramjee_korada</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/10276</uri>
+    </author>
+    <content>&lt;P&gt;A frequent business requirement involves enabling mass changes to business objects via&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;Excel uploads&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;executed through a&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;custom action popup&lt;/STRONG&gt;. Historically, achieving this functionality has necessitated various workarounds, often involving&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;UI5 extensions&lt;/STRONG&gt;,&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;third-party solutions&lt;/STRONG&gt;, or&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;Object Page manipulations&lt;/STRONG&gt;, all of which present specific implementation challenges.&lt;/P&gt;&lt;P&gt;The existing workaround approaches present several drawbacks:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Custom UI Extensions:&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Require specialized&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;UI5 development expertise&lt;/STRONG&gt;.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Third-Party Solutions:&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Introduce risks related to&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;licensing compliance&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and potential&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;security vulnerabilities&lt;/STRONG&gt;.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Object Page Manipulations:&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Involve complex, multi-step processes, such as creating a&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;dummy object page&lt;/STRONG&gt;, facilitating file upload, temporarily&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;storing the file data in a table field&lt;/STRONG&gt;, and requiring a final user action (a button press) to initiate processing. This temporary data storage is often&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;unnecessary&lt;/STRONG&gt;, complicating the data model.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;However, SAP has recently introduced&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;ABAP / CAP annotations&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;that offer a cloud-ready solution, potentially&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;eliminating approximately 95% of the development effort&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;typically associated with integrating an Excel upload into the backend. This innovation allows developers to&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;prioritize implementing core business logic&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;over developing reusable technical artifacts.&lt;/P&gt;&lt;P&gt;I will now detail the implementation steps.&lt;/P&gt;&lt;P&gt;A business requirement to manage &lt;STRONG&gt;mass processing listings for a library&lt;/STRONG&gt; was selected to demonstrate this use case. The implementation requires several steps, with steps 3 through 6 being the &lt;STRONG&gt;special or additional configurations&lt;/STRONG&gt; needed, while all others are considered routine.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ramjee_korada_0-1759618459647.png" style="width: 691px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/322875i27F4B6363B99B5FA/image-dimensions/691x376/is-moderation-mode/true?v=v2" width="691" height="376" role="button" title="Ramjee_korada_0-1759618459647.png" alt="Ramjee_korada_0-1759618459647.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1890964802"&gt;Implementation Steps&lt;/H3&gt;&lt;OL&gt;&lt;LI&gt;A database table for the &lt;STRONG&gt;listing entity&lt;/STRONG&gt; is created. This involves fields such as &lt;CODE&gt;Id&lt;/CODE&gt;, &lt;CODE&gt;Title&lt;/CODE&gt;, &lt;CODE&gt;Type&lt;/CODE&gt;, and &lt;CODE&gt;Author&lt;/CODE&gt;.&lt;/LI&gt;&lt;/OL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Library Listings'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #RESTRICTED
+define table zrk_lib_listings {
+
+  key client            : abap.clnt not null;
+  key listing_uuid      : sysuuid_x16 not null;
+  id                    : abap.numc(10);
+  title                 : abap.char(40);
+  type                  : abap.char(5);
+  author                : abap.char(40);
+  publisher_studio      : abap.char(40);
+  isbn_ean              : abap.char(40);
+  language_code         : abap.lang;
+  publication_year      : abap.numc(4);
+  description           : abap.char(40);
+  totalcopies           : abap.int2;
+  available_copies      : abap.int2;
+  location_shelf_id     : abap.char(40);
+  lending_duration_days : abap.int2;
+  status                : abap.char(40);
+  cover_image_url       : abap.char(100);
+  local_created_by      : abp_creation_user;
+  local_created_at      : abp_creation_tstmpl;
+  local_last_changed_by : abp_locinst_lastchange_user;
+  local_last_changed_at : abp_locinst_lastchange_tstmpl;
+  last_changed_at       : abp_lastchange_tstmpl;
+
+}​&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;2.&amp;nbsp;A &lt;STRONG&gt;RAP Business Object (BO)&lt;/STRONG&gt;&lt;SPAN&gt; is generated, followed by the requisite &lt;/SPAN&gt;&lt;STRONG&gt;UI artifacts&lt;/STRONG&gt;&lt;SPAN&gt;. The specific RAP BO scenario (Managed, Unmanaged, Draft, or Non-Draft) is noted as not influencing the core Excel upload use case. The &lt;/SPAN&gt;&lt;STRONG&gt;RAP Generator is used&lt;/STRONG&gt;&lt;SPAN&gt;&lt;SPAN&gt; to simplify the demonstration.&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ramjee_korada_0-1759617725687.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/322874iBDE9FF5181449404/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Ramjee_korada_0-1759617725687.png" alt="Ramjee_korada_0-1759617725687.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;3. A &lt;STRONG&gt;root&amp;nbsp;abstract entity&lt;/STRONG&gt; is created for the file to be uploaded. (This entity is highly reusable and can be applied across different RAP BOs).&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Abs. Entity For Attachment'
+define root abstract entity ZRK_D_FILE_STREAM
+{
+  @Semantics.largeObject.mimeType: 'MimeType'
+  @Semantics.largeObject.fileName: 'FileName'
+  @Semantics.largeObject.contentDispositionPreference: #INLINE
+  @EndUserText.label: 'Select Excel file'
+  StreamProperty : abap.rawstring(0);
+  
+  .hidden: true
+  MimeType : abap.char(128);
+  
+  .hidden: true
+  FileName : abap.char(128);   
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;4. The &lt;STRONG&gt;abstract behavior definition&lt;/STRONG&gt; for the file entity is implemented.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Abs. Entity For Attachment'
+define root abstract entity ZRK_D_FILE_STREAM
+{
+  @Semantics.largeObject.mimeType: 'MimeType'
+  @Semantics.largeObject.fileName: 'FileName'
+  @Semantics.largeObject.contentDispositionPreference: #INLINE
+  @EndUserText.label: 'Select Excel file'
+  StreamProperty : abap.rawstring(0);
+  
+  .hidden: true
+  MimeType : abap.char(128);
+  
+  .hidden: true
+  FileName : abap.char(128);   
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;5. A second &lt;STRONG&gt;abstract entity is created&lt;/STRONG&gt; to serve as an action parameter. This entity includes an association to the file abstract entity (from Step 3).&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Action Param for Uploading Excel'
+define root abstract entity ZRK_D_UPLOAD_EXCEL
+{
+// Dummy is a dummy field
+@UI.hidden: true
+dummy : abap_boolean;
+     _StreamProperties : association [1] to ZRK_D_FILE_STREAM on 1 = 1;
+    
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;6. The &lt;STRONG&gt;abstract behavior definition&lt;/STRONG&gt; for the action parameter is implemented, including the association to the earlier entity.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;abstract;
+strict ( 2 );
+with hierarchy;
+define behavior for ZRK_D_UPLOAD_EXCEL //alias &amp;lt;alias_name&amp;gt;
+{
+association _StreamProperties with hierarchy;
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;7. An &lt;STRONG&gt;action is defined&lt;/STRONG&gt; on the RAP BO Behavior definition, with the parameter specified in Step 5.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  static action ExcelUpload deep parameter ZRK_D_UPLOAD_EXCEL ;&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed implementation in class ZRK_BP_R_LIB_LISTINGS unique;
+strict ( 2 );
+with draft;
+extensible;
+define behavior for ZRK_R_LIB_LISTINGS alias Listings
+persistent table ZRK_LIB_LISTINGS
+extensible
+draft table ZRK_LIB_LSTNGS_D
+etag master LocalLastChangedAt
+lock master total etag LastChangedAt
+authorization master( global )
+{
+  field ( readonly )
+   ListingUUID,
+   LocalCreatedBy,
+   LocalCreatedAt,
+   LocalLastChangedBy,
+   LocalLastChangedAt,
+   LastChangedAt;
+
+  field ( numbering : managed )
+   ListingUUID;
+
+
+  create;
+  update;
+  delete;
+
+  draft action Activate optimized;
+  draft action Discard;
+  draft action Edit;
+  draft action Resume;
+  draft determine action Prepare;
+
+  static action ExcelUpload deep parameter ZRK_D_UPLOAD_EXCEL ;
+
+  mapping for ZRK_LIB_LISTINGS corresponding extensible
+  {
+    ListingUUID = listing_uuid;
+    ID = id;
+    Title = title;
+    Type = type;
+    Author = author;
+    PublisherStudio = publisher_studio;
+    IsbnEan = isbn_ean;
+    LanguageCode = language_code;
+    PublicationYear = publication_year;
+    Description = description;
+    Totalcopies = totalcopies;
+    AvailableCopies = available_copies;
+    LocationShelfID = location_shelf_id;
+    LendingDurationDays = lending_duration_days;
+    Status = status;
+    CoverImageUrl = cover_image_url;
+    LocalCreatedBy = local_created_by;
+    LocalCreatedAt = local_created_at;
+    LocalLastChangedBy = local_last_changed_by;
+    LocalLastChangedAt = local_last_changed_at;
+    LastChangedAt = last_changed_at;
+  }
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;8. The &lt;STRONG&gt;business logic is implemented&lt;/STRONG&gt; to read the Excel content. A released API, XCO_CP_XLSX&amp;nbsp;&lt;FONT color="#000000"&gt;,&lt;/FONT&gt; is used for this demonstration.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt; METHOD ExcelUpload.
+    TYPES : BEGIN OF ty_sheet_data,
+              id                  TYPE zrk_r_lib_listings-id,
+              title               TYPE zrk_r_lib_listings-title,
+              type                TYPE zrk_r_lib_listings-Type,
+              author              TYPE zrk_r_lib_listings-author,
+              PublisherStudio     TYPE zrk_r_lib_listings-PublisherStudio,
+              IsbnEan             TYPE zrk_r_lib_listings-IsbnEan,
+              LanguageCode        TYPE zrk_r_lib_listings-LanguageCode,
+              PublicationYear     TYPE zrk_r_lib_listings-PublicationYear,
+              description         TYPE zrk_r_lib_listings-Description,
+              Totalcopies         TYPE zrk_r_lib_listings-Totalcopies,
+              AvailableCopies     TYPE zrk_r_lib_listings-AvailableCopies,
+              LocationShelfID     TYPE zrk_r_lib_listings-LocationShelfID,
+              LendingDurationDays TYPE zrk_r_lib_listings-LendingDurationDays,
+              status              TYPE zrk_r_lib_listings-Status,
+            END OF ty_sheet_data.
+
+    DATA lv_file_content   TYPE xstring.
+    DATA lt_sheet_data     TYPE STANDARD TABLE OF ty_sheet_data.
+    DATA lt_listing_create TYPE TABLE FOR CREATE zrk_r_lib_listings.
+
+    lv_file_content = VALUE #( keys[ 1 ]-%param-_streamproperties-StreamProperty OPTIONAL ).
+
+    " Error handling in case file content is initial
+
+    DATA(lo_document) = xco_cp_xlsx=&amp;gt;document-&amp;gt;for_file_content( lv_file_content )-&amp;gt;read_access( ).
+
+    DATA(lo_worksheet) = lo_document-&amp;gt;get_workbook( )-&amp;gt;worksheet-&amp;gt;at_position( 1 ).
+
+    DATA(o_sel_pattern) = xco_cp_xlsx_selection=&amp;gt;pattern_builder-&amp;gt;simple_from_to(
+      )-&amp;gt;from_column( xco_cp_xlsx=&amp;gt;coordinate-&amp;gt;for_alphabetic_value( 'A' )  " Start reading from Column A
+      )-&amp;gt;to_column( xco_cp_xlsx=&amp;gt;coordinate-&amp;gt;for_alphabetic_value( 'N' )   " End reading at Column N
+      )-&amp;gt;from_row( xco_cp_xlsx=&amp;gt;coordinate-&amp;gt;for_numeric_value( 2 )    " *** Start reading from ROW 2 to skip the header ***
+      )-&amp;gt;get_pattern( ).
+
+    lo_worksheet-&amp;gt;select( o_sel_pattern
+                                     )-&amp;gt;row_stream(
+                                     )-&amp;gt;operation-&amp;gt;write_to( REF #( lt_sheet_data )
+                                     )-&amp;gt;set_value_transformation(
+                                         xco_cp_xlsx_read_access=&amp;gt;value_transformation-&amp;gt;string_value
+                                     )-&amp;gt;execute( ).
+
+    lt_listing_create = CORRESPONDING #( lt_sheet_data ).
+
+    MODIFY ENTITIES OF zrk_r_lib_listings IN LOCAL MODE
+           ENTITY Listings
+           CREATE AUTO FILL CID FIELDS ( Id Title Type author PublisherStudio IsbnEan LanguageCode PublicationYear description Totalcopies AvailableCopies LocationShelfID LendingDurationDays status )
+           WITH lt_listing_create
+           " TODO: variable is assigned but never used (ABAP cleaner)
+           MAPPED DATA(lt_mapped)
+           " TODO: variable is assigned but never used (ABAP cleaner)
+           REPORTED DATA(lt_reported)
+           " TODO: variable is assigned but never used (ABAP cleaner)
+           FAILED DATA(lt_failed).
+
+    " Communicate the messages to UI - not in scope of this demo
+    IF lt_failed IS INITIAL.
+      APPEND VALUE #( %msg = new_message_with_text( severity = if_abap_behv_message=&amp;gt;severity-success
+                                                    text     = 'Listings have been uploaded - please refresh the list!!' ) )
+             TO reported-listings.
+    ENDIF.
+  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;9. The action is utilized on the &lt;STRONG&gt;projection behavior&lt;/STRONG&gt; and subsequently exposed in the &lt;STRONG&gt;metadata extension&lt;/STRONG&gt;.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  use action ExcelUpload;&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection implementation in class ZRK_BP_C_LIB_LISTINGS unique;
+strict ( 2 );
+extensible;
+use draft;
+use side effects;
+define behavior for ZRK_C_LIB_LISTINGS alias Listings
+extensible
+use etag
+{
+  use create;
+  use update;
+  use delete;
+
+  use action Edit;
+  use action Activate;
+  use action Discard;
+  use action Resume;
+  use action Prepare;
+
+  use action ExcelUpload;
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;.lineItem: [{ type:#FOR_ACTION , dataAction: 'ExcelUpload' , label: 'Upload Excel' }]&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;10. The &lt;STRONG&gt;service binding is published&lt;/STRONG&gt;, and the application is then ready for execution.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ramjee_korada_2-1759616768674.png" style="width: 739px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/322868iF1985AA5BDD03A2A/image-dimensions/739x181/is-moderation-mode/true?v=v2" width="739" height="181" role="button" title="Ramjee_korada_2-1759616768674.png" alt="Ramjee_korada_2-1759616768674.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ramjee_korada_3-1759616871331.png" style="width: 721px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/322869i040F7DA1CC5515C5/image-dimensions/721x392/is-moderation-mode/true?v=v2" width="721" height="392" role="button" title="Ramjee_korada_3-1759616871331.png" alt="Ramjee_korada_3-1759616871331.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ramjee_korada_4-1759616921974.png" style="width: 720px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/322870i5364BBC5623F81B7/image-dimensions/720x117/is-moderation-mode/true?v=v2" width="720" height="117" role="button" title="Ramjee_korada_4-1759616921974.png" alt="Ramjee_korada_4-1759616921974.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ramjee_korada_5-1759617464764.png" style="width: 743px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/322872i185A7C14C9E33C7E/image-dimensions/743x390/is-moderation-mode/true?v=v2" width="743" height="390" role="button" title="Ramjee_korada_5-1759617464764.png" alt="Ramjee_korada_5-1759617464764.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Ramjee_korada_6-1759617503382.png" style="width: 736px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/322873iF922947957F6C08B/image-dimensions/736x407/is-moderation-mode/true?v=v2" width="736" height="407" role="button" title="Ramjee_korada_6-1759617503382.png" alt="Ramjee_korada_6-1759617503382.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1694451297"&gt;Note:&lt;/H3&gt;&lt;P&gt;This feature is currently &lt;STRONG&gt;functional on the BTP ABAP Environment&lt;/STRONG&gt;. However, an issue appears to exist with metadata generation on &lt;STRONG&gt;S/4HANA 2023 On-Premise&lt;/STRONG&gt; deployments, even though the objects are syntactically correct. It is anticipated that this constraint will be addressed in the &lt;STRONG&gt;S/4HANA 2025 release&lt;/STRONG&gt;, making the full feature set available on the S/4HANA On-Premise version following a brief waiting period.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/abap-rap-excel-upload-through-custom-action-popup-no-ui5-extension-no/ba-p/14234872"/>
+    <published>2025-10-05T00:52:51.623000+02:00</published>
   </entry>
 </feed>
