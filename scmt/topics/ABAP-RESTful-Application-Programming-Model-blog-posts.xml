@@ -2,1075 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-RESTful-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2025-10-06T05:00:06.909054+00:00</updated>
+  <updated>2025-10-06T08:00:07.557984+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/excel-upload-download-template-download-processed-data-in-sap-fiori-without/ba-p/14212916</id>
-    <title>Excel Upload/ Download Template/ Download Processed Data in SAP Fiori Without SAPUI5 - Using SAP RAP</title>
-    <updated>2025-09-10T16:00:28.980000+02:00</updated>
-    <author>
-      <name>AmanSaxena</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/145025</uri>
-    </author>
-    <content>&lt;P&gt;In many projects, there is a common requirement to develop utilities for mass creation or update of business objects such as Purchase Orders, Materials, Sales Orders, Billing Documents etc. With the adoption of SAP S/4HANA, customers are increasingly opting for SAP Fiori applications over traditional classical reports for such use cases.&lt;/P&gt;&lt;P&gt;A frequent question arises:&lt;BR /&gt;&lt;STRONG&gt;Can we develop a Fiori application to upload files without building a custom SAPUI5 front end?&lt;BR /&gt;&lt;STRONG&gt;Yes, we can!&lt;/STRONG&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Thanks to SAP’s RESTful Application Programming (RAP) model and the use of specific annotations, it is possible to handle file uploads directly within a Fiori Elements application. No need for custom UI5 development.&lt;/P&gt;&lt;P&gt;To enable file uploads in RAP, the following annotation is crucial:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Semantics.largeObject&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This annotation allows handling of large file content (LOBs) in the RAP model. However, there is one important requirement:&lt;BR /&gt;You need to create a dedicated database table to store the uploaded file as a large object.&lt;/P&gt;&lt;P&gt;In below Example, I am explaining how Billing Date can be changed through Mass Upload.&lt;/P&gt;&lt;P&gt;In Excel Template I have two columns&lt;BR /&gt;Billing Document&lt;BR /&gt;New Billing date (DD.MM.YYYY)&lt;/P&gt;&lt;P&gt;Let’s walk through the steps to implement this.&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1889058957"&gt;Create Database and Draft Tables&lt;/H3&gt;&lt;P&gt;We will begin by creating two database tables and their respective draft tables:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Parent Table&lt;/STRONG&gt; – Stores file metadata and the file content itself (LOB).&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Child Table&lt;/STRONG&gt; – Stores the extracted data from the uploaded file. In this example, we will process an XLSX file.&lt;/LI&gt;&lt;/OL&gt;&lt;H5 id="toc-hId-1950710890"&gt;Parent Table – ZTOM_T_USER&lt;/H5&gt;&lt;P&gt;This table will store the uploaded file and its metadata. Here’s a sample structure:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'User Table for Excel Processing'
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #ALLOWED
-define table ztom_t_user {
-  key mandt             : mandt not null;
-  key end_user          : syuname not null;
-  status                : abap.char(20);
-  attachment            : ztom_de_attach;
-  mimetype              : abap.char(128);
-  filename              : abap.char(128);
-  local_created_by      : abp_creation_user;
-  local_created_at      : abp_creation_tstmpl;
-  local_last_changed_by : abp_locinst_lastchange_user;
-  local_last_changed_at : abp_locinst_lastchange_tstmpl;
-  last_changed_at       : abp_lastchange_tstmpl;
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This setup ensures the uploaded file can be stored as a RAWSTRING (LENGTH 0) in the backend.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId-1754197385"&gt;Parent Draft Table –&amp;nbsp;&lt;SPAN&gt;ZTOM_T_USERD&lt;/SPAN&gt;&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'User Draft Table for Excel Processing'
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #ALLOWED
-define table ztom_t_userd {
-  key mandt             : mandt not null;
-  key end_user          : syuname not null;
-  status                : abap.char(20);
-  attachment            : ztom_de_attach;
-  mimetype              : abap.char(128);
-  filename              : abap.char(128);
-  local_created_by      : abp_creation_user;
-  local_created_at      : abp_creation_tstmpl;
-  local_last_changed_by : abp_locinst_lastchange_user;
-  local_last_changed_at : abp_locinst_lastchange_tstmpl;
-  last_changed_at       : abp_lastchange_tstmpl;
-  "%admin"              : include sych_bdl_draft_admin_inc;
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId-1557683880"&gt;Child Table – ZTOM_T_EXCEL&lt;/H5&gt;&lt;P&gt;This table will store the extracted data from the uploaded file. In this example, we will process an XLSX file. Here’s a sample structure:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Excel Data Table'
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #ALLOWED
-define table ztom_t_excel {
-  key mandt    : mandt not null;
-  @AbapCatalog.foreignKey.screenCheck : false
-  key end_user : syuname not null
-    with foreign key ztom_t_user
-      where end_user = ztom_t_excel.end_user;
-  key vbeln    : vbeln_vf not null;
-  new_fkdat    : abap.char(10);
-  prev_fkdat   : abap.char(10);
-  type         : bapi_mtype;
-  message      : bapi_msg;
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId-1361170375"&gt;Child Draft Table – ZTOM_T_EXCELD&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Excel Data Draft Table'
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #ALLOWED
-define table ztom_t_exceld {
-  key mandt    : mandt not null;
-  key end_user : syuname not null;
-  key vbeln    : vbeln_vf not null;
-  new_fkdat    : abap.char(10);
-  prev_fkdat   : abap.char(10);
-  type         : bapi_mtype;
-  message      : bapi_msg;
-  "%admin"     : include sych_bdl_draft_admin_inc;
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-906491432"&gt;Create Interface View&lt;/H3&gt;&lt;P&gt;Now, let's create Interface views on top of the tables we just created.&lt;/P&gt;&lt;H5 id="toc-hId-968143365"&gt;Parent Interface View – ZCDS_TOM_I_USER&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Interface View - Excel User'
-@Metadata.allowExtensions: true
-
-define root view entity ZCDS_TOM_I_USER
-  as select from    usr02       as _user
-    left outer join ztom_t_user as _XLUser on _user.bname = _XLUser.end_user
-  composition [0..*] of ZCDS_TOM_I_EXCEL as _XLData
-{
-  key _user.bname                   as end_user,
-      _XLUser.status                as status,
-      _XLUser.attachment            as Attachment,
-      @Semantics.mimeType: true
-      _XLUser.mimetype              as MimeType,
-      _XLUser.filename              as Filename,
-      @Semantics.user.createdBy: true
-      _XLUser.local_created_by      as Local_Created_By,
-      @Semantics.systemDateTime.createdAt: true
-      _XLUser.local_created_at      as Local_Created_At,
-      @Semantics.user.lastChangedBy: true
-      _XLUser.local_last_changed_by as Local_Last_Changed_By,
-      //local ETag field --&amp;gt; OData ETag
-      @Semantics.systemDateTime.localInstanceLastChangedAt: true
-      _XLUser.local_last_changed_at as Local_Last_Changed_At,
-      //total ETag field
-      @Semantics.systemDateTime.lastChangedAt: true
-      _XLUser.last_changed_at       as Last_Changed_At,
-
-      _XLData
-}
-where
-  _user.bname = $session.user&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId-771629860"&gt;Child Entity Interface View – ZCDS_TOM_I_EXCEL&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Interface View - Excel Data'
-@Metadata.allowExtensions: true
-
-define view entity ZCDS_TOM_I_EXCEL
-  as select from ztom_t_excel
-  association to parent ZCDS_TOM_I_USER as _XLUser on $projection.end_user = _XLUser.end_user
-{
-  key end_user                as end_user,
-  key ztom_t_excel.vbeln      as Vbeln,
-      ztom_t_excel.new_fkdat  as New_Fkdat,
-      ztom_t_excel.prev_fkdat as Prev_Fkdat,
-      ztom_t_excel.type       as Type,
-      ztom_t_excel.message    as Message,
-
-      _XLUser
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-316950917"&gt;Create Projection/ Consumption View&lt;/H3&gt;&lt;P&gt;Now, let's create Projection/ Consumption views on top of the Interfaces we just created.&lt;/P&gt;&lt;H5 id="toc-hId-378602850"&gt;Parent Projection/ Consumption View – ZCDS_TOM_C_USER&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Projection Entity - Excel User'
-@Metadata.allowExtensions: true
-
-define root view entity ZCDS_TOM_C_USER
-  provider contract transactional_query
-  as projection on ZCDS_TOM_I_USER
-{
-  key end_user,
-      @EndUserText.label: 'Processing Status'
-      status as status,
-      @Semantics.largeObject: {
-          mimeType: 'MimeType',
-          fileName: 'Filename',
-          acceptableMimeTypes: [ 'application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ],
-          contentDispositionPreference: #INLINE } // This will store the File into our table
-      Attachment,
-      MimeType,
-      Filename,
-      Local_Created_By,
-      Local_Created_At,
-      Local_Last_Changed_By,
-      @EndUserText.label: 'Last Changed At'
-      Local_Last_Changed_At,
-      Last_Changed_At,
-
-      /* Associations */
-      _XLData : redirected to composition child ZCDS_TOM_C_EXCEL
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId--738113476"&gt;Child Entity Projection/ Consumption View – ZCDS_TOM_C_EXCEL&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Projection Entity - Excel Data'
-@Metadata.allowExtensions: true
-
-define view entity ZCDS_TOM_C_EXCEL
-  as projection on ZCDS_TOM_I_EXCEL
-{
-  key end_user,
-  key Vbeln,
-      New_Fkdat,
-      Prev_Fkdat,
-      Type,
-      Message,
-      /* Associations */
-      _XLUser : redirected to parent ZCDS_TOM_C_USER
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--347820967"&gt;Create Metadata Extensions&lt;/H3&gt;&lt;P&gt;Now, let's create Metadata Extensions on top of the Projection/ Consumption views we just created.&lt;/P&gt;&lt;H5 id="toc-hId--1131140486"&gt;Parent Metadata Extension – ZCDS_TOM_C_USER&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CORE
-@UI.headerInfo: {
-    typeName: 'Mass Upload for Billing Date Change',
-    typeNamePlural: 'Mass Upload for Billing Date Change'
-}
-annotate entity ZCDS_TOM_C_USER with
-{
-  .facet: [
-  { id: 'idEndUser',    purpose: #HEADER,       position: 10,   type: #DATAPOINT_REFERENCE,     targetQualifier: 'tqEndUser'
-  },
-  { id: 'idChgAt',      purpose: #HEADER,       position: 20,   type: #DATAPOINT_REFERENCE,     targetQualifier: 'tqChgAt'
-  },
-  { id: 'idStatus',     purpose: #HEADER,       position: 30,   type: #DATAPOINT_REFERENCE,     targetQualifier: 'tqStatus'
-  },
-  { id: 'idFile',       purpose: #STANDARD,     position: 50,   type: #IDENTIFICATION_REFERENCE,    label: 'File Upload/ Download'
-  },
-  { id: 'idData',       purpose: #STANDARD,     position: 60,   type: #LINEITEM_REFERENCE,          label: 'Excel Data',    targetElement: '_XLData'
-  } ]
-
-  .lineItem: [{ position: 10, label: 'Person Responsible' }]
-  .dataPoint: { qualifier: 'tqEndUser', title: 'Person Responsible' }
-  .identification: [{ type: #FOR_ACTION, dataAction: 'downloadData', label: 'Download Data' }] //Needed in oDataV2 to download excel Data, for oDataV4 comment this
-  end_user;
-  .lineItem: [{ position: 20, label: 'File Status' }]
-  .dataPoint: { qualifier: 'tqStatus', title: 'File Status' }
-  status;
-  .identification: [{ position: 10, label: 'Upload/ Download Template &amp;amp; Excel File' }]
-  Attachment;
-  .lineItem: [{ type: #FOR_ACTION, dataAction: 'downloadTemplate', label: 'Download Template' }]
-  .identification: [{ type: #FOR_ACTION, dataAction: 'downloadTemplate', label: 'Download Template' }]
-  .hidden: true
-  MimeType;
-  .lineItem: [{ position: 30, label: 'Filename' }]
-  Filename;
-  .hidden: true
-  Local_Created_By;
-  .hidden: true
-  Local_Created_At;
-  .hidden: true
-  Local_Last_Changed_By;
-  .dataPoint: { qualifier: 'tqChgAt', title: 'Last Changed At' }
-  .lineItem: [{ position: 40, label: 'Last Changed At' }]
-  Local_Last_Changed_At;
-  .hidden: true
-  Last_Changed_At;
-  /* Associations */
-  .hidden: true
-  _XLData;
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId--1327653991"&gt;Child Entity Metadata Extension – ZCDS_TOM_C_EXCEL&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CORE
-@UI.headerInfo: {
-    typeName: 'Processed Billing Data',
-    typeNamePlural: 'Processed Billing Data'
-}
-annotate entity ZCDS_TOM_C_EXCEL with
-{
-  .hidden: true
-  //  .lineItem: [{ type: #FOR_ACTION, label: 'Display Document', dataAction: 'displayDocument' }]
-  end_user;
-  .lineItem: [{ position: 10, label: 'Billing Document' }]
-  Vbeln;
-  .lineItem: [{ position: 20, label: 'New Billing Date' }]
-  New_Fkdat;
-  .lineItem: [{ position: 30, label: 'Previous Billing Date' }]
-  Prev_Fkdat;
-  .lineItem: [{ position: 40, label: 'Status' }]
-  Type;
-  .lineItem: [{ position: 50, label: 'Message' }]
-  Message;
-  /* Associations */
-  .hidden: true
-  _XLUser;
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--937361482"&gt;Create Behavior Definitions Behavior Implementation and Behavior Projection&lt;/H3&gt;&lt;P&gt;Now, let's create Behavior Definitions on top of the Parent Interface View and Behavior Projection on Parent Projection/ Consumption View we just created.&lt;/P&gt;&lt;H5 id="toc-hId--1720681001"&gt;Behavior Definition – ZCDS_TOM_I_USER&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed implementation in class zbp_cl_cds_tom_i_user unique;
-strict ( 2 );
-with draft;
-
-define behavior for ZCDS_TOM_I_USER alias XLHead
-persistent table ztom_t_user
-lock master
-total etag end_user
-draft table ztom_t_userd
-//early numbering
-authorization master ( instance )
-etag master end_user
-{
-  create;
-  update;
-  delete;
-
-  field ( readonly ) end_user;
-
-  action ( features : instance ) downloadTemplate result [1] $self;
-  action ( features : instance ) downloadData result [1] $self; //Needed in oDataV2 to download excel Data, for oDataV4 comment this
-
-  // Logic to read excel data into into internal table and save to the child entity
-  action ( features : instance ) uploadExcelData result [1] $self;
-
-  association _XLData { create; with draft; }
-
-  // Logic to trigger action uploadExcelData
-  determination fields on modify { field Filename; }
-
-  //Draft actions
-  draft action Edit;
-  draft action Activate;
-  draft action Discard;
-  draft action Resume;
-  draft determine action Prepare;
-
-}
-
-define behavior for ZCDS_TOM_I_EXCEL alias XLData
-persistent table ztom_t_excel
-draft table ztom_t_exceld
-lock dependent by _XLUser
-authorization dependent by _XLUser
-etag master New_Fkdat
-{
-  update;
-  delete;
-  field ( readonly ) end_user;
-
-  association _XLUser { with draft; }
-
-  //  action displayDocument result [1] $self; //IF WANT TO ADD A NEW ACTION
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId--1917194506"&gt;Behavior Implementation – ZBP_CL_CDS_TOM_I_USER&lt;/H5&gt;&lt;UL&gt;&lt;LI&gt;Global Class&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zbp_cl_cds_tom_i_user DEFINITION
-  PUBLIC
-  ABSTRACT
-  FINAL
-  FOR BEHAVIOR OF zcds_tom_i_user .
-
-  PUBLIC SECTION.
-    TYPES: BEGIN OF gty_input,
-             vbeln      TYPE vbeln_vf,
-             new_fkdat  TYPE char10,
-             prev_fkdat TYPE char10,
-             type       TYPE bapi_mtype,
-             message    TYPE bapi_msg,
-           END OF gty_input.
-
-  PROTECTED SECTION.
-  PRIVATE SECTION.
-ENDCLASS.
-
-CLASS zbp_cl_cds_tom_i_user IMPLEMENTATION.
-ENDCLASS.​&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;Local Type&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;*"* use this source file for the definition and implementation of
-*"* local helper classes, interface definitions and type
-*"* declarations
-CLASS lhc_XLHead DEFINITION INHERITING FROM cl_abap_behavior_handler.
-  PRIVATE SECTION.
-
-    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-      IMPORTING keys REQUEST requested_authorizations FOR XLHead RESULT result.
-
-    METHODS downloadTemplate FOR MODIFY
-      IMPORTING keys FOR ACTION XLHead~downloadTemplate RESULT result.
-
-    METHODS fields FOR DETERMINE ON MODIFY
-      IMPORTING keys FOR XLHead~Fields.
-
-    METHODS uploadExcelData FOR MODIFY
-      IMPORTING keys FOR ACTION XLHead~uploadExcelData RESULT result.
-
-    "Needed in oDataV2 to download excel Data, for oDataV4 comment this method
-    METHODS downloadData FOR MODIFY
-      IMPORTING keys FOR ACTION XLHead~downloadData RESULT result.
-
-*    METHODS earlynumbering_create FOR NUMBERING
-*      IMPORTING entities FOR CREATE XLHead.
-
-    METHODS get_instance_features FOR INSTANCE FEATURES
-      IMPORTING keys REQUEST requested_features FOR XLHead RESULT result.
-
-ENDCLASS.
-
-
-CLASS lhc_XLHead IMPLEMENTATION.
-  METHOD get_instance_authorizations.
-  ENDMETHOD.
-
-  METHOD downloadTemplate.
-*-- Local Variable Declaration
-    DATA: lv_content   TYPE xstring,
-          lv_mime_type TYPE string.
-
-*-- Local Internal Table Declaration
-    DATA: lt_bin TYPE STANDARD TABLE OF solix.
-
-    "Clear all local objects
-    CLEAR: lv_content, lv_mime_type, lt_bin.
-
-*-- Retrieve File From MIME Repository
-*-- accessing the file path '/SAP/PUBLIC/ZTOM_MASS_BILLING_DATE_UPD/Billing Date Update Template.xlsx'
-    cl_mime_repository_api=&amp;gt;if_mr_api~get_api( )-&amp;gt;get( EXPORTING  i_url              = TEXT-001
-                                                                  i_check_authority  = abap_false
-                                                       IMPORTING  e_content          = lv_content
-                                                                  e_mime_type        = lv_mime_type
-                                                       EXCEPTIONS parameter_missing  = 1
-                                                                  error_occured      = 2
-                                                                  not_found          = 3
-                                                                  permission_failure = 4
-                                                                  OTHERS             = 5 ).
-
-    IF sy-subrc &amp;lt;&amp;gt; 0.
-      "Handle Error Messages
-      INSERT new_message( id       = sy-msgid
-                          number   = sy-msgno
-                          severity = if_abap_behv_message=&amp;gt;severity-error
-                          v1       = sy-msgv1
-                          v2       = sy-msgv2
-                          v3       = sy-msgv3
-                          v4       = sy-msgv4 )
-             INTO TABLE reported-%other.
-    ELSE.
-      "Modify Root Entity
-      MODIFY ENTITIES OF zcds_tom_i_user IN LOCAL MODE
-      ENTITY XLHead
-      UPDATE FROM VALUE #( FOR key IN keys
-                           ( end_user            = key-end_user
-                             status              = TEXT-002 "Template Downloaded
-                             Attachment          = lv_content
-                             Filename            = TEXT-003 "Billing Date Update Template
-                             MimeType            = lv_mime_type
-                             %control-status     = if_abap_behv=&amp;gt;mk-on
-                             %control-Attachment = if_abap_behv=&amp;gt;mk-on
-                             %control-Filename   = if_abap_behv=&amp;gt;mk-on
-                             %control-MimeType   = if_abap_behv=&amp;gt;mk-on ) )
-      MAPPED DATA(ls_mapped_update)
-      REPORTED DATA(ls_reported_update)
-      FAILED DATA(ls_failed_update).
-
-      "Read Updated Entry
-      READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
-      ENTITY XLHead
-      ALL FIELDS WITH
-      CORRESPONDING #( Keys )
-      RESULT DATA(lt_XLHead).
-
-      "Send Status back to front end
-      result = VALUE #( FOR lwa_upd_head IN lt_XLHead
-                        ( %tky   = lwa_upd_head-%tky
-                          %param = lwa_upd_head ) ).
-    ENDIF.
-  ENDMETHOD.
-
-  METHOD fields.
-    SELECT  INTO (lv_valid) FROM ztom_t_user UP TO 1 ROWS WHERE end_user = -uname.
-    ENDSELECT.
-
-    IF lv_valid &amp;lt;&amp;gt; abap_true.
-      INSERT ztom_t_user FROM @( VALUE #( end_user = sy-uname ) ).
-    ENDIF.
-
-    IF keys[ 1 ]-%is_draft = '01'. "for oDataV4 '01' needs to be replaced with '00'
-      MODIFY ENTITIES OF zcds_tom_i_user IN LOCAL MODE
-      ENTITY XLHead
-      EXECUTE uploadexceldata
-      FROM CORRESPONDING #( keys ).
-    ENDIF.
-  ENDMETHOD.
-
-  METHOD uploadExcelData.
-*-- Local Variable Declaration
-    DATA: lv_index    TYPE sy-index.
-
-*-- Local Workarea Declaration
-    DATA: ls_vbrk_i TYPE vbrk.
-
-*-- Local Internal Table Declaration
-    DATA: lt_excel TYPE STANDARD TABLE OF zbp_cl_cds_tom_i_user=&amp;gt;gty_input,
-          lt_data  TYPE TABLE FOR CREATE zcds_tom_i_user\_XLData.
-
-*-- Local Object Declaration
-    DATA: lo_table_descr  TYPE REF TO cl_abap_tabledescr,
-          lo_struct_descr TYPE REF TO cl_abap_structdescr.
-
-*-- Local Field Symbol Declaration
-    FIELD-SYMBOLS:  &amp;lt;lfs_col_header&amp;gt; TYPE any.
-
-    "Clear all local objects
-    CLEAR: lv_index, lt_excel, lt_data.
-
-    SELECT  INTO (lv_valid) FROM ztom_t_user UP TO 1 ROWS WHERE end_user = -uname.
-    ENDSELECT.
-
-    IF lv_valid &amp;lt;&amp;gt; abap_true.
-      INSERT ztom_t_user FROM @( VALUE #( end_user = sy-uname ) ).
-    ENDIF.
-
-    DATA(lv_user) = cl_abap_context_info=&amp;gt;get_user_technical_name( ).
-
-    READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
-    ENTITY XLHead
-    ALL FIELDS WITH
-    CORRESPONDING #( keys )
-    RESULT DATA(lt_file_entity).
-
-    DATA(lv_attachment) = lt_file_entity[ 1 ]-attachment.
-
-    IF lv_attachment IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    "Move Excel Data to Internal Table
-    DATA(lo_xlsx) = xco_cp_xlsx=&amp;gt;document-&amp;gt;for_file_content( iv_file_content = lv_attachment )-&amp;gt;read_access( ).
-    DATA(lo_worksheet) = lo_xlsx-&amp;gt;get_workbook( )-&amp;gt;worksheet-&amp;gt;at_position( 1 ).
-    DATA(lo_selection_pattern) = xco_cp_xlsx_selection=&amp;gt;pattern_builder-&amp;gt;simple_from_to( )-&amp;gt;get_pattern( ).
-    DATA(lo_execute) = lo_worksheet-&amp;gt;select( lo_selection_pattern )-&amp;gt;row_stream( )-&amp;gt;operation-&amp;gt;write_to(
-                                                                      REF #( lt_excel ) ).
-    lo_execute-&amp;gt;set_value_transformation( xco_cp_xlsx_read_access=&amp;gt;value_transformation-&amp;gt;string_value )-&amp;gt;if_xco_xlsx_ra_operation~execute( ).
-
-    "Get number of columns in upload file for validation
-    TRY.
-        lo_table_descr ?= cl_abap_tabledescr=&amp;gt;describe_by_data( p_data = lt_excel ).
-        lo_struct_descr ?= lo_table_descr-&amp;gt;get_table_line_type( ).
-        DATA(lv_no_of_cols) = lines( lo_struct_descr-&amp;gt;components ).
-      CATCH cx_sy_move_cast_error INTO DATA(lo_sy_move_cast_error).
-
-        "Implement error handling
-        INSERT new_message( id       = sy-msgid
-                            number   = sy-msgno
-                            severity = if_abap_behv_message=&amp;gt;severity-error
-                            v1       = sy-msgv1
-                            v2       = sy-msgv2
-                            v3       = sy-msgv3
-                            v4       = sy-msgv4 )
-               INTO TABLE reported-%other.
-    ENDTRY.
-
-*-- Remove Headings of Columns from Excel data
-    IF lt_excel IS NOT INITIAL.
-      DELETE lt_excel INDEX 1.
-    ENDIF.
-
-*-- Remove all entries where Billing document is not available
-    IF lt_excel IS NOT INITIAL.
-      DELETE lt_excel WHERE vbeln IS INITIAL.
-    ENDIF.
-
-*-- Remove all duplicates
-    IF lt_excel IS NOT INITIAL.
-      DELETE ADJACENT DUPLICATES FROM lt_excel.
-    ENDIF.
-
-    IF lt_excel IS NOT INITIAL.
-      LOOP AT lt_excel ASSIGNING FIELD-SYMBOL(&amp;lt;lfs_excel&amp;gt;).
-        DO lv_no_of_cols TIMES.
-          lv_index = sy-index.
-          ASSIGN COMPONENT lv_index OF STRUCTURE &amp;lt;lfs_excel&amp;gt; TO &amp;lt;lfs_col_header&amp;gt;.
-          IF &amp;lt;lfs_col_header&amp;gt; IS NOT ASSIGNED.
-            CONTINUE.
-          ENDIF.
-          DATA(lv_has_error) = abap_false.
-          CASE lv_index.
-            WHEN 1. "Billing Document Number
-              CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
-                EXPORTING
-                  input  = &amp;lt;lfs_col_header&amp;gt;
-                IMPORTING
-                  output = &amp;lt;lfs_col_header&amp;gt;.
-
-              SELECT SINGLE fkdat
-                FROM vbrk
-                INTO (lv_fkdat)
-                WHERE vbeln = @&amp;lt;lfs_col_header&amp;gt;.
-
-              IF sy-subrc = 0.
-                &amp;lt;lfs_excel&amp;gt;-prev_fkdat = |{ lv_fkdat+6(2) }.{ lv_fkdat+4(2) }.{ lv_fkdat(4) }|.
-                CLEAR: lv_fkdat.
-              ELSE.
-                &amp;lt;lfs_excel&amp;gt;-type    = 'E'.
-                &amp;lt;lfs_excel&amp;gt;-message = TEXT-004.   "Invalid Document
-              ENDIF.
-
-            WHEN 2.  "New Billing Date
-              FIND PCRE '(\d{1,2}[.]\d{1,2}[.]\d{4})' IN &amp;lt;lfs_col_header&amp;gt;.
-              IF sy-subrc = 0.
-                CALL FUNCTION '/SAPDMC/LSM_DATE_CONVERT'
-                  EXPORTING
-                    date_in             = &amp;lt;lfs_col_header&amp;gt;
-                    date_format_in      = 'DDMY'
-                    to_output_format    = ' '
-                    to_internal_format  = 'X'
-                  IMPORTING
-                    date_out            = &amp;lt;lfs_col_header&amp;gt;
-                  EXCEPTIONS
-                    illegal_date        = 1
-                    illegal_date_format = 2
-                    no_user_date_format = 3
-                    OTHERS              = 4.
-                IF sy-subrc &amp;lt;&amp;gt; 0.
-                  &amp;lt;lfs_excel&amp;gt;-type    = 'E'.
-                  &amp;lt;lfs_excel&amp;gt;-message = TEXT-005.   "Invalid Date
-                ELSE.
-                  IF &amp;lt;lfs_col_header&amp;gt;+0(2) EQ '00'.
-                    &amp;lt;lfs_excel&amp;gt;-type    = 'E'.
-                    &amp;lt;lfs_excel&amp;gt;-message = TEXT-005.   "Invalid Date
-                  ELSE.
-                    lv_fkdat = &amp;lt;lfs_col_header&amp;gt;.
-                  ENDIF.
-                ENDIF.
-              ELSE.
-                &amp;lt;lfs_excel&amp;gt;-type    = 'E'.
-                &amp;lt;lfs_excel&amp;gt;-message = TEXT-005.   "Invalid Date
-              ENDIF.
-            WHEN 3 OR 4 OR 5.
-              "Do Nothing!!
-*              lv_has_error = COND #( WHEN &amp;lt;lfs_col_header&amp;gt; &amp;lt;&amp;gt; ' ' THEN abap_true ELSE lv_has_error ).
-            WHEN OTHERS. "More than 5 columns (error)
-              lv_has_error = abap_true.
-          ENDCASE.
-          UNASSIGN &amp;lt;lfs_col_header&amp;gt;.
-        ENDDO.
-        IF lv_has_error = abap_true.
-          APPEND VALUE #( %tky = lt_file_entity[ 1 ]-%tky ) TO failed-xlhead.
-          APPEND VALUE #( %tky = lt_file_entity[ 1 ]-%tky
-                          %msg = new_message_with_text( severity = if_abap_behv_message=&amp;gt;severity-error
-                                                        text     = TEXT-006 ) ) "Wrong File Format!!
-          TO reported-xlhead.
-          UNASSIGN &amp;lt;lfs_col_header&amp;gt;.
-          EXIT.
-        ELSE. "Process Data
-          "Update Billing Date
-          IF &amp;lt;lfs_excel&amp;gt;-type &amp;lt;&amp;gt; 'E'.
-            TRY.
-                zcl_tom_billing_date_upd=&amp;gt;zfm_tom_billing_date_upd( EXPORTING fkdat   = lv_fkdat
-                                                                              vbeln   = &amp;lt;lfs_excel&amp;gt;-vbeln
-*                                                                              _dest_  = 'NONE'
-                                                                    CHANGING  message = &amp;lt;lfs_excel&amp;gt;-message
-                                                                              mtype   = &amp;lt;lfs_excel&amp;gt;-type ).
-              CATCH cx_aco_application_exception INTO DATA(lo_aco_application_exception).
-              CATCH cx_aco_communication_failure INTO DATA(lo_aco_communication_failure).
-              CATCH cx_aco_system_failure INTO DATA(lo_aco_system_failure).
-
-                "Implement error handling
-                INSERT new_message( id       = sy-msgid
-                                    number   = sy-msgno
-                                    severity = if_abap_behv_message=&amp;gt;severity-error
-                                    v1       = sy-msgv1
-                                    v2       = sy-msgv2
-                                    v3       = sy-msgv3
-                                    v4       = sy-msgv4 )
-                       INTO TABLE reported-%other.
-            ENDTRY.
-
-            "Change Format to DD.MM.YYYY
-            &amp;lt;lfs_excel&amp;gt;-new_fkdat = |{ &amp;lt;lfs_excel&amp;gt;-new_fkdat+6(2) }.{ &amp;lt;lfs_excel&amp;gt;-new_fkdat+4(2) }.{ &amp;lt;lfs_excel&amp;gt;-new_fkdat(4) }|.
-
-          ENDIF.
-        ENDIF.
-      ENDLOOP.
-
-    ELSE.
-      APPEND VALUE #( %tky = lt_file_entity[ 1 ]-%tky ) TO failed-xlhead.
-      APPEND VALUE #( %tky = lt_file_entity[ 1 ]-%tky
-                      %msg = new_message_with_text( severity = if_abap_behv_message=&amp;gt;severity-error
-                                                    text     = TEXT-007 ) ) "No Input Data to Process in Excel!!
-      TO reported-xlhead.
-      EXIT.
-    ENDIF.
-
-*-- Sort with Error &amp;amp; Success type
-    IF lt_excel IS NOT INITIAL.
-      SORT: lt_excel ASCENDING BY type vbeln.
-    ENDIF.
-
-    "Prepare Data for Child Entity (XLData)
-    lt_data = VALUE #( ( %cid_ref  = keys[ 1 ]-%cid_ref
-                         %is_draft = keys[ 1 ]-%is_draft
-                         end_user  = keys[ 1 ]-end_user
-                         %target   = VALUE #( FOR lwa_excel IN lt_excel
-                                              ( %cid      = keys[ 1 ]-%cid_ref
-                                                %is_draft = keys[ 1 ]-%is_draft
-                                                %data     = VALUE #( end_user   = keys[ 1 ]-end_user
-                                                                     Vbeln      = lwa_excel-vbeln
-                                                                     New_Fkdat  = lwa_excel-new_fkdat
-                                                                     Prev_Fkdat = lwa_excel-prev_fkdat
-                                                                     Type       = lwa_excel-type
-                                                                     Message    = lwa_excel-message )
-                                                %control  = VALUE #( end_user   = if_abap_behv=&amp;gt;mk-on
-                                                                     Vbeln      = if_abap_behv=&amp;gt;mk-on
-                                                                     New_Fkdat  = if_abap_behv=&amp;gt;mk-on
-                                                                     Prev_Fkdat = if_abap_behv=&amp;gt;mk-on
-                                                                     Type       = if_abap_behv=&amp;gt;mk-on
-                                                                     Message    = if_abap_behv=&amp;gt;mk-on ) ) ) ) ).
-
-    "Checking Existing entry in child entity for user if any
-    READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
-    ENTITY XLHead
-    BY \_XLData
-    ALL FIELDS WITH CORRESPONDING #( keys )
-    RESULT DATA(lt_existing_XLData).
-
-    IF lt_existing_XLData IS NOT INITIAL.
-      "Delete already existing entries from child entity
-      MODIFY ENTITIES OF zcds_tom_i_user IN LOCAL MODE
-      ENTITY XLData DELETE FROM VALUE #( FOR lwa_data IN lt_existing_XLData
-                                         ( %key      = lwa_data-%key
-                                           %is_draft = lwa_data-%is_draft ) )
-      MAPPED DATA(ls_del_mapped)
-      REPORTED DATA(ls_del_reported)
-      FAILED DATA(ls_del_failed).
-    ENDIF.
-
-    "Modify Root View data (Change Status)
-    MODIFY ENTITIES OF zcds_tom_i_user IN LOCAL MODE
-    ENTITY XLHead
-    UPDATE FROM VALUE #( FOR key IN keys
-                         ( %is_draft       = key-%is_draft
-                           end_user        = key-end_user
-                           status          = TEXT-008 "File Processed
-                           %control-status = if_abap_behv=&amp;gt;mk-on ) )
-    MAPPED DATA(ls_mapped_update)
-    REPORTED DATA(ls_reported_update)
-    FAILED DATA(ls_failed_update).
-
-    "Add New Entry for XLData (association)
-    MODIFY ENTITIES OF zcds_tom_i_user IN LOCAL MODE
-    ENTITY XLHead
-    CREATE BY \_XLData
-    AUTO FILL CID
-    WITH lt_data.
-
-    "Read Updated Entry
-    READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
-    ENTITY XLHead
-    ALL FIELDS WITH
-    CORRESPONDING #( Keys )
-    RESULT DATA(lt_updated_XLHead).
-
-    "Send Status back to front end
-    result = VALUE #( FOR lwa_upd_head IN lt_updated_XLHead
-                      ( %tky   = lwa_upd_head-%tky
-                        %param = lwa_upd_head ) ).
-  ENDMETHOD.
-
-  "Needed in oDataV2 to download excel Data, for oDataV4 comment this method
-  METHOD downloadData.
-*-- Local Variable Declaration
-    DATA: lo_columns TYPE REF TO cl_salv_columns_table.
-    DATA: lo_column TYPE REF TO cl_salv_column.
-
-    "Fetch Processed Data
-    SELECT * FROM ztom_t_excel
-    INTO TABLE (lt_final)
-    WHERE end_user = -uname.
-
-    IF lt_final IS NOT INITIAL.
-      "Get Time Stamp
-      GET TIME STAMP FIELD DATA(lv_timestampl).
-
-      "Convert Internal table data to xstring.
-      DATA(lv_filename) = |{ TEXT-009 } { lv_timestampl }|. "Billing Date Update Log
-
-      "Convert internal table data to excel and download.
-      TRY.
-          cl_salv_table=&amp;gt;factory( IMPORTING r_salv_table = DATA(lo_table)
-                                  CHANGING  t_table      = lt_final ).
-
-          "Get ALV Column
-          lo_columns = lo_table-&amp;gt;get_columns( ).
-
-          TRY.
-              lo_column = lo_columns-&amp;gt;get_column( 'NEW_FKDAT' ).
-              lo_column-&amp;gt;set_long_text( TEXT-010 ). "New Billing Date
-              lo_column-&amp;gt;set_output_length( '15' ).
-            CATCH cx_salv_not_found INTO DATA(lo_salv_not_found).
-
-              "Implement error handling
-              INSERT new_message( id       = sy-msgid
-                                  number   = sy-msgno
-                                  severity = if_abap_behv_message=&amp;gt;severity-error
-                                  v1       = sy-msgv1
-                                  v2       = sy-msgv2
-                                  v3       = sy-msgv3
-                                  v4       = sy-msgv4 )
-                     INTO TABLE reported-%other.
-          ENDTRY.
-
-          TRY.
-              lo_column = lo_columns-&amp;gt;get_column( 'PREV_FKDAT' ).
-              lo_column-&amp;gt;set_long_text( TEXT-011 ).  "Previous Billing Date
-              lo_column-&amp;gt;set_output_length( '15' ).
-            CATCH cx_salv_not_found INTO lo_salv_not_found.
-
-              "Implement error handling
-              INSERT new_message( id       = sy-msgid
-                                  number   = sy-msgno
-                                  severity = if_abap_behv_message=&amp;gt;severity-error
-                                  v1       = sy-msgv1
-                                  v2       = sy-msgv2
-                                  v3       = sy-msgv3
-                                  v4       = sy-msgv4 )
-                     INTO TABLE reported-%other.
-          ENDTRY.
-
-          DATA(lv_content) = lo_table-&amp;gt;to_xml( xml_type = if_salv_bs_xml=&amp;gt;c_type_xlsx ).
-
-        CATCH cx_salv_msg INTO DATA(lo_salv_msg).
-
-          "Implement error handling
-          INSERT new_message( id       = sy-msgid
-                              number   = sy-msgno
-                              severity = if_abap_behv_message=&amp;gt;severity-error
-                              v1       = sy-msgv1
-                              v2       = sy-msgv2
-                              v3       = sy-msgv3
-                              v4       = sy-msgv4 )
-                 INTO TABLE reported-%other.
-      ENDTRY.
-
-      "Modify Root Entity
-      MODIFY ENTITIES OF zcds_tom_i_user IN LOCAL MODE
-      ENTITY XLHead
-      UPDATE FROM VALUE #( FOR key IN keys
-                           ( end_user            = key-end_user
-                             status              = TEXT-012 "Data Downloaded
-                             Attachment          = lv_content
-                             Filename            = lv_filename
-                             MimeType            = TEXT-013   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-                             %control-status     = if_abap_behv=&amp;gt;mk-on
-                             %control-Attachment = if_abap_behv=&amp;gt;mk-on
-                             %control-Filename   = if_abap_behv=&amp;gt;mk-on
-                             %control-MimeType   = if_abap_behv=&amp;gt;mk-on ) )
-      MAPPED DATA(ls_mapped_update)
-      REPORTED DATA(ls_reported_update)
-      FAILED DATA(ls_failed_update).
-
-      "Read Updated Entry
-      READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
-      ENTITY XLHead
-      ALL FIELDS WITH
-      CORRESPONDING #( Keys )
-      RESULT DATA(lt_XLHead).
-
-      "Send Status back to front end
-      result = VALUE #( FOR lwa_upd_head IN lt_XLHead
-                        ( %tky   = lwa_upd_head-%tky
-                          %param = lwa_upd_head ) ).
-    ENDIF.
-  ENDMETHOD.
-
-*  METHOD earlynumbering_create.
-*  DATA(lv_user) = cl_abap_context_info=&amp;gt;get_user_technical_name( ).
-*    LOOP AT entities ASSIGNING FIELD-SYMBOL(&amp;lt;lfs_entities&amp;gt;).
-*      APPEND CORRESPONDING #( &amp;lt;lfs_entities&amp;gt; ) TO mapped-xlhead
-*          ASSIGNING FIELD-SYMBOL(&amp;lt;lfs_xlhead&amp;gt;).
-*      &amp;lt;lfs_xlhead&amp;gt;-end_user = lv_user.
-*    ENDLOOP.
-*  ENDMETHOD.
-
-  METHOD get_instance_features.
-    READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
-    ENTITY XLHead
-    FIELDS ( end_user )
-    WITH CORRESPONDING #( keys )
-    RESULT DATA(lt_file).
-
-    result = VALUE #( FOR ls_file IN lt_file
-                      ( %key                              = ls_file-%key
-                        %is_draft                         = ls_file-%is_draft
-                        %features-%action-uploadexceldata = COND #( WHEN ls_file-%is_draft = '00'
-                                                                    THEN if_abap_behv=&amp;gt;fc-f-read_only
-                                                                    ELSE if_abap_behv=&amp;gt;fc-f-unrestricted ) ) ).
-  ENDMETHOD.
-ENDCLASS.
-
-
-*CLASS lhc_XLData DEFINITION INHERITING FROM cl_abap_behavior_handler.
-*
-*  PRIVATE SECTION.
-*    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-*      IMPORTING keys REQUEST requested_authorizations FOR XLData RESULT result.
-*
-*    METHODS displayDocument FOR MODIFY
-*      IMPORTING keys FOR ACTION XLData~displayDocument RESULT result.
-*
-*ENDCLASS.
-*
-*
-*CLASS lhc_XLData IMPLEMENTATION.
-*  METHOD get_instance_authorizations.
-*  ENDMETHOD.
-*
-*  METHOD displayDocument.
-*    "Read Child Entity
-*    READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
-*        ENTITY XLData
-*        ALL FIELDS WITH
-*        CORRESPONDING #( keys )
-*        RESULT FINAL(lt_data).
-*
-*    IF lt_data IS NOT INITIAL.
-*      "Convert Internal table data for excel
-*
-*      "Read Updated Entry
-*      READ ENTITIES OF zcds_tom_i_user IN LOCAL MODE
-*      ENTITY XLData
-*      ALL FIELDS WITH
-*      CORRESPONDING #( Keys )
-*      RESULT DATA(lt_XLData).
-*
-*      "Send Status back to front end
-*      result = VALUE #( FOR lwa_upd_data IN lt_XLData
-*                        ( %tky   = lwa_upd_data-%tky
-*                          %param = lwa_upd_data ) ).
-*    ENDIF.
-*  ENDMETHOD.
-*ENDCLASS.​&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;Function Module used in RAP to update Billing Date -&lt;BR /&gt;we have created a remote enabled custom FM ZFM_TOM_BILLING_DATE_UPD as we don't have released SAP APIs available in our system. Then we have wrapped it by transaction ACO_PROXY and created a proxy class ZCL_TOM_BILLING_DATE_UPD.&lt;BR /&gt;This proxy class will be called from behavior Implementation class to update billing date.&lt;BR /&gt;Click on Hyperlink to check full blog&amp;nbsp;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/how-to-generate-a-wrapper-for-function-modules-bapis-for-missing-released/ba-p/13692790" target="_blank"&gt;How to generate a wrapper for function modules (BAPIs) for missing released SAP APIs&lt;/A&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;Function module logic is mentioned below:&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;FUNCTION zfm_tom_billing_date_upd
-  IMPORTING
-    VALUE(vbeln) TYPE vbeln_vf
-    VALUE(fkdat) TYPE fkdat
-  CHANGING
-    VALUE(mtype) TYPE bapi_mtype OPTIONAL
-    VALUE(message) TYPE bapi_msg OPTIONAL
-  EXCEPTIONS
-    no_authority.
-
-
-
-  DATA: ls_vbrk_i TYPE vbrk,
-        ls_vbrk_e TYPE vbrk,
-        ls_vbsk   TYPE vbsk.
-
-  DATA: lt_xkomv  TYPE STANDARD TABLE OF komv,
-        lt_xvbpa  TYPE STANDARD TABLE OF vbpavb,
-        lt_xvbrk  TYPE STANDARD TABLE OF vbrkvb,
-        lt_xvbrp  TYPE STANDARD TABLE OF vbrpvb,
-        lt_xkomfk TYPE STANDARD TABLE OF komfk,
-        lt_xvbfs  TYPE STANDARD TABLE OF vbfs,
-        lt_xthead TYPE STANDARD TABLE OF theadvb,
-        lt_xvbss  TYPE STANDARD TABLE OF vbss.
-
-  CLEAR: ls_vbrk_i,
-  ls_vbrk_e,
-  ls_vbsk.
-
-  REFRESH: lt_xkomv,
-  lt_xvbpa,
-  lt_xvbrk,
-  lt_xvbrp,
-  lt_xkomfk,
-  lt_xvbfs,
-  lt_xthead,
-  lt_xvbss.
-
-  ls_vbrk_i-vbeln = vbeln.
-
-  TRY.
-      "Read billing doc
-      CALL FUNCTION 'RV_INVOICE_DOCUMENT_READ'
-        EXPORTING
-*         ACTIVITY     = '  '
-          konv_read    = 'X'
-*         NO_NAST      = ' '
-          vbrk_i       = ls_vbrk_i
-*         I_NO_AUTHORITY_CHECK = ' '
-*         OIA_UNZIP_FEES =
-*         I_GV_ERDAT_SEL =
-*         IV_NO_PRICING_BUFFER = ABAP_FALSE
-        IMPORTING
-          vbrk_e       = ls_vbrk_e
-*         VBUK_E       =
-        TABLES
-          xkomv        = lt_xkomv
-          xvbpa        = lt_xvbpa
-          xvbrk        = lt_xvbrk
-          xvbrp        = lt_xvbrp
-          xkomfk       = lt_xkomfk
-          xvbfs        = lt_xvbfs
-          xthead       = lt_xthead
-          xvbss        = lt_xvbss
-*        CHANGING
-*         i_data_read_from_archive =
-        EXCEPTIONS
-          no_authority = 1
-          OTHERS       = 2.
-      IF sy-subrc &amp;lt;&amp;gt; 0.
-* If BAPI is not successful, Implement error handling
-        mtype    = 'E'.
-        message = TEXT-001.  "Error in Reading Billing Document
-
-      ELSE.
-        "Change Billing Date
-        ls_vbrk_e-fkdat = fkdat.   "New Billing date
-
-        "Apply Changes
-        CALL FUNCTION 'RV_INVOICE_HEAD_MAINTAIN'
-          EXPORTING
-*           FCODE_I = '    '
-            vbrk_i = ls_vbrk_e
-          TABLES
-            xkomfk = lt_xkomfk
-            xkomv  = lt_xkomv
-            xthead = lt_xthead
-            xvbfs  = lt_xvbfs
-            xvbpa  = lt_xvbpa
-            xvbrk  = lt_xvbrk
-            xvbrp  = lt_xvbrp
-            xvbss  = lt_xvbss.
-
-        IF sy-subrc &amp;lt;&amp;gt; 0.
-* If BAPI is not successful, Implement error handling
-          mtype    = 'E'.
-          message = TEXT-002.    "Error in Applying Changes
-
-        ELSE.
-          ls_vbsk-mandt = sy-mandt.
-          ls_vbsk-ernam = ls_vbrk_e-ernam.
-          ls_vbsk-erdat = ls_vbrk_e-erdat.
-          ls_vbsk-uzeit = ls_vbrk_e-erzet.
-
-          "Save the Changes
-          CALL FUNCTION 'RV_INVOICE_DOCUMENT_ADD'
-            EXPORTING
-              vbsk_i = ls_vbsk
-*             with_posting = 'X'
-*             WITHOUT_REFRESH = ' '
-*             PREISFINDUNGSART = 'A'
-*             I_NO_VBLOG = ' '
-*             I_NO_NAST = ' '
-*             I_NO_PRICING = ' '
-*             I_NO_FI_DOC = ' '
-*             I_BLART = ' '
-*             IS_FI_ADD_INPUT =
-*             I_NO_COLLECTIVE_BILLING =
-*             IV_SNAPSHOT_ACTIVATION = ABAP_FALSE
-*             IV_SUPPRESS_GTS_IN_SIM_MODE = ABAP_FALSE
-*             IV_NO_TAX_CALC_IN_SIM_MODE = ABAP_FALSE
-*             IMPORTING
-*             VBSK_E =
-            TABLES
-              xkomfk = lt_xkomfk
-              xkomv  = lt_xkomv
-              xthead = lt_xthead
-              xvbfs  = lt_xvbfs
-              xvbpa  = lt_xvbpa
-              xvbrk  = lt_xvbrk
-              xvbrp  = lt_xvbrp
-              xvbss  = lt_xvbss.
-
-          IF sy-subrc &amp;lt;&amp;gt; 0.
-* If BAPI is not successful, Implement error handling
-            mtype    = 'E'.
-            message = TEXT-003.  "Error in Saving the Changes
-          ELSE.
-            mtype    = 'S'.
-            message = TEXT-004.  "Billing Date Changed Successfully
-          ENDIF.
-        ENDIF.
-      ENDIF.
-
-    CATCH cx_root INTO DATA(lx).
-
-  ENDTRY.
-
-ENDFUNCTION.​&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId--2113708011"&gt;Behavior Projection – ZCDS_TOM_C_USER&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection;
-strict ( 2 );
-use draft;
-
-define behavior for ZCDS_TOM_C_USER //alias XLHead
-{
-  //  use create;
-  use update;
-  use delete;
-
-  field ( readonly ) end_user, status, Local_Last_Changed_At;
-
-  use action downloadTemplate;
-  use action downloadData; //Needed in oDataV2 to download excel Data, for oDataV4 comment this
-
-  use action Edit;
-  use action Activate;
-  use action Discard;
-  use action Resume;
-  use action Prepare;
-
-  use association _XLData { create; with draft; }
-}
-
-define behavior for ZCDS_TOM_C_EXCEL //alias XLData
-{
-  //  use update; //IF WANT USER TO ENABLE EDIT IN EXCEL DATA UNCOMMENT THIS
-  //  use delete; //IF WANT USER TO DELETE PROCESSED EXCEL DATA UNCOMMENT THIS
-
-  use association _XLUser { with draft; }
-
-  //  use action displayDocument; //IF WANT TO ADD A NEW ACTION
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--1723415502"&gt;Create Service Definition&lt;/H3&gt;&lt;P&gt;Now, let's create Service Definitions, exposing both Behavior Definition and Projection we just created.&lt;/P&gt;&lt;H5 id="toc-hId-1788232275"&gt;Service Definition – &lt;SPAN&gt;ZCDS_TOM_SD_MASS_FKDAT&lt;/SPAN&gt;&lt;/H5&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Service Definition for Projection Views'
-define service ZCDS_TOM_SD_MASS_FKDAT {
-  expose ZCDS_TOM_C_USER as XLHead;
-  expose ZCDS_TOM_C_EXCEL as XLData;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--1948258821"&gt;Create Service Binding&lt;/H3&gt;&lt;P&gt;Now, let's create Service Binding (I tested with V2) on top of Service Definition we just created.&lt;BR /&gt;&lt;BR /&gt;If You are using V4 Services, you don't need to create separate action downloadData (comment it out) as we already have an option to export the data as an excel in V4 Services. You can add validations on excel input data as per your requirement.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--2144772326"&gt;See the &lt;SPAN&gt;wonders...&lt;span class="lia-unicode-emoji" title=":glowing_star:"&gt;🌟&lt;/span&gt;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;The list report page would look like below for V2 Services, in V4 Services you will see an extra option to export data as an excel-&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Click on Go -&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 143754.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312163i4F93E09465B374AF/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 143754.png" alt="Screenshot 2025-09-10 143754.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Person Responsible will be the Session User, Click anywhere on the line or on arrow -&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 131117.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312151i6D0C0AA8EEDEA0A7/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 131117.png" alt="Screenshot 2025-09-10 131117.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Click on Download Template button to Load Template, this action can be performed on first screen as well by selecting line item and click download template, Template will be loaded successfully as an excel attachment.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 131209.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312153i9F19A9925D49E4D2/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 131209.png" alt="Screenshot 2025-09-10 131209.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Click on Hyperlink to download Template.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 131422.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312154i2F746DF9B2D47AA3/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 131422.png" alt="Screenshot 2025-09-10 131422.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Template can be deleted by clicking on Delete Button, this same delete button will be used to delete processed data entries.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 131525.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312155i918EE6DF0C403359/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 131525.png" alt="Screenshot 2025-09-10 131525.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Click on Edit button on previous screen and You can now update entries in the template and upload the data.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 131602.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312156i75E258B132404DEB/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 131602.png" alt="Screenshot 2025-09-10 131602.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Data will be processed, now click on save.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 131856.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312157i945EFB19A8FACD56/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 131856.png" alt="Screenshot 2025-09-10 131856.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Status will be changed to 'File Processed'.&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 132016.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312161iCBDBFE4677078830/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 132016.png" alt="Screenshot 2025-09-10 132016.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Click on Download Data to load Processed Data as an Excel Attachment.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-09-10 132125.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/312160iDB6D54DC85751EFF/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-09-10 132125.png" alt="Screenshot 2025-09-10 132125.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Watch the Demo for V4 Services!!&lt;/P&gt;&lt;P&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FuApixpT8Vww%3Ffeature%3Doembed&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DuApixpT8Vww&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2FuApixpT8Vww%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="600" height="337" scrolling="no" title="Excel Upload/ Download Template/ Download Processed Data in SAP Fiori Without SAPUI5 - Using SAP RAP" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/P&gt;&lt;P&gt;Hope it will be helpful!!&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/excel-upload-download-template-download-processed-data-in-sap-fiori-without/ba-p/14212916"/>
-    <published>2025-09-10T16:00:28.980000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/how-to-collaborate-on-an-entity-of-a-draft-enabled-rap-business-object/ba-p/14216444</id>
     <title>How to collaborate on an entity of a draft enabled RAP Business Object ?</title>
@@ -2919,6 +1854,231 @@ ENDMETHOD. &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class
     <content>&lt;H1 id="toc-hId-1632710804"&gt;Building SaaS Products on SAP BTP&lt;/H1&gt;&lt;P&gt;&lt;STRONG&gt;Disclaimer:&lt;/STRONG&gt; This article was inspired by SAP's work on modern cloud development, particularly the blog "&lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/how-sap-s-abap-cloud-partner-reference-app-simplifies-multi-tenant-side-by/ba-p/14223705" target="_blank"&gt;How SAP's ABAP Cloud Partner Reference App simplifies multi-tenant side-by-side extensions&lt;/A&gt;," and is intended to explore these critical architectural topics further.&lt;/P&gt;&lt;P&gt;SAP is undergoing its largest transformation in decades—moving from &lt;STRONG&gt;on-premise monoliths to cloud-native architecture&lt;/STRONG&gt;. Products like Datasphere, Analytics Cloud, and Business Data Cloud exist only in the cloud. Yet despite this fundamental shift, most software vendors still treat SAP like it’s 2010.&lt;/P&gt;&lt;P&gt;Let me explain why this gap is a massive &lt;STRONG&gt;opportunity for disruption&lt;/STRONG&gt;—and why mastering the &lt;STRONG&gt;SAP Business Technology Platform (BTP)&lt;/STRONG&gt; is much harder than the marketing suggests.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1565280018"&gt;The Architectural Divide: From Monolith to Node&lt;/H2&gt;&lt;P&gt;To understand the &lt;STRONG&gt;BTP challenge&lt;/STRONG&gt;, we must first recognize the dramatic shift in enterprise architecture.&lt;/P&gt;&lt;H3 id="toc-hId-1497849232"&gt;The Old World: SAP as the Center of Gravity&lt;/H3&gt;&lt;P&gt;For decades, &lt;STRONG&gt;SAP ECC&lt;/STRONG&gt; was the undisputed heart of enterprise data. Every system pointed inward. CRM, warehouse management, custom applications—everything fed data into one central, tightly coupled system.&lt;/P&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;External&amp;nbsp;Systems&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;⟶&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;SAP&amp;nbsp;ECC&amp;nbsp;Monolith&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;⟶&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Single&amp;nbsp;Source&amp;nbsp;of&amp;nbsp;Truth&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;P&gt;This architecture made building SAP-integrated products deceptively straightforward:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Write &lt;STRONG&gt;ABAP code&lt;/STRONG&gt; directly inside the SAP system.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Deploy via Transport Requests.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Access everything natively (tables, function modules, full transaction control).&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;I've seen incredibly sophisticated, high-performance solutions built entirely in ABAP. But notice this: many of these established ABAP vendors are slow to build cloud-native versions on BTP. This hesitation tells you something profound about the real challenges involved.&lt;/P&gt;&lt;H3 id="toc-hId-1301335727"&gt;The New Reality: S/4HANA as Just Another Node&lt;/H3&gt;&lt;P&gt;In today's distributed architecture, &lt;STRONG&gt;S/4HANA is simply one system among many&lt;/STRONG&gt;. It sits alongside Salesforce, Workday, custom applications, and SAP’s own cloud products—all communicating through &lt;STRONG&gt;SAP BTP as the critical integration, extension, and application layer&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;This fundamental change means you can no longer rely on deep, internal access to the core. It forces a complete overhaul of how you design and build &lt;STRONG&gt;SaaS products&lt;/STRONG&gt; for the SAP ecosystem.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-975739503"&gt;The BTP Reality: Why It's Harder Than It Looks&lt;/H2&gt;&lt;P&gt;The core challenge lies in bridging the gap between the &lt;STRONG&gt;ABAP world's capabilities&lt;/STRONG&gt; and the &lt;STRONG&gt;modern cloud platform’s constraints&lt;/STRONG&gt;.&lt;/P&gt;&lt;H3 id="toc-hId-908308717"&gt;The ABAP Advantage (What You Lose)&lt;/H3&gt;&lt;P&gt;When you build directly in ABAP (on-premise), you gain:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Direct access&lt;/STRONG&gt; to all SAP objects and processes.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Standardized integration patterns (BAPIs, Function Modules).&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Full &lt;STRONG&gt;transactional control&lt;/STRONG&gt; and deep customization hooks.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;30+ years of accumulated frameworks and access methods.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-711795212"&gt;The BTP Reality (What You Are Limited To)&lt;/H3&gt;&lt;P&gt;On BTP, you are limited to officially sanctioned external access methods:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;APIs (REST, OData)&lt;/STRONG&gt; – when they exist and are complete.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;RFC Calls/Web Services&lt;/STRONG&gt; – (The "legacy" or "sidecar" approach).&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Custom ABAP Extensions&lt;/STRONG&gt; – (The fallback when APIs fail).&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;The Technical Truth: Many older, niche, or newly migrated SAP modules do not have complete &lt;STRONG&gt;API coverage&lt;/STRONG&gt; for every critical workflow step. This is not a criticism of SAP; it's the reality of a massive platform in transition. Building true SaaS products on BTP requires mapping your entire solution against the &lt;STRONG&gt;SAP API Business Hub&lt;/STRONG&gt; before writing any code.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-386198988"&gt;The Compelling Reason to Build SaaS on BTP&lt;/H2&gt;&lt;P&gt;Despite the integration complexity, the strategic advantages of BTP are too significant for modern vendors to ignore. &lt;STRONG&gt;BTP is the enforcement mechanism for SAP's Clean Core strategy.&lt;/STRONG&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;Strategic Advantage&lt;/TD&gt;&lt;TD&gt;Why it Matters&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;1. Leverage SAP Objects Without Core Modification&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;Use SAP &lt;STRONG&gt;CAP&lt;/STRONG&gt; (Cloud Application Programming Model) or &lt;STRONG&gt;RAP&lt;/STRONG&gt; (ABAP RESTful Application Programming Model) to extend key SAP objects (Business Partners, Sales Orders, Materials) with custom fields and logic. This ensures your solution aligns with the &lt;STRONG&gt;Clean Core&lt;/STRONG&gt; approach.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;2. Instant User Management and Security&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;Integrate with BTP's &lt;STRONG&gt;XSUAA service&lt;/STRONG&gt;. You instantly inherit customer's users, &lt;STRONG&gt;SSO integration&lt;/STRONG&gt;, saving months of development and operational overhead on identity management.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;3. Customer-Specific Extensions via Multitenancy&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;Ship one product while allowing customer-specific configurations and extensions. BTP's native &lt;STRONG&gt;multitenancy&lt;/STRONG&gt; handles the data and configuration isolation, dramatically lowering codebase maintenance costs compared to the old world of branched ABAP code.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;4. Modern Deployment and Operations&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;Deploy globally without hardware investment. Scale automatically based on demand. Use modern &lt;STRONG&gt;DevOps&lt;/STRONG&gt; practices and CI/CD pipelines to update all customers simultaneously—a logistical nightmare with on-premise solutions.&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-189685483"&gt;Two Strategic Approaches to BTP SaaS&lt;/H2&gt;&lt;P&gt;Your product's architecture should align with its core purpose:&lt;/P&gt;&lt;H3 id="toc-hId-122254697"&gt;Approach 1: Extend SAP Objects&lt;/H3&gt;&lt;P&gt;Your product becomes a natural, value-add extension of core SAP functionality, leveraging the data models customers already use and understand.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Best for:&lt;/STRONG&gt; Solutions that enhance existing SAP processes (advanced analytics, specialized compliance requirements, industry-specific workflows).&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Technical Focus:&lt;/STRONG&gt; Heavy reliance on &lt;STRONG&gt;CAP/RAP&lt;/STRONG&gt; to extend standard entities and leverage the existing SAP transactional context.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId--149490177"&gt;Approach 2: Build Independent with SAP Integration (Loosely Coupled)&lt;/H3&gt;&lt;P&gt;Create your own data model using modern frameworks (CAP/Node.js, Java) and integrate with SAP only as needed for master data and transactional exchange.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Best for:&lt;/STRONG&gt; Products that could exist standalone but gain significant value from SAP integration (planning tools, specialized industry solutions, asset management).&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Technical Focus:&lt;/STRONG&gt; Strong emphasis on the &lt;STRONG&gt;SAP Integration Suite&lt;/STRONG&gt; and &lt;STRONG&gt;Event Mesh&lt;/STRONG&gt; for asynchronous, reliable communication.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H2 id="toc-hId--52600675"&gt;The Common Pitfalls I've Observed&lt;/H2&gt;&lt;P&gt;Architectural success on BTP is often defined by avoiding these common traps:&lt;/P&gt;&lt;H3 id="toc-hId--542517187"&gt;1. The API Gap Surprise&lt;/H3&gt;&lt;P&gt;Teams design beautiful cloud-native architecture assuming APIs exist for everything. When they discover a critical workflow is missing an API, they are forced to write custom ABAP in the S/4HANA core to create a needed OData service.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;The Lesson:&lt;/STRONG&gt; This creates a &lt;STRONG&gt;Custom ABAP Sidecar&lt;/STRONG&gt;—it defeats the purpose of the BTP-native, Clean Core approach for that use case, complicating deployment and creating system-specific dependencies. &lt;STRONG&gt;Map your integration requirements against actual API availability before committing to architecture.&lt;/STRONG&gt;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId--739030692"&gt;2. The Custom Integration Trap&lt;/H3&gt;&lt;P&gt;A company builds its first SAP integration for Customer A, which takes six months. Customer B has different middleware, a different S/4HANA version, and unique customizations. Three years later, the company has five customers but five completely different integrations with no reusable product.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;The Lesson:&lt;/STRONG&gt; Design for product &lt;STRONG&gt;reusability&lt;/STRONG&gt; from day one. Use &lt;STRONG&gt;BTP as the standard integration hub&lt;/STRONG&gt; for all customers. Your product should treat the S/4HANA backend as an interchangeable service, not a monolithic dependency.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId--935544197"&gt;3. The Deployment Complexity&lt;/H3&gt;&lt;P&gt;The product itself might be excellent, but if every customer implementation requires weeks of external SAP consulting to set up roles, connect services, and configure the integration, the deployment model doesn't scale economically.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;The Lesson:&lt;/STRONG&gt; Design your solution to be simple. Aim for a solution that can be deployed and configured by the customer’s existing SAP team in days, not months, using automated scripts and minimal manual steps.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H2 id="toc-hId--838654695"&gt;My Strategic Focus&lt;/H2&gt;&lt;P&gt;My focus is clear: to master the architecture required to build and commercialize a &lt;STRONG&gt;CAP template SaaS solution&lt;/STRONG&gt;. By leveraging the best practices of the &lt;STRONG&gt;Cloud Application Programming Model (CAP)&lt;/STRONG&gt; and designing for &lt;STRONG&gt;native multitenancy&lt;/STRONG&gt;, I aim to provide a production-ready, clean-core blueprint that accelerates the time-to-market for modern SAP solutions. This is the strategic direction for dominating the next era of the SAP ecosystem.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/building-saas-products-on-sap-btp/ba-p/14231929"/>
     <published>2025-09-30T17:53:09.293000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/rap-using-custom-entity-with-load-multiple-data-using-pagination-and/ba-p/14233901</id>
+    <title>RAP Using Custom Entity with load multiple data using Pagination and Preview using UI annotations</title>
+    <updated>2025-10-03T06:01:53.175000+02:00</updated>
+    <author>
+      <name>RakeshZore</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1759317</uri>
+    </author>
+    <content>&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;This blog covers RAP development using a custom entity, showcasing data with UI annotations, and surpassing the standard SAP data preview limit through the use of pagination.&lt;/P&gt;&lt;P&gt;Lets Start....&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 1: Create a custom entity with the fields that need to be displayed or sent to the frontend.&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Custom entity for fetching data'
+@ObjectModel.query.implementedBy: 'ABAP:ZCL_IMPLEMENT_EXT' //This is the class where the data is handle and processed
+@UI:{ headerInfo:{  typeName: 'RAP Learn',
+                             typeNamePlural: 'RAP Learn',
+                             title: { label: 'RAP Learn',
+                                       type: #STANDARD,
+                                       value: 'component'
+                                     },
+                             description: { value: 'obj_desc' },
+                                     typeImageUrl: 'sap-icon://activity-items' //Show Icon image on header of object layout
+                           }
+               }
+@Search.searchable: true //for Searching the data from the output which is also need to implement in the implemented class above 
+define root custom entity ZCE_MAIN
+{
+      .facet   : [{
+                      id: 'ID1',
+                      purpose: #STANDARD,
+                      type: #IDENTIFICATION_REFERENCE,
+                      label : 'Component detail',
+                      position: 10
+                    },
+                    {
+                id: 'FG1',
+                purpose: #STANDARD,
+                type: #FIELDGROUP_REFERENCE,
+                label : 'Validity Date',
+                targetQualifier: 'FG1',
+                position: 10
+              }]
+               : {  selectionField: [{ position: 10 }]}
+      @Consumption.filter.mandatory: true
+      @Consumption.valueHelpDefinition: [{
+                            entity : { name: 'ZIV_F4MATNR' , element: 'matnr'   } ,
+                            additionalBinding: [{ localElement: 'werks', element: 'werks' },
+                                                         {  localElement: 'stlan' , element: 'stlan' },
+                                                         {  localElement: 'stlal' , element: 'stlal' }]}]
+      @Consumption.filter.selectionType: #SINGLE
+  key matnr       : matnr;
+               : {  selectionField: [{ position: 20 }]}
+      @Consumption.filter.mandatory: true
+      @Consumption.valueHelpDefinition: [{
+                      entity : { name: 'ZIV_F4WERKS', element: 'werks' }
+                                                         }]
+      @Consumption.filter.selectionType: #SINGLE
+  key werks       : werks_d;
+               : {  selectionField: [{ position: 30 }]}
+      @Consumption.filter.mandatory: true
+      @Consumption.valueHelpDefinition: [{
+                entity : { name: 'ZIV_F4STLAN' , element: 'stlan' }
+                                                   }]
+      @Consumption.filter.selectionType: #SINGLE
+  key stlan       : stlan;
+               : {  selectionField: [{ position: 40 }]}
+      @Consumption.filter.mandatory: true
+      @Consumption.filter.selectionType: #SINGLE
+  key stlal       : stlal;
+               : { lineItem: [{ position: 10 }], identification: [{ position: 10 }]}
+      @EndUserText.label: 'Level'
+  key bom_level   : abap.dec( 2, 0 );
+               : { lineItem: [{ position: 20 }], identification: [{ position: 20 }]}
+      @EndUserText.label: 'Component'
+      .defaultSearchElement: true
+  key component   : idnrk;
+               : {  selectionField: [{ position: 50 }]}
+      @Consumption.filter.mandatory: true
+      @Consumption.filter.selectionType: #SINGLE
+      @EndUserText.label: 'Date'
+      zdate       : abap.dats;
+               : { lineItem: [{ position: 30, cssDefault: { width: '13rem' }  }], identification: [{ position: 30 }]}
+      @EndUserText.label: 'Object Description'
+      .defaultSearchElement: true
+      obj_desc    : maktx;
+               : { lineItem: [{ position: 35, cssDefault: { width: '8rem' } }], identification: [{ position: 35 }]}
+      @EndUserText.label: 'Quantity'
+      comp_qty    : kmpmg_bi;
+               : { lineItem: [{ position: 45 }], identification: [{ position: 45 }]}
+      @EndUserText.label: 'Unit'
+      comp_unit   : kmpme;
+               : { lineItem: [{ position: 55 }], fieldGroup: [{ position: 10 , qualifier: 'FG1', label: 'Valid From' }]}
+      @EndUserText.label: 'Valid from'
+      valid_from  : datuv_bi;
+               : { lineItem: [{ position: 65 }], fieldGroup: [{ position: 11 , qualifier: 'FG1', label: 'Valid To' }]}
+      @EndUserText.label: 'Valid to'
+      valid_to    : datub_bi;
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;While using the RAP framework, metadata extensions cannot be created for custom entities. Therefore, annotations must be directly included in the custom entity code itself for UI purposes.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 2 : Create an implementation class for the custom entity mentioned above and name it&amp;nbsp;ZCL_IMPLEMENT_EXT&amp;nbsp;or use the custom name specified in the second line of the code.&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_implement_ext DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC
+  SHARED MEMORY ENABLED .
+
+  PUBLIC SECTION.
+    DATA : et_final TYPE TABLE OF zce_main.
+    INTERFACES if_rap_query_provider .
+
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+
+ENDCLASS.
+
+
+
+CLASS ZCL_IMPLEMENT_EXT IMPLEMENTATION.
+
+  METHOD if_rap_query_provider~select.
+    CASE io_request-&amp;gt;get_entity_id( ).
+      WHEN 'ZCE_MAIN'.
+        TRY.
+            DATA(lv_skip) = io_request-&amp;gt;get_paging( )-&amp;gt;get_offset( ). "gets the skip part from URL which means number of data to be skipped and default is 0 but later on it gets add by 20... till last data not get fetched
+            DATA(lv_top) = io_request-&amp;gt;get_paging( )-&amp;gt;get_page_size( ). "gets the top part from URL which means number of data required and default is 20
+            DATA(lt_filter) = io_request-&amp;gt;get_filter( )-&amp;gt;get_as_ranges( ). "gets the input value which is either pass in our filters or when click on single data line item
+           
+          CATCH cx_rap_query_filter_no_range.
+            "handle exception
+        ENDTRY.
+
+        IF lv_top &amp;lt; 0.
+*********** Start Logic
+"Put logic for single data fetch in which it will trigger when you are going for object page while clicking on single item from display table
+"Take inputs from LT_filter table for sending that particular data click 
+*********** End Logic
+            IF io_request-&amp;gt;is_total_numb_of_rec_requested( ).
+              io_response-&amp;gt;set_total_number_of_records( lines( et_final ) ).
+            ENDIF.
+            IF io_request-&amp;gt;is_data_requested(  ).
+              io_response-&amp;gt;set_data( et_final ).
+            ENDIF.
+        ELSE.
+*********** Start Logic
+"Put logic for actual multiple data fetch in which it will trigger when you click go button or any sort of actions like search, sort, excel download....
+"Take inputs from LT_filter table for required data fetch 
+*********** End Logic
+          ENDIF.
+********** Searching Logic
+        DATA(lv_search) = io_request-&amp;gt;get_search_expression( ). "gets the value from Search field in the UI
+          IF lv_search IS NOT INITIAL.
+            DATA lt_search LIKE et_final.
+
+            lv_search = |*{ lv_search }*|.
+            lt_search = VALUE #( BASE lt_search
+                          FOR ls_f IN et_final
+                          WHERE ( field1 CP lv_search OR  "Put required field to be search instead of field1,field2.....
+                                  field2 CP lv_search  OR
+                                  field3 cp lv_search OR
+                                  field4 cp lv_search OR                                                                
+                                                       ( ls_f ) ).
+            et_final = lt_search.
+          ENDIF.
+***********End of Searching logic
+***********Sorting logic
+        DATA(lt_sort_elements) = io_request-&amp;gt;get_sort_elements( ). "gets the detail table of ascending and descending of field we wants to be sorted from UI
+          IF lt_sort_elements IS NOT INITIAL.
+            LOOP AT lt_sort_elements INTO DATA(ls_sort).
+              IF ls_sort-descending &amp;lt;&amp;gt; 'X'.
+                SORT et_final BY (ls_sort-element_name) ASCENDING.
+              ELSE.
+                SORT et_final BY (ls_sort-element_name) DESCENDING.
+              ENDIF.
+            ENDLOOP.
+          ENDIF.
+**********End of sorting logic
+**********Paging- logic for loading more data wrt Standard set amount of data
+          IF lv_top IS NOT INITIAL OR lv_skip IS NOT INITIAL.
+            /iwbep/cl_mgw_data_util=&amp;gt;paging( EXPORTING is_paging = VALUE #( top  = lv_top
+                                                                            skip = lv_skip )
+                                             CHANGING  ct_data   = et_final ).
+          ENDIF.
+*********End of Pagination
+
+          IF io_request-&amp;gt;is_total_numb_of_rec_requested( ).
+            io_response-&amp;gt;set_total_number_of_records( lines( et_final ) ). "set number of initial data to display overall
+          ENDIF.
+
+          IF io_request-&amp;gt;is_data_requested(  ).
+            io_response-&amp;gt;set_data( et_final ). "Set data into the entity
+          ENDIF.
+
+        ENDIF.
+    ENDCASE.
+  ENDMETHOD.
+
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;The aforementioned class plays a crucial role as it encapsulates the entire logic for data processing, including searching, sorting, and most importantly, setting data for our custom entity.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 3 : Create Service Definition of the Custom entity&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;To create a service definition, simply right-click the custom entity in the Project Explorer, click 'New Service Definition', fill in the required inputs, and your service definition will be created.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Service definition'
+define service ZSD_MAIN {
+  expose ZCE_MAIN;
+  expose ZIV_F4MATNR; "This is for ValueHelp Definition, and it's okay not to expose it.
+  expose ZIV_F4WERKS;
+  expose ZIV_F4STLAN;
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;Let's take a look at one of the interface views of the ValueHelpDefinition.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Interface view for ValueHelpDefinition - MATNR'
+@Metadata.ignorePropagatedAnnotations: true
+@ObjectModel.usageType:{
+    serviceQuality: #X,
+    sizeCategory: #S,
+    dataClass: #MIXED
+}
+define view entity ZIV_F4MATNR
+  as select distinct from mast
+    left outer join       makt on makt.matnr = mast.matnr
+{
+         : {  selectionField: [{ position: 10 }] , lineItem: [{ position: 10 }]}
+      @EndUserText.label: 'Material No'
+  key mast.matnr,
+      @Consumption.filter.hidden: true
+  key mast.werks,
+      @Consumption.filter.hidden: true
+  key mast.stlan,
+      @Consumption.filter.hidden: true
+  key mast.stlal,
+      @Consumption.filter.hidden: true
+         : {   lineItem: [{ position: 20 }]}
+      @EndUserText.label: 'Material Desc'
+      makt.maktx
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;Step 4 : Create a Service Binding for the aforementioned service definition.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;To create a service binding, simply right-click the created service definition in the Project Explorer, click 'New Service Binding', fill in the required inputs, and your service binding will be created. While creating the Service Binding, I selected OData V2 - UI. Then, activate and publish the service. To view the UI output, you can use the Preview option in Eclipse to see the output as shown in the image below.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-10-02 211818.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/322447iD800178661F5E9F5/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-10-02 211818.png" alt="Screenshot 2025-10-02 211818.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In conclusion, using RAP with custom entities and pagination facilitates efficient data handling. With UI annotations, you can easily preview and refine the user interface. We hope this guide has been helpful. Stay tuned for more tips!&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;EM&gt;Note: This program is created for a remote system. For cloud environments, you can use a service consumption model or access data through a remote system API in the implementation class.&lt;/EM&gt;&lt;/STRONG&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/rap-using-custom-entity-with-load-multiple-data-using-pagination-and/ba-p/14233901"/>
+    <published>2025-10-03T06:01:53.175000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/abap-cloud-blog-posts/collective-search-help-using-abstract-entity-in-rap/ba-p/14228696</id>
