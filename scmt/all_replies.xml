@@ -2,330 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2025-10-06T07:59:01.792751+00:00</updated>
+  <updated>2025-10-06T08:14:02.037099+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/custom-agentic-chatbot-with-sap-ai-core-and-joule-studio-part-1/ba-p/14232347</id>
-    <title>Custom Agentic Chatbot with SAP AI Core and Joule Studio — Part 1</title>
-    <updated>2025-10-06T03:54:20.195000+02:00</updated>
-    <author>
-      <name>woojin</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2115255</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-1632734889"&gt;Agentic AI Chatbots in the Enterprise Context&lt;/H1&gt;&lt;P&gt;Enterprises today need more than a chatbot that simply provides guidelines or answers FAQs. In real business contexts, users expect AI systems that can actually take action — querying databases for insights, drafting or sending emails, and orchestrating multi-step workflows. This growing demand has led to the rise of &lt;STRONG&gt;agentic AI chatbots&lt;/STRONG&gt;, which combine the familiarity of a conversational interface with the power to execute enterprise-scale tasks. While frameworks such as LlamaIndex, AutoGPT, and LangGraph enable orchestration, enterprises need robust deployment, seamless integration, and governance to run them at scale.&lt;/P&gt;&lt;P&gt;This blog series will walk through that journey step by step. We’ll start by building a custom agent backend, then deploy it on SAP AI Core, and finally make it directly consumable from Joule Studio — enabling business users to interact with the agent through a natural conversational interface inside Joule.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-unicode-emoji" title=":rocket:"&gt;🚀&lt;/span&gt;&amp;nbsp;To make the process easier to follow, we’ve divided the content into three parts:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A title="Part 1 — Building the Custom AI Agent Backend" href="https://community.sap.com/t5/technology-blog-posts-by-sap/custom-agentic-chatbot-with-sap-ai-core-and-joule-studio-part-1/ba-p/14232347" target="_blank"&gt;Part 1 — Building the Custom AI Agent Backend&lt;/A&gt;&amp;nbsp; &lt;/STRONG&gt;(Flask + API Endpoints)&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Part 2&amp;nbsp;— Deploying the Agent on AI Core &lt;/STRONG&gt;(Docker, ServingTemplate, Deployment, Endpoint test)&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Part 3 — Integrating the Agent into Joule Studio&lt;/STRONG&gt; (Destination setup, Skill creation, testing)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;By the end of this series, you will have a clear, reproducible path from&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Custom AI agent code in GitHub&lt;/LI&gt;&lt;LI&gt;Scalable deployment on AI Core&lt;/LI&gt;&lt;LI&gt;Business-ready conversational interface through Joule Studio.&lt;/LI&gt;&lt;/OL&gt;&lt;H1 id="toc-hId-1436221384"&gt;&amp;nbsp;&lt;/H1&gt;&lt;H1 id="toc-hId-1239707879"&gt;&lt;STRONG&gt;Part 1 —&amp;nbsp;&lt;/STRONG&gt;&lt;STRONG&gt;Building the Custom AI Agent Backend&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;In this first post, we focus on the &lt;STRONG&gt;backend logic&lt;/STRONG&gt; of the custom agentic chatbot. This backend is implemented with Flask and exposes REST API endpoints that support both one-shot and multi-step interactions. While one-shot calls return only the final answer, the multi-step design allows the system to &lt;STRONG&gt;expose the agent’s reasoning process step by step&lt;/STRONG&gt;, improving interpretability and transparency.&lt;/P&gt;&lt;H3 id="toc-hId-1301359812"&gt;&lt;STRONG&gt;Custom AI Agent Chatbot Backend Capabilities&amp;nbsp;&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;For demonstration purposes, the backend is designed to handle common enterprise tasks such as:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Structured Data Access&lt;/STRONG&gt; – Query SAP HANA Database to support reporting, analytics, and decision-making.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Vector-based Retrieval&lt;/STRONG&gt; – Search SAP HANA Vector DB to enable advanced RAG (Retrieval-Augmented Generation) use cases.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Enterprise Communication&lt;/STRONG&gt; – Manage enterprise emails (drafting, sending, or forwarding messages) through integration with existing systems.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;External Information Retrieval&lt;/STRONG&gt; – Fetch context from real-world services (e.g., weather updates, web search results) to enrich responses.&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1104846307"&gt;API Endpoint Design for Agent Orchestration&lt;/H3&gt;&lt;P&gt;In our implementation, we adopted LangGraph as the orchestration framework. Since the agent dynamically generates a plan first, and then builds a LangGraph structure based on that plan, it was natural to split the API into multiple steps:&lt;/P&gt;&lt;PRE&gt;/v2/plan → /v2/action-graph → /v2/start-execution → /v2/continue-execution&lt;/PRE&gt;&lt;P&gt;This is just one way to design it. With a different orchestration style, you might merge steps into a single /chat endpoint or a simpler two step flow.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Endpoint Summary:&lt;/STRONG&gt;&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="25%" height="30px"&gt;Method&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;Path&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;Summary&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;Request Body&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%" height="30px"&gt;GET&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;/v2/health&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;Health check&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;-&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%" height="30px"&gt;POST&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;/v2/plan&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;Step 1. Generate plan&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;conversation_id, message&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%" height="30px"&gt;POST&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;/v2/action-graph&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;Step 2. Create action graph&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;conversation_id&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%" height="30px"&gt;POST&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;/v2/start-execution&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;Step 3. Start Execution&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;conversation_id&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%" height="30px"&gt;POST&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;/v2/continue-execution&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;Step 4. Complete Execution&amp;nbsp;&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;conversation_id&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;POST&lt;/TD&gt;&lt;TD&gt;/v2/chat&lt;/TD&gt;&lt;TD&gt;One-shot chat&lt;/TD&gt;&lt;TD&gt;conversation_id, message&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;These endpoints reflect how the workflow is divided into steps in our design. To make it more concrete, here's a minimal Flask example showing how each endpoint might look in practice.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Example Flask Code:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from flask import Flask, request, jsonify
-import uuid
-
-app = Flask(__name__)
-
-# Health check
-@app.route('/v2/health', methods=['GET'])
-def health_check():
-    return jsonify({"status": "healthy"})
-
-# Step 1: Plan generation
-@app.route('/v2/plan', methods=['POST'])
-def generate_plan():
-    """
-    Example route for generating a plan.
-    - Replace the stub logic with your own planner (LLM, LangGraph, rule-based, etc.).
-    - Store the plan into session or external state manager if needed.
-    """
-    data = request.json or {}
-    message = data.get('message','')
-    session_id = data.get('conversation_id') or f"session-{uuid.uuid4().hex[:8]}"
-
-    if not message:
-        return jsonify({'error': 'Message is required'}), 400
-
-    # TODO: Call planning logic here
-
-    return jsonify({"conversation_id": session_id,
-                    "type": "plan_generated",
-                    "content": "&amp;lt;example plan object&amp;gt;"})
-
-# Step 2: Action graph creation
-@app.route('/v2/action-graph', methods=['POST'])
-def generate_action_graph():
-    """
-    Example route for generating an action graph.
-    - Replace with your real plan → graph transformation.
-    - Retrieve the plan from session or agent manager before creating the graph.
-    """
-    data = request.json or {}
-    session_id = data.get('conversation_id')
-    if not session_id:
-        return jsonify({'error':'conversation_id is required'}), 400
-
-    # TODO: Get planning state &amp;gt; Implement graph creation logic here
-
-    return jsonify({"conversation_id": session_id,
-                    "type": "action_graph_generated",
-                    "content": "&amp;lt;example content you want to show user&amp;gt;"})
-
-# Step 3: Start execution
-@app.route('/v2/start-execution', methods=['POST'])
-def start_execution():
-    """
-    Example route for starting execution.
-    - Replace with logic to execute the first node of the action graph.
-    """
-    data = request.json or {}
-    session_id = data.get('conversation_id')
-    if not session_id:
-        return jsonify({'error':'conversation_id is required'}), 400
-
-    # TODO: Get action graph &amp;gt; execute the first node of the graph
-
-    return jsonify({"conversation_id": session_id,
-                    "type": "execution_started",
-                    "content": "&amp;lt;example content you want to show user&amp;gt;"})
-
-# Step 4: Continue execution
-@app.route('/v2/continue-execution', methods=['POST'])
-def continue_execution():
-    """
-    Example route for continuing execution.
-    - Replace with logic to execute remaining nodes and return the final response.
-    """
-    data = request.json or {}
-    session_id = data.get('conversation_id')
-    if not session_id:
-        return jsonify({'error':'conversation_id is required'}), 400
-
-    # TODO: Get action graph &amp;gt; execute remaining nodes and return final response
-
-    return jsonify({"conversation_id": session_id,
-                    "type": "execution_complete",
-                    "content": "&amp;lt;example content you want to show user&amp;gt;"})
-
-# One-shot chat
-@app.route('/v2/chat', methods=['POST'])
-def chat():
-    """
-    Example route for one-shot chat.
-    - Replace with your pipeline that runs plan → graph → execution in one step.
-    """
-    data = request.json or {}
-    message = data.get('message', '')
-    session_id = data.get('conversation_id')  # use conversation_id as session_id
-
-    # TODO: Process agent pipeline here all at once
-
-    return jsonify({"conversation_id": session_id,
-                    "type": "execution_complete",
-                    "content": "&amp;lt;example content you want to show user&amp;gt;"})
-
-if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5000)&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;span class="lia-unicode-emoji" title=":warning:"&gt;⚠️&lt;/span&gt;Note: this is only an example. Replace the TODO sections with your own orchestration logic.&lt;/P&gt;&lt;P&gt;With this backend in place, we now have a clear foundation for orchesting multi-step agent workflows, from plan generation to action execution, all exposed via REST APIs.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;&lt;span class="lia-unicode-emoji" title=":backhand_index_pointing_right:"&gt;👉&lt;/span&gt;In the next part, we'll take this custom agent backend and deploy it on &lt;STRONG&gt;SAP AI Core:&lt;/STRONG&gt; packaging the Flask service into a Docker container, creating a ServingTemplate, and exposing it as a production-ready endpoint.&amp;nbsp;&lt;/EM&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/custom-agentic-chatbot-with-sap-ai-core-and-joule-studio-part-1/ba-p/14232347"/>
-    <published>2025-10-06T03:54:20.195000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/cannot-see-formation-option-under-data-provider-while-creating-dataprovider/qaq-p/14235135</id>
-    <title>Cannot see Formation option under Data Provider while creating dataprovider profile in Datasphere</title>
-    <updated>2025-10-06T03:59:20.955000+02:00</updated>
-    <author>
-      <name>yashcp</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/182976</uri>
-    </author>
-    <content>&lt;P&gt;Hello Team,&lt;/P&gt;&lt;P&gt;I am trying to create a data provider profile in SAP Datasphere. However, when i see the option Data Provider, I cannot see Formation under that. Is it something that will appear only if my Datasphere tenant is rewired to SAP BDC?&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="yashcp_0-1759715941648.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/322981i2B117562168D9696/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="yashcp_0-1759715941648.png" alt="yashcp_0-1759715941648.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/cannot-see-formation-option-under-data-provider-while-creating-dataprovider/qaq-p/14235135"/>
-    <published>2025-10-06T03:59:20.955000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/how-to-grey-out-the-delete-button-in-va02/qaq-p/14235136</id>
-    <title>How to grey out the Delete button in VA02？</title>
-    <updated>2025-10-06T04:12:24.311000+02:00</updated>
-    <author>
-      <name>WUYIN</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1916544</uri>
-    </author>
-    <content>&lt;P&gt;I’m trying to grey out the &lt;STRONG&gt;Delete&lt;/STRONG&gt; button in &lt;STRONG&gt;VA02&lt;/STRONG&gt;on &lt;STRONG&gt;S/4HANA Public Cloud&lt;/STRONG&gt;, but I’m not sure how to achieve this.&lt;/P&gt;&lt;P&gt;Could anyone advise:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Which &lt;STRONG&gt;app or configuration&lt;/STRONG&gt; should be used to control this behavior?&lt;/LI&gt;&lt;LI&gt;What kind of &lt;STRONG&gt;ABAP logic or extension&lt;/STRONG&gt; might be needed to disable or hide the button?&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Any insights or examples would be really appreciated. Thanks!&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/how-to-grey-out-the-delete-button-in-va02/qaq-p/14235136"/>
-    <published>2025-10-06T04:12:24.311000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/the-return-to-vendor-po-with-consignment-stock-and-item-category-k-does-not/qaa-p/14235137#M4228749</id>
-    <title>Re: The return to vendor PO with consignment stock and it...</title>
-    <updated>2025-10-06T04:13:21.026000+02:00</updated>
-    <author>
-      <name>ThiruEswars</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/570701</uri>
-    </author>
-    <content>Thanks for the detailed explanation. This solves the issue.</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/the-return-to-vendor-po-with-consignment-stock-and-item-category-k-does-not/qaa-p/14235137#M4228749"/>
-    <published>2025-10-06T04:13:21.026000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/revenue-recognition-key-epmfc-eppm-project-management-module-in-sap-s-4hana/qaq-p/14235143</id>
-    <title>Revenue recognition key EPMFC EPPM (Project Management) module in SAP S/4HANA Cloud, public edition.</title>
-    <updated>2025-10-06T04:37:02.871000+02:00</updated>
-    <author>
-      <name>summy</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/156333</uri>
-    </author>
-    <content>&lt;P&gt;I have a question about the EPPM (Project Management) module in SAP S/4HANA Cloud, public edition. With the revenue recognition key EPMFC, revenue is recognized based on the cost-based percentage-of-completion method. When actual costs exceed planned costs, can the progress rate exceed 100% and be recognized accordingly? Or does the progress rate cap at 100% even if actual costs surpass planned costs?&lt;/P&gt;&lt;P&gt;Examples:&lt;BR /&gt;- When planned cost = actual cost:&lt;BR /&gt;Planned cost 500, actual cost 500, revenue 1,000 (100%)&lt;BR /&gt;- When planned cost &amp;gt; actual cost:&lt;BR /&gt;Planned cost 500, actual cost 250, revenue 500 (50%)&lt;BR /&gt;- Questioned case: when planned cost &amp;lt; actual cost:&lt;BR /&gt;Is it planned cost 500, actual cost 1,000, revenue 1,000 (100%), or&lt;BR /&gt;planned cost 500, actual cost 1,000, revenue 2,000 (200%)?&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/revenue-recognition-key-epmfc-eppm-project-management-module-in-sap-s-4hana/qaq-p/14235143"/>
-    <published>2025-10-06T04:37:02.871000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/posting-of-recognized-revenue-for-cost-based-percentage-of-completion/qaq-p/14235148</id>
-    <title>Posting of Recognized Revenue for Cost‑Based Percentage‑of‑Completion Revenue Projects</title>
-    <updated>2025-10-06T04:45:19.995000+02:00</updated>
-    <author>
-      <name>summy</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/156333</uri>
-    </author>
-    <content>&lt;P&gt;Regarding Project Sales (4I9) and Event-Based Revenue Recognition (4GQ) in SAP S/4HANA Cloud, public edition, we have configured a revenue-bearing project and set the revenue recognition key to EPMFC (cost-based percentage of completion). Recognized Cost of Sales (Recognized COS) has been posted without issues, but Recognized Revenue is still not being posted. Could you help us identify the cause?&lt;/P&gt;&lt;P&gt;With Planned COS of 10,000,000 JPY and Recognized COS of 5,000,000 JPY, the percentage of completion should be 50%, and Recognized Revenue should be 10,000,000 JPY.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="スクリーンショット 2025-10-02 152644.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/322985iC4569308D29B484F/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="スクリーンショット 2025-10-02 152644.png" alt="スクリーンショット 2025-10-02 152644.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="スクリーンショット 2025-10-02 145745.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/322987i2B250BC89E6B0864/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="スクリーンショット 2025-10-02 145745.png" alt="スクリーンショット 2025-10-02 145745.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="スクリーンショット 2025-10-02 145402.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/322988i65CB6268238930B9/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="スクリーンショット 2025-10-02 145402.png" alt="スクリーンショット 2025-10-02 145402.png" /&gt;&lt;/span&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/posting-of-recognized-revenue-for-cost-based-percentage-of-completion/qaq-p/14235148"/>
-    <published>2025-10-06T04:45:19.995000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/cap-use-i18n-for-error-messages/qaa-p/14235156#M4928344</id>
-    <title>Re: CAP - Use i18n for Error Messages</title>
-    <updated>2025-10-06T05:03:17.914000+02:00</updated>
-    <author>
-      <name>hoandreasm</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1864591</uri>
-    </author>
-    <content>Hi &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/786198"&gt;@valentincadart&lt;/a&gt;,</content>
-    <link href="https://community.sap.com/t5/technology-q-a/cap-use-i18n-for-error-messages/qaa-p/14235156#M4928344"/>
-    <published>2025-10-06T05:03:17.914000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/cap-use-i18n-for-error-messages/qaa-p/14235157#M4928345</id>
-    <title>Re: CAP - Use i18n for Error Messages</title>
-    <updated>2025-10-06T05:03:44.926000+02:00</updated>
-    <author>
-      <name>hoandreasm</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1864591</uri>
-    </author>
-    <content>hi &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/786198"&gt;@valentincadart&lt;/a&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/cap-use-i18n-for-error-messages/qaa-p/14235157#M4928345"/>
-    <published>2025-10-06T05:03:44.926000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/cap-use-i18n-for-error-messages/qaa-p/14235158#M4928346</id>
-    <title>Re: CAP - Use i18n for Error Messages</title>
-    <updated>2025-10-06T05:06:02.572000+02:00</updated>
-    <author>
-      <name>hoandreasm</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1864591</uri>
-    </author>
-    <content>&lt;P&gt;Hi &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/786198"&gt;@valentincadart&lt;/a&gt;,&lt;/P&gt;&lt;P&gt;I tried your suggestion and was able to see the language on my terminal like:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;[odata] - GET /odata/v4/accounting-document/$metadata { 'sap-language': 'ID' }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;but still the error message is from message_en.properties and not from message_id.properties&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/cap-use-i18n-for-error-messages/qaa-p/14235158#M4928346"/>
-    <published>2025-10-06T05:06:02.572000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/abap-classic-forum/about-parameter-id/td-p/14235159</id>
-    <title>About parameter ID</title>
-    <updated>2025-10-06T05:11:16.460000+02:00</updated>
-    <author>
-      <name>ram877</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2257942</uri>
-    </author>
-    <content>&lt;P&gt;Parameter ID consists of how many characters?&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Options:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;2&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;3&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;8&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;16&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;4&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-classic-forum/about-parameter-id/td-p/14235159"/>
-    <published>2025-10-06T05:11:16.460000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/abap-classic-forum/sap-abap/td-p/14235162</id>
-    <title>Sap abap</title>
-    <updated>2025-10-06T05:13:43.336000+02:00</updated>
-    <author>
-      <name>ram877</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2257942</uri>
-    </author>
-    <content>&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Which of the following statement is true in open SQL?&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Options:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;WHERE clause can not be used on aggregate functions&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;HAVING clause can not be used on aggregate function.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Both WHERE and HAVING clause can not be used on aggregate functions&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Both WHERE and HAVING clause can be used on aggregate functions&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-classic-forum/sap-abap/td-p/14235162"/>
-    <published>2025-10-06T05:13:43.336000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/sap-codejam-discussions/sap-abap/td-p/14235164</id>
-    <title>Sap abap</title>
-    <updated>2025-10-06T05:20:35.418000+02:00</updated>
-    <author>
-      <name>ram877</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2257942</uri>
-    </author>
-    <content>&lt;P&gt;&lt;BR /&gt;Which of the following statement is true in open SQL?&lt;/P&gt;&lt;P&gt;Options:&lt;/P&gt;&lt;P&gt;WHERE clause can not be used on aggregate functions&lt;/P&gt;&lt;P&gt;HAVING clause can not be used on aggregate function.&lt;/P&gt;&lt;P&gt;Both WHERE and HAVING clause can not be used on aggregate functions&lt;/P&gt;&lt;P&gt;Both WHERE and HAVING clause can be used on aggregate functions&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/sap-codejam-discussions/sap-abap/td-p/14235164"/>
-    <published>2025-10-06T05:20:35.418000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/human-capital-management-q-a/pcr-for-pf-calculation-using-processed-basic/qaa-p/14235165#M48451</id>
-    <title>Re: PCR for PF Calculation Using Processed Basic</title>
-    <updated>2025-10-06T05:27:49.986000+02:00</updated>
-    <author>
-      <name>sikindar_a</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/186377</uri>
-    </author>
-    <content>&lt;P&gt;Hey&lt;/P&gt;&lt;P&gt;I dont want to cut the flow of conversion between you and Remi.&lt;/P&gt;&lt;P&gt;But want to share my thoughts, you want to prorate PF as per Earned basic pay Right if so, why cannot we write the rule after Factoring&lt;/P&gt;&lt;P&gt;At P0014 Wage types which are indirectly valuated will attract splits but not Proration based upon conditions of PRCL 10&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/human-capital-management-q-a/pcr-for-pf-calculation-using-processed-basic/qaa-p/14235165#M48451"/>
-    <published>2025-10-06T05:27:49.986000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/rfc/qaa-p/14235166#M4928347</id>
-    <title>Re: RFC</title>
-    <updated>2025-10-06T05:33:10.505000+02:00</updated>
-    <author>
-      <name>S_Sriram</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/816</uri>
-    </author>
-    <content>&lt;P&gt;Hi Satish,&lt;/P&gt;&lt;P&gt;You can search on Google to find many links about the SAP RFC,&amp;nbsp; check some of the links&lt;/P&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/technology-q-a/what-is-rfc-and-how-does-work/qaq-p/2132521" target="_blank"&gt;https://community.sap.com/t5/technology-q-a/what-is-rfc-and-how-does-work/qaq-p/2132521&lt;/A&gt;&lt;/P&gt;&lt;P&gt;and YouTube clips&lt;A href="https://www.youtube.com/watch?v=nrBi_Dd55y8" target="_blank" rel="nofollow noopener noreferrer"&gt;https://www.youtube.com/watch?v=nrBi_Dd55y8&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Regards&lt;/P&gt;&lt;P&gt;SS&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/rfc/qaa-p/14235166#M4928347"/>
-    <published>2025-10-06T05:33:10.505000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/product-lifecycle-management-q-a/need-guidance-ecc-to-hana-migration/qaa-p/14235167#M84423</id>
-    <title>Re: Need Guidance - ECC to HANA migration</title>
-    <updated>2025-10-06T05:44:00.015000+02:00</updated>
-    <author>
-      <name>Shubham1</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/132064</uri>
-    </author>
-    <content>&lt;P&gt;&lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/step-by-step-guide-to-ecc-to-s-4hana-migration-with-migration-cockpit/ba-p/13983763" target="_blank"&gt;https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/step-by-step-guide-to-ecc-to-s-4hana-migration-with-migration-cockpit/ba-p/13983763&lt;/A&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/product-lifecycle-management-q-a/need-guidance-ecc-to-hana-migration/qaa-p/14235167#M84423"/>
-    <published>2025-10-06T05:44:00.015000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/establish-trust-in-global-account-and-subaccount-fails/qaq-p/14235175</id>
-    <title>Establish trust in global account and subaccount fails</title>
-    <updated>2025-10-06T06:05:15.577000+02:00</updated>
-    <author>
-      <name>mare42</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2172704</uri>
-    </author>
-    <content>&lt;P&gt;I've just created a trial account and I've setup the Cloud Identity Service following this instructions:&lt;BR /&gt;&lt;A href="https://help.sap.com/docs/application-frontend-service/application-frontend-service/setup-in-sap-btp-trial" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/application-frontend-service/application-frontend-service/setup-in-sap-btp-trial&lt;/A&gt;&lt;/P&gt;&lt;P&gt;But when I click Establis Trust&amp;nbsp; (error occurs in global account and sub account) I get this error:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="mare42_0-1759723279239.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/322996iB0F2C337E282ABF0/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="mare42_0-1759723279239.png" alt="mare42_0-1759723279239.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;PRE&gt;404 Not Found: "{"error":"Error during communication with IAS. Error was: 404 Not Found: \"{\"details\":[],\"error\":{\"code\":404,\"message\":\"&amp;lt;html&amp;gt;&amp;lt;head&amp;gt;&amp;lt;title&amp;gt;404 Not Found&amp;lt;\\/title&amp;gt;&amp;lt;\\/head&amp;gt;&amp;lt;body&amp;gt;&amp;lt;br&amp;gt;404 Not Found - You did not enter a valid URL.&amp;lt;\\/br&amp;gt;&amp;lt;\\/body&amp;gt;&amp;lt;\\/html&amp;gt;\",\"target\":\"/tenant/registry\"}}\". Incoming request GET, /iastenants/abcd","uri":"/iastenants/abcde"}"(Correlation ID: 1234-123-123-123&lt;/PRE&gt;&lt;P&gt;I've checked these debugging recommendations, but these won't help:&lt;BR /&gt;&lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/trust-establishment-issues" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/btp/sap-business-technology-platform/trust-establishment-issues&lt;/A&gt;&lt;/P&gt;&lt;P&gt;I also tried btp cli, but here I get the same error:&lt;/P&gt;&lt;PRE&gt;&lt;SPAN&gt;btp list security/available-idp&lt;/SPAN&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;error: 404 Not Found: "{"error":"Error during communication with IAS.&lt;/PRE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/establish-trust-in-global-account-and-subaccount-fails/qaq-p/14235175"/>
-    <published>2025-10-06T06:05:15.577000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/sap-public-cloud-report-formatting-financial-statements-dynamic-reporting/qaq-p/14235178</id>
-    <title>SAP Public Cloud Report Formatting (Financial Statements / Dynamic Reporting)</title>
-    <updated>2025-10-06T06:09:28.981000+02:00</updated>
-    <author>
-      <name>adnanmaqbool</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/160542</uri>
-    </author>
-    <content>&lt;P&gt;Dear All,&lt;/P&gt;&lt;P&gt;Could you please confirm how we can develop custom forms in the Public Cloud environment similar to what we are used to in RISE or On-Prem solutions — where we typically utilize a custom driver program to call custom Adobe Forms?&lt;/P&gt;&lt;P&gt;From what I understand, the functionality in Public Cloud seems to be limited to formatting existing forms by copying them or adding a few additional fields. However, I have the following specific requirements which involve more advanced formatting and development capabilities:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Development of a New Custom Program:&lt;/STRONG&gt;&lt;BR /&gt;Ability to create and execute a completely new program that displays a custom Adobe Form, without attaching it to or replacing with any standard form.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Formatting Financial Statements:&lt;/STRONG&gt;&lt;BR /&gt;The current formats for Balance Sheet and Cash Flow statements are missing key formatting elements (e.g., bold or italic headings). We need to apply advanced formatting to improve readability and presentation.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Displaying Dynamic Images in Forms:&lt;/STRONG&gt;&lt;BR /&gt;Requirement to dynamically display images (e.g., product return images, reflecting damages) within delivery or return sales order forms, after uploading them to a repository or storage area in Public Cloud.&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/sap-public-cloud-report-formatting-financial-statements-dynamic-reporting/qaq-p/14235178"/>
-    <published>2025-10-06T06:09:28.981000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/abap-rap-excel-upload-through-custom-action-popup-no-ui5-extension-no/bc-p/14235182#M175818</id>
-    <title>Re: ABAP RAP : Excel upload through custom action popup ( No UI5 Extension , No Object Page workarou</title>
-    <updated>2025-10-06T06:15:46.252000+02:00</updated>
-    <author>
-      <name>chandu_reddy751</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2257949</uri>
-    </author>
-    <content>&lt;P&gt;Hi Ramjee.&lt;/P&gt;&lt;P&gt;Very good content, can't we achieve this upload without custom table?&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/abap-rap-excel-upload-through-custom-action-popup-no-ui5-extension-no/bc-p/14235182#M175818"/>
-    <published>2025-10-06T06:15:46.252000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/abap-classic-forum/about-parameter-id/m-p/14235189#M29</id>
     <title>Re: About parameter ID</title>
@@ -903,6 +583,18 @@ if __name__ == '__main__':
     <published>2025-10-06T08:49:19.975000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/human-capital-management-q-a/custom-money-field-is-not-working-as-expected/qaa-p/14235398#M48455</id>
+    <title>Re: Custom Money field is not working as expected</title>
+    <updated>2025-10-06T08:50:04.742000+02:00</updated>
+    <author>
+      <name>sgandham</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/36988</uri>
+    </author>
+    <content>&lt;P&gt;Hi David,&lt;/P&gt;&lt;P&gt;Please find the attachments for your reference. It is basically an aggregate field based on Assignment level custom field.&lt;/P&gt;&lt;P&gt;Let me know if you need any further information.&lt;/P&gt;&lt;P&gt;Regards,&lt;/P&gt;&lt;P&gt;Srikrishna.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-q-a/custom-money-field-is-not-working-as-expected/qaa-p/14235398#M48455"/>
+    <published>2025-10-06T08:50:04.742000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/integration-forum/sap-build-apps-booster-fails-at-quot-checking-custom-identity-provider-quot/m-p/14235399#M115</id>
     <title>Re: SAP Build Apps Booster Fails at "Checking Custom Identity Provider" with Unexpected In</title>
     <updated>2025-10-06T08:51:00.455000+02:00</updated>
@@ -1059,6 +751,18 @@ if __name__ == '__main__':
     <published>2025-10-06T09:05:54.893000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/technology-q-a/redraw-mdk-page-sap-service-asset-manager-after-filter/qaq-p/14235419</id>
+    <title>Redraw mdk page SAP Service Asset Manager after filter</title>
+    <updated>2025-10-06T09:06:50.956000+02:00</updated>
+    <author>
+      <name>LP178</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2148050</uri>
+    </author>
+    <content>&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;DIV&gt;&lt;P&gt;Hello experts.&lt;/P&gt;&lt;P&gt;I have the same problem that most of users here have but I cant figure it out.&lt;/P&gt;&lt;P&gt;SAP Service Asset Manager 2405 is integrated with NFC reading.&amp;nbsp; The task is to filter operation list on&amp;nbsp;&lt;/P&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;WorkOrderOperationsListViewPage when scan NFC tag that it assigned to FLOC that is filled in Operation.&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;I did all the integration and logic for searching FLOCs and operations depending on NFC tag but after scan the tag the operation list is not updated/redrawed.&amp;nbsp;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;If I go back and then return to this screen again then screen is redrawed and operation list is updated correctly(so I assume that the logic I have done for filter the list works correctly)&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;My logic is based on filter the operation list. After scanning NFC tag I call&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;STRONG&gt;&lt;EM&gt;await SaveFilterAsDefault(context);&lt;/EM&gt;&lt;/STRONG&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;to apply filters.&amp;nbsp; Inside this function I have added the return filterresults for my page where the list of operations is showed&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;EM&gt;&lt;STRONG&gt;&amp;nbsp;case 'WorkOrderOperationsListViewPage':&lt;/STRONG&gt;&lt;/EM&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;EM&gt;&lt;STRONG&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; filterResults = await GetNFCFilter(context);&lt;/STRONG&gt;&lt;/EM&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;EM&gt;&lt;STRONG&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; break;&lt;/STRONG&gt;&lt;/EM&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;The difference between classic filter is that I dont open new filter page to choose values. I am trying to do it on one screen. Thats why I added new case page.&lt;/DIV&gt;&lt;DIV&gt;As I do the async search for filterResults I do await for returning data. Only after that this is executed&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;EM&gt;&lt;STRONG&gt;await FilterSettings.onSettingsSave(context, filterResults);&lt;/STRONG&gt;&lt;/EM&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;As I mentioned before I am sure that filterResults work correctly because if I reopen page the data is filtered.&lt;/DIV&gt;&lt;DIV&gt;In debuge console I see&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&lt;EM&gt;&lt;STRONG&gt;mdk.trace.odata: read succeeded Params: {"entitySet":"MyWorkOrderHeaders('4000047')/Operations","queryOptions":"$orderby=OperationNo&amp;amp;$top=50&amp;amp;$filter=(OperationFunctionLocation%20eq%20'1201-EXT-BMR-B01-001')"}&lt;/STRONG&gt;&lt;/EM&gt;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;After applying filters I tried to do&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;EM&gt;&lt;STRONG&gt;let table = context.getPageProxy().getControl("SectionedTable");&lt;/STRONG&gt;&lt;/EM&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;EM&gt;&lt;STRONG&gt;table.redraw();&lt;/STRONG&gt;&lt;/EM&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;EM&gt;&lt;STRONG&gt;let section = context.getPageProxy().getControl("SectionedTable").getSection("WorkOrderOperationListSection");&lt;/STRONG&gt;&lt;/EM&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;EM&gt;&lt;STRONG&gt;section.redraw();&lt;/STRONG&gt;&lt;/EM&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;SPAN&gt;&amp;nbsp;But it doesnt redraw the table.&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;P&gt;Only this helped to update the NFC tag after scan in object header of this page. but not the table.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;EM&gt;&lt;STRONG&gt;context.getPageProxy().setActionBinding(context.binding);&lt;/STRONG&gt;&lt;/EM&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;EM&gt;&lt;STRONG&gt;context.getPageProxy().redraw();&lt;/STRONG&gt;&lt;/EM&gt;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;Can anyone help with this?&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thank you in advance.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/redraw-mdk-page-sap-service-asset-manager-after-filter/qaq-p/14235419"/>
+    <published>2025-10-06T09:06:50.956000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/clarification-on-location-and-plant-section-in-sap/qaa-p/14235420#M4228766</id>
     <title>Re: Clarification on Location and Plant Section in SAP</title>
     <updated>2025-10-06T09:08:20.748000+02:00</updated>
@@ -1119,6 +823,18 @@ if __name__ == '__main__':
     <published>2025-10-06T09:13:17.178000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/intercompany-stock-transfer-1p9-in-sap-s-4hana-cloud-public-edition/bc-p/14235426#M62029</id>
+    <title>Re: Intercompany Stock Transfer (1P9) in SAP S/4HANA Cloud Public Edition</title>
+    <updated>2025-10-06T09:13:57.322000+02:00</updated>
+    <author>
+      <name>yKim</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1486100</uri>
+    </author>
+    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/131880"&gt;@Qi_Liu&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;Dear Qi Liu&lt;BR /&gt;I tested this process in our system, but when I post GI for outbounddelivery the material document 645 and 101 is automatically posted.&lt;BR /&gt;We want to process two step like your process, Goods issue for outbound delivery and Goods Receipt in purchase order.&lt;BR /&gt;Can you give any advice how to set in the configuration side?&lt;BR /&gt;Best Regards,&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/intercompany-stock-transfer-1p9-in-sap-s-4hana-cloud-public-edition/bc-p/14235426#M62029"/>
+    <published>2025-10-06T09:13:57.322000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/human-capital-management-q-a/lms-ui-inconsistency-between-test-and-production-environments-button-font/qaa-p/14235427#M48458</id>
     <title>Re: LMS UI Inconsistency Between TEST and Production Envi...</title>
     <updated>2025-10-06T09:16:27.682000+02:00</updated>
@@ -1129,6 +845,18 @@ if __name__ == '__main__':
     <content>Dear SAP Support team,</content>
     <link href="https://community.sap.com/t5/human-capital-management-q-a/lms-ui-inconsistency-between-test-and-production-environments-button-font/qaa-p/14235427#M48458"/>
     <published>2025-10-06T09:16:27.682000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-q-a/lms-ui-inconsistency-between-test-and-production-environments-button-font/qaa-p/14235428#M48459</id>
+    <title>Re: LMS UI Inconsistency Between TEST and Production Envi...</title>
+    <updated>2025-10-06T09:19:31.497000+02:00</updated>
+    <author>
+      <name>JeffKELLERHALS</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1984680</uri>
+    </author>
+    <content>Dear SAP Support team, Thanks for your answer. I raised it as an "Inconsistency". I have already checked the "Theme manager", it's identical on both environments. Furthermore, you did not answer about the font style which is also part of my question. In the KBA provided, there is no mention regarding to this point. Let me know what should I do to solve this. Best regards, Jeff</content>
+    <link href="https://community.sap.com/t5/human-capital-management-q-a/lms-ui-inconsistency-between-test-and-production-environments-button-font/qaa-p/14235428#M48459"/>
+    <published>2025-10-06T09:19:31.497000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/devtoberfest-blog-posts/fun-for-week-2-petoberfest/bc-p/14235431#M901</id>
@@ -1179,6 +907,30 @@ if __name__ == '__main__':
     <published>2025-10-06T09:24:48.022000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/technology-q-a/tax-number-error-or-validation-in-business-partner/qaq-p/14235436</id>
+    <title>Tax number error or validation in Business partner</title>
+    <updated>2025-10-06T09:28:32.775000+02:00</updated>
+    <author>
+      <name>Swaroop_Nayak</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2230782</uri>
+    </author>
+    <content>&lt;P&gt;Hi Team,&lt;/P&gt;&lt;P&gt;There is one requirement that, while creating a Business partner (Supplier), when the user is entering the value in the TAX number field, it should trigger an error or warning that if the TAX number is wrong based on the State code or address.{Eg-While creating a supplier with region Karnataka, the tax code must be 29ABCDE1234F1Z0 for IN3, but&amp;nbsp;if you choose another tax number 33ABCDE1234F1Z0 (tax number of Tamil Nadu) for IN3, it is picking up. It should throw an error.}&lt;/P&gt;&lt;P&gt;Can this feasibility be achieved, or any standard way to set this up?&lt;/P&gt;&lt;P&gt;Regards,&lt;/P&gt;&lt;P&gt;Swaroop Nayak&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+S%25252F4HANA+Cloud+Public+Edition/pd-p/08e2a51b-1ce5-4367-8b33-4ae7e8b702e0" class="lia-product-mention" data-product="1199-1"&gt;SAP S/4HANA Cloud Public Edition&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+S%25252F4HANA+Cloud+Public+Edition+Sourcing+and+Procurement/pd-p/a906d110-8210-4641-9e54-4744b42f06d0" class="lia-product-mention" data-product="239-1"&gt;SAP S/4HANA Cloud Public Edition Sourcing and Procurement&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/c-khhcw49343/MM+%252528Materials+Management%252529/pd-p/477297786799213261950044802925335" class="lia-product-mention" data-product="998-1"&gt;MM (Materials Management)&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/tax-number-error-or-validation-in-business-partner/qaq-p/14235436"/>
+    <published>2025-10-06T09:28:32.775000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/opening-udo-form-via-code/qaa-p/14235437#M4928369</id>
+    <title>Re: Opening UDO Form via Code</title>
+    <updated>2025-10-06T09:28:52.104000+02:00</updated>
+    <author>
+      <name>ozer_aydin</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/550402</uri>
+    </author>
+    <content>&lt;P&gt;if you registered Object reference default form menu.&lt;/P&gt;&lt;P&gt;SAPbouiCOM.Application oApp = SAPbouiCOM.Framework.Application.SBO_Application;&lt;BR /&gt;oApp.OpenForm(SAPbouiCOM.BoFormObjectEnum.fo_UserDefinedObject, "MASTERTABLEUDO", "");&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/opening-udo-form-via-code/qaa-p/14235437#M4928369"/>
+    <published>2025-10-06T09:28:52.104000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/sap-s-4hana-cloud-output-management-side-by-side-extensibility-for-forms/bc-p/14235439#M175822</id>
     <title>Re: SAP S/4HANA Cloud Output Management: Side by Side Extensibility for Forms</title>
     <updated>2025-10-06T09:31:09.863000+02:00</updated>
@@ -1189,6 +941,18 @@ if __name__ == '__main__':
     <content>&lt;P&gt;Dear customers,&lt;/P&gt;&lt;P&gt;Forms service by Adobe is included in your S/4 HANA Cloud Public Edition solution out of the box. Additionally, form templates can be maintained via ADT now. Have a look at our demo recording that showcases this:&amp;nbsp;&lt;A href="https://sap-se.zoom.us/rec/share/acc2W83Ipg38KAdN143t38stBLsdV4YpBw_pFnE-itwUE-WoX305voC5bMIH7xT2.v6wWaoQWr6dzlmZX?startTime=1759240825000" target="_blank" rel="nofollow noopener noreferrer"&gt;https://sap-se.zoom.us/rec/share/acc2W83Ipg38KAdN143t38stBLsdV4YpBw_pFnE-itwUE-WoX305voC5bMIH7xT2.v6wWaoQWr6dzlmZX?startTime=1759240825000&lt;/A&gt;&amp;nbsp;(start at 30min).&lt;/P&gt;&lt;P&gt;The mentioned custom form development guide does not reflect the current state (2508+) anymore. For reference here are our released ABAP classes:&amp;nbsp;&lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/print-forms" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/btp/sap-business-technology-platform/print-forms&lt;/A&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/sap-s-4hana-cloud-output-management-side-by-side-extensibility-for-forms/bc-p/14235439#M175822"/>
     <published>2025-10-06T09:31:09.863000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/msr-vrm-gr-complete-logistical-process-with-goods-receipt-is-greyed-out/qaa-p/14235440#M4228769</id>
+    <title>Re: MSR_VRM_GR Complete logistical process with goods rec...</title>
+    <updated>2025-10-06T09:31:49.515000+02:00</updated>
+    <author>
+      <name>Manzhgri</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/141878</uri>
+    </author>
+    <content>Dear Lakshmipathi,</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/msr-vrm-gr-complete-logistical-process-with-goods-receipt-is-greyed-out/qaa-p/14235440#M4228769"/>
+    <published>2025-10-06T09:31:49.515000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/devtoberfest-blog-posts/fun-for-week-2-petoberfest/bc-p/14235446#M902</id>
@@ -1227,6 +991,30 @@ if __name__ == '__main__':
     <published>2025-10-06T09:34:30.495000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/financial-management-q-a/group-chart-of-accounts-in-s-4-public-cloud/qaq-p/14235450</id>
+    <title>Group Chart of Accounts in S/4 Public Cloud</title>
+    <updated>2025-10-06T09:35:39.525000+02:00</updated>
+    <author>
+      <name>Michael10</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/178401</uri>
+    </author>
+    <content>&lt;P&gt;Hello, does anyone have information on how to make the group chart of accounts (for consolidation purposes) available in the public cloud and whether it is directly assigned to the YCOA?&lt;/P&gt;&lt;P&gt;An SAP blog provides information about a group chart of accounts Y1, but no further details on whether it can be set up via a scope element or in some other way.&lt;/P&gt;&lt;P&gt;Can somebody please share the general set up activities?&lt;/P&gt;&lt;P&gt;Thank you&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/financial-management-q-a/group-chart-of-accounts-in-s-4-public-cloud/qaq-p/14235450"/>
+    <published>2025-10-06T09:35:39.525000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/msr-vrm-gr-complete-logistical-process-with-goods-receipt-is-greyed-out/qaa-p/14235451#M4228771</id>
+    <title>Re: MSR_VRM_GR Complete logistical process with goods rec...</title>
+    <updated>2025-10-06T09:36:00.074000+02:00</updated>
+    <author>
+      <name>Manzhgri</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/141878</uri>
+    </author>
+    <content>Dear Lakshmipathi, thank you for your quick responce on this matter. My main issue is that I cannot identify the follow up activity in transaction MSR_VLM_LFU which would keep the stock on E and not post it to free avaliable valued stock.</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/msr-vrm-gr-complete-logistical-process-with-goods-receipt-is-greyed-out/qaa-p/14235451#M4228771"/>
+    <published>2025-10-06T09:36:00.074000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/sap-mdg-validation-notes-mandatory/bc-p/14235452#M175823</id>
     <title>Re: SAP MDG: Validation - Notes Mandatory</title>
     <updated>2025-10-06T09:36:05.645000+02:00</updated>
@@ -1249,6 +1037,18 @@ if __name__ == '__main__':
     <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/145194"&gt;@Sandra_Rossi&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;Thanks for the correction &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/sap-mdg-validation-notes-mandatory/bc-p/14235454#M175824"/>
     <published>2025-10-06T09:37:19.444000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/devtoberfest/integrating-s-4hana-public-cloud-apis-into-cap-made-simple/ec-p/14235456#M1164</id>
+    <title>Re: 🟠 Integrating S/4HANA Public Cloud APIs into CAP Made Simple</title>
+    <updated>2025-10-06T09:38:53.959000+02:00</updated>
+    <author>
+      <name>kostadin_terziev</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/753388</uri>
+    </author>
+    <content>&lt;P&gt;Thanks for the session. It would be very helpful to show how can we locally test using hybrid profile before deploying the application. What is required for this?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/devtoberfest/integrating-s-4hana-public-cloud-apis-into-cap-made-simple/ec-p/14235456#M1164"/>
+    <published>2025-10-06T09:38:53.959000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/multiple-note-downloads-no-internet/qaq-p/14235457</id>
@@ -1287,6 +1087,18 @@ if __name__ == '__main__':
     <published>2025-10-06T09:44:16.471000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/financial-management-q-a/bapi-ftr-lc-dealchange-can-t-add-presentation-item-into-existing-contract/qaq-p/14235464</id>
+    <title>BAPI_FTR_LC_DEALCHANGE can't add presentation item into existing contract.</title>
+    <updated>2025-10-06T09:44:30.043000+02:00</updated>
+    <author>
+      <name>Anothai</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2257517</uri>
+    </author>
+    <content>&lt;P&gt;Dear Expert,&lt;/P&gt;&lt;P&gt;How can i add a new presentation in existing L/C contract using BAPI BAPI_FTR_LC_DEALCHANGE&amp;nbsp; as per business requirement that 1 L/C can do partial shipment . or do i need to use other BAPI please kindly suggest&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Anothai_1-1759736508996.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/323166i0A618018AAFA3191/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Anothai_1-1759736508996.png" alt="Anothai_1-1759736508996.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Anothai_2-1759736549150.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/323167i52C9014FAF1706D8/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Anothai_2-1759736549150.png" alt="Anothai_2-1759736549150.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Anothai_0-1759736447374.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/323165i32D913141E4CC220/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Anothai_0-1759736447374.png" alt="Anothai_0-1759736447374.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/financial-management-q-a/bapi-ftr-lc-dealchange-can-t-add-presentation-item-into-existing-contract/qaq-p/14235464"/>
+    <published>2025-10-06T09:44:30.043000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/devtoberfest-blog-posts/devtoberfest-2025-what-is-happening-week-1/bc-p/14235472#M904</id>
     <title>Re: Devtoberfest 2025 - What is happening Week 1</title>
     <updated>2025-10-06T09:51:41.729000+02:00</updated>
@@ -1309,5 +1121,89 @@ if __name__ == '__main__':
     <content>&lt;P&gt;Hi&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/16897"&gt;@TMNielsen&lt;/a&gt;&amp;nbsp;,&lt;BR /&gt;Hi&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/6666"&gt;@ALEJONO&lt;/a&gt;&amp;nbsp;,&lt;/P&gt;&lt;P&gt;we will let the tutorial owners know. Thank you for your feedback.&lt;/P&gt;&lt;P&gt;Best,&lt;/P&gt;&lt;P&gt;KR&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/devtoberfest-blog-posts/devtoberfest-2025-what-is-happening-week-1/bc-p/14235474#M905"/>
     <published>2025-10-06T09:55:41.755000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/devtoberfest/integrating-s-4hana-public-cloud-apis-into-cap-made-simple/ec-p/14235476#M1165</id>
+    <title>Re: 🟠 Integrating S/4HANA Public Cloud APIs into CAP Made Simple</title>
+    <updated>2025-10-06T09:58:11.999000+02:00</updated>
+    <author>
+      <name>kostadin_terziev</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/753388</uri>
+    </author>
+    <content>&lt;P&gt;Thanks for this session.&lt;/P&gt;&lt;P&gt;It would be really helpful to show how to do local hybrid testing.&lt;/P&gt;&lt;P&gt;What is required for successfully previewing the remote service data locally before deploying the application?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/devtoberfest/integrating-s-4hana-public-cloud-apis-into-cap-made-simple/ec-p/14235476#M1165"/>
+    <published>2025-10-06T09:58:11.999000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/devtoberfest-blog-posts/fun-for-week-2-petoberfest/bc-p/14235478#M906</id>
+    <title>Re: 🟡 Fun for Week 2: Petoberfest 🐱🐶🐵🐷🐻🐸🐔🐴🦬🦎🐠🦜🐧🐌🐛</title>
+    <updated>2025-10-06T09:58:59.695000+02:00</updated>
+    <author>
+      <name>EnnoWulff</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/7046</uri>
+    </author>
+    <content>&lt;P&gt;&lt;STRONG&gt;Don't work! Play!!&amp;nbsp;&lt;/STRONG&gt;&lt;STRONG&gt;(I'm serious...!)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="SNAG-3324.png" style="width: 521px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/323175i1535CB70CE198620/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="SNAG-3324.png" alt="SNAG-3324.png" /&gt;&lt;/span&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/devtoberfest-blog-posts/fun-for-week-2-petoberfest/bc-p/14235478#M906"/>
+    <published>2025-10-06T09:58:59.695000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/unable-to-deploy-sap-capm-application-in-cloud-foundry/qaa-p/14235483#M4928373</id>
+    <title>Re: Unable to deploy SAP CAPM Application in Cloud Foundry</title>
+    <updated>2025-10-06T10:01:47.172000+02:00</updated>
+    <author>
+      <name>abelousov</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/334453</uri>
+    </author>
+    <content>So am I.</content>
+    <link href="https://community.sap.com/t5/technology-q-a/unable-to-deploy-sap-capm-application-in-cloud-foundry/qaa-p/14235483#M4928373"/>
+    <published>2025-10-06T10:01:47.172000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/devtoberfest-blog-posts/devtoberfest-2025-what-is-happening-week-1/bc-p/14235486#M907</id>
+    <title>Re: Devtoberfest 2025 - What is happening Week 1</title>
+    <updated>2025-10-06T10:05:22.898000+02:00</updated>
+    <author>
+      <name>AakashGupta</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/177756</uri>
+    </author>
+    <content>&lt;P&gt;hello&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1423549"&gt;@KevinR&lt;/a&gt;&amp;nbsp;,&lt;BR /&gt;I have completed the 2 tutorials mentioned below, but I have not received the badge&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="AakashGupta_0-1759737870814.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/323179i0D7A4C28393C0868/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="AakashGupta_0-1759737870814.png" alt="AakashGupta_0-1759737870814.png" /&gt;&lt;/span&gt;&lt;BR /&gt;can you please help in checking?&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/devtoberfest-blog-posts/devtoberfest-2025-what-is-happening-week-1/bc-p/14235486#M907"/>
+    <published>2025-10-06T10:05:22.898000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/currency-usd-provided-is-incorrect-for-product-mcobl-coa-valuation/qaa-p/14235487#M4228774</id>
+    <title>Re: Currency USD provided is incorrect for Product MCOBL-...</title>
+    <updated>2025-10-06T10:05:35.674000+02:00</updated>
+    <author>
+      <name>Chris1973</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2035121</uri>
+    </author>
+    <content>&lt;P&gt;Good day&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2107483"&gt;@maggie2&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Thank you for your question and the detailed screenshots.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;I recommend you consult &lt;A href="https://help.sap.com/docs/SAP_S4HANA_CLOUD/d5699934e7004d048c4801b552f3b013/289644d401a844878ce84670517dfa98.html?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;Product&lt;/A&gt;, &amp;nbsp;&lt;A href="https://help.sap.com/docs/sustainability-footprint-management/application-help-for-corporate-and-products/master-data-consistency?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;Master Data Consistency&lt;/A&gt; &amp;amp; &lt;A href="https://help.sap.com/docs/SAP_S4HANA_CLOUD/0fa84c9d9c634132b7c4abb9ffdd8f06/f22f2aca75404b5f84becb9b246023b2.html?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;Currencies&lt;/A&gt; for more details.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The error you are facing means that the currency you entered in the migration template does not match the local currency of the company code assigned to the valuation area 0003. In public cloud, the valuation currency is derived from the company code configuration and cannot be overridden in migration. Please check which company code is assigned to valuation area 0003 and use that company’s local currency in your valuation data sheet. Once you have aligned it, the error will no longer appear during simulation.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Let me know if you have further questions.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Best regards&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Chris&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/currency-usd-provided-is-incorrect-for-product-mcobl-coa-valuation/qaa-p/14235487#M4228774"/>
+    <published>2025-10-06T10:05:35.674000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/md01n-behavior-issuing-storage-location-not-set-in-stock-transport/qaa-p/14235488#M4228775</id>
+    <title>Re: MD01N Behavior: Issuing Storage Location Not Set in S...</title>
+    <updated>2025-10-06T10:08:31.496000+02:00</updated>
+    <author>
+      <name>Dominik_Tylczynski</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/141029</uri>
+    </author>
+    <content>You would need to ask that question to SAP and/or review what's new announcements on SAP Help page.</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/md01n-behavior-issuing-storage-location-not-set-in-stock-transport/qaa-p/14235488#M4228775"/>
+    <published>2025-10-06T10:08:31.496000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/porto-events/meet-up-porto-2025/ev-p/14235492</id>
+    <title>Meet-up Porto 2025</title>
+    <updated>2025-10-06T10:12:44.442000+02:00</updated>
+    <author>
+      <name>MRobalinho</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/140615</uri>
+    </author>
+    <content>&lt;P&gt;Analise do evento SAP Inside Track Porto 2025.&lt;/P&gt;&lt;P&gt;Analise do saldo do evento.&lt;/P&gt;&lt;P&gt;Lições aprendidas&lt;/P&gt;&lt;P&gt;Agendamento proximo evento.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/porto-events/meet-up-porto-2025/ev-p/14235492"/>
+    <published>2025-10-06T10:12:44.442000+02:00</published>
   </entry>
 </feed>
