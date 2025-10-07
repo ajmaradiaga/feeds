@@ -2,211 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/NW-ABAP-Remote-Function-Call-(RFC)-blog-posts.xml</id>
   <title>SAP Community - NW ABAP Remote Function Call (RFC)</title>
-  <updated>2025-10-07T11:11:15.283116+00:00</updated>
+  <updated>2025-10-07T23:11:22.463977+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/NW ABAP Remote Function Call (RFC)/pd-p/100394580653750417561290171292438" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>NW ABAP Remote Function Call (RFC) blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/rfc-meets-the-web-part-ii-building-the-proxy/ba-p/13566876</id>
-    <title>RFC meets the Web: Part II - Building the proxy</title>
-    <updated>2023-04-04T03:19:14+02:00</updated>
-    <author>
-      <name>Gunter</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/727</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-963096004"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/04/スクリーンショット-2023-04-04-101621.jpg" /&gt;&lt;/H2&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId-766582499"&gt;&lt;EM&gt;RFC meets Web - Part II: How to build the proxy&lt;/EM&gt;&lt;/H2&gt;&lt;BR /&gt;
-Welcome back to the second blog post where we look into building the REST2RFC proxy! It's a SAP Cloud SDK Java application running on SAP BTP Cloud Foundry runtime.&lt;BR /&gt;
-&lt;H2 id="toc-hId-570068994"&gt;Introduction and BTP services used&lt;/H2&gt;&lt;BR /&gt;
-When I started with the project (which was inspired by customers telling me "we don't have APIs, we are still on S/4HANA 1909") I explored the options to build a proxy to translate between the RFC and the REST world. A few things became clear:&lt;BR /&gt;
-&lt;UL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;That proxy must be agnostic - no function module specific logic should be in it, so it can be universal.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;REST is channeled through SAP Cloud Connector and with that we have a granular way to white-list what should be exposed from the on-premise system.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;SAP BTP offers the RFC-flavor for defining a destination. Great!&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Using BTP RFC destinations only works through Java and the &lt;A href="https://mvnrepository.com/artifact/com.sap.cloud/neo-java-web-api" target="_blank" rel="nofollow noopener noreferrer"&gt;API For SAP BTP (Java Web Tomcat 9)&lt;/A&gt; which is not in the &lt;A href="https://sap.github.io/cloud-sdk/docs/java/getting-started" target="_blank" rel="nofollow noopener noreferrer"&gt;SAP Cloud SDK for Java&lt;/A&gt; (not to be confused with the &lt;A href="https://support.sap.com/en/product/connectors/jco.html" target="_blank" rel="noopener noreferrer"&gt;JCo you can download&lt;/A&gt; as a separate package) and likely coming from Neo but working perfectly fine with CF and latest Cloud SDK, too.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;All existing tutorials were outdated that explained the RFC integration so I hope this blog helps you.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/UL&gt;&lt;BR /&gt;
-As for the BTP project building the application needs these services:&lt;BR /&gt;
-&lt;OL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;STRONG&gt;Authorization and Trust Management Service (xsuaa)&lt;/STRONG&gt;: Securing the application from the web entry point with OAuth2 and roles to be assigned to a user which define the scope during authentication as part of the JWT.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;STRONG&gt;Connectivity Service&lt;/STRONG&gt;: To connect between cloud and on-premise through the Cloud Connector (CC).&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;STRONG&gt;Destination Service&lt;/STRONG&gt;: To retrieve the destinations in the Java app for RFC and offer the REST service to the caller.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;&lt;STRONG&gt;Application Logging Service&lt;/STRONG&gt;: To allow for a really nice monitoring of the proxy. Not mandatory but I highly recommend it for debugging and day-to-day monitoring.&lt;/LI&gt;&lt;BR /&gt;
-&lt;/OL&gt;&lt;BR /&gt;
-&lt;H2 id="toc-hId-373555489"&gt;Proxy project details&lt;/H2&gt;&lt;BR /&gt;
-&lt;H3 id="toc-hId-306124703"&gt;Development IDE&lt;/H3&gt;&lt;BR /&gt;
-I used Eclipse in connection with the SAP Cloud SDK for Java. You want to install Maven with&lt;BR /&gt;
-&lt;PRE class="language-c"&gt;&lt;CODE&gt;$ choco install maven&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-on a Windows device. To create a fresh project I ran&lt;BR /&gt;
-&lt;PRE class="language-c"&gt;&lt;CODE&gt;mvn archetype:generate "-DarchetypeGroupId=com.sap.cloud.sdk.archetypes" "-DarchetypeArtifactId=scp-cf-tomee" "-DarchetypeVersion=RELEASE"&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-since I built on TomcatEE and not Springboot. This create the framework you should open in Eclipse once done.&lt;BR /&gt;
-&lt;BR /&gt;
-I deleted those elements which I didn't need (like junit and integration tests &lt;span class="lia-unicode-emoji" title=":face_with_tears_of_joy:"&gt;😂&lt;/span&gt;) so the build process just considered my code. You also need to define a manifest file and the obligatory xs-security.json.&lt;BR /&gt;
-&lt;PRE class="language-c"&gt;&lt;CODE&gt;---&lt;BR /&gt;
-applications:&lt;BR /&gt;
-&lt;BR /&gt;
-- name: jco-rfc-rest-server&lt;BR /&gt;
-  memory: 1500M&lt;BR /&gt;
-  timeout: 300&lt;BR /&gt;
-  random-route: true&lt;BR /&gt;
-  path: application/target/jco-rfc-rest-server-application.war&lt;BR /&gt;
-  buildpacks:&lt;BR /&gt;
-    - sap_java_buildpack&lt;BR /&gt;
-  env:&lt;BR /&gt;
-    USE_JCO: "true"&lt;BR /&gt;
-    TARGET_RUNTIME: tomee7&lt;BR /&gt;
-    SET_LOGGING_LEVEL: '{ROOT: INFO, com.sap.cloud.sdk: INFO}'&lt;BR /&gt;
-    JBP_CONFIG_SAPJVM_MEMORY_SIZES: 'metaspace:128m..'&lt;BR /&gt;
-    xsuaa_connectivity_instance_name: "jco-rfc-rest-server-xsuaa"&lt;BR /&gt;
-    connectivity_instance_name: "jco_connectivity"&lt;BR /&gt;
-    destination_instance_name: "jco_destination"&lt;BR /&gt;
-    ENABLE_SECURITY_JAVA_API_V2: "true"&lt;BR /&gt;
-    &lt;BR /&gt;
-  services:&lt;BR /&gt;
-    - jco-rfc-rest-server-xsuaa&lt;BR /&gt;
-    - jco_connectivity&lt;BR /&gt;
-    - jco_destination&lt;BR /&gt;
-    - jco-app-logging&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-above is my manifest.yml.&lt;BR /&gt;
-&lt;PRE class="language-javascript"&gt;&lt;CODE&gt;{&lt;BR /&gt;
-  "xsappname": "jco-rfc-rest-server",&lt;BR /&gt;
-  "tenant-mode": "dedicated",&lt;BR /&gt;
-  "scopes": [&lt;BR /&gt;
-    {&lt;BR /&gt;
-      "name": "$XSAPPNAME.Display",&lt;BR /&gt;
-      "description": "GET requests on BAPI"&lt;BR /&gt;
-    },&lt;BR /&gt;
-    {&lt;BR /&gt;
-      "name": "$XSAPPNAME.Modify",&lt;BR /&gt;
-      "description": "POST requests on BAPI"&lt;BR /&gt;
-    }&lt;BR /&gt;
-  ],&lt;BR /&gt;
-  "role-templates": [&lt;BR /&gt;
-    {&lt;BR /&gt;
-      "name": "JCo-REST-RFC-Server-Viewer",&lt;BR /&gt;
-      "description": "Required to run GET requests for RFC BAPI calls.",&lt;BR /&gt;
-      "scope-references"     : [&lt;BR /&gt;
-        "$XSAPPNAME.Display"&lt;BR /&gt;
-      ]&lt;BR /&gt;
-    },&lt;BR /&gt;
-    {&lt;BR /&gt;
-      "name": "JCo-REST-RFC-Server-Administrator",&lt;BR /&gt;
-      "description": "Required to run POST requests for RFC BAPI calls.",&lt;BR /&gt;
-      "scope-references"     : [&lt;BR /&gt;
-        "$XSAPPNAME.Modify"&lt;BR /&gt;
-      ]&lt;BR /&gt;
-    }&lt;BR /&gt;
-  ]&lt;BR /&gt;
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-Above is my xs-security.json. Based on that you can create 2 role collections in BTP later to allow for a display and and admin role for the proxy calls.&lt;BR /&gt;
-&lt;H3 id="toc-hId-109611198"&gt;Java specifics: Authority checks&lt;/H3&gt;&lt;BR /&gt;
-The Java class for the proxy is based on the &lt;EM&gt;HttpServlet&lt;/EM&gt; class. Below I'd like to share the pattern for authority checks.&lt;BR /&gt;
-&lt;PRE class="language-java"&gt;&lt;CODE&gt;@WebServlet("/rfc/*")&lt;BR /&gt;
-@ServletSecurity(@HttpConstraint(rolesAllowed = { "Display", "Modify" }))&lt;BR /&gt;
-public class Rest2RfcProxy extends HttpServlet {&lt;BR /&gt;
-&lt;BR /&gt;
-        // .... some code&lt;BR /&gt;
-&lt;BR /&gt;
-	@Override&lt;BR /&gt;
-	@RolesAllowed({"Modify"})&lt;BR /&gt;
-	protected void doPost(HttpServletRequest request, HttpServletResponse response)&lt;BR /&gt;
-			throws ServletException, IOException {	&lt;BR /&gt;
-               // ...&lt;BR /&gt;
-        }&lt;BR /&gt;
-&lt;BR /&gt;
-	@Override&lt;BR /&gt;
-	@RolesAllowed({"Display", "Modify"})&lt;BR /&gt;
-	protected void doGet(HttpServletRequest request, HttpServletResponse response)&lt;BR /&gt;
-			throws ServletException, IOException {&lt;BR /&gt;
-               // ...&lt;BR /&gt;
-        }&lt;BR /&gt;
-&lt;BR /&gt;
-        // .... some more code&lt;BR /&gt;
-&lt;BR /&gt;
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-So that's how the security scopes defined in &lt;EM&gt;xs-security.json&lt;/EM&gt; are checked in the Java code. You must enable that in the &lt;EM&gt;web.xml&lt;/EM&gt; file of the webapp like so:&lt;BR /&gt;
-&lt;PRE class="language-markup"&gt;&lt;CODE&gt;    &amp;lt;login-config&amp;gt;&lt;BR /&gt;
-        &amp;lt;auth-method&amp;gt;XSUAA&amp;lt;/auth-method&amp;gt;&lt;BR /&gt;
-    &amp;lt;/login-config&amp;gt;&lt;BR /&gt;
-&lt;BR /&gt;
-	&amp;lt;security-constraint&amp;gt;&lt;BR /&gt;
-        &amp;lt;web-resource-collection&amp;gt;&lt;BR /&gt;
-            &amp;lt;web-resource-name&amp;gt;Baseline Security&amp;lt;/web-resource-name&amp;gt;&lt;BR /&gt;
-            &amp;lt;url-pattern&amp;gt;/*&amp;lt;/url-pattern&amp;gt;&lt;BR /&gt;
-        &amp;lt;/web-resource-collection&amp;gt;&lt;BR /&gt;
-        &amp;lt;auth-constraint&amp;gt;&lt;BR /&gt;
-            &amp;lt;role-name&amp;gt;*&amp;lt;/role-name&amp;gt;&lt;BR /&gt;
-        &amp;lt;/auth-constraint&amp;gt;&lt;BR /&gt;
-    &amp;lt;/security-constraint&amp;gt;&lt;BR /&gt;
-&lt;BR /&gt;
-    &amp;lt;security-role&amp;gt;&lt;BR /&gt;
-        &amp;lt;role-name&amp;gt;Display&amp;lt;/role-name&amp;gt;&lt;BR /&gt;
-    &amp;lt;/security-role&amp;gt;&lt;BR /&gt;
-     &amp;lt;security-role&amp;gt;&lt;BR /&gt;
-        &amp;lt;role-name&amp;gt;Modify&amp;lt;/role-name&amp;gt;&lt;BR /&gt;
-    &amp;lt;/security-role&amp;gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-Only then it will work with the data injected by the JWT.&lt;BR /&gt;
-&lt;BR /&gt;
-Info: Per default BTP destination service will work with X-CSRF token. I turned it off for testing - this is also defined in &lt;EM&gt;web.xml&lt;/EM&gt;!&lt;BR /&gt;
-&lt;H3 id="toc-hId--86902307"&gt;Java specifics: JCo REST/RFC&lt;/H3&gt;&lt;BR /&gt;
-The communication through JCo via RFC follows this sequence:&lt;BR /&gt;
-&lt;OL&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Get the RFC destination with details that we specified in the SAP BTP (see the &lt;A href="https://blogs.sap.com/2023/04/02/sap-build-apps-and-bapis-rfc-meets-web/" target="_blank" rel="noopener noreferrer"&gt;first blog&lt;/A&gt;).&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Define the function to be called in Java.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Define the import/ export and table parameter list from the function module. These variables hold the according structures.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Load the metadata of the 3 objects from the SAP ECC or S/4HANA data dictionary.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Set the import or tables parameters as needed.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Execute the function module call.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;If it's a POST, also execute a call to BAPI BAPI_TRANSACTION_COMMIT. If you call a Z-function module it depends how your organized your LUW whether this has any impact at all. Certainly it won't hurt but the commit might have been done before that in your ABAP code.&lt;/LI&gt;&lt;BR /&gt;
- 	&lt;LI&gt;Feed back the data to the caller&lt;/LI&gt;&lt;BR /&gt;
-&lt;/OL&gt;&lt;BR /&gt;
-Example for the IMPORTS:&lt;BR /&gt;
-&lt;PRE class="language-java"&gt;&lt;CODE&gt;if (jImports != null) {&lt;BR /&gt;
-	logger.info("Filling BAPI import: " + jImports.toString());&lt;BR /&gt;
-	bapiImports.getMetaData();&lt;BR /&gt;
-	bapiImports.fromJSON(jImports.toString());&lt;BR /&gt;
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-This uses the &lt;EM&gt;.fromJSON&lt;/EM&gt; method to fill the structure. On the way back to the caller you can then use the &lt;EM&gt;.toJSON&lt;/EM&gt; method to obtain the JSON data for REST.&lt;BR /&gt;
-&lt;H3 id="toc-hId--283415812"&gt;Application logging&lt;/H3&gt;&lt;BR /&gt;
-I recommend to consider using the application logging service on BTP, particularly for this middleware application to facilitate error analysis. It builds on the common org.slf4j framework. You activate it with&lt;BR /&gt;
-&lt;PRE class="language-java"&gt;&lt;CODE&gt;private static final Logger logger = LoggerFactory.getLogger(&amp;lt;your class name&amp;gt;.class);&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-declared on class level to have it available in every method and exception. In the manifest.yml you can then set the logging level:&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;SET_LOGGING_LEVEL: '{ROOT: INFO, com.sap.cloud.sdk: INFO}'&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-here it means everything is logged. You can reduce it to WARN or ERROR.&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/04/スクリーンショット-2023-04-03-090730.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Image 1: Application Logging service on BTP&lt;/P&gt;&lt;BR /&gt;
-The dashboard offers detailed filtering and statistics which are very handy.&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/04/スクリーンショット-2023-04-03-091021.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Image 2: Application logging dashboard overview&lt;/P&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;H2 id="toc-hId--609012036"&gt;Troubleshooting&lt;/H2&gt;&lt;BR /&gt;
-I faced a few issues when developing and building it because the tutorials were outdated or didn't support the use case. Maybe this can help you.&lt;BR /&gt;
-&lt;H3 id="toc-hId--676442822"&gt;java.lang.UnsupportedClassVersionError&lt;/H3&gt;&lt;BR /&gt;
-&lt;EM&gt;"java.lang.UnsupportedClassVersionError: com/sap/demo/jco/ConnectivityRFCExample has been compiled by a more recent version of the Java Runtime (class file version 61.0), this version of the Java Runtime only recognizes class file versions up to 52.0 (unable to load class [com.sap.demo.jco.ConnectivityRFCExample])&lt;/EM&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-This means the bytecode of the WAR file isn't matching the BTP Java Buildpack. First you want to check the buildpack on BTP:&lt;BR /&gt;
-&lt;PRE class="language-abap"&gt;&lt;CODE&gt;$ cf buildpacks&lt;/CODE&gt;&lt;/PRE&gt;&lt;BR /&gt;
-E.g. 52.0 = Java 8, 61.0 = Java 17. I had to set my Eclipse JDK to create code for 52.0 by setting it to Java 8 from Java 17. Also this &lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/developing-java-cloud-foundry-environment" target="_blank" rel="noopener noreferrer"&gt;help&lt;/A&gt; is useful (standard is Java 8, if using SAP Machine it's Java 11).&lt;BR /&gt;
-&lt;H3 id="toc-hId--948187696"&gt;POST, PUT, PATCH. DELETE will require X-CSRF-Token&lt;/H3&gt;&lt;BR /&gt;
-If you don't want that, turn it off, out-comment the section for the filter RestCsrfPreventionFilter in web.xml. This can help during testing. For production, better put it back in.&lt;BR /&gt;
-&lt;H3 id="toc-hId--1144701201"&gt;After setting up a fresh project with Maven Eclipse looks "funny"&lt;/H3&gt;&lt;BR /&gt;
-You got to switch the facet in the project properties to Java.&lt;BR /&gt;
-&lt;H3 id="toc-hId--1341214706"&gt;Maven repository not found&lt;/H3&gt;&lt;BR /&gt;
-Add it to the Java Build Path in the project's properties.&lt;BR /&gt;
-&lt;P style="overflow: hidden;margin-bottom: 0px"&gt;&lt;IMG class="migrated-image" src="https://community.sap.com/legacyfs/online/storage/blog_attachments/2023/04/スクリーンショット-2023-04-03-092209.jpg" /&gt;&lt;/P&gt;&lt;BR /&gt;
-&lt;P class="image_caption" style="text-align: center;font-style: italic"&gt;Image 3: Project properties, Java build path&lt;/P&gt;&lt;BR /&gt;
-&lt;BR /&gt;
-&lt;H3 id="toc-hId--1537728211"&gt;"Where is the source code?"&lt;/H3&gt;&lt;BR /&gt;
-Please check my LinkedIn post in that matter.&lt;BR /&gt;
-&lt;H2 id="toc-hId--1440838709"&gt;Conclusion&lt;/H2&gt;&lt;BR /&gt;
-Building a proxy to translate between the RFC and REST world requires an agnostic proxy. It is a universal solution without function module specific logic, and the REST service is channeled through the SAP Cloud Connector. Using the RFC-flavor for defining a destination on the SAP BTP platform with Java Web Tomcat 9 API allowed for easy integration. By following this blog, building an efficient proxy is now possible, and it will be useful for businesses using older SAP S/4HANA or ECC systems.&lt;BR /&gt;
-&lt;BR /&gt;
-Let me know your feedback - I'm eager to learn how you are using the approach for your web use cases!&lt;BR /&gt;
-&lt;BR /&gt;
-&amp;nbsp;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/rfc-meets-the-web-part-ii-building-the-proxy/ba-p/13566876"/>
-    <published>2023-04-04T03:19:14+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/parallel-processing-on-oabap-using-classes-and-methods/ba-p/13557161</id>
     <title>Parallel Processing On OABAP - Using Classes and Methods</title>
@@ -3495,5 +3294,152 @@ PERFORMING &amp;lt;callback_form&amp;gt; ON END OF TASK.&lt;/PRE&gt;&lt;P&gt;For
 IN BACKGROUND UNIT &amp;lt;unit_object&amp;gt;.&lt;/PRE&gt;&lt;P&gt;You can find more information about this technology here:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://support.sap.com/en/alm/sap-focused-run/expert-portal/integration-cloud-monitoring/bgrfc.html" target="_self" rel="noopener noreferrer"&gt;SAP Support: bgRFC&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/ABAP_PLATFORM_NEW/753088fc00704d0a80e7fbd6803c8adb/48927c2caa6b17cee10000000a421937.html" target="_self" rel="noopener noreferrer"&gt;SAP Help Portal: bgRFC (Background Remote Function Call)&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId-1429578747"&gt;&lt;STRONG&gt;Background Processes&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;Using dedicated &lt;STRONG&gt;Background Processes&lt;/STRONG&gt; is another established method for achieving parallelism in SAP Systems, especially suitable for long-running and resource-intensive tasks that can be clearly divided.&lt;/P&gt;&lt;P&gt;Parallelizing with background processes follows the same core principle as with aRFCs: multiple tasks are started to run simultaneously. This can be achieved in two main ways. The first approach is done purely through configuration. Here, an administrator can manually schedule the same ABAP program multiple times, where each parallel &lt;STRONG&gt;job&lt;/STRONG&gt; uses a unique &lt;STRONG&gt;variant&lt;/STRONG&gt; with a different dataset&lt;STRONG&gt;.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The second approach is to implement this parallelization within a single ABAP program. This is done using a set of function modules that control the job lifecycle:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;EM&gt;&lt;STRONG&gt;JOB_OPEN&lt;/STRONG&gt;&lt;/EM&gt; creates a new job.&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;&lt;STRONG&gt;JOB_SUBMIT&lt;/STRONG&gt;&lt;/EM&gt; adds the program and its variant as a step.&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;&lt;STRONG&gt;JOB_CLOSE&lt;/STRONG&gt;&lt;/EM&gt; releases the job to the system for execution.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;For more details on implementing parallel background jobs, check out these resources:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/application-development-and-automation-blog-posts/parallel-processing-with-background-jobs-in-sap/ba-p/14001745" target="_self"&gt;SAP Community (2025): Parallel Processing with Background Jobs in SAP&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/ABAP_PLATFORM_NEW/7bfe8cdcfbb040dcb6702dada8c3e2f0/4d95304dd1b83c46e10000000a42189e.html?locale=en-US" target="_self" rel="noopener noreferrer"&gt;SAP Help Portal: Programming with the Background Processing System (BC-CCM-BTC)&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/application-development-and-automation-blog-posts/parallel-processing-of-background-jobs-in-sap/ba-p/13244439" target="_self"&gt;SAP Community (2014):&amp;nbsp;Parallel processing of background jobs in SAP&amp;nbsp;&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1103982523"&gt;&lt;STRONG&gt;Frameworks for Easier Implementation&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;While the core technologies provide the fundamental mechanisms for parallel processing, implementing them directly requires handling details like load balancing, package creation and managing parallel tasks. To simplify this process, SAP provides several &lt;STRONG&gt;frameworks&lt;/STRONG&gt; that build on these technologies. These frameworks offer a structured, reusable and often easier way to implement robust parallel processing.&lt;/P&gt;&lt;P&gt;To select the most suitable framework, the following decision matrix based on the Qualitative Weight and Summ (QWS) method provides a visual comparison. The &lt;STRONG&gt;darker the green shade&lt;/STRONG&gt;, the better a framework fulfills a specific criterion. Please note that this matrix reflects my subjective evaluation for a specific use case. Your assessment will likely differ based on your project's unique requirements.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="marc_steinert_1-1758550429007.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/318022i6DE4D8A1A7502555/image-size/large?v=v2&amp;amp;px=999" role="button" title="marc_steinert_1-1758550429007.png" alt="marc_steinert_1-1758550429007.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Evaluation Criteria Explained&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Here is a brief summary of each criterion used in the matrix:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Platform Compatibility:&lt;/STRONG&gt; Runs on both SAP ECC and S/4HANA systems.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Timeout Robustness:&lt;/STRONG&gt; Handles long-running tasks without timing out.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Package Creation:&lt;/STRONG&gt; Automatically divides data into work packages.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Configurable Package Size:&lt;/STRONG&gt; Allows the developer to define the size of work packages.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Parallel Execution:&lt;/STRONG&gt; Automatically starts and manages the execution of parallel tasks.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Result Aggregation:&lt;/STRONG&gt; Helps collect and consolidate results from parallel tasks.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Multi-Server Function:&lt;/STRONG&gt; Can distribute tasks across multiple application servers.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Processing Server Selection:&lt;/STRONG&gt; Allows specifying a server or server group for execution.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Load Balancing:&lt;/STRONG&gt; Automatically distributes tasks based on system load.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;System Load Control:&lt;/STRONG&gt; Allows setting limits on the maximum system resources used.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Implementation Effort:&lt;/STRONG&gt; The complexity and time required to implement the framework.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Documentation Quality:&lt;/STRONG&gt; The availability and quality of supporting documentation.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Now lets have a look at the individual Frameworks.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId-1036551737"&gt;&lt;STRONG&gt;SPTA Framework&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;The &lt;STRONG&gt;SPTA Framework&lt;/STRONG&gt; provides a straightforward, function-module-based approach to simplify parallel processing with aRFCs. Instead of requiring the developer to manage the aRFC calls manually, the framework encapsulates the entire parallelization logic within a single, reusable function module, &lt;EM&gt;SPTA_PARA_PROCESS_START_2&lt;/EM&gt;.&lt;/P&gt;&lt;P&gt;To use the SPTA framework, a developer implements three specific form routines that serve as callbacks, filling them with the custom logic required for the application. The &lt;EM&gt;BEFORE_RFC_CALLBACK_FORM&lt;/EM&gt; is responsible for preparing the data and creating the work packages. The core processing logic, which is to be executed in parallel, is placed within the &lt;EM&gt;IN_RFC_CALLBACK_FORM&lt;/EM&gt;. After all the parallel tasks have been completed, the &lt;EM&gt;AFTER_RFC_CALLBACK_FORM&lt;/EM&gt; is called to consolidate the results and make them available for further processing.&lt;/P&gt;&lt;P&gt;For more information on the SPTA Framework, see these resources:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://me.sap.com/notes/3002940/E" target="_self" rel="noopener noreferrer"&gt;SAP for Me (2020): 3002940 - Parallel Processing FAQ&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://sapyard.com/spta-parallel-processing-framework-in-abap" target="_self" rel="nofollow noopener noreferrer"&gt;[Non SAP] SAPYARD (2018): SPTA Parallel Processing Framework in ABAP&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://www.linkedin.com/pulse/lets-talk-spta-framework-your-guide-parallel-sap-dzmitryi-kharlanau-1skaf/" target="_self" rel="nofollow noopener noreferrer"&gt;[Non SAP] LinkedIn (2024): Let’s Talk About the SPTA Framework: Your Guide to Parallel Processing in SAP&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId-840038232"&gt;&lt;STRONG&gt;SHDB Framework&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;The &lt;STRONG&gt;SHDB Framework&lt;/STRONG&gt; is a more powerful and modern, object-oriented framework that also simplifies the use of aRFCs. It is structured into four main components that work together to provide a robust parallelization environment: the &lt;STRONG&gt;Package Provider&lt;/STRONG&gt;, the &lt;STRONG&gt;Resource Provider&lt;/STRONG&gt;, the &lt;STRONG&gt;Parallelizer&lt;/STRONG&gt;&amp;nbsp;and the &lt;STRONG&gt;Dispatcher&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;The &lt;STRONG&gt;Package Provider&lt;/STRONG&gt; is responsible for automatically dividing the total dataset into smaller, processable packages according to configurable rules. The &lt;STRONG&gt;Resource Provider&lt;/STRONG&gt; actively monitors the system's memory and process utilization to determine the maximum allowed number of parallel tasks, thereby preventing system overloads. The &lt;STRONG&gt;Parallelizer&lt;/STRONG&gt; then calls the application-specific logic for each package in a separate aRFC task, while the &lt;STRONG&gt;Dispatcher&lt;/STRONG&gt; coordinates the entire process by requesting packages and resources and launching the asynchronous tasks.&lt;/P&gt;&lt;P&gt;Implementation is done in an object-oriented manner, starting with the factory class &lt;EM&gt;CL_SHDB_PFW_FACTORY&lt;/EM&gt; and using configuration objects from &lt;EM&gt;CL_SHDB_PFW_CONFIG&lt;/EM&gt; to define parameters like the number of parallel processes or package parameters.&lt;/P&gt;&lt;P&gt;While a complete guide for the SHDB Framework is not publicly available at this time, some information can be found on the SAP for Me portal. Relevant resources are available there using the search terms &lt;STRONG&gt;"SHDB Framework"&lt;/STRONG&gt; or &lt;STRONG&gt;"SHDB PFW"&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId-643524727"&gt;&lt;STRONG&gt;CL_ABAP_PARALLEL&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;The &lt;STRONG&gt;CL_ABAP_PARALLEL&lt;/STRONG&gt; framework is another object-oriented solution for aRFC-based parallelization. Its name, while not official, comes from its original project folder. It is a lightweight solution centered around a main class and an interface that developers use to structure their parallel logic.&lt;/P&gt;&lt;P&gt;The implementation pattern requires the developer to create a processing class that implements the &lt;EM&gt;IF_ABAP_PARALLEL&lt;/EM&gt; interface. All the custom logic intended to run in parallel is then placed within its &lt;EM&gt;DO&lt;/EM&gt; method. Finally, the entire process is managed by an instance of the main &lt;EM&gt;CL_ABAP_PARALLEL&lt;/EM&gt; class and the parallel execution is triggered by calling the &lt;EM&gt;RUN_INST&lt;/EM&gt; method.&lt;/P&gt;&lt;P&gt;For more information on &lt;STRONG&gt;CL_ABAP_PARALLEL&lt;/STRONG&gt;, see these resources:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Book: Schwarzmann, W. (2022): Parallel Processing with ABAP Objects: Implementation and Testing, isbn: 978-1-4932-2354-1&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/parallel-processing" target="_self" rel="noopener noreferrer"&gt;SAP Help Portal: Parallel Processing&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/application-development-and-automation-blog-posts/using-class-cl-abap-parallel-for-mass-parallel-dialog-work-processes/ba-p/13579844" target="_self"&gt;SAP Community (2023): Using class CL_ABAP_PARALLEL for mass parallel dialog work processes&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId-447011222"&gt;&lt;STRONG&gt;Background Processing Framework (bgPF)&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;The &lt;STRONG&gt;Background Processing Framework&lt;/STRONG&gt; serves as the dedicated framework for the &lt;STRONG&gt;bgRFC&lt;/STRONG&gt; technology.&lt;/P&gt;&lt;P&gt;The implementation pattern requires a developer to encapsulate the business logic in a dedicated class that implements a framework interface. For most use cases, &lt;EM&gt;IF_BGMC_OP_SINGLE&lt;/EM&gt; is used to ensure the process follows strict transactional rules for data consistency.&lt;/P&gt;&lt;P&gt;Once this class with the business logic is ready, it is passed to the &lt;EM&gt;CL_BGMC_PROCESS_FACTORY&lt;/EM&gt;. This is a helper class provided by the framework that constructs the main process object for the background task. The task is then registered by calling the &lt;EM&gt;save_for_execution()&lt;/EM&gt; method and the entire process is finally triggered by a &lt;EM&gt;COMMIT WORK&lt;/EM&gt; statement.&lt;/P&gt;&lt;P&gt;For more information on the bgPF, see these resources:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/abap-cloud/abap-concepts/background-processing-framework" target="_self" rel="noopener noreferrer"&gt;SAP Help Protal: Background Processing Framework&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/introducing-the-background-processing-framework/ba-p/13579056" target="_self"&gt;SAP Community (2023): Introducing the Background Processing Framework&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId-250497717"&gt;&lt;STRONG&gt;Parallel Processing Framework (PPF)&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;The &lt;STRONG&gt;Parallel Processing Framework&lt;/STRONG&gt;, sometimes also referred to as the &lt;STRONG&gt;Framework for Parallel Processing (FPP)&lt;/STRONG&gt;, is a framework based on background processes used to structure and execute mass-data processing runs in parallel.&lt;/P&gt;&lt;P&gt;Its implementation requires both settings in Customizing and the development of custom ABAP function modules. A developer first defines an &lt;STRONG&gt;application type&lt;/STRONG&gt; using transaction &lt;EM&gt;BANK_CUS_PPC&lt;/EM&gt;. This application type links specific processing steps, such as data packaging or execution, to the custom-developed function modules that contain the business logic.&lt;/P&gt;&lt;P&gt;The entire process is then initiated from a report by calling the central function module &lt;EM&gt;BANK_MAP_PP_START&lt;/EM&gt;, which uses the application type's configuration to manage the parallel jobs.&lt;/P&gt;&lt;P&gt;For more information on the PPF, see these resources:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/sap-for-banking-blogs/exploring-mass-run-program-based-on-ppf/ba-p/13136452" target="_self"&gt;SAP Community (2015): Exploring Mass run program based on PPF&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/5bec6e0df6b549258e7ae381fedd4066/593e3752aeefbc02e10000000a44176d.html?locale=en-US" target="_self" rel="noopener noreferrer"&gt;SAP Help Portal: Parallel Processing (FPP)&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId--443732883"&gt;&lt;STRONG&gt;Mass Data Framework&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;The &lt;STRONG&gt;Mass Data Framework&lt;/STRONG&gt; is a comprehensive solution for structuring and controlling complex projects that involve large-scale data changes and is often used in migration scenarios.&lt;/P&gt;&lt;P&gt;The implementation requires just like the Parallel Processing Framework a combination of &lt;STRONG&gt;Customizing&lt;/STRONG&gt; and &lt;STRONG&gt;development&lt;/STRONG&gt;. In Customizing (via transaction SM30), a developer defines the entire project structure. This involves creating a &lt;STRONG&gt;Project Type&lt;/STRONG&gt; (&lt;EM&gt;FINSV_MPROJ_TYP&lt;/EM&gt;), which consists of a sequence of &lt;STRONG&gt;Activities&lt;/STRONG&gt; (&lt;EM&gt;FINSV_MASSF_SET&lt;/EM&gt;). Each activity is made up of one or more &lt;STRONG&gt;Steps&lt;/STRONG&gt; (&lt;EM&gt;FINSV_MASSF_STEP&lt;/EM&gt;), where the custom ABAP logic is assigned.&lt;/P&gt;&lt;P&gt;The developer's main task is to create an &lt;STRONG&gt;application class&lt;/STRONG&gt; that contains the business logic for a step. This class must implement the interface &lt;EM&gt;IF_FINS_MASS_DATA&lt;/EM&gt;, which includes three key methods. The &lt;EM&gt;GET_PACKAGES&lt;/EM&gt; method is called to define the work packages. The &lt;EM&gt;PREPARE &lt;/EM&gt;method can be used for any setup tasks before the parallel processing starts. Finally, the &lt;EM&gt;PROCESS &lt;/EM&gt;method contains the core logic that is executed in parallel for each individual package.&lt;/P&gt;&lt;P&gt;As it is an older framework, further resources for the Mass Data Framework are primarily located on internal SAP platforms and are not publicly available.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;I hope you found this overview informative and that it helps you tackle your own performance tuning challenges.&lt;/P&gt;&lt;P&gt;A special thanks to &lt;STRONG&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/226501"&gt;@ManuS&lt;/a&gt;&amp;nbsp;&lt;/STRONG&gt; for the help and guidance!&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/abap-s-parallel-processing-frameworks-practical-guide-to-performance-tuning/ba-p/14224397"/>
     <published>2025-09-29T08:52:47.138000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/abap-blog-posts/abap-code-to-wait-for-the-end-of-quot-inbound-bgrfc-type-q-quot-units/ba-p/14237566</id>
+    <title>ABAP code to wait for the end of "inbound bgRFC type Q" units</title>
+    <updated>2025-10-07T20:28:26.490000+02:00</updated>
+    <author>
+      <name>Sandra_Rossi</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/145194</uri>
+    </author>
+    <content>&lt;P&gt;I have a program which runs parallel tasks in the same system via qRFC by using bgRFC. This scenario is called Inbound bgRFC type Q. Each task is called a unit. For more information about bgRFC, see here:&amp;nbsp;&lt;A href="https://help.sap.com/docs/ABAP_PLATFORM_NEW/753088fc00704d0a80e7fbd6803c8adb/48927c2caa6b17cee10000000a421937.html?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;bgRFC (Background Remote Function Call) | SAP Help Portal&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;After the units are all started, I want to wait for them.&lt;/P&gt;&lt;P&gt;I propose a simple ABAP method which should work for most of situations.&lt;/P&gt;&lt;P&gt;There are really very few posts about bgRFC and the official documentation is missing information too, so I hope it can help some people. Note: I don't even know if the classes I use are supported by SAP and if it's the right way to do it, so all comments are welcome, thank you.&lt;/P&gt;&lt;P&gt;Here is the context how this method is used (WAIT_END_OF_QRFC_INBOUND_UNITS):&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA(inbound_destination) = cl_bgrfc_destination_inbound=&amp;gt;create( 'ZZZ' ).
+
+LOOP AT any_table INTO line.
+  DATA(unit) = inbound_destination-&amp;gt;create_qrfc_unit( ).
+  unit-&amp;gt;add_queue_name_inbound( line-queue_name ).
+
+  CALL FUNCTION '...' 
+     IN BACKGROUND UNIT unit
+     EXPORTING ...
+
+  INSERT unit INTO TABLE units.
+ENDLOOP.
+
+COMMIT WORK.
+
+DATA(wait_results) = wait_end_of_qrfc_inbound_units(
+                       i_watch_delay_seconds = '0.5'
+                       i_units               = units ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Little explanation: there's an internal table containing data which needs to be processed in parallel via a given RFC-enabled function module. The internal table assigns given queue names to each line of data in order to achieve the parallelization. For instance, one half of the table goes to the queue named Z1,&amp;nbsp; all calls in Z1 will be executed sequentially,&amp;nbsp; the other half goes to the queue named Z2, the calls in Z1 and Z2 will be executed in parallel).&lt;/P&gt;&lt;P&gt;COMMIT WORK creates the inbound bgRFC units in the database (function module calls and parameters) and all the queues are started by the bgRFC scheduler. You can see the units via the transaction SBGRFCMON.&lt;/P&gt;&lt;P&gt;Prerequisite: the inbound destination ZZZ was created via the transaction SBGRFCCONF. Nothing else needed (no prefix, no RFC destination in SM59, queue names are assigned freely by the program, etc.)&lt;/P&gt;&lt;P&gt;Here's the code of the method WAIT_END_OF_QRFC_INBOUND_UNITS:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_bgrfc_helper DEFINITION FINAL CREATE PRIVATE.
+  PUBLIC SECTION.
+    TYPES ty_qrfc_inbound_units TYPE STANDARD TABLE OF REF TO if_qrfc_unit_inbound WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_bgrfc_unit_state,
+        unit         TYPE REF TO if_qrfc_unit_inbound,
+        "! Time at which the information was collected
+        timestamp    TYPE timestampl,
+        unit_success TYPE abap_bool,
+        unit_error   TYPE abap_bool,
+        "! In case there's a unit error
+        unit_state   TYPE bgrfc_unit_state,
+        queue_error  TYPE abap_bool,
+        "! In case there's a queue error
+        queue_state  TYPE qrfc_queue_state,
+      END OF ty_bgrfc_unit_state.
+    TYPES ty_bgrfc_unit_states TYPE SORTED TABLE OF ty_bgrfc_unit_state WITH UNIQUE KEY unit.
+
+    CLASS-METHODS wait_end_of_qrfc_inbound_units
+      IMPORTING i_watch_delay_seconds      TYPE numeric DEFAULT 5
+                i_units                    TYPE ty_qrfc_inbound_units
+      RETURNING VALUE(r_bgrfc_unit_states) TYPE ty_bgrfc_unit_states.
+
+    CLASS-METHODS get_timestamp
+      RETURNING VALUE(r_result) TYPE timestampl.
+ENDCLASS.
+
+CLASS zcl_bgrfc_helper IMPLEMENTATION.
+  METHOD wait_end_of_qrfc_inbound_units.
+    TYPES:
+      BEGIN OF ty_queue,
+        queue_name TYPE qrfc_queue_name,
+        dest_name  TYPE bgrfc_dest_name_inbound,
+      END OF ty_queue.
+    TYPES tt_queue TYPE SORTED TABLE OF ty_queue WITH UNIQUE KEY queue_name dest_name.
+    TYPES:
+      BEGIN OF ty_unit_and_queue,
+        unit       TYPE REF TO if_qrfc_unit_inbound,
+        queue_name TYPE qrfc_queue_name,
+        dest_name  TYPE bgrfc_dest_name_inbound,
+      END OF ty_unit_and_queue.
+    TYPES tt_unit_and_queue TYPE SORTED TABLE OF ty_unit_and_queue WITH UNIQUE KEY unit
+                            WITH NON-UNIQUE SORTED KEY by_inbound_queue COMPONENTS queue_name dest_name.
+
+    DATA ls_unit_and_queue TYPE REF TO ty_unit_and_queue.
+
+    DATA(lt_queue) = REDUCE #(
+                    INIT lt_queue_2 = VALUE tt_queue( )
+                    FOR &amp;lt;lv_unit&amp;gt; IN i_units
+                    FOR &amp;lt;lv_queue_name&amp;gt; IN &amp;lt;lv_unit&amp;gt;-&amp;gt;get_queue_names_inbound( )
+                    NEXT lt_queue_2 = COND #(
+                         WHEN NOT line_exists( lt_queue_2[ queue_name = &amp;lt;lv_queue_name&amp;gt;
+                                                           dest_name  = &amp;lt;lv_unit&amp;gt;-&amp;gt;destination-&amp;gt;dest_name ] )
+                         THEN VALUE #( BASE lt_queue_2
+                                       ( queue_name = &amp;lt;lv_queue_name&amp;gt;
+                                         dest_name  = &amp;lt;lv_unit&amp;gt;-&amp;gt;destination-&amp;gt;dest_name )  )
+                         ELSE lt_queue_2 ) ).
+
+    DATA(lt_unit_and_queue) = VALUE tt_unit_and_queue( FOR &amp;lt;lv_unit&amp;gt; IN i_units
+                                                       FOR &amp;lt;lv_queue_name&amp;gt; IN &amp;lt;lv_unit&amp;gt;-&amp;gt;get_queue_names_inbound( )
+                                                       ( unit       = &amp;lt;lv_unit&amp;gt;
+                                                         queue_name = &amp;lt;lv_queue_name&amp;gt;
+                                                         dest_name  = &amp;lt;lv_unit&amp;gt;-&amp;gt;destination-&amp;gt;dest_name ) ).
+    WHILE lt_unit_and_queue IS NOT INITIAL.
+
+      WAIT UP TO i_watch_delay_seconds SECONDS.
+
+      LOOP AT lt_unit_and_queue REFERENCE INTO ls_unit_and_queue.
+        DATA(bgrfc_unit_state) = cl_qrfc_client_inbound=&amp;gt;get_unit_state( ls_unit_and_queue-&amp;gt;unit-&amp;gt;unit_id ) ##NEEDED.
+        CASE bgrfc_unit_state.
+          WHEN if_bgrfc_client=&amp;gt;unit_state_runnable
+            OR if_bgrfc_client=&amp;gt;unit_state_in_execution
+            OR if_bgrfc_client=&amp;gt;unit_state_blocked ##NO_HANDLER.
+          WHEN if_bgrfc_client=&amp;gt;unit_state_executed.
+            r_bgrfc_unit_states = VALUE #( BASE r_bgrfc_unit_states
+                                           ( unit         = ls_unit_and_queue-&amp;gt;unit
+                                             timestamp    = get_timestamp( )
+                                             unit_state   = bgrfc_unit_state
+                                             unit_success = abap_true ) ).
+            DELETE lt_unit_and_queue USING KEY loop_key.
+          WHEN OTHERS.
+            r_bgrfc_unit_states = VALUE #( BASE r_bgrfc_unit_states
+                                           ( unit       = ls_unit_and_queue-&amp;gt;unit
+                                             timestamp  = get_timestamp( )
+                                             unit_state = bgrfc_unit_state
+                                             unit_error = abap_true ) ).
+            DELETE lt_unit_and_queue USING KEY loop_key.
+        ENDCASE.
+      ENDLOOP.
+
+      LOOP AT lt_queue REFERENCE INTO DATA(queue).
+        DATA(bgrfc_queue_state) = cl_qrfc_client_inbound=&amp;gt;get_queue_state( queue_name = queue-&amp;gt;queue_name
+                                                                           dest_name  = queue-&amp;gt;dest_name ).
+        CASE bgrfc_queue_state.
+          WHEN if_bgrfc_client=&amp;gt;queue_state_runnable
+            OR if_bgrfc_client=&amp;gt;queue_state_in_execution
+            OR if_bgrfc_client=&amp;gt;queue_state_empty ##NO_HANDLER.
+          WHEN OTHERS.
+            LOOP AT lt_unit_and_queue REFERENCE INTO ls_unit_and_queue
+                 USING KEY by_inbound_queue
+                 WHERE     queue_name = queue-&amp;gt;queue_name
+                       AND dest_name  = queue-&amp;gt;dest_name.
+              r_bgrfc_unit_states = VALUE #( BASE r_bgrfc_unit_states
+                                             ( unit        = ls_unit_and_queue-&amp;gt;unit
+                                               timestamp   = get_timestamp( )
+                                               queue_state = bgrfc_queue_state
+                                               queue_error = bgrfc_queue_state ) ).
+              DELETE lt_unit_and_queue WHERE unit = ls_unit_and_queue-&amp;gt;unit.
+            ENDLOOP.
+            DELETE lt_queue USING KEY loop_key.
+        ENDCASE.
+      ENDLOOP.
+    ENDWHILE.
+  ENDMETHOD.
+
+  METHOD get_timestamp.
+    GET TIME STAMP FIELD r_result.
+  ENDMETHOD.
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;As I said, I don't know if these classes are released by SAP:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;cl_qrfc_client_inbound=&amp;gt;get_unit_state&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;cl_qrfc_client_inbound=&amp;gt;get_queue_state&lt;/SPAN&gt;&amp;nbsp;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The method should support units which span other several inbound queues, but I didn't test it.&lt;/P&gt;&lt;P&gt;In my case, I could see that one unit has these states: runnable (briefly), in execution, executed. In a given queue, there's only one unit processed at a time. All the units instantiated after the one processed have the state blocked. Other states should be errors (e.g. short dump, uncaught exception, error message, etc.)&lt;/P&gt;&lt;P&gt;The queues have these states: empty if it doesn't contain any unit, runnable if it contains at least one unit to execute but it's not started yet, in execution when a unit is processed.&lt;/P&gt;&lt;P&gt;About the code, in case you want to ask: "DELETE itab USING KEY loop_key" is to delete the current line in the loop (LOOP AT itab), it corresponds to the old and less expressive syntax "DELETE itab". I used the pragma ##NO_HANDLER for CASE WHEN although it's not asked by the syntax check, the pragma is meant to be used for CATCH, when there's no code inside.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Any way, feel free to post any comment.&lt;/P&gt;&lt;P&gt;Thank you for reading.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/abap-blog-posts/abap-code-to-wait-for-the-end-of-quot-inbound-bgrfc-type-q-quot-units/ba-p/14237566"/>
+    <published>2025-10-07T20:28:26.490000+02:00</published>
   </entry>
 </feed>
