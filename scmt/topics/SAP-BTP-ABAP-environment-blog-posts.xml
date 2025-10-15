@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-BTP-ABAP-environment-blog-posts.xml</id>
   <title>SAP Community - SAP BTP, ABAP environment</title>
-  <updated>2025-10-15T05:00:24.121075+00:00</updated>
+  <updated>2025-10-15T08:00:22.402113+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP BTP, ABAP environment/pd-p/73555000100800001164" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP BTP, ABAP environment blog posts in SAP Community</subtitle>
@@ -278,182 +278,7 @@ iv_attribute = zif_i_kk_travel_c=&amp;gt;sc_node_attribute-zi_kk_travel-status
       <name>natanael1</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1557162</uri>
     </author>
-    <content>&lt;H3 id="toc-hId-1890184258"&gt;The 3-hours to 7-Second Story&lt;/H3&gt;
-&lt;P&gt;We had a weekly data integration form ABAP in Cloud, via an OData service, that took about &lt;STRONG&gt;3 hours&lt;/STRONG&gt;(10800 seconds) and nearly &lt;STRONG&gt;600 requests&lt;/STRONG&gt; to finish. After a small redesign, the same data now arrives in &lt;STRONG&gt;~7 seconds(instead of 10800 seconds)&lt;/STRONG&gt; using just &lt;STRONG&gt;3 requests&lt;/STRONG&gt;. So a dramatic x1500 reduction. No new servers, no fancy tools, just smarter packaging of the data, but of course with some drawback.&lt;/P&gt;
-&lt;P&gt;The full PDF paper, and code is available in this GitHub repo:&amp;nbsp;&lt;A href="https://github.com/legonmarian/abap-btp-api-optimization" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/legonmarian/abap-btp-api-optimization&lt;/A&gt;&lt;/P&gt;
-&lt;H3 id="toc-hId-1693670753"&gt;Quick Context&lt;/H3&gt;
-&lt;UL&gt;
-&lt;LI&gt;
-&lt;P&gt;&lt;STRONG&gt;Where:&lt;/STRONG&gt; ABAP in Cloud on SAP BTP.&lt;/P&gt;
-&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;What:&lt;/STRONG&gt; A big, flat table (around 3 million rows) needed once a week.&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Old approach: &lt;/STRONG&gt;OData service exposing this table, called 600 times,&amp;nbsp;5,000 rows per call → slow and expensive, the extraction workflow took ~3 hours&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Constraint:&lt;/STRONG&gt; We can’t stream chunks; each response is built on the server, then sent.&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Goal:&lt;/STRONG&gt; Deliver everything fast, simple, and cheap for both sides.&lt;/LI&gt;
-&lt;/UL&gt;
-&lt;H3 id="toc-hId-1497157248"&gt;The Simple Change&lt;/H3&gt;
-&lt;P&gt;&lt;STRONG&gt;Goal:&lt;/STRONG&gt; make a big weekly export feel like a single, quick download. No fancy infra, no special client libraries.&lt;/P&gt;
-&lt;P&gt;&lt;STRONG&gt;Why not OData for this job&lt;/STRONG&gt;&lt;/P&gt;
-&lt;UL&gt;
-&lt;LI&gt;
-&lt;P&gt;OData shines for interactive reads: $filter, $expand, small pages, typed entities.&lt;/P&gt;
-&lt;/LI&gt;
-&lt;LI&gt;Our use case was the opposite: &lt;STRONG&gt;one flat dataset, all of it, as fast as possible&lt;/STRONG&gt;.&lt;/LI&gt;
-&lt;LI&gt;With OData we’d still pay the cost of many small pages and per-entity overhead the client didn’t need.&lt;/LI&gt;
-&lt;LI&gt;Most consumers wanted a simple file-like payload they could ingest with generic tools.&lt;/LI&gt;
-&lt;/UL&gt;
-&lt;P&gt;&lt;STRONG&gt;Why a plain HTTP service instead&lt;/STRONG&gt;&lt;/P&gt;
-&lt;UL&gt;
-&lt;LI&gt;
-&lt;P&gt;A plain GET endpoint gives us &lt;STRONG&gt;full control over the wire format&lt;/STRONG&gt; (JSON/CSV), headers, and compression.&lt;/P&gt;
-&lt;/LI&gt;
-&lt;LI&gt;It’s easier for any consumer to adopt (curl, Python, Node, SAP or non-SAP).&lt;/LI&gt;
-&lt;LI&gt;We can define a &lt;STRONG&gt;predictable paging contract&lt;/STRONG&gt; (e.g., offset/count) and let the client fetch pages in parallel.&lt;/LI&gt;
-&lt;/UL&gt;
-&lt;P&gt;&lt;STRONG&gt;Why “just HTTP” still wasn’t enough&lt;/STRONG&gt;&lt;/P&gt;
-&lt;UL&gt;
-&lt;LI&gt;
-&lt;P&gt;In ABAP Cloud, we don’t stream chunked responses; the server assembles the response first, then sends it.&lt;/P&gt;
-&lt;/LI&gt;
-&lt;LI&gt;If we naïvely send a huge JSON array, the &lt;STRONG&gt;payload is too big&lt;/STRONG&gt; and &lt;STRONG&gt;too slow&lt;/STRONG&gt;.&lt;/LI&gt;
-&lt;LI&gt;If we keep tiny pages, we fix size but suffer &lt;STRONG&gt;hundreds of roundtrips&lt;/STRONG&gt;.&lt;/LI&gt;
-&lt;LI&gt;Conclusion: we needed to &lt;STRONG&gt;keep HTTP simple but make each response compact and each request count&lt;/STRONG&gt;.&lt;/LI&gt;
-&lt;/UL&gt;
-&lt;P&gt;&lt;STRONG&gt;What we explored&lt;/STRONG&gt;&lt;/P&gt;
-&lt;UL&gt;
-&lt;LI&gt;
-&lt;P&gt;&lt;STRONG&gt;Formats:&lt;/STRONG&gt; JSON vs CSV vs newline-delimited JSON. CSV is smaller raw, but…&lt;/P&gt;
-&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Serialization:&lt;/STRONG&gt; /ui2/cl_json, XCO, and CALL TRANSFORMATION for speed and stability.&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Compression:&lt;/STRONG&gt; no compression vs gzip; single gzip member vs multiple members inside one response.&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Delivery patterns:&lt;/STRONG&gt; direct download vs staging to storage; server-side streaming ideas (ruled out).&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Paging shapes:&lt;/STRONG&gt; many small pages vs a few big pages; client parallelism vs server complexity.&lt;/LI&gt;
-&lt;/UL&gt;
-&lt;P&gt;&lt;STRONG&gt;What we landed on (the pattern)&lt;/STRONG&gt;&lt;/P&gt;
-&lt;UL&gt;
-&lt;LI&gt;
-&lt;P&gt;&lt;STRONG&gt;Keep JSON&lt;/STRONG&gt; for compatibility, but &lt;STRONG&gt;generate it fast&lt;/STRONG&gt; (use the fastest serializer available to you).&lt;/P&gt;
-&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Compress every response&lt;/STRONG&gt; and signal it with Content-Encoding: gzip. One &lt;STRONG&gt;single gzip member&lt;/STRONG&gt; per response so common clients auto-decompress reliably.&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Use coarse paging&lt;/STRONG&gt; (few big pages) to cut roundtrips. Expose simple params (e.g., offset and count) and a “count only” helper so clients can plan pages.&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Let clients parallelize&lt;/STRONG&gt; safely: stable ordering, idempotent reads, and clear retry rules.&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Stay boring on the protocol:&lt;/STRONG&gt; plain HTTP GET, clear headers, predictable JSON shape. No streaming tricks, no custom encodings that break tools.&lt;/LI&gt;
-&lt;/UL&gt;
-&lt;P&gt;&lt;STRONG&gt;Why this works?&lt;/STRONG&gt;&lt;/P&gt;
-&lt;UL&gt;
-&lt;LI&gt;
-&lt;P&gt;We &lt;STRONG&gt;remove protocol overhead&lt;/STRONG&gt; we don’t need (OData features) and &lt;STRONG&gt;add the two things we do need&lt;/STRONG&gt; for bulk: fast serialization + compression.&lt;/P&gt;
-&lt;/LI&gt;
-&lt;LI&gt;Coarse pages shift the bottleneck from “too many calls” to “a few efficient transfers”.&lt;/LI&gt;
-&lt;LI&gt;Gzip neutralizes JSON’s key overhead, so we keep a &lt;STRONG&gt;friendly format&lt;/STRONG&gt; without paying a size penalty.&lt;/LI&gt;
-&lt;LI&gt;The approach is &lt;STRONG&gt;portable and observable&lt;/STRONG&gt;: easy to test locally, easy to monitor in production, and easy for partners to adopt.&lt;/LI&gt;
-&lt;/UL&gt;
-&lt;H3 id="toc-hId-1300643743"&gt;Before vs After&lt;/H3&gt;
-&lt;P&gt;&lt;STRONG&gt;TL;DR:&lt;/STRONG&gt; We didn’t change the data, only the delivery: coarse pages, fast JSON, and gzip over a plain HTTP contract.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;
-&lt;P&gt;Dimension Before (many small pages) After (few big pages + gzip) Why it matters&lt;/P&gt;
-&lt;TABLE&gt;
-&lt;TBODY&gt;
-&lt;TR&gt;
-&lt;TD&gt;Dataset&lt;/TD&gt;
-&lt;TD&gt;~3,000,000 rows (flat, ~12 columns)&lt;/TD&gt;
-&lt;TD&gt;Same&lt;/TD&gt;
-&lt;TD&gt;Same data, new delivery.&lt;/TD&gt;
-&lt;/TR&gt;
-&lt;TR&gt;
-&lt;TD&gt;Page size&lt;/TD&gt;
-&lt;TD&gt;5,000 rows/page&lt;/TD&gt;
-&lt;TD&gt;~1,000,000 rows/page (tunable)&lt;/TD&gt;
-&lt;TD&gt;Fewer roundtrips, less latency.&lt;/TD&gt;
-&lt;/TR&gt;
-&lt;TR&gt;
-&lt;TD&gt;Number of requests&lt;/TD&gt;
-&lt;TD&gt;~593&lt;/TD&gt;
-&lt;TD&gt;3&lt;/TD&gt;
-&lt;TD&gt;Network overhead drops dramatically.&lt;/TD&gt;
-&lt;/TR&gt;
-&lt;TR&gt;
-&lt;TD&gt;End-to-end time&lt;/TD&gt;
-&lt;TD&gt;~3 hours (sequential pulls)&lt;/TD&gt;
-&lt;TD&gt;~6-7 seconds (3 parallel pulls)&lt;/TD&gt;
-&lt;TD&gt;Parallelizable, near “single download” feel.&lt;/TD&gt;
-&lt;/TR&gt;
-&lt;TR&gt;
-&lt;TD&gt;Format on the wire&lt;/TD&gt;
-&lt;TD&gt;JSON (uncompressed)&lt;/TD&gt;
-&lt;TD&gt;JSON (gzipped)&lt;/TD&gt;
-&lt;TD&gt;Keep JSON for compatibility; shrink it with gzip.&lt;/TD&gt;
-&lt;/TR&gt;
-&lt;TR&gt;
-&lt;TD&gt;Total transfer&lt;/TD&gt;
-&lt;TD&gt;~0.6 GB&lt;/TD&gt;
-&lt;TD&gt;~9 MB&lt;/TD&gt;
-&lt;TD&gt;Bandwidth and cost fall off a cliff.&lt;/TD&gt;
-&lt;/TR&gt;
-&lt;TR&gt;
-&lt;TD&gt;Payload per page&lt;/TD&gt;
-&lt;TD&gt;~1.15 MB per 5k rows (raw)&lt;/TD&gt;
-&lt;TD&gt;~3 MB per 1M rows (gzipped)&lt;/TD&gt;
-&lt;TD&gt;Gzip beats key overhead; size scales well.&lt;/TD&gt;
-&lt;/TR&gt;
-&lt;TR&gt;
-&lt;TD&gt;Serialization&lt;/TD&gt;
-&lt;TD&gt;Generic JSON serializer&lt;/TD&gt;
-&lt;TD&gt;Fast serializer (CALL TRANSFORMATION)&lt;/TD&gt;
-&lt;TD&gt;Server can build big pages quickly.&lt;/TD&gt;
-&lt;/TR&gt;
-&lt;TR&gt;
-&lt;TD&gt;Protocol&lt;/TD&gt;
-&lt;TD&gt;OData-style paging&lt;/TD&gt;
-&lt;TD&gt;Plain HTTP GET with offset/count&lt;/TD&gt;
-&lt;TD&gt;Simple contract any client can call.&lt;/TD&gt;
-&lt;/TR&gt;
-&lt;TR&gt;
-&lt;TD&gt;Compression&lt;/TD&gt;
-&lt;TD&gt;None&lt;/TD&gt;
-&lt;TD&gt;Content-Encoding: gzip (single member)&lt;/TD&gt;
-&lt;TD&gt;Works out-of-the-box with common tools/SDKs.&lt;/TD&gt;
-&lt;/TR&gt;
-&lt;TR&gt;
-&lt;TD&gt;Client pattern&lt;/TD&gt;
-&lt;TD&gt;Sequential loop&lt;/TD&gt;
-&lt;TD&gt;Fetch pages in parallel, then merge&lt;/TD&gt;
-&lt;TD&gt;Easy speed-up without server tricks.&lt;/TD&gt;
-&lt;/TR&gt;
-&lt;TR&gt;
-&lt;TD&gt;Retry model&lt;/TD&gt;
-&lt;TD&gt;Many small retries&lt;/TD&gt;
-&lt;TD&gt;Few coarse, idempotent retries&lt;/TD&gt;
-&lt;TD&gt;Fewer moving parts, simpler error handling.&lt;/TD&gt;
-&lt;/TR&gt;
-&lt;TR&gt;
-&lt;TD&gt;Server behavior&lt;/TD&gt;
-&lt;TD&gt;Build JSON, send raw&lt;/TD&gt;
-&lt;TD&gt;Build JSON → gzip → send single member&lt;/TD&gt;
-&lt;TD&gt;Reliable auto-decompression on client side.&lt;/TD&gt;
-&lt;/TR&gt;
-&lt;TR&gt;
-&lt;TD&gt;Limits to watch&lt;/TD&gt;
-&lt;TD&gt;Too many roundtrips; egress cost&lt;/TD&gt;
-&lt;TD&gt;Client RAM per page; choose page size wisely&lt;/TD&gt;
-&lt;TD&gt;Balance page size vs client capacity.&lt;/TD&gt;
-&lt;/TR&gt;
-&lt;/TBODY&gt;
-&lt;/TABLE&gt;
-&lt;H3 id="toc-hId-1104130238"&gt;How to reproduce this in three simple steps&lt;/H3&gt;
-&lt;BLOCKQUOTE&gt;
-&lt;P&gt;Heads-up: in here I will refer to an Appendix, you can find it in the detailed PDF paper about the optimization, the paper and some code is available on GitHub&lt;/P&gt;
-&lt;/BLOCKQUOTE&gt;
-&lt;HR /&gt;
-&lt;H4 id="toc-hId-1036699452"&gt;Step 1. Define a tiny HTTP contract&lt;/H4&gt;
-&lt;UL&gt;
-&lt;LI&gt;
-&lt;P&gt;&lt;STRONG&gt;Endpoint:&lt;/STRONG&gt; GET /entity?offset=…&amp;amp;count=…&lt;/P&gt;
-&lt;/LI&gt;
-&lt;LI&gt;
-&lt;P&gt;&lt;STRONG&gt;Helper:&lt;/STRONG&gt; GET /entity?get_only_count=true returns a small pagination object with totals and suggested pages, for example:&lt;/P&gt;
-&lt;/LI&gt;
-&lt;/UL&gt;
-&lt;PRE&gt;{
+    <content>&lt;H3 id="toc-hId-1890184258"&gt;The 3-hours to 7-Second Story&lt;/H3&gt;&lt;P&gt;We had a weekly data integration form ABAP in Cloud, via an OData service, that took about &lt;STRONG&gt;3 hours&lt;/STRONG&gt;(10800 seconds) and nearly &lt;STRONG&gt;600 requests&lt;/STRONG&gt; to finish. After a small redesign, the same data now arrives in &lt;STRONG&gt;~7 seconds(instead of 10800 seconds)&lt;/STRONG&gt; using just &lt;STRONG&gt;3 requests&lt;/STRONG&gt;. So a dramatic x1500 reduction. No new servers, no fancy tools, just smarter packaging of the data, but of course with some drawback.&lt;/P&gt;&lt;P&gt;The full PDF paper, and code is available in this GitHub repo:&amp;nbsp;&lt;A href="https://github.com/legonmarian/abap-btp-api-optimization" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/legonmarian/abap-btp-api-optimization&lt;/A&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1693670753" id="toc-hId-1693670753"&gt;Quick Context&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Infrastructure:&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;ABAP in Cloud on SAP BTP.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Data:&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;A big, flat table (~3 million rows).&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Task:&amp;nbsp;&lt;/STRONG&gt;We needed to expose this data to another system once a week&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Status quo:&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;OData service exposing this table, called 600 times,&amp;nbsp;5.000 rows per call. It was slow and expensive, the extraction workflow took ~3 hours&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Constraint:&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Streaming is not available, the data shape should ideally stay the same, no external systems should be involved.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;"vision":&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Deliver everything fast, simple, and cheap for both sides.&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1497157248" id="toc-hId-1497157248"&gt;The Simple Change&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Why not OData for this job:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;OData is a really good tool for interactive reads: $filter, $expand, small pages, typed entities, also for Fiori applications, but our use case was the opposite:&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;one flat dataset, all of it, as fast as possible&lt;/STRONG&gt;.&lt;BR /&gt;With OData we’d still pay the cost of many small pages and per-entity overhead the client didn’t need. And most of the consumers wanted a simple file payload they could ingest with generic tools.&lt;BR /&gt;Besides that the biggest restriction why OData cannot be used for this use case is that, OData&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;handles out-of-the-box&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;the data transfer, so you have&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;no control&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;on the data shape, or&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;compression&lt;/STRONG&gt;(which proves to be a big player further).&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Why a plain HTTP service instead&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;On the other hand an HTTP Service with an HTTP handler class gives us&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;full control over the wire format&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;(JSON/CSV), headers, and compression.&lt;/P&gt;&lt;P&gt;And this is the main reason why we moved from an out-of-the-box nice and elegant OData service but&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;slow&lt;/STRONG&gt;, to an HTTP service with a custom handler but&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;fast.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Why “just HTTP” still wasn’t enough&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;So the HTTP service doesn't provide any other functionality out of the box other than full control over the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;request&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;response&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;objects. That means that all the other hard work needed in order to send back in the response a DB table should be implemented by the developer, this includes:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;pagination&lt;/LI&gt;&lt;LI&gt;serialization&lt;/LI&gt;&lt;LI&gt;compression(optional)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Besides that when it comes to custom code, and big tables, the developer must ensure that the program's complexity isn't surpassing the allocated resources and constraints, both in terms of time and memory.&lt;/P&gt;&lt;P&gt;Therefore we explored(and documented in the code) multiple ways of doing this. For more details on these please check the PDF in&amp;nbsp;&lt;A href="https://github.com/legonmarian/abap-btp-api-optimization" target="_self" rel="nofollow noopener noreferrer"&gt;here&lt;/A&gt;. But here are some of our conlusions:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;If compression is not suitable for your use case, moving from JSON to CSV is a huge advantage&lt;/LI&gt;&lt;LI&gt;Compressing is the best solution, this way you can keep your JSON schema&lt;/LI&gt;&lt;LI&gt;There're several compression algorithms but the most suitable for us in ABAP in cloud proved to be GZIP with out-of-the-box support. We examined the compression / decompression performance of multiple algorithms in the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://github.com/legonmarian/abap-btp-api-optimization" target="_self" rel="nofollow noopener noreferrer"&gt;PDF paper&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;The fastest JSON serializer is&amp;nbsp;&lt;CODE&gt;CALL TRANSFORMATION&lt;/CODE&gt;&amp;nbsp;being thousands of times faster than the&amp;nbsp;&lt;CODE&gt;xco&lt;/CODE&gt;&amp;nbsp;library&lt;/LI&gt;&lt;LI&gt;Reading a DB table in an internal table and serializing it requires&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;memory,&amp;nbsp;&lt;/STRONG&gt;and we ran out of it when trying to serialize the full table.&lt;UL&gt;&lt;LI&gt;An alternative to this was to read chunks of it, serialize and compress it and then repeat for next chunk. But this is a bit less client-friendly from a decompression perspective&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;Streaming data is not possible with the current ICF of ABAP in Cloud&lt;/LI&gt;&lt;LI&gt;One last performance optimization is parallelization, this can cut the load time in 3-4 times, but use it carefully&lt;/LI&gt;&lt;LI&gt;Always profile for bottlenecks&lt;/LI&gt;&lt;LI&gt;Always stress test to find the right parameters like page size, concurrent calls, etc.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;What we landed on (the pattern)&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Keep JSON&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;for compatibility, but&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;generate it using&amp;nbsp;&amp;nbsp;&lt;/STRONG&gt;&lt;CODE&gt;CALL TRANSFORMATION&lt;/CODE&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Compress every response&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and signal it with Content-Encoding: gzip. One&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;single gzip member&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;per response so common clients auto-decompress reliably.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Use increased paging&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;(few big pages) to cut roundtrips. 1.000.000 records per call&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Use parallelization&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1300643743" id="toc-hId-1300643743"&gt;Before vs After&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;TL;DR:&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;We didn’t change the data, only the delivery: coarse pages, fast JSON, and gzip over a plain HTTP contract.&lt;/P&gt;&lt;TABLE width="870px"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="153.172px" height="47px"&gt;&lt;STRONG&gt;Parameter&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="387.438px" height="47px"&gt;&lt;STRONG&gt;Before&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="328.391px" height="47px"&gt;&lt;STRONG&gt;After&lt;/STRONG&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="153.172px" height="30px"&gt;Dataset&lt;/TD&gt;&lt;TD width="387.438px" height="30px"&gt;~3,000,000 rows (flat, ~12 columns)&lt;/TD&gt;&lt;TD width="328.391px" height="30px"&gt;Same&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="153.172px" height="30px"&gt;Page size&lt;/TD&gt;&lt;TD width="387.438px" height="30px"&gt;5,000 rows/page&lt;/TD&gt;&lt;TD width="328.391px" height="30px"&gt;~1,000,000 rows/page (tunable)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="153.172px" height="30px"&gt;Number of requests&lt;/TD&gt;&lt;TD width="387.438px" height="30px"&gt;~593&lt;/TD&gt;&lt;TD width="328.391px" height="30px"&gt;3&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="153.172px" height="33px"&gt;End-to-end time&lt;/TD&gt;&lt;TD width="387.438px" height="33px"&gt;~3 hours (sequential pulls)&lt;/TD&gt;&lt;TD width="328.391px" height="33px"&gt;~6-7 seconds (3 parallel pulls)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="153.172px" height="30px"&gt;Total transfer&lt;/TD&gt;&lt;TD width="387.438px" height="30px"&gt;~6000 MB&lt;/TD&gt;&lt;TD width="328.391px" height="30px"&gt;~9 MB&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="153.172px" height="30px"&gt;Payload per page&lt;/TD&gt;&lt;TD width="387.438px" height="30px"&gt;~1.15 MB per 5k rows (raw)&lt;/TD&gt;&lt;TD width="328.391px" height="30px"&gt;~3 MB per 1M rows (gzipped)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="153.172px" height="30px"&gt;Protocol&lt;/TD&gt;&lt;TD width="387.438px" height="30px"&gt;OData&lt;/TD&gt;&lt;TD width="328.391px" height="30px"&gt;Plain REST&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="153.172px" height="30px"&gt;Compression&lt;/TD&gt;&lt;TD width="387.438px" height="30px"&gt;None&lt;/TD&gt;&lt;TD width="328.391px" height="30px"&gt;Content-Encoding: gzip (single member)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="153.172px" height="20px"&gt;Client pattern&lt;/TD&gt;&lt;TD width="387.438px" height="20px"&gt;Sequential loop&lt;/TD&gt;&lt;TD width="328.391px" height="20px"&gt;Fetch pages in parallel, then merge&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;H3 id="toc-hId-1104130238" id="toc-hId-1104130238"&gt;How to reproduce this in three simple steps&lt;/H3&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;Heads-up: in here I will refer to an Appendix, you can find it in the detailed&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://github.com/legonmarian/abap-btp-api-optimization" target="_self" rel="nofollow noopener noreferrer"&gt;PDF paper&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;about the optimization, the paper and some code is available on GitHub&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;HR /&gt;&lt;H4 id="toc-hId-1036699452" id="toc-hId-1036699452"&gt;Step 1. Define a tiny HTTP contract&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Endpoint:&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;GET /entity?offset=…&amp;amp;count=…&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Helper:&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;GET /entity?get_only_count=true returns a small pagination object with totals and suggested pages, for example:&lt;/LI&gt;&lt;/UL&gt;&lt;PRE&gt;&lt;CODE&gt;{
   "number_of_records": 2496434,
   "batch_size": { "maximum": 1500000, "recommended": 1000000 },
   "recommended_pages": [
@@ -461,21 +286,13 @@ iv_attribute = zif_i_kk_travel_c=&amp;gt;sc_node_attribute-zi_kk_travel-status
     "/entity?offset=1000000&amp;amp;count=1000000",
     "/entity?offset=2000000&amp;amp;count=1000000"
   ]
-}&lt;/PRE&gt;
-&lt;P&gt;This keeps clients simple and lets them plan parallel pulls.&lt;/P&gt;
-&lt;HR /&gt;
-&lt;H4 id="toc-hId-840185947"&gt;Step 2. Build one big page, serialize fast, and gzip it on the server&lt;/H4&gt;
-&lt;P&gt;&lt;STRONG&gt;a) Fast JSON generation with CALL TRANSFORMATION&lt;/STRONG&gt;&lt;BR /&gt;Appendix C shows the lean serializer that won your benchmarks:&lt;/P&gt;
-&lt;PRE&gt;METHOD convert_json_transformation.
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;This keeps clients simple and lets them plan parallel pulls.&lt;/P&gt;&lt;HR /&gt;&lt;H4 id="toc-hId-840185947" id="toc-hId-840185947"&gt;Step 2. Build one big page, serialize, and gzip it on the server&lt;/H4&gt;&lt;P&gt;&lt;STRONG&gt;a) Fast JSON generation with CALL TRANSFORMATION&lt;/STRONG&gt;&lt;BR /&gt;Appendix C shows the lean serializer that perform the best, for the performance comparasion please check the&amp;nbsp;&lt;A href="https://github.com/legonmarian/abap-btp-api-optimization" target="_self" rel="nofollow noopener noreferrer"&gt;PDF paper&lt;/A&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;METHOD convert_json_transformation.
   DATA(lo_writer) = cl_sxml_string_writer⇒create( type = if_sxml⇒co_xt_json ).
   CALL TRANSFORMATION id
     SOURCE itab = data
     RESULT XML lo_writer.
   string = lo_writer-&amp;gt;get_output( ).
-ENDMETHOD.&lt;/PRE&gt;
-&lt;P&gt;Use this to turn your internal table into JSON quickly.&lt;/P&gt;
-&lt;P&gt;&lt;STRONG&gt;b) Minimal HTTP handler that serves one gzipped page&lt;/STRONG&gt;&lt;BR /&gt;Appendix I demonstrates the pattern: set headers, read a deterministic slice, serialize, gzip once, send bytes.&lt;/P&gt;
-&lt;PRE&gt;METHOD gzip_json_single_page.
+ENDMETHOD.&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Use this to turn your internal table into JSON quickly.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;b) Minimal HTTP handler that serves one gzipped page&lt;/STRONG&gt;&lt;BR /&gt;Appendix I demonstrates the pattern: set headers, read a deterministic slice, serialize, gzip once, send bytes.&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;METHOD gzip_json_single_page.
   response-&amp;gt;set_status( 200 ).
   response-&amp;gt;set_content_type( 'application/gzip' ).
   response-&amp;gt;set_header_field(
@@ -498,59 +315,14 @@ ENDMETHOD.&lt;/PRE&gt;
     IMPORTING gzip_out = DATA(gzip) ).
 
   response-&amp;gt;set_binary( gzip ).
-ENDMETHOD.&lt;/PRE&gt;
-&lt;P&gt;&lt;STRONG&gt;c) Where the handler is wired&lt;/STRONG&gt;&lt;BR /&gt;Appendix F shows the entry point choosing which implementation to run:&lt;/P&gt;
-&lt;PRE&gt;METHOD if_http_service_extension~handle_request.
+ENDMETHOD.&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;c) Where the handler is wired&lt;/STRONG&gt;&lt;BR /&gt;Appendix F shows the entry point choosing which implementation to run:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;METHOD if_http_service_extension~handle_request.
   " choose one of these
   gzip_json_single_page( CHANGING request = request response = response ).
   " only for demonstration
   "gzip_csv_single_page( CHANGING request = request response = response ).
   " only for demonstration
   "gzip_csv_multiple_pages( CHANGING request = request response = response ).
-ENDMETHOD.&lt;/PRE&gt;
-&lt;P&gt;Keep it simple in production and call the JSON + single-member gzip method.&lt;/P&gt;
-&lt;HR /&gt;
-&lt;H4 id="toc-hId-643672442"&gt;Step 3. Let the client pull a few big pages in parallel&lt;/H4&gt;
-&lt;UL&gt;
-&lt;LI&gt;
-&lt;P&gt;Ask get_only_count first to get total and recommended pages.&lt;/P&gt;
-&lt;/LI&gt;
-&lt;LI&gt;Fire 2–4 page requests in parallel, then merge locally.&lt;/LI&gt;
-&lt;LI&gt;Most clients auto-decompress when Content-Encoding is set, which is exactly why the server returns a single gzip response.&lt;/LI&gt;
-&lt;/UL&gt;
-&lt;HR /&gt;
-&lt;H4 id="toc-hId-447158937"&gt;Optional: CSV variant from the appendix&lt;/H4&gt;
-&lt;P&gt;If you ever need CSV, Appendix H shows the single-page CSV + gzip flow. The JSON path above stayed as our final choice because gzip erases most of JSON’s key overhead while keeping tooling friendly.&lt;/P&gt;
-&lt;H3 id="toc-hId-121562713"&gt;When to use this pattern and when not to&lt;/H3&gt;
-&lt;P&gt;&lt;STRONG&gt;Use it when&lt;/STRONG&gt;&lt;/P&gt;
-&lt;UL&gt;
-&lt;LI&gt;
-&lt;P&gt;You need to deliver a large, flat dataset fast, usually for batch or analytics.&lt;/P&gt;
-&lt;/LI&gt;
-&lt;LI&gt;Your consumers are happy with a plain HTTP GET that returns JSON.&lt;/LI&gt;
-&lt;LI&gt;You can sort by a unique key and read stable slices with offset and count.&lt;/LI&gt;
-&lt;/UL&gt;
-&lt;P&gt;&lt;STRONG&gt;Think twice when&lt;/STRONG&gt;&lt;/P&gt;
-&lt;UL&gt;
-&lt;LI&gt;
-&lt;P&gt;&lt;STRONG&gt;Consumers need rich OData features&lt;/STRONG&gt; like server-side filtering and $expand. You will be giving those up and implementing only what you need in plain HTTP.&lt;/P&gt;
-&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Clients cannot hold the decompressed page in memory.&lt;/STRONG&gt; A 1,000,000 row page is roughly a few hundred MB once decompressed, so plan for that on the client side.&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;You require true streaming.&lt;/STRONG&gt; ABAP ICF in the cloud does not support HTTP/1.1 chunked transfer, so streaming is out of scope here.
-&lt;P&gt;&amp;nbsp;&lt;/P&gt;
-&lt;/LI&gt;
-&lt;/UL&gt;
-&lt;H3 id="toc-hId--150182161"&gt;Gotchas to avoid&lt;/H3&gt;
-&lt;UL&gt;
-&lt;LI&gt;
-&lt;P&gt;&lt;STRONG&gt;Do not concatenate multiple gzip members&lt;/STRONG&gt; in one HTTP response if you expect tools like Postman to auto-decompress. Many clients only unpack the first member. Prefer one contiguous gzip stream per response.&lt;/P&gt;
-&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Set the right headers.&lt;/STRONG&gt; Send Content-Encoding: gzip for the single member response. If you build a multi-member payload, clients may not decode it automatically, which is why your final solution avoided that.&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Keep ordering stable.&lt;/STRONG&gt; Always ORDER BY a unique key to make pages deterministic and retries idempotent. (Your examples order by a key column before slicing.)&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Pick a page size both sides can hold.&lt;/STRONG&gt; You found that 1,000,000 rows per page hits a good balance. Results and size scale with total rows, not so much with page count.&lt;/LI&gt;
-&lt;LI&gt;&lt;STRONG&gt;Stick to one gzip pass per response.&lt;/STRONG&gt; Compress after you generate JSON for the page, not per record or per mini-chunk inside the same response. It keeps clients simple.&lt;/LI&gt;
-&lt;/UL&gt;
-&lt;P&gt;For the full PDF paper, and code please check this GitHub repo:&amp;nbsp;&lt;A href="https://github.com/legonmarian/abap-btp-api-optimization" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/legonmarian/abap-btp-api-optimization&lt;/A&gt;&lt;/P&gt;</content>
+ENDMETHOD.&lt;/CODE&gt;&lt;/PRE&gt;&lt;HR /&gt;&lt;H4 id="toc-hId-643672442" id="toc-hId-643672442"&gt;Step 3. Let the client pull a few big pages in parallel&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Ask get_only_count first to get total and recommended pages.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;Fire 2-4 page requests in parallel, then merge locally.&lt;/LI&gt;&lt;LI&gt;Most clients auto-decompress when Content-Encoding is set, which is exactly why the server returns a single gzip response.&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H4 id="toc-hId-447158937" id="toc-hId-447158937"&gt;Optional: CSV variant from the appendix&lt;/H4&gt;&lt;P&gt;If you ever need CSV, Appendix H shows the single-page CSV + gzip flow. The JSON path above stayed as our final choice because gzip erases most of JSON’s key overhead while keeping tooling friendly. If you'd like to read more on why the JSON -&amp;gt; CSV conversion becomes obsolete after gzipping please check&amp;nbsp;&lt;A href="https://github.com/legonmarian/abap-btp-api-optimization" target="_self" rel="nofollow noopener noreferrer"&gt;PDF paper&lt;/A&gt;.&lt;/P&gt;&lt;H3 id="toc-hId-121562713" id="toc-hId-121562713"&gt;When to use this pattern and when not to&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Use it when&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;You need to deliver a large, flat dataset fast, usually for batch or analytics.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;Your consumers are happy with a plain HTTP GET that returns JSON.&lt;/LI&gt;&lt;LI&gt;You can sort by a unique key and read stable slices with offset and count.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Think twice when&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Consumers need rich OData features&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;like server-side filtering and $expand. You will be giving those up and implementing only what you need in plain HTTP.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Clients cannot hold the decompressed page in memory.&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;A 1,000,000 row page is roughly a few hundred MB once decompressed, so plan for that on the client side.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;You require true streaming.&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;ABAP ICF in the cloud does not support HTTP/1.1 chunked transfer, so streaming is out of scope here.&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId--150182161" id="toc-hId--150182161"&gt;Gotchas to avoid&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Do not concatenate multiple gzip members&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;in one HTTP response if you expect tools like Postman to auto-decompress. Many clients only unpack the first member. Prefer one contiguous gzip stream per response.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Set the right headers.&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Send Content-Encoding: gzip for the single member response. If you build a multi-member payload, clients may not decode it automatically.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Keep ordering stable.&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Always ORDER BY a unique key to make pages deterministic and retries idempotent.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Pick a page size both sides can hold.&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;For us 1,000,000 rows per page hits a good balance. Results and size scale with total rows, not so much with page count.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Stick to one gzip pass per response.&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Compress after you generate JSON for the page, not per record or per mini-chunk inside the same response. It keeps clients simple.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;For the full PDF paper, and code please check this GitHub repo:&amp;nbsp;&lt;A href="https://github.com/legonmarian/abap-btp-api-optimization" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/legonmarian/abap-btp-api-optimization&lt;/A&gt;&lt;A href="https://github.com/legonmarian/abap-btp-api-optimization" target="_blank" rel="noopener nofollow noreferrer"&gt;&lt;BR /&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/1-500-faster-abap-cloud-api-with-just-gzip/ba-p/14229207"/>
     <published>2025-09-26T16:36:17.362000+02:00</published>
   </entry>
