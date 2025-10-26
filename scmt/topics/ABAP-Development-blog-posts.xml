@@ -2,157 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2025-10-26T06:00:04.002495+00:00</updated>
+  <updated>2025-10-26T09:00:03.757465+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/abap-blog-posts/abap-code-to-wait-for-the-end-of-quot-inbound-bgrfc-type-q-quot-units/ba-p/14237566</id>
-    <title>ABAP code to wait for the end of "inbound bgRFC type Q" units</title>
-    <updated>2025-10-07T20:28:26.490000+02:00</updated>
-    <author>
-      <name>Sandra_Rossi</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/145194</uri>
-    </author>
-    <content>&lt;P&gt;I have a program which runs parallel tasks in the same system by using bgRFC and several qRFC queues: each queue runs tasks sequentially, but two queues run in parallel. With bgRFC, each task is called a unit. This scenario is called Inbound bgRFC type Q, see here for more information:&amp;nbsp;&lt;A href="https://help.sap.com/docs/ABAP_PLATFORM_NEW/753088fc00704d0a80e7fbd6803c8adb/48927c2caa6b17cee10000000a421937.html?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;bgRFC (Background Remote Function Call) | SAP Help Portal&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;Once all units are started, I want the program to wait for all units to finish.&lt;/P&gt;&lt;P&gt;I propose a simple ABAP method which should work for most of situations.&lt;/P&gt;&lt;P&gt;There are really very few posts about bgRFC and the official documentation is missing information too, so I hope it can help some people. Note: I don't even know if the classes I use are supported by SAP and if it's the right way to do it, so all comments are welcome, thank you.&lt;/P&gt;&lt;P&gt;Here is the context how this method is used (&lt;CODE&gt;WAIT_END_OF_QRFC_INBOUND_UNITS&lt;/CODE&gt;) :&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA(inbound_destination) = cl_bgrfc_destination_inbound=&amp;gt;create( 'ZZZ' ).
-
-LOOP AT any_table INTO line.
-  DATA(unit) = inbound_destination-&amp;gt;create_qrfc_unit( ).
-  unit-&amp;gt;add_queue_name_inbound( line-queue_name ).
-
-  CALL FUNCTION '...' 
-     IN BACKGROUND UNIT unit
-     EXPORTING ...
-
-  INSERT unit INTO TABLE units.
-ENDLOOP.
-
-COMMIT WORK.
-
-DATA(wait_results) = zcl_bgrfc_helper=&amp;gt;wait_end_of_qrfc_inbound_units(
-                       i_watch_delay_seconds = 5
-                       i_units               = units ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Little explanation: there's an internal table containing data which needs to be processed in parallel via a given RFC-enabled function module. The internal table assigns given queue names to each line of data in order to achieve the parallelization. For instance, one half of the table goes to the queue named Z1, all calls in Z1 will be executed sequentially, the other half goes to the queue named Z2, the calls in Z1 and Z2 will be executed in parallel).&lt;/P&gt;&lt;P&gt;&lt;CODE&gt;CALL FUNCTION ... IN BACKGROUND UNIT unit ...&lt;/CODE&gt;&amp;nbsp;registers a call in a given bgRFC unit. You may call several function modules in the same unit. The function modules are not called until &lt;CODE&gt;COMMIT WORK&lt;/CODE&gt; is reached.&lt;/P&gt;&lt;P&gt;&lt;CODE&gt;COMMIT WORK&lt;/CODE&gt; creates the inbound bgRFC units in the database (function module calls and parameters) and all the queues are started by the bgRFC scheduler. You can see the units via the transaction SBGRFCMON.&lt;/P&gt;&lt;P&gt;Prerequisite: the inbound destination ZZZ was created via the transaction SBGRFCCONF. Nothing else needed (no prefix, no RFC destination in SM59, queue names are assigned freely by the program, etc.)&lt;/P&gt;&lt;P&gt;Here's the code of the method &lt;CODE&gt;WAIT_END_OF_QRFC_INBOUND_UNITS&lt;/CODE&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_bgrfc_helper DEFINITION FINAL PUBLIC CREATE PRIVATE.
-  PUBLIC SECTION.
-    TYPES ty_qrfc_inbound_units TYPE STANDARD TABLE OF REF TO if_qrfc_unit_inbound WITH EMPTY KEY.
-    TYPES:
-      BEGIN OF ty_bgrfc_unit_state,
-        unit         TYPE REF TO if_qrfc_unit_inbound,
-        "! Time at which the information was collected
-        timestamp    TYPE timestampl,
-        unit_success TYPE abap_bool,
-        unit_error   TYPE abap_bool,
-        "! In case there's a unit error
-        unit_state   TYPE bgrfc_unit_state,
-        queue_error  TYPE abap_bool,
-        "! In case there's a queue error
-        queue_state  TYPE qrfc_queue_state,
-      END OF ty_bgrfc_unit_state.
-    TYPES ty_bgrfc_unit_states TYPE SORTED TABLE OF ty_bgrfc_unit_state WITH UNIQUE KEY unit.
-
-    CLASS-METHODS wait_end_of_qrfc_inbound_units
-      IMPORTING i_watch_delay_seconds      TYPE numeric DEFAULT 5
-                i_units                    TYPE ty_qrfc_inbound_units
-      RETURNING VALUE(r_bgrfc_unit_states) TYPE ty_bgrfc_unit_states.
-
-    CLASS-METHODS get_timestamp
-      RETURNING VALUE(r_result) TYPE timestampl.
-ENDCLASS.
-
-CLASS zcl_bgrfc_helper IMPLEMENTATION.
-  METHOD wait_end_of_qrfc_inbound_units.
-    TYPES:
-      BEGIN OF ty_queue,
-        queue_name TYPE qrfc_queue_name,
-        dest_name  TYPE bgrfc_dest_name_inbound,
-      END OF ty_queue.
-    TYPES tt_queue TYPE SORTED TABLE OF ty_queue WITH UNIQUE KEY queue_name dest_name.
-    TYPES:
-      BEGIN OF ty_unit_and_queue,
-        unit       TYPE REF TO if_qrfc_unit_inbound,
-        queue_name TYPE qrfc_queue_name,
-        dest_name  TYPE bgrfc_dest_name_inbound,
-      END OF ty_unit_and_queue.
-    TYPES tt_unit_and_queue TYPE SORTED TABLE OF ty_unit_and_queue WITH UNIQUE KEY unit
-                            WITH NON-UNIQUE SORTED KEY by_inbound_queue COMPONENTS queue_name dest_name.
-
-    DATA ls_unit_and_queue TYPE REF TO ty_unit_and_queue.
-
-    DATA(lt_queue) = REDUCE #(
-                    INIT lt_queue_2 = VALUE tt_queue( )
-                    FOR &amp;lt;lv_unit&amp;gt; IN i_units
-                    FOR &amp;lt;lv_queue_name&amp;gt; IN &amp;lt;lv_unit&amp;gt;-&amp;gt;get_queue_names_inbound( )
-                    NEXT lt_queue_2 = COND #(
-                         WHEN NOT line_exists( lt_queue_2[ queue_name = &amp;lt;lv_queue_name&amp;gt;
-                                                           dest_name  = &amp;lt;lv_unit&amp;gt;-&amp;gt;destination-&amp;gt;dest_name ] )
-                         THEN VALUE #( BASE lt_queue_2
-                                       ( queue_name = &amp;lt;lv_queue_name&amp;gt;
-                                         dest_name  = &amp;lt;lv_unit&amp;gt;-&amp;gt;destination-&amp;gt;dest_name )  )
-                         ELSE lt_queue_2 ) ).
-
-    DATA(lt_unit_and_queue) = VALUE tt_unit_and_queue( FOR &amp;lt;lv_unit&amp;gt; IN i_units
-                                                       FOR &amp;lt;lv_queue_name&amp;gt; IN &amp;lt;lv_unit&amp;gt;-&amp;gt;get_queue_names_inbound( )
-                                                       ( unit       = &amp;lt;lv_unit&amp;gt;
-                                                         queue_name = &amp;lt;lv_queue_name&amp;gt;
-                                                         dest_name  = &amp;lt;lv_unit&amp;gt;-&amp;gt;destination-&amp;gt;dest_name ) ).
-    WHILE lt_unit_and_queue IS NOT INITIAL.
-
-      WAIT UP TO i_watch_delay_seconds SECONDS.
-
-      LOOP AT lt_unit_and_queue REFERENCE INTO ls_unit_and_queue.
-        DATA(bgrfc_unit_state) = cl_qrfc_client_inbound=&amp;gt;get_unit_state( ls_unit_and_queue-&amp;gt;unit-&amp;gt;unit_id ).
-        CASE bgrfc_unit_state.
-          WHEN if_bgrfc_client=&amp;gt;unit_state_runnable
-            OR if_bgrfc_client=&amp;gt;unit_state_in_execution
-            OR if_bgrfc_client=&amp;gt;unit_state_blocked ##NO_HANDLER.
-          WHEN if_bgrfc_client=&amp;gt;unit_state_executed.
-            r_bgrfc_unit_states = VALUE #( BASE r_bgrfc_unit_states
-                                           ( unit         = ls_unit_and_queue-&amp;gt;unit
-                                             timestamp    = get_timestamp( )
-                                             unit_state   = bgrfc_unit_state
-                                             unit_success = abap_true ) ).
-            DELETE lt_unit_and_queue USING KEY loop_key.
-          WHEN OTHERS.
-            r_bgrfc_unit_states = VALUE #( BASE r_bgrfc_unit_states
-                                           ( unit       = ls_unit_and_queue-&amp;gt;unit
-                                             timestamp  = get_timestamp( )
-                                             unit_state = bgrfc_unit_state
-                                             unit_error = abap_true ) ).
-            DELETE lt_unit_and_queue USING KEY loop_key.
-        ENDCASE.
-      ENDLOOP.
-
-      LOOP AT lt_queue REFERENCE INTO DATA(queue).
-        DATA(bgrfc_queue_state) = cl_qrfc_client_inbound=&amp;gt;get_queue_state( queue_name = queue-&amp;gt;queue_name
-                                                                           dest_name  = queue-&amp;gt;dest_name ).
-        CASE bgrfc_queue_state.
-          WHEN if_bgrfc_client=&amp;gt;queue_state_runnable
-            OR if_bgrfc_client=&amp;gt;queue_state_in_execution
-            OR if_bgrfc_client=&amp;gt;queue_state_empty ##NO_HANDLER.
-          WHEN OTHERS.
-            LOOP AT lt_unit_and_queue REFERENCE INTO ls_unit_and_queue
-                 USING KEY by_inbound_queue
-                 WHERE     queue_name = queue-&amp;gt;queue_name
-                       AND dest_name  = queue-&amp;gt;dest_name.
-              r_bgrfc_unit_states = VALUE #( BASE r_bgrfc_unit_states
-                                             ( unit        = ls_unit_and_queue-&amp;gt;unit
-                                               timestamp   = get_timestamp( )
-                                               queue_state = bgrfc_queue_state
-                                               queue_error = bgrfc_queue_state ) ).
-              DELETE lt_unit_and_queue WHERE unit = ls_unit_and_queue-&amp;gt;unit.
-            ENDLOOP.
-            DELETE lt_queue USING KEY loop_key.
-        ENDCASE.
-      ENDLOOP.
-    ENDWHILE.
-  ENDMETHOD.
-
-  METHOD get_timestamp.
-    GET TIME STAMP FIELD r_result.
-  ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;As I said, I don't know if these classes are released by SAP:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;CODE&gt;cl_qrfc_client_inbound=&amp;gt;get_unit_state&lt;/CODE&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;CODE&gt;cl_qrfc_client_inbound=&amp;gt;get_queue_state&lt;/CODE&gt;&lt;/SPAN&gt;&amp;nbsp;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The method should support units which span other several inbound queues, but I didn't test it.&lt;/P&gt;&lt;P&gt;In my case, I could see that one unit has these states: runnable (briefly), in execution, executed. In a given queue, there's only one unit processed at a time. All the units instantiated after the one processed have the state blocked. Other states should be errors (e.g. short dump, uncaught exception, error message, etc.)&lt;/P&gt;&lt;P&gt;The queues have these states: empty if it doesn't contain any unit, runnable if it contains at least one unit to execute but it's not started yet, in execution when a unit is processed.&lt;/P&gt;&lt;P&gt;About the code, in case you want to ask: "DELETE itab USING KEY loop_key" is to delete the current line in the loop (LOOP AT itab), it corresponds to the old and less expressive syntax "DELETE itab". I used the pragma ##NO_HANDLER for CASE WHEN although it's not asked by the syntax check, the pragma is meant to be used for CATCH, when there's no code inside.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Any way, feel free to post any comment.&lt;/P&gt;&lt;P&gt;Thank you for reading.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-blog-posts/abap-code-to-wait-for-the-end-of-quot-inbound-bgrfc-type-q-quot-units/ba-p/14237566"/>
-    <published>2025-10-07T20:28:26.490000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/steps-to-configure-aif-for-complex-structure-file-data-with-multiple-header/ba-p/14185594</id>
     <title>Steps to Configure AIF for Complex Structure File Data with Multiple Header-Item in Flat File</title>
@@ -1775,5 +1628,17 @@ DATA ztime_variable TYPE ztime.
 SELECT-OPTIONS s_time FOR ztime_variable.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;After entering an interval then clearing it, there's no more "= 00:00:00", S_TIME is empty:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Sandra_Rossi_4-1761225658541.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/331617i5B1D73D0AEEC9A47/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Sandra_Rossi_4-1761225658541.png" alt="Sandra_Rossi_4-1761225658541.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Sandra_Rossi_5-1761225754578.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/331624iD9B93E2432657772/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Sandra_Rossi_5-1761225754578.png" alt="Sandra_Rossi_5-1761225754578.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-517127754"&gt;Conclusion&lt;/H3&gt;&lt;P&gt;You have learnt how to avoid the standard "= 00:00:00" drawback, the whole behavior remains identical to a type T field:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Create a conversion exit ZTIME (two function modules named CONVERSION_EXIT_ZTIME_INPUT and OUTPUT)&lt;/LI&gt;&lt;LI&gt;Create a ZTIME DDIC domain of type TIMS (internal length 6, ABAP type T), output length 8, conversion exit ZTIME&lt;/LI&gt;&lt;LI&gt;Create a ZTIME DDIC data element based on the ZTIME DDIC domain&lt;/LI&gt;&lt;LI&gt;In your program, use DATA ztime_variable TYPE ztime and SELECT-OPTIONS s_time FOR ztime_variable.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;NB: if you remove the conversion exit from the domain ZTIME, the "buggy" behavior comes back, so the "bug" is with any field of type time without conversion exit.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/abap-blog-posts/alternative-to-quot-select-options-s-time-for-type-t-variable-quot-to-avoid/ba-p/14251816"/>
     <published>2025-10-23T15:30:34.807000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/salvador-blog-posts/integra%C3%A7%C3%B5es-com-apis-via-sproxy-no-cen%C3%A1rio-abap-pi-um-guia-pr%C3%A1tico-para/ba-p/14252975</id>
+    <title>Integrações com APIs via SPROXY no Cenário ABAP/PI: Um Guia Prático para Desenvolvedores SAP</title>
+    <updated>2025-10-24T22:00:58.518000+02:00</updated>
+    <author>
+      <name>Leandro_FariasdeVasconcellos</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2165573</uri>
+    </author>
+    <content>&lt;P&gt;Olá, galera da comunidade SAP da Bahia! Como curador dessa comunidade vibrante aqui no Nordeste, eu sempre fico animado em compartilhar conhecimentos que facilitam o dia a dia de vocês. Hoje, vou falar sobre um tema que é pão com manteiga para quem trabalha com integrações em ambientes SAP: as integrações com APIs usando a transação SPROXY, especialmente no contexto ABAP/PI. Já fiz algumas em projetos para conectar sistemas legados com serviços externos, e acho que pode ajudar muita gente por aí.&lt;/P&gt;&lt;P&gt;Vou explicar passo a passo, de forma descomplicada, como se estivéssemos batendo um papo no café da firma (quem me conhece sabe que não gosto de café, mas serve o papo rsrs). No final, convido vocês a comentarem suas experiências – quem sabe não rola um meetup virtual sobre isso?&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1892753226"&gt;O que é SPROXY e por que usá-lo em ABAP/PI?&lt;/H3&gt;&lt;P&gt;SPROXY é uma transação SAP que permite gerar proxies ABAP a partir de definições de serviços web, como WSDLs ou APIs RESTful. No cenário de Process Integration (PI), que evoluiu para o SAP Process Orchestration (PO), ela é essencial para criar interfaces que consumam ou exponham APIs de forma segura e eficiente.&lt;/P&gt;&lt;P&gt;Imagine que você precisa integrar o seu ERP SAP com uma API externa, tipo um serviço de pagamento ou um CRM nuvem. Em vez de codar tudo do zero, o SPROXY gera classes ABAP prontas para uso, lidando com autenticações, mapeamentos e erros. É uma mão na roda para evitar bugs e acelerar o desenvolvimento.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="img1.jpeg" style="width: 358px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/332201iFDF771BD03F83FB3/image-dimensions/358x537/is-moderation-mode/true?v=v2" width="358" height="537" role="button" title="img1.jpeg" alt="img1.jpeg" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1696239721"&gt;Passo a Passo: Configurando uma Integração via SPROXY&lt;/H3&gt;&lt;P&gt;Vamos ao que interessa – o hands-on. Assumindo que você tem acesso a um ambiente ABAP/PI, siga esses passos. Eu testei isso em projetos reais, e sempre funciona bem com um pouco de paciência.&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Acessar a Transação SPROXY&lt;/STRONG&gt;: Entre no SAP GUI e digite SPROXY na barra de comandos. Isso abre o Proxy Generation Tool. Selecione "Create Proxy" e informe a URL do WSDL da API que você quer integrar. (Dica: certifique-se de que o WSDL está acessível via HTTPS para evitar problemas de segurança.)&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Gerar o Proxy ABAP&lt;/STRONG&gt;: O sistema analisa o WSDL e gera classes ABAP automaticamente. Você vai ver opções para namespaces, pacotes de desenvolvimento e tipos de proxy (consumer ou provider). Escolha "Consumer Proxy" se for consumir a API. Aqui, o PI entra em jogo: configure o adapter no Integration Directory para mapear os campos.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Implementar a Lógica no ABAP&lt;/STRONG&gt;: Na SE38, SE80 ou Eclipse, acesse a classe gerada. Crie um método para chamar o proxy, passando parâmetros como autenticação (básica ou OAuth).&amp;nbsp; Exemplo de código simples:&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="img2.png" style="width: 407px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/332202iCF9F9C2BF7D179C3/image-dimensions/407x153/is-moderation-mode/true?v=v2" width="407" height="153" role="button" title="img2.png" alt="img2.png" /&gt;&lt;/span&gt;&lt;BR /&gt;Teste com o debugger para ver se os dados fluem corretamente.&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Configurar no PI/PO&lt;/STRONG&gt;: No Integration Builder, crie um cenário com o proxy como sender/receiver. Use adapters como SOAP ou HTTP para conectar à API. Monitore via PIMON para logs e erros.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Testes e Troubleshooting&lt;/STRONG&gt;: Sempre teste com ferramentas como Postman antes de implementar. Problemas comuns? Certificados inválidos ou timeouts – verifique o SOAMANAGER para configurações de endpoint.&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="img3.png" style="width: 737px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/332215i4EBC9706A52BB12C/image-dimensions/737x352/is-moderation-mode/true?v=v2" width="737" height="352" role="button" title="img3.png" alt="img3.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;Onde tem a &lt;STRONG&gt;Interface de Serviço&lt;/STRONG&gt;, vai aparecer duas &lt;STRONG&gt;Inboud&lt;/STRONG&gt; e &lt;STRONG&gt;Outboud&lt;/STRONG&gt; (clique com o botão direito do mouse na qual deseja criar o proxy), após isso, é só ativar que o SAP vai gerar todos os objetos.&lt;/P&gt;&lt;H3 id="toc-hId-1499726216"&gt;Vantagens e Desafios no Mundo Real&lt;/H3&gt;&lt;P&gt;Nas implantações que fiz aqui na Bahia, com empresas locais de varejo e manufatura, o SPROXY salvou horas de desenvolvimento. Vantagens: integração nativa com ABAP, suporte a transações assíncronas e escalabilidade via PI. Mas desafios existem – como lidar com APIs REST puras (o SPROXY é mais SOAP-oriented, então use adapters para converter).&lt;/P&gt;&lt;P&gt;Se você está migrando para nuvem, fique de olho: isso é base para entender evoluções como o SAP BTP e Integration Suite, que modernizam tudo com low-code. (Falando nisso, em um próximo post, vou correlacionar isso com as novas integrações no BTP – fiquem ligados!)&lt;/P&gt;&lt;H3 id="toc-hId-1303212711"&gt;Conclusão e Chamada para Ação&lt;/H3&gt;&lt;P&gt;Integrações via SPROXY em ABAP/PI são robustas e essenciais para quem ainda lida com on-premise, mas preparam o terreno para o futuro híbrido. O que vocês acham? Já usaram SPROXY em projetos? Compartilhem nos comentários, e vamos trocar figurinhas na comunidade SAP da Bahia. Se precisar de mais detalhes, me mandem DM!&lt;BR /&gt;&lt;BR /&gt;Segue abaixo um passo a passo simples:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Imagem do WhatsApp de 2025-10-24 à(s) 16.53.42_9d4e1157.jpg" style="width: 298px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/332224i1BDCD12A6335E56D/image-dimensions/298x447/is-moderation-mode/true?v=v2" width="298" height="447" role="button" title="Imagem do WhatsApp de 2025-10-24 à(s) 16.53.42_9d4e1157.jpg" alt="Imagem do WhatsApp de 2025-10-24 à(s) 16.53.42_9d4e1157.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;#SAP #ABAP #PI #Integrações #APIs #SPROXY #ComunidadeSAPBahia&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/salvador-blog-posts/integra%C3%A7%C3%B5es-com-apis-via-sproxy-no-cen%C3%A1rio-abap-pi-um-guia-pr%C3%A1tico-para/ba-p/14252975"/>
+    <published>2025-10-24T22:00:58.518000+02:00</published>
   </entry>
 </feed>
