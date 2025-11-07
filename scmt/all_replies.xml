@@ -2,109 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2025-11-07T20:59:01.735769+00:00</updated>
+  <updated>2025-11-07T21:14:02.245166+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/routing-apl-tasks-to-an-elastic-compute-node/ba-p/14263085</id>
-    <title>Routing APL tasks to an Elastic Compute Node</title>
-    <updated>2025-11-07T15:26:49.533000+01:00</updated>
-    <author>
-      <name>marc_daniau</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/187920</uri>
-    </author>
-    <content>&lt;P&gt;In this blog you will see how APL (Automated Predictive Library) addresses compute-intensive peak workloads by leveraging ECNs (Elastic Compute Nodes). The following example will walk you through the steps required to route an APL task to an ECN running on HANA Cloud.&lt;/P&gt;&lt;P&gt;In our case the ECN is named ecn1. It has been provisioned via HANA Cloud Central. For information on ECN provisioning see &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/harnessing-dynamic-elasticity-elastic-compute-node-for-smarter-scaling-in/ba-p/14016836" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-sap/harnessing-dynamic-elasticity-elastic-compute-node-for-smarter-scaling-in/ba-p/14016836&lt;/A&gt;&lt;/P&gt;&lt;P&gt;To allow the execution of APL functions by the ECN, we configure as admin user a workload class using this line of SQL:&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;create WORKLOAD CLASS WC4 SET 'ROUTING LOCATION HINT' = 'ecn1';&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This is just one way among many to create a workload class in HANA Cloud.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1635532482"&gt;Working with the APL Python interface&lt;/H1&gt;&lt;P&gt;As admin user ...&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from hana_ml import dataframe as hd
-conn = hd.ConnectionContext(
-    address = 'Host_String', port = 443, 
-    user = 'DBADMIN', password = 'Password_String', 
-    encrypt = 'true', sslValidateCertificate = 'false' )
-conn.connection.isconnected()&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;... it is possible to check if the ECN is active with this query:&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;sql_cmd =  'select volume_id, host, port, service_name FROM M_VOLUMES order by 1'
-hd.DataFrame(conn, sql_cmd).collect()&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="SERVICES.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/337333iA8CB65E6AC94F5B7/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="SERVICES.png" alt="SERVICES.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Before calling the APL function, we clear the SQL cache:&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import pandas as pd
-from hdbcli import dbapi
-def clear_sql_cache():
-    with conn.connection.cursor() as cur:
-        cur.execute("ALTER SYSTEM CLEAR SQL PLAN CACHE")&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;clear_sql_cache()&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Let’s jump now to a second notebook where we run, as APL user this time, a forecasting task:&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from hana_ml import dataframe as hd
-conn = hd.ConnectionContext(
-    address = 'Host_String', port = 443, 
-    user = 'USER_APL', password = 'Password_String', 
-    encrypt = 'true', sslValidateCertificate = 'false' )
-conn.connection.isconnected()&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;We define a dataframe for the input series ...&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;series_in = conn.table('OZONE_RATE_LA', schema='APL_SAMPLES')&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;... and run the forecast after specyfying the workload class WC4 for the routing to happen:&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from hana_ml.algorithms.apl.time_series import AutoTimeSeries
-apl_model = AutoTimeSeries(time_column_name= 'Date', target= 'OzoneRateLA', horizon= 12)
-apl_model.set_scale_out(workload_class="WC4") 
-## apl_model.set_scale_out(route_to=1025)  # Alternative option
-series_out = apl_model.fit_predict(data = series_in, build_report=True)&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Last, we go back to our first notebook, and verify that the APL functions ran indeed on the ECN:&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;sql_cmd =  """ 
-select HOST, VOLUME_ID, APPLICATION_NAME, STATEMENT_STRING, LAST_EXECUTION_TIMESTAMP
-from M_SQL_PLAN_CACHE 
-where USER_NAME= 'USER_APL' and LAST_EXECUTION_TIMESTAMP is not null and STATEMENT_STRING LIKE 'CALL %'
-order by LAST_EXECUTION_TIMESTAMP
-"""
-hd.DataFrame(conn, sql_cmd).collect()&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="CHECK_ROUTING.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/337335i5E75CA32B64958D9/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="CHECK_ROUTING.png" alt="CHECK_ROUTING.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1439018977"&gt;Working with the APL SQL interface&lt;/H1&gt;&lt;P&gt;As APL user, to ensure that the forecast is executed by the ECN, we put the APL script inside a stored procedure, say MDA_APL_FORECAST, and then we call that procedure using a hint as follows:&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;call MDA_APL_FORECAST with HINT(WORKLOAD_CLASS(WC4));&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;As admin user, we check that the routing worked with the code below:&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;select HOST, VOLUME_ID, APPLICATION_NAME, STATEMENT_STRING, LAST_EXECUTION_TIMESTAMP
-from M_SQL_PLAN_CACHE 
-where USER_NAME= 'USER_APL' and LAST_EXECUTION_TIMESTAMP is not null 
-order by LAST_EXECUTION_TIMESTAMP;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="SQL_ANY_PROC-ROUTED.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/337336i029EB1996030523C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="SQL_ANY_PROC-ROUTED.png" alt="SQL_ANY_PROC-ROUTED.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Here is the sample code we used to create the stored procedure:&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;create type FORECAST_OUT_T as table (
- "Date" 	DATE,
- "OzoneRateLA" DOUBLE,
- "kts_1" DOUBLE,
- "kts_1Trend" DOUBLE,
- "kts_1Cycles" DOUBLE,
- "kts_1_lowerlimit_95%" DOUBLE,
- "kts_1_upperlimit_95%" DOUBLE,
- "kts_1ExtraPreds" DOUBLE,
- "kts_1Fluctuations" DOUBLE,
- "kts_1Residues" DOUBLE
-);
-create table FORECAST_OUT like FORECAST_OUT_T;
-
-create table OP_LOG like "SAP_PA_APL"."sap.pa.apl.base::BASE.T.OPERATION_LOG";
-create table SUMMARY like "SAP_PA_APL"."sap.pa.apl.base::BASE.T.SUMMARY";
-create table DEBRIEF_METRIC like "SAP_PA_APL"."sap.pa.apl.base::BASE.T.DEBRIEF_METRIC_OID";
-create table DEBRIEF_PROPERTY like "SAP_PA_APL"."sap.pa.apl.base::BASE.T.DEBRIEF_PROPERTY_OID";
-
-create procedure "MDA_APL_FORECAST" 
-as BEGIN
-    declare out_forecast FORECAST_OUT_T;
-    declare header "SAP_PA_APL"."sap.pa.apl.base::BASE.T.FUNCTION_HEADER";
-    declare config "SAP_PA_APL"."sap.pa.apl.base::BASE.T.OPERATION_CONFIG_DETAILED";
-	declare var_desc "SAP_PA_APL"."sap.pa.apl.base::BASE.T.VARIABLE_DESC_OID";   
-    declare var_role "SAP_PA_APL"."sap.pa.apl.base::BASE.T.VARIABLE_ROLES_WITH_COMPOSITES_OID";    
-    declare apl_log   "SAP_PA_APL"."sap.pa.apl.base::BASE.T.OPERATION_LOG";      
-    declare apl_sum   "SAP_PA_APL"."sap.pa.apl.base::BASE.T.SUMMARY";   
-    declare apl_indic   "SAP_PA_APL"."sap.pa.apl.base::BASE.T.INDICATORS";   	
-    declare apl_metr "SAP_PA_APL"."sap.pa.apl.base::BASE.T.DEBRIEF_METRIC_OID";
-    declare apl_prop "SAP_PA_APL"."sap.pa.apl.base::BASE.T.DEBRIEF_PROPERTY_OID";      
-
-    :header.insert(('Oid', 'Monthly Ozone Rate'));
-
-    :config.insert(('APL/Horizon', '12',null));
-    :config.insert(('APL/TimePointColumnName', 'Date',null));
-    :config.insert(('APL/LastTrainingTimePoint', '1971-12-28 00:00:00',null));
-	:config.insert(('APL/ForcePositiveForecast', 'true',null));
-	:config.insert(('APL/DecomposeInfluencers', 'true',null));
-	:config.insert(('APL/ApplyExtraMode', 'First Forecast with Stable Components and Residues and Error Bars',null));
-	
-    :var_role.insert(('Date', 'input', null, null, null));
-    :var_role.insert(('OzoneRateLA', 'target', null, null, null));
-
-    dataset  = select * from APL_SAMPLES.OZONE_RATE_LA order by "Date" asc;  
-	
-    "_SYS_AFL"."APL_FORECAST__OVERLOAD_5_6" (
-	:header, :config, :var_desc, :var_role, :dataset, 
-	out_forecast, apl_log, apl_sum, apl_indic, apl_metr, apl_prop );
-
-	insert into  FORECAST_OUT      select * from :out_forecast;
-	insert into  OP_LOG    	       select * from :apl_log;
-	insert into  SUMMARY   	       select * from :apl_sum;
-	insert into  DEBRIEF_METRIC    select * from :apl_metr;
-	insert into  DEBRIEF_PROPERTY  select * from :apl_prop;
-END;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Note that for this basic sample we stored the full debrief tables. However, if your predictive use case involves a segmented APL model with many segments, it is preferable to extract only the information needed by the end-users, so that the amount of output data is reduced. Here is an example on how to obtain a couple of accuracy indicators by segment:&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;    insert into  "USER_APL"."MDA_FORECAST_ACCURACY" 
-    select "Oid" as "Segment", "MAE", "MAPE"
-    from "SAP_PA_APL"."sap.pa.apl.debrief.report::TimeSeries_Performance" 
-    (:apl_prop, :apl_metr)
-    where "Partition" = 'Validation';&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/viewer/p/apl" target="_blank" rel="noopener noreferrer"&gt;To know more about APL&lt;/A&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/routing-apl-tasks-to-an-elastic-compute-node/ba-p/14263085"/>
-    <published>2025-11-07T15:26:49.533000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/sap-datasphere-and-open-connectors-what-is-supposed-to-be-quot-access/qaa-p/14263098#M4931214</id>
     <title>Re: SAP Datasphere and Open connectors what is supposed to be "access method BULK" ?</title>
@@ -1327,5 +1228,17 @@ Next&lt;/CODE&gt;&lt;/PRE&gt;&lt;/DIV&gt;&lt;H3 id="toc-hId-1893698695"&gt;Steps
     <content>&lt;P&gt;Have you taken a Look at VOFM Copy routines? Maybe your requirement could be achieved with that&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/abap-forum/le-shp-delivery-proc-final-delivery-check-save-document-prepare/m-p/14263283#M182"/>
     <published>2025-11-07T21:18:51.566000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/two-tier-erp-with-sap-s-4hana-cloud-public-cloud-edition-overview/bc-p/14263284#M62366</id>
+    <title>Re: Two-tier ERP with SAP S/4HANA Cloud Public Cloud Edition Overview</title>
+    <updated>2025-11-07T22:06:43.202000+01:00</updated>
+    <author>
+      <name>sgurulingaiah</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2264369</uri>
+    </author>
+    <content>&lt;P&gt;Hi Shiva, thank you nicely explained. where can i find in detail.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/two-tier-erp-with-sap-s-4hana-cloud-public-cloud-edition-overview/bc-p/14263284#M62366"/>
+    <published>2025-11-07T22:06:43.202000+01:00</published>
   </entry>
 </feed>
