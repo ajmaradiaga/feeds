@@ -2,143 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2025-11-07T18:59:01.539378+00:00</updated>
+  <updated>2025-11-07T19:14:01.696830+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/abap-forum/f150-send-by-email-and-spool/m-p/14263089#M179</id>
-    <title>Re: F150 send by email and spool</title>
-    <updated>2025-11-07T15:22:17.943000+01:00</updated>
-    <author>
-      <name>abo</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/62</uri>
-    </author>
-    <content>&lt;P&gt;The answer might depend on the printing technology you are using: with Adobe PDF, setting the getpdf flag when opening the job will prevent the generation of the spool. I am not sure if the same holds true for Smartforms and Sapscript but the solution could well be the same.&lt;/P&gt;&lt;P&gt;Set up the whole process to print, forget about email for a second: when the normal print is done, locate the spool and convert it to pdf. At this point, you are allowed to remember that you wanted to send it by email &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;REPORT zabo_test_print_and_pdf.
-
-DATA gs_docparams    TYPE sfpdocparams.
-DATA gs_formoutput   TYPE fpformoutput.
-DATA gs_outputparams TYPE sfpoutputparams.
-DATA gs_result       TYPE sfpjoboutput.
-DATA gt_pdf          TYPE TABLE OF tline.
-DATA gv_fm_name      TYPE rs38l_fnam.
-* We deliberately use a standard form to avoid interactions
-DATA gv_formname     TYPE fpname VALUE 'FP_TEST_00'.
-DATA gv_pdf          TYPE xstring.
-DATA gv_size         TYPE i.
-DATA gv_spool_id     TYPE rspoid.
-
-"------------------------------------------------------------
-" 1. Open ADS job
-"------------------------------------------------------------
-gs_outputparams-dest     = 'LP01'.        " printer (must exist in SPAD)
-gs_outputparams-reqnew   = abap_true.     " new spool request
-gs_outputparams-reqimm   = space.
-gs_outputparams-reqdel   = space.
-gs_outputparams-nodialog = abap_true.     " no print dialog
-* in the standard, PDF generation and Spool are mutually exclusive!
-gs_outputparams-getpdf   = abap_false.
-
-CALL FUNCTION 'FP_JOB_OPEN'
-  CHANGING   ie_outputparams = gs_outputparams
-  EXCEPTIONS cancel          = 1
-             usage_error     = 2
-             system_error    = 3
-             internal_error  = 4
-             OTHERS          = 5.
-IF sy-subrc &amp;lt;&amp;gt; 0.
-  MESSAGE e398(00) WITH 'FP_JOB_OPEN failed' sy-subrc.
-  LEAVE PROGRAM.
-ENDIF.
-
-"------------------------------------------------------------
-" 2. Determine generated function module name for the form
-"------------------------------------------------------------
-CALL FUNCTION 'FP_FUNCTION_MODULE_NAME'
-  EXPORTING  i_name     = gv_formname
-  IMPORTING  e_funcname = gv_fm_name
-  EXCEPTIONS OTHERS     = 1.
-IF sy-subrc &amp;lt;&amp;gt; 0.
-  MESSAGE e398(00) WITH 'FP_FUNCTION_MODULE_NAME failed' sy-subrc.
-  LEAVE PROGRAM.
-ENDIF.
-
-"------------------------------------------------------------
-" 3. Call generated form FM
-"------------------------------------------------------------
-DATA itf TYPE tsftext.
-FIELD-SYMBOLS &amp;lt;fs_itf&amp;gt; TYPE tline.
-
-APPEND INITIAL LINE TO itf ASSIGNING &amp;lt;fs_itf&amp;gt;.
-&amp;lt;fs_itf&amp;gt;-tdline = 'hello'.
-
-CALL FUNCTION gv_fm_name
-  EXPORTING  /1bcdwb/docparams  = gs_docparams
-             textlines          = itf "Whatever the form requires as arguments...
-  IMPORTING  /1bcdwb/formoutput = gs_formoutput
-  EXCEPTIONS usage_error        = 1
-             system_error       = 2
-             internal_error     = 3
-             OTHERS             = 4.
-IF sy-subrc &amp;lt;&amp;gt; 0.
-  MESSAGE e398(00) WITH 'Form call failed' sy-subrc.
-ENDIF.
-
-"------------------------------------------------------------
-" 4. Close ADS job (creates spool)
-"------------------------------------------------------------
-CALL FUNCTION 'FP_JOB_CLOSE'
-  IMPORTING  e_result       = gs_result
-  EXCEPTIONS usage_error    = 1
-             system_error   = 2
-             internal_error = 3
-             OTHERS         = 4.
-
-BREAK-POINT.
-" check gs_formoutput-pdf: should be empty when getpdf = space
-
-IF sy-subrc = 0 AND gs_result-spoolids[] IS NOT INITIAL.
-  WRITE / 'Spool request created'.
-ELSE.
-  WRITE / 'No spool request created!'.
-ENDIF.
-
-"------------------------------------------------------------
-" 5. Generate with spool only (getpdf = space)
-"------------------------------------------------------------
-READ TABLE gs_result-spoolids INDEX 1 INTO gv_spool_id.
-CHECK sy-subrc = 0.
-
-" 6. Convert spool to PDF
-CALL FUNCTION 'CONVERT_ABAPSPOOLJOB_2_PDF'
-  EXPORTING  src_spoolid            = gv_spool_id
-             no_dialog              = 'X'
-  IMPORTING  pdf_bytecount          = gv_size
-  TABLES     pdf                    = gt_pdf
-  EXCEPTIONS err_no_abap_spooljob   = 1
-             err_no_spooljob        = 2
-             err_no_permission      = 3
-             err_conv_not_possible  = 4
-             err_bad_destdevice     = 5
-             user_cancelled         = 6
-             err_spoolid_not_exists = 7
-             OTHERS                 = 8.
-
-IF sy-subrc = 0.
-  " Convert table to xstring
-  CALL FUNCTION 'SCMS_BINARY_TO_XSTRING'
-    EXPORTING  input_length = gv_size
-    IMPORTING  buffer       = gv_pdf
-    TABLES     binary_tab   = gt_pdf
-    EXCEPTIONS failed       = 1
-               OTHERS       = 2.
-ENDIF.
-
-BREAK-POINT.
-" check gv_pdf...&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-forum/f150-send-by-email-and-spool/m-p/14263089#M179"/>
-    <published>2025-11-07T15:22:17.943000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/script-gui-how-to-get-the-contents-of-a-guigridview-row/qaq-p/14263092</id>
     <title>Script Gui - How to get the contents of a GuiGridView row?</title>
@@ -1436,6 +1303,18 @@ Next&lt;/CODE&gt;&lt;/PRE&gt;&lt;/DIV&gt;&lt;H3 id="toc-hId-1893698695"&gt;Steps
     <content>&lt;P&gt;Hi Sandra,&lt;/P&gt;&lt;P&gt;I think either field would work but thinking about the difference between variant and function, I would probably opt to use the variant field, even as the help mentions new POs vs. PO changes for message type ORDERS. &amp;nbsp;Regarding alternatives, since you mentioned manually processing the remainder during the day it pops workflow into my head, but I can't say I'm a huge fan of workflow in the SAP environment.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Regards,&lt;/P&gt;&lt;P&gt;Ryan Crosby&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/abap-forum/idoc-message-variant-or-function-what-difference/m-p/14263275#M181"/>
     <published>2025-11-07T19:45:11.199000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/sap-abap-classical-workflow-a-complete-guide-part-2/bc-p/14263277#M72222</id>
+    <title>Re: SAP ABAP Classical Workflow: A complete guide (Part- 2)</title>
+    <updated>2025-11-07T19:54:24.175000+01:00</updated>
+    <author>
+      <name>KarinaH</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1889195</uri>
+    </author>
+    <content>&lt;P&gt;Thank you! very well explained.&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/sap-abap-classical-workflow-a-complete-guide-part-2/bc-p/14263277#M72222"/>
+    <published>2025-11-07T19:54:24.175000+01:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/community-corner-blog-posts/sap-teched-berlin-2025-speakers-series-special-sap-community-moments/bc-p/14263278#M369</id>
