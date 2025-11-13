@@ -2,242 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-qa.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2025-11-13T09:00:05.767441+00:00</updated>
+  <updated>2025-11-13T12:00:04.115135+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development Q&amp;A in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/crm-and-cx-q-a/abap2xlsx-and-xlsm/qaq-p/14261197</id>
-    <title>ABAP2XLSX and XLSM</title>
-    <updated>2025-11-05T11:59:08.045000+01:00</updated>
-    <author>
-      <name>RicardoRomero_1</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/199010</uri>
-    </author>
-    <content>&lt;P&gt;Hello there.&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1893639332"&gt;Is it possible to work with ABAP2XLSX and XLSM (macro-enabled) files?&lt;/H3&gt;&lt;P&gt;I’m trying to migrate some legacy developments that currently use OLE2 objects to ABAP2XLSX, but I’m running into issues.&lt;/P&gt;&lt;P&gt;We have a solution where a macro-enabled Excel template (stored on the application server) is downloaded by the program, filled in with case data, and then sent to a supplier to complete.&lt;BR /&gt;The template contains several VBA-based validations — for example, a cell must be filled if certain other cells are completed, verifying that an entered EAN code is valid, and so on.&lt;/P&gt;&lt;P&gt;I’m trying to achieve the same behavior using ABAP2XLSX, but I’m getting errors when opening the generated file.&lt;/P&gt;&lt;P&gt;I’ve created a simplified example of what I’m trying to do — Excel file includes a small macro, and with the ABAP code I’m attempting to fill it in and then download it again.&lt;BR /&gt;(For the Excel validations to work, you first need to fill in cell B2.)&lt;/P&gt;&lt;P&gt;Do you know if this is possible with ABAP2XLSX?&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;REPORT ztest.
-
-PARAMETERS:
-  pa_banfn TYPE banfn OBLIGATORY.
-
-START-OF-SELECTION.
-
-  DATA:
-    lv_rc            TYPE i,
-    lv_filename      TYPE char1024,
-    lv_filename_down TYPE string,
-    lt_filetable     TYPE STANDARD TABLE OF file_table.
-
-  SELECT eban~matnr, maktx
-   INTO TABLE &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1407137"&gt;@DATA&lt;/a&gt;(lt_eban)
-   FROM eban
-   INNER JOIN makt
-    ON eban~matnr EQ makt~matnr
-     AND makt~spras EQ &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/4244"&gt;@SY&lt;/a&gt;-langu
-   WHERE banfn EQ &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2532"&gt;@PA&lt;/a&gt;_banfn
-     AND loekz EQ &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1962174"&gt;@Space&lt;/a&gt;.
-  IF sy-subrc NE 0.
-    MESSAGE 'Expedient doesnt exists' TYPE 'S' DISPLAY LIKE 'E'.
-    RETURN.
-  ENDIF.
-
-  CALL METHOD cl_gui_frontend_services=&amp;gt;file_open_dialog
-    EXPORTING
-*     window_title            = lv_titulo
-      file_filter             = '(*.xlsm)|*.xlsm|'
-      initial_directory       = 'U:\'
-    CHANGING
-      file_table              = lt_filetable
-      rc                      = lv_rc
-    EXCEPTIONS
-      file_open_dialog_failed = 1
-      cntl_error              = 2
-      error_no_gui            = 3
-      not_supported_by_gui    = 4
-      OTHERS                  = 5.
-  IF sy-subrc &amp;lt;&amp;gt; 0.
-    RETURN.
-  ENDIF.
-
-  READ TABLE lt_filetable
-  INTO lv_filename
-  INDEX 1.
-  IF sy-subrc NE 0.
-    RETURN.
-  ENDIF.
-
-  CALL FUNCTION 'SO_SPLIT_FILE_AND_PATH'
-    EXPORTING
-      full_name = lv_filename
-    IMPORTING
-*     STRIPPED_NAME       =
-      file_path = lv_filename_down
-    EXCEPTIONS
-      x_error   = 1
-      OTHERS    = 2.
-  IF sy-subrc &amp;lt;&amp;gt; 0.
-    RETURN.
-  ENDIF.
-  CONCATENATE lv_filename_down sy-datum sy-uzeit '.xlsm' INTO lv_filename_down.
-
-  DATA(lo_reader)    = CAST zif_excel_reader( NEW zcl_excel_reader_2007( ) ).
-  DATA(lo_excel)     = lo_reader-&amp;gt;load_file( lv_filename ).
-  DATA(lo_worksheet) = lo_excel-&amp;gt;get_worksheet_by_index( 1 ).
-
-  TRY.
-      CALL METHOD lo_worksheet-&amp;gt;set_table
-        EXPORTING
-          ip_table           = lt_eban
-*         ip_hdr_style       =
-*         ip_body_style      =
-          ip_table_title     = space
-          ip_top_left_column = 'A'
-          ip_top_left_row    = 5
-*         ip_transpose       =
-          ip_no_header       = abap_true.
-    CATCH zcx_excel .
-      RETURN.
-  ENDTRY.
-
-  lo_worksheet-&amp;gt;set_cell( ip_row    = 1
-                          ip_column = 'B'
-                          ip_value  =  pa_banfn ).
-
-*--------------------------------------------------------------------*
-* Save file
-*--------------------------------------------------------------------*
-
-  DATA:
-    lv_xdata     TYPE xstring,
-    lt_rawdata   TYPE solix_tab,
-    lv_bytecount TYPE i,
-    cl_writer    TYPE REF TO zif_excel_writer.
-
-  CREATE OBJECT cl_writer TYPE zcl_excel_writer_2007.
-  lv_xdata = cl_writer-&amp;gt;write_file( lo_excel ).
-  lt_rawdata = cl_bcs_convert=&amp;gt;xstring_to_solix( iv_xstring  = lv_xdata ).
-  lv_bytecount = xstrlen( lv_xdata ).
-
-  CALL METHOD cl_gui_frontend_services=&amp;gt;gui_download
-    EXPORTING
-      bin_filesize            = lv_bytecount
-      filename                = lv_filename_down
-      filetype                = 'BIN'
-    CHANGING
-      data_tab                = lt_rawdata
-    EXCEPTIONS
-      file_write_error        = 1
-      no_batch                = 2
-      gui_refuse_filetransfer = 3
-      invalid_type            = 4
-      no_authority            = 5
-      unknown_error           = 6
-      header_not_allowed      = 7
-      separator_not_allowed   = 8
-      filesize_not_allowed    = 9
-      header_too_long         = 10
-      dp_error_create         = 11
-      dp_error_send           = 12
-      dp_error_write          = 13
-      unknown_dp_error        = 14
-      access_denied           = 15
-      dp_out_of_memory        = 16
-      disk_full               = 17
-      dp_timeout              = 18
-      file_not_found          = 19
-      dataprovider_exception  = 20
-      control_flush_error     = 21
-      not_supported_by_gui    = 22
-      error_no_gui            = 23
-      OTHERS                  = 24.
-  IF sy-subrc &amp;lt;&amp;gt; 0.
-    MESSAGE ID sy-msgid TYPE 'S' NUMBER sy-msgno
-               WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
-               DISPLAY LIKE 'E'.
-  ELSE.
-    MESSAGE 'Done' TYPE 'S'.
-  ENDIF.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The excel file has this content:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="RicardoRomero_1_0-1762340273643.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/336460i8F57407CC4D97964/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="RicardoRomero_1_0-1762340273643.png" alt="RicardoRomero_1_0-1762340273643.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;And a macro with this code:&lt;/P&gt;&lt;pre class="lia-code-sample language-vbnet"&gt;&lt;code&gt;Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)
-    Dim ws As Worksheet
-    Dim lastRow As Long
-    Dim i As Long
-    Dim ean As String
-    Dim msg As String
-    Dim invalid As Boolean
-    
-    Set ws = ThisWorkbook.Sheets("Prices")
-    
-    nif = Trim(ws.Range("B2").Value)
-    If nif = "" Then Exit Sub
-    
-    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
-    
-    invalid = False
-    msg = ""
-    
-    ' Recorre desde la fila 5 en adelante
-    For i = 5 To lastRow
-        Dim mat As String, price As Variant
-        
-        mat = Trim(ws.Cells(i, "A").Value)
-        price = ws.Cells(i, "C").Value
-        ean = Trim(ws.Cells(i, "D").Value)
-        
-        ' Si hay material, el precio debe estar informado
-        If mat &amp;lt;&amp;gt; "" And (price = "" Or Not IsNumeric(price)) Then
-            msg = msg &amp;amp; vbCrLf &amp;amp; "Fila " &amp;amp; i &amp;amp; ": Falta precio para el material """ &amp;amp; mat &amp;amp; """"
-            invalid = True
-        End If
-        
-        ' Si hay EAN, validar formato y dígito de control
-        If ean &amp;lt;&amp;gt; "" Then
-            If Not IsValidEAN(ean) Then
-                msg = msg &amp;amp; vbCrLf &amp;amp; "Fila " &amp;amp; i &amp;amp; ": Código EAN """ &amp;amp; ean &amp;amp; """ no válido"
-                invalid = True
-            End If
-        End If
-    Next i
-    
-    If invalid Then
-        MsgBox "Se encontraron errores:" &amp;amp; vbCrLf &amp;amp; msg, vbExclamation, "Validación de datos"
-        Cancel = True ' Evita guardar si hay errores
-    Else
-        MsgBox "Validación correcta. Guardando archivo...", vbInformation, "Validación de datos"
-    End If
-End Sub
-
-Private Function IsValidEAN(ean As String) As Boolean
-    Dim sum As Long, checkDigit As Integer, i As Integer
-    Dim digits() As String
-    
-    ean = Replace(ean, " ", "")
-    If Not ean Like String(Len(ean), "#") Then
-        IsValidEAN = False
-        Exit Function
-    End If
-    
-    Select Case Len(ean)
-        Case 8, 13
-            ReDim digits(1 To Len(ean))
-            For i = 1 To Len(ean)
-                digits(i) = Mid(ean, i, 1)
-            Next i
-            
-            sum = 0
-            For i = Len(ean) - 1 To 1 Step -1
-                If (Len(ean) - i) Mod 2 = IIf(Len(ean) = 13, 0, 1) Then
-                    sum = sum + digits(i) * 3
-                Else
-                    sum = sum + digits(i)
-                End If
-            Next i
-            checkDigit = (10 - (sum Mod 10)) Mod 10
-            IsValidEAN = (checkDigit = digits(Len(ean)))
-        Case Else
-            IsValidEAN = False
-    End Select
-End Function&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Thanks in advance&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/crm-and-cx-q-a/abap2xlsx-and-xlsm/qaq-p/14261197"/>
-    <published>2025-11-05T11:59:08.045000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/febep-chect-increase-the-field-length/qaq-p/14261243</id>
     <title>FEBEP-CHECT increase the field length</title>
@@ -378,43 +146,7 @@ End Function&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Thanks in advance&lt;/P&gt;&lt;P&g
       <name>PTecnico</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1831701</uri>
     </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Dear Experts,&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;I need to create a relationship between a position and another object in infotype &lt;STRONG&gt;HRP1001&lt;/STRONG&gt;.&lt;BR /&gt;Currently, I am implementing a &lt;STRONG&gt;BAdI&lt;/STRONG&gt; and receiving the parameter &lt;STRONG&gt;is_ee_org_ass_repl_req&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;Within the implementation, I am executing several &lt;CODE&gt;SELECT&lt;/CODE&gt; statements inside a &lt;CODE&gt;LOOP AT&lt;/CODE&gt; to build the required structure. However, this approach is causing &lt;STRONG&gt;performance issues&lt;/STRONG&gt; due to multiple database queries.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;LOOP AT is_ee_org_ass_repl_req-org_assignment INTO ls_org_assignment.
-        IF   iv_posicion IS NOT INITIAL.
-      SELECT SINGLE sobid  FROM hrp1001 CLIENT SPECIFIED  
-        INTO (@DATA(lv_sobid) )
-        WHERE  mandt = &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/4244"&gt;@SY&lt;/a&gt;-mandt and plvar =  '01' and
-        objid = &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/591350"&gt;@iv&lt;/a&gt;_posicion AND ( begda &amp;lt;= &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/591350"&gt;@iv&lt;/a&gt;_fecha AND endda &amp;gt;= &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1419942"&gt;@LV&lt;/a&gt;_fechaf ) AND subty = 'A012'
-
-      IF sy-subrc = 0.
-        DATA lv_sobidp TYPE plans .
-        lv_sobidp = lv_sobid.
-        SELECT SINGLE sobid  FROM hrp1001 
-           INTO (@lv_sobid)
-           WHERE objid = &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1419942"&gt;@LV&lt;/a&gt;_sobidp AND ( begda &amp;lt;= &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/591350"&gt;@iv&lt;/a&gt;_fecha AND endda &amp;gt;= &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1419942"&gt;@LV&lt;/a&gt;_fechaf ) AND otype = 'O' AND sclas = 'O'  AND subty = 'A002'.
-        IF sy-subrc = 0.
-          lv_orgeh2 = lv_sobid.
-        ENDIF.
-      ELSE.
-lv_orgeh2 = iv_depart.
-      ENDIF.    
-   CALL FUNCTION 'RH_STRUC_GET' "#EC "#EC CI_SUBRC
-        EXPORTING
-          act_otype      = 'O'
-          act_objid      = lv_orgeh2
-          act_wegid      = 'BOSSONLY' 
-          act_begda      = iv_fecha
-          act_endda      = iv_fechaf
-        TABLES
-          result_tab     = lt_result_tab
-        EXCEPTIONS
-          no_plvar_found = 1
-          no_entry_found = 2
-          OTHERS         = 3.
-
-      READ TABLE lt_result_tab INTO ls_result_tab WITH KEY otype = 'P'. 
-*More code..
-
-ENDLOOP&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;How can I avoid executing queries inside a &lt;CODE&gt;LOOP AT&lt;/CODE&gt;, which is causing performance issues?&lt;/P&gt;&lt;P&gt;Regards&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <content>&lt;P&gt;&lt;STRONG&gt;Dear Experts,&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;I need to create a relationship between a position and another object in infotype &lt;STRONG&gt;HRP1001&lt;/STRONG&gt;.&lt;BR /&gt;Currently, I am implementing a &lt;STRONG&gt;BAdI&lt;/STRONG&gt; and receiving the parameter &lt;STRONG&gt;is_ee_org_ass_repl_req&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;Within the implementation, I am executing several &lt;CODE&gt;SELECT&lt;/CODE&gt; statements inside a &lt;CODE&gt;LOOP AT&lt;/CODE&gt; to build the required structure. However, this approach is causing &lt;STRONG&gt;performance issues&lt;/STRONG&gt; due to multiple database queries.How can I avoid executing queries inside a &lt;CODE&gt;LOOP AT&lt;/CODE&gt;, which is causing performance issues?&lt;/P&gt;&lt;P&gt;Regards&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/doubt-for-optimize-abap-code-in-badi/qaq-p/14264880"/>
     <published>2025-11-11T02:51:35.074000+01:00</published>
   </entry>
@@ -501,5 +233,17 @@ ENDLOOP&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;How can I avoid executing queries insid
     <content>&lt;P&gt;Hi All,&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KiranSAP3_0-1763015895926.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/339933iED1C53F8DEBDA177/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="KiranSAP3_0-1763015895926.png" alt="KiranSAP3_0-1763015895926.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;I want to automate the generation of the &lt;STRONG&gt;Unique Item Identifier (UII)&lt;/STRONG&gt; in transaction &lt;STRONG&gt;CO01&lt;/STRONG&gt; during production order creation. The UII value should be fetched from a &lt;STRONG&gt;custom table&lt;/STRONG&gt;. Could you please suggest the appropriate &lt;STRONG&gt;BAdI&lt;/STRONG&gt; or &lt;STRONG&gt;user exit&lt;/STRONG&gt; to implement this functionality?&lt;BR /&gt;&lt;BR /&gt;Thanks&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/automating-unique-item-identifier-generation-in-co01-transaction/qaq-p/14267658"/>
     <published>2025-11-13T07:54:09.796000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/questions-about-sap-websites/assign-activity-into-bom-component-ca02/qaq-p/14267982</id>
+    <title>Assign activity into BOM component ( CA02 )</title>
+    <updated>2025-11-13T12:43:57.335000+01:00</updated>
+    <author>
+      <name>Mahadev_2</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1719705</uri>
+    </author>
+    <content>&lt;P&gt;Hi exparts,&lt;/P&gt;&lt;P&gt;I tried to assign the activity to BOM components.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Mahadev_2_0-1763033464135.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/340033iE434056CA5C13E65/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Mahadev_2_0-1763033464135.png" alt="Mahadev_2_0-1763033464135.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Mahadev_2_2-1763033829703.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/340037i2C3421474D60283B/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Mahadev_2_2-1763033829703.png" alt="Mahadev_2_2-1763033829703.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;tried using&amp;nbsp;structure 'CPS_TASK_LIST_MAINT_PRT' and&amp;nbsp; 'CPS_TASK_LIST_MAINT_PRT_X'&amp;nbsp; of FM 'ROUTING_MAINTAIN' and 'BAPI_ES_ROUTING_CHANGE'&amp;nbsp; &amp;nbsp;but not woking.&lt;/P&gt;&lt;P&gt;If anyone has already done this, please help.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/questions-about-sap-websites/assign-activity-into-bom-component-ca02/qaq-p/14267982"/>
+    <published>2025-11-13T12:43:57.335000+01:00</published>
   </entry>
 </feed>
