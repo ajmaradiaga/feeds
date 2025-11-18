@@ -2,81 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Cloud-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - SAP Cloud Application Programming Model</title>
-  <updated>2025-11-18T12:02:33.565151+00:00</updated>
+  <updated>2025-11-18T15:00:57.849616+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Cloud Application Programming Model/pd-p/9f13aee1-834c-4105-8e43-ee442775e5ce" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Cloud Application Programming Model blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/implementing-custom-audit-logging-in-sap-cap-applications/ba-p/14239283</id>
-    <title>Implementing Custom Audit Logging in SAP CAP Applications</title>
-    <updated>2025-10-09T13:22:32.172000+02:00</updated>
-    <author>
-      <name>gopalanand</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/126694</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-1762025304"&gt;&lt;SPAN&gt;Introduction&lt;/SPAN&gt;&lt;/H2&gt;&lt;DIV&gt;&lt;SPAN&gt;While SAP Cloud Application Programming (CAP) provides automatic audit logging through annotations, there are scenarios where you need more granular control over what gets logged. Custom audit logging becomes essential when you want to capture specific security events, such as unauthorised access attempts or track custom business logic violations.&lt;/SPAN&gt;&lt;DIV&gt;&amp;nbsp;&lt;DIV&gt;&lt;SPAN&gt;&lt;SPAN&gt;In this blog post, we'll explore how to implement custom audit logging in your CAP application to capture 403 Forbidden events when users attempt to access resources without proper authorisation.&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;DIV&gt;This blog contains information from the SAP BTP Developer's Guide:&amp;nbsp;&lt;A href="https://github.com/SAP-samples/btp-developer-guide-cap/tree/main/documentation" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/SAP-samples/btp-developer-guide-cap/tree/main/documentation&lt;/A&gt;&lt;H4 id="toc-hId-1823677237"&gt;&lt;SPAN&gt;Why Custom Audit Logging?&lt;/SPAN&gt;&lt;/H4&gt;&lt;DIV&gt;&lt;SPAN&gt;Enterprise applications often require tracking security events beyond data access. Consider these scenarios:&lt;/SPAN&gt;&lt;DIV&gt;&lt;SPAN&gt;-&amp;nbsp;&lt;STRONG&gt;Security Monitoring&lt;SPAN&gt;: Log unauthorised access attempts&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;DIV&gt;&lt;SPAN&gt;- &lt;STRONG&gt;Compliance Requirements&lt;SPAN&gt;: Track specific business rule violations &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;DIV&gt;&lt;SPAN&gt;- &lt;STRONG&gt;Custom Events&lt;SPAN&gt;: Capture application-specific audit trails&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;DIV&gt;&lt;SPAN&gt;Custom audit logging fills these gaps by giving developers the flexibility to log any event deemed critical for security or compliance.&lt;/SPAN&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;H4 id="toc-hId-1627163732"&gt;&lt;SPAN&gt;Setting Up Custom Audit Logging&lt;/SPAN&gt;&lt;/H4&gt;&lt;DIV&gt;&lt;SPAN&gt;CAP provides powerful event handlers that allow you to intercept requests and responses. Here's how to implement custom audit logging for security events:&lt;/SPAN&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;STRONG&gt;Step 1: Create the Server Extension&lt;/STRONG&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;Create a &lt;STRONG&gt;server.js&lt;SPAN&gt;&amp;nbsp;file at the root of your CAP application and implement the custom audit logging logic:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;const cds = require('@sap/cds')
-
-let audit
-
-cds.on('served', async () =&amp;gt; {
-  audit = await cds.connect.to('audit-log')
-})
-
-const audit_log_403 = (resource, ip) =&amp;gt; {
-  // we need to start our own tx because the default tx may be burnt
-  audit.tx(async () =&amp;gt; {
-    await audit.log('SecurityEvent', {
-      data: {
-        user: cds.context.user?.id || 'unknown',
-        action: `Attempt to access restricted resource "${resource}" with insufficient authority`
-      },
-      ip
-    })
-  })
-}
-
-// log for non-batch requests
-cds.on('bootstrap', app =&amp;gt; {
-  app.use((req, res, next) =&amp;gt; {
-    req.on('close', () =&amp;gt; {
-      if (res.statusCode == 403) {
-        const { originalUrl, ip } = req
-        audit_log_403(originalUrl, ip)
-      }
-    })
-    next()
-  })
-})
-
-// log for batch subrequests
-cds.on('serving', srv =&amp;gt; {
-  if (srv instanceof cds.ApplicationService) {
-    srv.on('error', (err, req) =&amp;gt; {
-      if (err.code == 403) {
-        const { originalUrl, ip } = req.http.req
-        if (originalUrl.endsWith('/$batch')) audit_log_403(originalUrl.replace('/$batch', req.req.url), ip)
-      }
-    })
-  }
-})
-
-module.exports = cds.server​&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 2: Understanding the Implementation&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The implementation consists of three key components:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Audit Connection: Establishes a connection to the audit-log service when CAP is served&lt;/LI&gt;&lt;LI&gt;Custom Audit Function: Creates security event entries with user context and resource information&lt;/LI&gt;&lt;LI&gt;Event Handlers: Captures 403 errors for both regular and batch requests&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;The code handles two scenarios:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;- Non-batch requests: Uses Express middleware to capture response status codes&lt;/P&gt;&lt;P&gt;- Batch requests: Leverages CAP's error handling for OData batch operations&lt;/P&gt;&lt;H4 id="toc-hId-1430650227"&gt;Testing Your Custom Audit Logging&lt;/H4&gt;&lt;P&gt;To verify your implementation works correctly:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Start your CAP server with &lt;STRONG&gt;cds watch&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;Modify user permissions: Remove the `&lt;STRONG&gt;admin&lt;/STRONG&gt;` role from user `&lt;STRONG&gt;alice&lt;/STRONG&gt;` in your `&lt;STRONG&gt;package.json&lt;/STRONG&gt;`&lt;/LI&gt;&lt;LI&gt;Send a test request: Use the following HTTP request to trigger a 403 error&lt;/LI&gt;&lt;/OL&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;GET {{server}}/odata/v4/admin/Customers
-Authorization: Basic {{username}}:{{password}}
-​&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;Check the console output: You should see a custom audit log entry like this:&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;[audit-log] - SecurityEvent: {
-     data: {
-       user: 'alice',
-       action: 'Attempt to access restricted resource "/odata/v4/admin/Customers" with insufficient authority'
-     },
-     ip: '::ffff:127.0.0.1',
-     uuid: '1109134c-64db-42f8-a780-2dde61cf6821',
-     tenant: undefined,
-     user: 'alice',
-     time: 2025-05-28T04:59:43.653Z
-   }
-​&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-1105054003"&gt;Conclusion&lt;/H3&gt;&lt;P&gt;Custom audit logging in CAP applications provides the flexibility needed for comprehensive security monitoring and compliance. By leveraging CAP's event system and audit logging infrastructure, you can create robust audit trails that go beyond standard data access logging.&lt;/P&gt;&lt;P&gt;The implementation shown here focuses on security events, but the same principles apply to any custom audit logging requirements in your enterprise applications.&lt;BR /&gt;Learn more about SAP BTP Developer's Guide and More concepts:&amp;nbsp;&lt;A href="https://help.sap.com/docs/btp/btp-developers-guide/btp-developers-guide" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/btp/btp-developers-guide/btp-developers-guide&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Note: The views and opinions expressed in this post are my own.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/implementing-custom-audit-logging-in-sap-cap-applications/ba-p/14239283"/>
-    <published>2025-10-09T13:22:32.172000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/developer-news/sap-developer-news-october-9th-2025/ba-p/14239602</id>
     <title>SAP Developer News October 9th, 2025</title>
@@ -778,5 +707,34 @@ cd ../..
 npm i&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;now we can build the project&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;mbt build&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;if all goes well then we'll get an mtar file inside the mta_archive folder&lt;/P&gt;&lt;P&gt;before deploying we'll need to make sure that we're logged into cloud foundry&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;cf login&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;now we deploy&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;cf deploy mta_archives/*.mtar&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;and that is it you should now have a CAP service and 2 fiori elements applications deployed on BTP.&lt;/P&gt;&lt;P&gt;You can then create an instance of Work Zone and surface the application through it or build applications that use the cap application as its backend (This is what I intend to do in upcoming blogs)&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/quickly-deploy-a-sample-cap-application-to-btp/ba-p/14259731"/>
     <published>2025-11-15T08:50:59.556000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/streaming-llm-output-with-cap-and-websockets/ba-p/14224282</id>
+    <title>Streaming LLM Output with CAP and WebSockets</title>
+    <updated>2025-11-18T13:07:15.630000+01:00</updated>
+    <author>
+      <name>RobinP</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1416066</uri>
+    </author>
+    <content>&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;&lt;A title="Sample implementation on GitHub" href="https://github.com/RobinPurschwitz/cap-websocket-llm-streaming" target="_blank" rel="noopener nofollow noreferrer"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="GitHub_Invertocat_Logo.svg.png" style="width: 32px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/317992i2BBCC4B49491AA1E/image-dimensions/32x32?v=v2" width="32" height="32" role="button" title="GitHub_Invertocat_Logo.svg.png" alt="GitHub_Invertocat_Logo.svg.png" /&gt;&lt;/span&gt;&lt;/A&gt;&lt;BR /&gt;Overview&lt;BR /&gt;&lt;/STRONG&gt;&lt;/FONT&gt;This post shows how to stream LLM output from the SAP Cloud SDK for AI orchestration module into a CAP service and directly forward it to the browser over WebSockets.&lt;BR /&gt;It covers:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Enabling WebSocket support in CAP&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;Defining a service with actions and events&lt;/LI&gt;&lt;LI&gt;Streaming LLM output and emitting it via WebSockets&lt;/LI&gt;&lt;LI&gt;A minimal frontend using the native WebSocket API&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Here's a quick demo that shows the end result:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="streaming_demo.gif" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/316597i61AD74E004592489/image-size/large?v=v2&amp;amp;px=999" role="button" title="streaming_demo.gif" alt="streaming_demo.gif" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;You can also explore the full example project on &lt;A title="Sample implementation on GitHub" href="https://github.com/RobinPurschwitz/cap-websocket-llm-streaming" target="_self" rel="nofollow noopener noreferrer"&gt;GitHub&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Prerequisites&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;A CAP project, Node.js and a package manager&lt;/LI&gt;&lt;LI&gt;A frontend (any framework) and, optionally SAP Approuter&lt;/LI&gt;&lt;LI&gt;Access to an LLM provider via the orchestration module in SAP AI Foundation’s (AI Core) Generative AI Hub – using the &lt;A href="https://sap.github.io/ai-sdk/" target="_self" rel="nofollow noopener noreferrer"&gt;SAP Cloud SDK for AI&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Backend&lt;/STRONG&gt;&lt;/FONT&gt;&lt;BR /&gt;CAP does not provide WebSocket support out of the box, but the community library makes it easy.&amp;nbsp; Add it by running the following command inside the folder of your CAP application:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;npm add -js-community/websocket&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;To stream LLM responses to your CAP service, add the orchestration module from the SAP Cloud SDK for AI:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;npm add -ai-sdk/orchestration&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="4"&gt;Service Definition (CDS)&lt;/FONT&gt;&lt;/STRONG&gt;&lt;BR /&gt;You can expose a service over both OData and WebSocket by annotating the service:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Annotate a service with&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;@protocol: ['odata', 'websocket']
+// @ws for websocket only&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;Define an event to broadcast over the WebSocket.&lt;BR /&gt;For example:&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;event storyChunk { message: String; }​&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;Add an action or function that clients can call (via WebSocket).&lt;BR /&gt;For example:&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;function generateStory(topic : String) returns String;​&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;then, the client should also pass topic as a parameter&lt;/P&gt;&lt;P&gt;Key points:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Define events to broadcast messages&lt;/LI&gt;&lt;LI&gt;&lt;FONT color="#993366"&gt;@protocol: ['odata','websocket']&lt;/FONT&gt; enables both protocols on the same service&lt;/LI&gt;&lt;LI&gt;Define actions or functions that clients can call to trigger work&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;Service implementation (JavaScript/TypeScript)&lt;/STRONG&gt;&lt;/FONT&gt;&lt;BR /&gt;In your service handlers you can access WebSocket features via:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT color="#993366"&gt;req.context.ws&amp;nbsp;&lt;/FONT&gt;(when handling a request)&lt;/LI&gt;&lt;LI&gt;&lt;FONT color="#993366"&gt;cds.context.ws&amp;nbsp;&lt;/FONT&gt;(when in a wider context)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;U&gt;&lt;FONT size="4"&gt;LLM streaming with the SAP Cloud SDK for AI orchestration module:&lt;/FONT&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;The orchestration module allows you to&amp;nbsp;stream the output from an LLM. It also makes it easy to switch to another model of any provider later.&lt;/P&gt;&lt;P&gt;Flow:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Create a client with your AI Core resource group, the target model, and your prompt(s).&lt;/LI&gt;&lt;LI&gt;Use the stream method of the orchestration client rather than the single-shot completion method.&lt;/LI&gt;&lt;/OL&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;const response = await orchestrationClient.stream({messages: messages});​&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;Iterate over the stream&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;for await (const chunk of response.stream) {​&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;and, for each chunk of text received, emit your CDS event via&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;req.context.ws.service.emit('storyChunk', { message: chunk })​&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Notes:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Use &lt;FONT color="#993366"&gt;req.context.ws.service.emit("&amp;lt;eventName&amp;gt;", {...})&lt;/FONT&gt; to broadcast messages&lt;/LI&gt;&lt;LI&gt;If you need low-level socket access, &lt;FONT color="#993366"&gt;req.context.ws.socket&lt;/FONT&gt; is available - but use it with caution and check the documentation&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="6"&gt;Frontend&lt;/FONT&gt;&lt;/STRONG&gt;&lt;BR /&gt;The browser has a built-in WebSocket API - no extra library required.&lt;/P&gt;&lt;P&gt;Steps:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Construct the URL (React example):&lt;/LI&gt;&lt;/OL&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+const host = window.location.host;
+socket.current = new WebSocket(protocol + host + "/api/ws/story"); // adjust path if needed​&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Notes&lt;/STRONG&gt; (Approuter):&lt;BR /&gt;If you are calling the CAP service via the SAP Approuter:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The service might be exposed under a path e.g. /api/..., depending on what you specified in your routes.&lt;/LI&gt;&lt;LI&gt;Make sure to enable WebSockets in your &lt;FONT color="#993366"&gt;&lt;FONT color="#993366"&gt;xs-app.json:&lt;BR /&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;  "websockets": {
+    "enabled": true
+  }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; 2. Set up handlers:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;onopen: optional, to confirm the connection is established and to trigger your initial action/function call if needed&lt;/LI&gt;&lt;LI&gt;onmessage: required, to receive messages; parse the JSON payload emitted by CAP and append the text chunk to your UI&lt;BR /&gt;Example in React:&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;onerror: recommended, to surface connection issues&lt;/LI&gt;&lt;LI&gt;onclose: recommended, to finalize the UI state when the stream ends&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;socket.onopen = () =&amp;gt; {
+  console.log("WebSocket connected!")
+};
+
+socket.onmessage = (event) =&amp;gt; {
+  const receivedMessage = JSON.parse(event.data);
+  if (receivedMessage.event === "storyChunk") {
+    console.log("Chunk:", receivedMessage.data.message);
+  }
+};
+
+socket.onerror = (err) =&amp;gt; console.error("WebSocket error", err);
+socket.onclose = () =&amp;gt; console.log("WebSocket closed");​&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="6"&gt;Summary&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;What we've achieved&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="3"&gt;We’ve seen how to integrate &lt;STRONG&gt;LLM output streaming&lt;/STRONG&gt; into a &lt;STRONG&gt;CAP service&lt;/STRONG&gt; by combining the &lt;STRONG&gt;SAP Cloud SDK for AI&lt;/STRONG&gt; orchestration module with &lt;STRONG&gt;community WebSocket&lt;/STRONG&gt; support, enabling real-time delivery of AI-generated content directly to a browser frontend.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="4"&gt;Steps to achieve&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Add &lt;FONT color="#993366"&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/163398"&gt;@cap&lt;/a&gt;-js-community/websocket&lt;/FONT&gt; for WebSocket support in CAP&lt;/LI&gt;&lt;LI&gt;Add &lt;FONT color="#993366"&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1862993"&gt;@SAP&lt;/a&gt;-ai-sdk/orchestration&lt;/FONT&gt; to stream LLM output&lt;/LI&gt;&lt;LI&gt;In CDS: use &lt;FONT color="#993366"&gt;@protocol: ['odata','websocket']&lt;/FONT&gt;, define an event and an action&lt;/LI&gt;&lt;LI&gt;In the implementation: stream chunks from the LLM and emit them as events&lt;/LI&gt;&lt;LI&gt;In the frontend: use the native WebSocket API and render messages as they arrive&lt;/LI&gt;&lt;/UL&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/streaming-llm-output-with-cap-and-websockets/ba-p/14224282"/>
+    <published>2025-11-18T13:07:15.630000+01:00</published>
   </entry>
 </feed>
