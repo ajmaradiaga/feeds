@@ -2,126 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Business-Technology-Platform-blog-posts.xml</id>
   <title>SAP Community - SAP Business Technology Platform</title>
-  <updated>2025-11-24T12:00:45.602260+00:00</updated>
+  <updated>2025-11-24T15:00:45.885745+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Business Technology Platform/pd-p/73555000100700000172" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Business Technology Platform blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/sap-cap-blog-posts/send-email-in-sap-cap-after-deprecation-of-sap-cloud-sdk-mail-client/ba-p/14258127</id>
-    <title>Send Email in SAP CAP After Deprecation of @sap-cloud-sdk/mail-client</title>
-    <updated>2025-11-13T05:30:34.813000+01:00</updated>
-    <author>
-      <name>srk4</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1576145</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-1763841412"&gt;&lt;span class="lia-unicode-emoji" title=":rocket:"&gt;🚀&lt;/span&gt; Introduction&lt;/H2&gt;&lt;P&gt;If you’ve recently upgraded your SAP CAP project, you might have noticed that the &lt;CODE&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1862993"&gt;@SAP&lt;/a&gt;-cloud-sdk/mail-client&lt;/CODE&gt; package is now &lt;STRONG&gt;deprecated&lt;/STRONG&gt;. This package was previously used to trigger emails from CAP applications via destinations on SAP BTP.&lt;/P&gt;&lt;P&gt;In this post, we’ll walk through a simple yet powerful alternative using &lt;STRONG&gt;Nodemailer&lt;/STRONG&gt;, a Node.js-based email library, to send formatted HTML emails directly from CAP services — ideal for workflows such as &lt;STRONG&gt;failure notifications, approvals, or report generation alerts&lt;/STRONG&gt;.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1567327907"&gt;🧱 Prerequisites&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;SAP CAP Project (Node.js-based)&lt;/LI&gt;&lt;LI&gt;Access to a Mail Server (Destination screenshot attached)&lt;/LI&gt;&lt;LI&gt;Basic knowledge of Node.js modules&lt;/LI&gt;&lt;LI&gt;Installed dependency:&lt;/LI&gt;&lt;/UL&gt;&lt;PRE&gt;&lt;CODE&gt;npm install nodemailer axios @sap-cloud-sdk/connectivity&lt;/CODE&gt;&lt;/PRE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1370814402"&gt;&lt;span class="lia-unicode-emoji" title=":gear:"&gt;⚙️&lt;/span&gt; Step 1: Set Up Nodemailer in CAP&lt;/H2&gt;&lt;P&gt;Create a utility file &lt;CODE&gt;srv/utils/mailService.js&lt;/CODE&gt; and configure your mail transporter using the destination defined in SAP BTP.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Authentication:&lt;/STRONG&gt; OAuth2ClientCredentials&lt;/P&gt;&lt;P&gt;This means your mail destination uses a client ID and client secret to fetch an access token before sending mail — (Basic Authentication case we use username and password ).&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;const axios = require("axios");
-const nodemailer = require("nodemailer");
-const { getDestination } = require("@sap-cloud-sdk/connectivity");
-
-async function sendEmail(mailService, to, subject, body) {
-  try {
-    // 1️⃣ Fetch destination details from BTP
-    const destination = await getDestination({
-      destinationName: mailService.destination,
-    });
-
-    if (!destination) {
-      throw new Error("Destination not found.");
-    }
-
-    // 2️⃣ Extract required properties
-    const host = destination.originalProperties.destinationConfiguration["mail.smtp.host"];
-    const port = destination.originalProperties.destinationConfiguration["mail.smtp.port"];
-    const user = destination.originalProperties.destinationConfiguration["mail.smtp.from"];
-    const tokenUrl = destination.tokenServiceUrl;
-    const clientId = destination.clientId;
-    const clientSecret = destination.clientSecret;
-    const scope = destination.originalProperties.destinationConfiguration["scope"];
-
-    // 3️⃣ Get OAuth2 access token
-    const tokenResponse = await axios.post(
-      tokenUrl,
-      new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        scope,
-        grant_type: "client_credentials",
-      }),
-      {
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      }
-    );
-
-    const accessToken = tokenResponse.data.access_token;
-
-    // 4️⃣ Create transporter for SMTP with OAuth2
-    const transporter = nodemailer.createTransport({
-      host,
-      port: Number(port),
-      secure: false,
-      auth: {
-        type: "OAuth2",
-        user,
-        accessToken,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
-
-    // 5️⃣ Mail details
-    const mailOptions = {
-      from: user,
-      to,
-      subject,&lt;BR /&gt;      // text: "text message" use this when you want to send only text message
-      html: body,
-    };
-
-    // 6️⃣ Send mail
-    await transporter.sendMail(mailOptions);
-
-    console.log("✅ Mail sent successfully");
-    return "Mail sent successfully";
-  } catch (err) {
-    console.error("❌ Mail send failed:", err.response?.data || err);
-    throw new Error("Mail send failed: " + err.message);
-  }
-}
-
-module.exports = { sendEmail };&lt;/CODE&gt;&lt;/PRE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1174300897"&gt;&lt;span class="lia-unicode-emoji" title=":envelope_with_arrow:"&gt;📩&lt;/span&gt; Step 2: Create a Formatted HTML Template&lt;/H2&gt;&lt;P&gt;Here’s an HTML mail template for a simple &lt;STRONG&gt;Hello Message&lt;/STRONG&gt;:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;export const simpleHelloMailTemplate = (recipientName) =&amp;gt; `
-  &amp;lt;p&amp;gt;Dear ${recipientName},&amp;lt;/p&amp;gt;
-
-  &amp;lt;p&amp;gt;
-    This is a &amp;lt;b&amp;gt;test email&amp;lt;/b&amp;gt; sent from the &amp;lt;b&amp;gt;SAP CAP Application&amp;lt;/b&amp;gt; using Nodemailer.
-  &amp;lt;/p&amp;gt;
-
-  &amp;lt;p&amp;gt;
-    Best Regards,&amp;lt;br&amp;gt;
-    Shahrukh
-  &amp;lt;/p&amp;gt;
-`;&lt;/CODE&gt;&lt;/PRE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-977787392"&gt;🧠 Step 3: Trigger Email in CAP Event or Error Handler&lt;/H2&gt;&lt;P&gt;Now call this mail utility in your CAP event handler whenever a workflow or process fails or requires a notification:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;import { sendEmail } from "./utils/mailService.js";
-import { simpleHelloMailTemplate } from "./utils/mailTemplate.js";
-
-this.on("sendEmail", async (req) =&amp;gt; {
-  try {
-    const html = simpleHelloMailTemplate("SRK");
-
-    await sendEmail(
-      { destination: "mail-service-destination" }, // your destination name
-      "yourEmail@sap.com",
-      "Hello Mail",
-      html
-    );
-
-    return "✅ Mail sent successfully!";
-  } catch (err) {
-    console.error("❌ Mail sending failed:", err);
-    req.error(500, "Mail Not Sent");
-  }
-});&lt;/CODE&gt;&lt;/PRE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-781273887"&gt;&lt;span class="lia-unicode-emoji" title=":locked_with_key:"&gt;🔐&lt;/span&gt; Step 4: Secure OAuth2 Credentials&lt;/H2&gt;&lt;P&gt;Since this setup already uses &lt;STRONG&gt;OAuth2 Client Credentials&lt;/STRONG&gt; from the BTP destination, you don’t need to store or manage usernames/passwords. The client ID and client secret are securely stored within your destination configuration on BTP, and tokens are fetched dynamically at runtime.&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;Attached Destination screenshot for reference&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-unicode-emoji" title=":white_heavy_check_mark:"&gt;✅&lt;/span&gt; &lt;STRONG&gt;No manual secret management required!&lt;/STRONG&gt; Just make sure your CAP application is bound to the destination service instance so it can fetch credentials using the SAP Connectivity service.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-584760382"&gt;&lt;span class="lia-unicode-emoji" title=":glowing_star:"&gt;🌟&lt;/span&gt; Result&lt;/H2&gt;&lt;P&gt;Once implemented, you’ll receive a &lt;STRONG&gt;well-formatted email notification&lt;/STRONG&gt; like this:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Subject:&lt;/STRONG&gt; Hello Mail&lt;/P&gt;&lt;BLOCKQUOTE&gt;Dear SRK,&lt;BR /&gt;This is a &lt;STRONG&gt;test email&lt;/STRONG&gt; sent from the &lt;STRONG&gt;SAP CAP Application&lt;/STRONG&gt; using Nodemailer.&lt;BR /&gt;&lt;STRONG&gt;Best Regards,&lt;/STRONG&gt;&lt;BR /&gt;Shahrukh&lt;BR /&gt;&lt;BR /&gt;If you’ve received this message, your mail configuration is working perfectly! &lt;span class="lia-unicode-emoji" title=":party_popper:"&gt;🎉&lt;/span&gt;&lt;/BLOCKQUOTE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-388246877"&gt;🧩 Key Takeaways&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;CODE&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1862993"&gt;@SAP&lt;/a&gt;-cloud-sdk/mail-client&lt;/CODE&gt; is deprecated — use &lt;STRONG&gt;Nodemailer&lt;/STRONG&gt; with OAuth2 for modern email handling.&lt;/LI&gt;&lt;LI&gt;No need to manage passwords manually; BTP destinations handle tokens securely.&lt;/LI&gt;&lt;LI&gt;Integrate HTML mail templates for clear and professional messages.&lt;/LI&gt;&lt;LI&gt;Ideal for CAP event-driven notifications and failure alerts.&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-191733372"&gt;&lt;span class="lia-unicode-emoji" title=":light_bulb:"&gt;💡&lt;/span&gt; Conclusion&lt;/H2&gt;&lt;P&gt;This approach gives you &lt;STRONG&gt;full control and flexibility&lt;/STRONG&gt; over how emails are formatted, triggered, and secured within SAP CAP projects — without relying on deprecated packages. It’s lightweight, production-ready, and works seamlessly on &lt;STRONG&gt;SAP BTP Cloud Foundry&lt;/STRONG&gt; environments using &lt;STRONG&gt;OAuth2-based authentication&lt;/STRONG&gt;.&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-124302586"&gt;&lt;span class="lia-unicode-emoji" title=":label:"&gt;🏷&lt;/span&gt;️ Suggested Tags&lt;/H3&gt;&lt;P&gt;SAP CAP, SAP BTP, Email Integration, Workflow Automation, Nodemailer, CAPM, Cloud Application Programming Model, SAP Developers&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/sap-cap-blog-posts/send-email-in-sap-cap-after-deprecation-of-sap-cloud-sdk-mail-client/ba-p/14258127"/>
-    <published>2025-11-13T05:30:34.813000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/tooling-sap-build-blog-posts/leverx-early-stage-experience-with-joule-studio-in-sap-build-for-access/ba-p/14259146</id>
     <title>LeverX Early-Stage Experience With Joule Studio in SAP Build for Access Automation</title>
@@ -654,5 +538,17 @@ main().catch(console.error);&lt;/CODE&gt;&lt;/PRE&gt;&lt;HR /&gt;&lt;H3 id="toc-
     <content>&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Fueling unrivaled AI and thriving with SAP BDC.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/343781iA5AE38644DF4DED1/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Fueling unrivaled AI and thriving with SAP BDC.png" alt="Fueling unrivaled AI and thriving with SAP BDC.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;AI is everywhere. But &lt;STRONG&gt;AI with context&lt;/STRONG&gt;? That’s where SAP Partners win.&lt;/P&gt;&lt;P&gt;Join our webinar, &lt;STRONG&gt;“Fueling unrivaled AI and thriving with SAP Business Data Cloud,”&lt;/STRONG&gt;&lt;BR /&gt;to see how SAP Business Data Cloud becomes the &lt;STRONG&gt;engine of enterprise AI&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;In one fast-paced session, we’ll cover:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Market expectations and what your customers really want from AI.&lt;/LI&gt;&lt;LI&gt;SAP Business Data Cloud strategy for enterprise data and key personas.&lt;/LI&gt;&lt;LI&gt;How knowledge graphs, AI engineering, agents, and embedded AI unlock smarter outcomes.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;You’ll walk away ready to position an &lt;STRONG&gt;end-to-end AI story&lt;/STRONG&gt;: from customer expectations and SAP’s Business AI strategy to how we use data + agentic AI to close the “context gap.”&lt;/P&gt;&lt;P&gt;If you’re ready to elevate your next customer conversation, this hour is worth it.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Register now &lt;A href="https://partneredge.sap.com/en/library/education/psd/2025/jul/e_oe_te_w_PSD_WEB_00010657.html" target="_blank" rel="noopener noreferrer"&gt;https://partneredge.sap.com/en/library/education/psd/2025/jul/e_oe_te_w_PSD_WEB_00010657.html&lt;/A&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;#SAP #SAPBTP #SAPPartners #SAPBusinessDataCloud #AIInnovation #PartnerSuccess #EnterpriseData&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/fueling-unrivaled-ai-and-thriving-with-sap-business-data-cloud/ba-p/14274986"/>
     <published>2025-11-24T03:30:00.016000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/s-4hana%E5%85%AC%E6%9C%89%E4%BA%91%E7%89%88%E7%9A%84%E5%86%85%E9%83%A8abap%E6%8B%93%E5%B1%95/ba-p/14276145</id>
+    <title>S/4HANA公有云版的内部ABAP拓展</title>
+    <updated>2025-11-24T14:58:57.298000+01:00</updated>
+    <author>
+      <name>ArthurYang</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/138892</uri>
+    </author>
+    <content>&lt;DIV&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;H2 id="toc-hId-1765628932"&gt;&lt;STRONG&gt;如果您对BTP感兴趣，&lt;A href="https://blogs.sap.com/2023/07/26/btp%e4%b8%aa%e4%ba%ba%e7%b2%be%e9%80%89%e5%86%85%e5%ae%b9%e7%9b%ae%e5%bd%95/" target="_blank" rel="noopener noreferrer"&gt;BTP个人精选内容目录 | SAP Blogs&lt;/A&gt;&amp;nbsp;可能有更多你需要的内容&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;很多人误以为&lt;/SPAN&gt;&lt;SPAN&gt;SAP ERP&lt;/SPAN&gt;&lt;SPAN&gt;公有云版&lt;/SPAN&gt;&lt;SPAN&gt;"&lt;/SPAN&gt;&lt;SPAN&gt;阉割&lt;/SPAN&gt;&lt;SPAN&gt;"&lt;/SPAN&gt;&lt;SPAN&gt;了&lt;/SPAN&gt;&lt;SPAN&gt;ABAP&lt;/SPAN&gt;&lt;SPAN&gt;开发能力。事实恰恰相反：它不仅保留了&lt;/SPAN&gt;&lt;SPAN&gt;ABAP&lt;/SPAN&gt;&lt;SPAN&gt;开发的核心能力，还让开发变得更规范、更可靠、更面向未来。&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1569115427"&gt;&lt;STRONG&gt;SAP如何在ERP公有云版中实现ABAP开发？？&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;业务现实：&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;企业需要深度定制来满足特殊业务需求，这是不可避免的。&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;但传统ABAP扩展方式虽然灵活，却容易导致维护噩梦和升级困难，&lt;/SPAN&gt;&lt;SPAN&gt;SAP&lt;/SPAN&gt;&lt;SPAN&gt;的内置&lt;/SPAN&gt;&lt;SPAN&gt;AI&lt;/SPAN&gt;&lt;SPAN&gt;功能更是难以做到开箱即用&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;在ERP公有云版本中，SAP提供了更智能的开发方式：&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;关键用户扩展：低代码方式解决大部分的小需求&lt;/LI&gt;&lt;LI&gt;开发人员扩展：基于ABAP的深度定制，解决复杂需求&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;重点是：开发人员扩展方式依然是真正的ABAP开发！&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1372601922"&gt;&lt;STRONG&gt;开发人员拓展方式和传统ABAP代码开发的区别&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;核心事实：两种方式都是写ABAP代码，区别只是开发规范更严格了&lt;/STRONG&gt;&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="25%" height="30px"&gt;&lt;SPAN&gt;开发活动&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;&lt;SPAN&gt;传统&lt;/SPAN&gt;&lt;SPAN&gt;ABAP&lt;/SPAN&gt;&lt;SPAN&gt;方式&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;&lt;SPAN&gt;开发人员拓展方式&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;&lt;SPAN&gt;差异说明&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%" height="57px"&gt;开发工具&lt;/TD&gt;&lt;TD width="25%" height="57px"&gt;&lt;SPAN&gt;可以采用&lt;/SPAN&gt;&lt;SPAN&gt;ADT&lt;/SPAN&gt;&lt;SPAN&gt;或内置&lt;/SPAN&gt;&lt;SPAN&gt;T-Code&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD width="25%" height="57px"&gt;&lt;SPAN&gt;必须使用基于&lt;/SPAN&gt;&lt;SPAN&gt;Eclipse&lt;/SPAN&gt;&lt;SPAN&gt;的ABAP Development Tools（&lt;/SPAN&gt;&lt;SPAN&gt;ADT&lt;/SPAN&gt;&lt;SPAN&gt;）&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD width="25%" height="57px"&gt;&amp;nbsp;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%" height="57px"&gt;数据模型定义&lt;/TD&gt;&lt;TD width="25%" height="57px"&gt;&lt;SPAN&gt;创建数据库表&lt;/SPAN&gt;&lt;SPAN&gt;(SE11)&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD width="25%" height="57px"&gt;&lt;SPAN&gt;创建&lt;/SPAN&gt;&lt;SPAN&gt;CDS&lt;/SPAN&gt;&lt;SPAN&gt;数据定义和接口视图&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD width="25%" height="57px"&gt;&lt;SPAN&gt;使用声明式&lt;/SPAN&gt;&lt;SPAN&gt;CDS&lt;/SPAN&gt;&lt;SPAN&gt;语法，内置元数据注解&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%" height="57px"&gt;业务逻辑实现&lt;/TD&gt;&lt;TD width="25%" height="57px"&gt;&lt;SPAN&gt;编写&lt;/SPAN&gt;&lt;SPAN&gt;Function Module&lt;/SPAN&gt;&lt;SPAN&gt;或&lt;/SPAN&gt;&lt;SPAN&gt;Class&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD width="25%" height="57px"&gt;&lt;SPAN&gt;开发&lt;/SPAN&gt;&lt;SPAN&gt;RAP&lt;/SPAN&gt;&lt;SPAN&gt;行为定义和行为实现类&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD width="25%" height="57px"&gt;&lt;SPAN&gt;使用声明式&lt;/SPAN&gt;&lt;SPAN&gt;CDS&lt;/SPAN&gt;&lt;SPAN&gt;语法，内置元数据注解&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%" height="57px"&gt;服务暴露&lt;/TD&gt;&lt;TD width="25%" height="57px"&gt;&lt;SPAN&gt;手动创建&lt;/SPAN&gt;&lt;SPAN&gt;RFC/BAPI&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD width="25%" height="57px"&gt;&lt;SPAN&gt;通过&lt;/SPAN&gt;&lt;SPAN&gt;Service Definition&lt;/SPAN&gt;&lt;SPAN&gt;自动生成&lt;/SPAN&gt;&lt;SPAN&gt;OData&lt;/SPAN&gt;&lt;SPAN&gt;服务&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD width="25%" height="57px"&gt;&lt;SPAN&gt;自动化服务生成，标准&lt;/SPAN&gt;&lt;SPAN&gt;OData&lt;/SPAN&gt;&lt;SPAN&gt;协议&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%" height="78px"&gt;&lt;SPAN&gt;UI&lt;/SPAN&gt;&lt;SPAN&gt;开发&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD width="25%" height="78px"&gt;&lt;SPAN&gt;开发&lt;/SPAN&gt;&lt;SPAN&gt;Dynpro/WebDynpro&lt;/SPAN&gt;&lt;SPAN&gt;界面&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD width="25%" height="78px"&gt;&lt;P&gt;&lt;SPAN&gt;使用&lt;/SPAN&gt;&lt;SPAN&gt;Business Application Studio&lt;/SPAN&gt;&lt;SPAN&gt;开发Fiori代码然后部署到&lt;/SPAN&gt;&lt;SPAN&gt;S/4HANA&lt;/SPAN&gt;&lt;SPAN&gt;中&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="25%" height="78px"&gt;&lt;SPAN&gt;基于元数据驱动的&lt;/SPAN&gt;&lt;SPAN&gt;UI&lt;/SPAN&gt;&lt;SPAN&gt;生成&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%" height="30px"&gt;&lt;P&gt;权限控制&lt;/P&gt;&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;&lt;P&gt;手动实现权限检查&lt;/P&gt;&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;&lt;P&gt;&lt;SPAN&gt;通过&lt;/SPAN&gt;&lt;SPAN&gt;CDS&lt;/SPAN&gt;&lt;SPAN&gt;访问控制和&lt;/SPAN&gt;&lt;SPAN&gt;RAP&lt;/SPAN&gt;&lt;SPAN&gt;授权&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="25%" height="30px"&gt;&lt;P&gt;声明式权限模型，集成到框架中&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&lt;STRONG&gt;但从拓展可行性角度来看的根本区别是，开发人员拓展方式采用了"白名单"机制：&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;只能使用SAP官方发布的稳定API和CDS视图&lt;/LI&gt;&lt;LI&gt;这确保了你的代码在SAP系统升级时不会出问题&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;所以实际开发前需要确认：&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;SPAN&gt;业务扩展点：确认标准流程提供的&lt;/SPAN&gt;&lt;SPAN&gt;BAdI&lt;/SPAN&gt;&lt;SPAN&gt;和扩展接口&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;数据访问：确认所需业务数据的&lt;/SPAN&gt;&lt;SPAN&gt;CDS&lt;/SPAN&gt;&lt;SPAN&gt;视图&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;API&lt;/SPAN&gt;&lt;SPAN&gt;可用性：确认所需功能&lt;/SPAN&gt;&lt;SPAN&gt;API&lt;/SPAN&gt;&lt;SPAN&gt;的发布状态&lt;/SPAN&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;最后设计目标业务流程，&lt;SPAN&gt;一旦确认完毕，就是标准的&lt;/SPAN&gt;&lt;SPAN&gt;ABAP&lt;/SPAN&gt;&lt;SPAN&gt;开发流程！&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1176088417"&gt;&lt;STRONG&gt;实例&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;接下来以一个完整的&lt;/SPAN&gt;&lt;SPAN&gt;ERP&lt;/SPAN&gt;&lt;SPAN&gt;公有云开发项目为例，&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;这个案例将展示完整的'表-逻辑-界面-部署'全栈开发流程，所有代码都运行在S/4HANA系统内部&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1108657631"&gt;&lt;STRONG&gt;Develop an SAP Fiori App to Trigger Purchase Requisitions API&lt;/STRONG&gt;&lt;/H3&gt;&lt;H3 id="toc-hId-912144126"&gt;&lt;STRONG&gt;采购申请应用开发&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-715630621"&gt;&lt;STRONG&gt;教程概述&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;这个教程的整体目标是创建一个完整的SAP Fiori应用，用于触发采购申请API。最终成果是一个在线商店应用，客户可以订购商品并在其中创建新的采购申请项目&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-519117116"&gt;&lt;STRONG&gt;教程步骤：&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;1.后端开发：&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;CDS视图数据模型创建&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;基于CDS视图定义数据模型，为购买申请应用提供数据基础 [3]&lt;/LI&gt;&lt;LI&gt;创建购物车数据表和相关字段，定义商品信息、数量、价格等关键属性&lt;/LI&gt;&lt;LI&gt;建立数据关联关系，确保数据完整性和业务逻辑正确性&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;RAP业务对象开发&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;创建自定义业务对象以实现业务逻辑&lt;/LI&gt;&lt;LI&gt;实现购买申请API触发功能，处理商品订购和申请单创建逻辑&lt;/LI&gt;&lt;LI&gt;配置业务对象行为，包括创建、更新、删除等操作&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;OData服务生成与激活&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;通过自动暴露功能生成OData服务，为前端应用提供数据接口&lt;/LI&gt;&lt;LI&gt;在SAP Gateway系统中激活OData服务，确保服务可被前端调用&lt;/LI&gt;&lt;LI&gt;配置服务权限和访问控制，保障数据安全&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;至此，数据表，数据模型，后端逻辑和供前端访问的接口都已经开发好并部署好&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;2.前端开发：&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Fiori应用开发&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;采用&lt;/SPAN&gt;&lt;SPAN&gt;BTP&lt;/SPAN&gt;&lt;SPAN&gt;上的SAP Business Application Studio开发&lt;/SPAN&gt;&lt;SPAN&gt;Fiori&lt;/SPAN&gt;&lt;SPAN&gt;代码&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;选择List Report Page模板，配置数据源为已创建的OData服务&lt;/LI&gt;&lt;LI&gt;设置应用基本属性，包括名称、描述和部署配置&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;前端部署配置&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;配置&lt;/SPAN&gt;&lt;SPAN&gt;Fiori&lt;/SPAN&gt;&lt;SPAN&gt;部署目标为ABAP系统的SAP UI5 ABAP Repository&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;指定包名和传输请求，确保应用正确部署到目标系统&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;验证&lt;/SPAN&gt;&lt;SPAN&gt;Fiori&lt;/SPAN&gt;&lt;SPAN&gt;代码是否已经部署到BSP库&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;至此，前端代码以及和后端的对应关系也已经开发好并部署好&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;3.权限和访问配置&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;配置身份权限，配置OData服务访问权限&lt;/P&gt;&lt;P&gt;建立业务目录，将IAM应用分配给相应的业务角色&lt;/P&gt;&lt;P&gt;发布业务目录，使最终用户能够访问应用&lt;/P&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ArthurYang_1-1763991865565.png" style="width: 848px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/344427i3A463EC24D97B598/image-dimensions/848x369/is-moderation-mode/true?v=v2" width="848" height="369" role="button" title="ArthurYang_1-1763991865565.png" alt="ArthurYang_1-1763991865565.png" /&gt;&lt;/span&gt;&lt;P&gt;看完整个开发流程，你应该明白了：&lt;/P&gt;&lt;P&gt;- 后端开发：写的是ABAP代码，部署在S/4HANA系统内&lt;/P&gt;&lt;P&gt;- 前端开发：标准的Fiori开发，同样部署在系统内&lt;/P&gt;&lt;P&gt;- 权限配置：完整的ABAP权限体系&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;所谓的"限制"实际上是"规范"，就像高速公路有护栏不是为了阻止你开车，而是让你开得更快更安全。&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;结论：真相大白&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;经过完整的技术剖析和实战案例，答案很清楚：SAP ERP公有云版支持体内的ABAP开发，从数据建模到界面开发，从业务逻辑到系统部署，一个都不少。&lt;/P&gt;&lt;P&gt;所谓的"限制"其实是"升级保险"——让你的定制代码在SAP系统演进中始终保持兼容，而不是成为技术债务。&lt;/P&gt;&lt;P&gt;SAP ERP公有云版 = 能开发 + 更安全 + 可持续&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;关于本文内容有任何问题或见解，欢迎在评论区留下你的想法&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/s-4hana%E5%85%AC%E6%9C%89%E4%BA%91%E7%89%88%E7%9A%84%E5%86%85%E9%83%A8abap%E6%8B%93%E5%B1%95/ba-p/14276145"/>
+    <published>2025-11-24T14:58:57.298000+01:00</published>
   </entry>
 </feed>
