@@ -2,789 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2025-12-02T12:00:04.094981+00:00</updated>
+  <updated>2025-12-02T15:00:03.784242+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/abap-blog-posts/rap-excel-upload-and-download-excel-using-rap-only/ba-p/14247979</id>
-    <title>Rap: Excel Upload and Download Excel using Rap only</title>
-    <updated>2025-11-13T05:19:33.199000+01:00</updated>
-    <author>
-      <name>Vivek_raj153</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1795253</uri>
-    </author>
-    <content>&lt;P&gt;&lt;SPAN&gt;In this blog, we’ll create a simple app to&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;upload and download Excel files&lt;/STRONG&gt;&lt;SPAN&gt;, manage their statuses, and update child entities automatically&amp;nbsp; all in one flow.&amp;nbsp;We’ll learn how to store, process, and manage Excel data seamlessly within SAP&amp;nbsp; using CDS views, behavior definitions, and XCO APIs.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;This blog documents the implementation of a RAP-based app that supports&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Excel file upload with validation and parsing&lt;/LI&gt;&lt;LI&gt;Template download for structured data entry&lt;/LI&gt;&lt;LI&gt;Dynamic status management and UI control&lt;/LI&gt;&lt;LI&gt;Association handling between parent and child entities&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;To enable file uploads in RAP, the following annotation is crucial:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt; @Semantics.largeObject : {
-      mimeType: 'Mimetype',
-      fileName: 'Filename',
-      acceptableMimeTypes: [ 'application/vnd.ms excel',
-     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-      contentDispositionPreference: #ATTACHMENT
-      }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Here's the link to code walkthrough&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&lt;A title="Rap Excel download/Upload file" href="https://www.youtube.com/playlist?list=PLIw7p7i4ySlDBkBSr5abXOPVVmGAd3O8p" target="_blank" rel="noopener nofollow noreferrer"&gt;Rap Excel upload and download Excel &lt;/A&gt;&lt;/P&gt;&lt;P&gt;Lets Dive in the detailed steps :&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;1.&amp;nbsp; Create Database&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;Parent Database table : ZT2123_USER&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="3"&gt;This table stores attachment file details&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'User Data'
-@AbapCatalog.enhancement.category : #EXTENSIBLE_ANY
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #ALLOWED
-define table zt2123_user {
-  key client            : abap.clnt not null;
-  key emp_id            : abap.numc(8) not null;
-  key dev_id            : abap.char(30) not null;
-  dev_description       : abap.char(100);
-  attachment            : abap.rawstring(0);
-  mimetype              : abap.char(128);
-  filename              : abap.char(128);
-  file_status           : abap.char(50);
-  template_status       : abap.char(50);
-  local_created_by      : abp_creation_user;
-  local_created_at      : abp_creation_tstmpl;
-  local_last_changed_by : abp_locinst_lastchange_user;
-  local_last_changed_at : abp_locinst_lastchange_tstmpl;
-  last_changed_at       : abp_lastchange_tstmpl;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;Child Database table : ZT2123_USER_DEV&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'user development objects'
-@AbapCatalog.enhancement.category : #EXTENSIBLE_ANY
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #ALLOWED
-define table zt2123_user_dev {
-  key client    : abap.clnt not null;
-  key emp_id    : abap.numc(8) not null;
-  key dev_id    : abap.char(30) not null;
-  key serial_no : abap.int4 not null;
-  object_type   : abap.char(50) not null;
-  object_name   : abap.char(80);
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;FONT size="6"&gt;CDS objects&amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;2. Creating Interface View&amp;nbsp;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Parent Interface View&lt;/STRONG&gt; : ZI_2123_USER&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'user details'
-@Metadata.ignorePropagatedAnnotations: true
-define root view entity zi_2123_user
-  as select from zt2123_user
-  composition [0..*] of ZI_2123_user_dev as _UserDev
-{
-  key emp_id                as EmpId,
-  key dev_id                as DevId,
-      dev_description       as DevDescription,
-      attachment            as Attachment,
-      mimetype              as Mimetype,
-      filename              as Filename,
-      file_status           as FileStatus,
-      template_status       as TemplateStatus,
-      // to give color coding to file status
-      case file_status
-      when 'File Selected' then 2
-      when 'Excel Uploaded' then 3
-      when 'File not Selected' then 1
-      else 0
-      end                   as Criticality,
-      case template_status
-      when 'Present' then 3
-      when 'Absent'  then 1
-      else 0
-      end                   as TemplateCrticality,
-      @Semantics.user.createdBy: true
-      local_created_by      as LocalCreatedBy,
-      @Semantics.systemDateTime.createdAt: true
-      local_created_at      as LocalCreatedAt,
-      @Semantics.user.lastChangedBy: true
-      local_last_changed_by as LocalLastChangedBy,
-      @Semantics.systemDateTime.localInstanceLastChangedAt: true
-      local_last_changed_at as LocalLastChangedAt,
-      @Semantics.systemDateTime.lastChangedAt: true
-      last_changed_at       as LastChangedAt,
-      _UserDev 
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Child Interface View&lt;/STRONG&gt; : ZI_2123_USER_DEV&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'user devlopment details'
-@Metadata.ignorePropagatedAnnotations: true
-define view entity ZI_2123_user_dev
-  as select from zt2123_user_dev
-  association to parent zi_2123_user as _User on  $projection.EmpId = _User.EmpId
-                                              and $projection.DevId = _User.DevId
-{
-  key emp_id      as EmpId,
-  key dev_id      as DevId,
-  key serial_no   as SerialNo,
-      object_type as ObjectType,
-      object_name as ObjectName,
-      _User 
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;3. Consumption view / Projection View&lt;/STRONG&gt;&lt;/FONT&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note&lt;/STRONG&gt;: &lt;FONT color="#FF0000"&gt;Don't forget to link the relation between parent and child view and enable metadata extension annotation&lt;/FONT&gt;.&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;Parent View&lt;/STRONG&gt;&lt;/FONT&gt; : ZC_2123_USER&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'user projection view'
-@Metadata.ignorePropagatedAnnotations: true
-@Metadata.allowExtensions: true
-define root view entity ZC_2123_USER
-  as projection on zi_2123_user
-{
-  key EmpId,
-  key DevId,
-      DevDescription,
-      @Semantics.largeObject : {
-      mimeType: 'Mimetype',
-      fileName: 'Filename',
-      acceptableMimeTypes: [ 'application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-      contentDispositionPreference: #ATTACHMENT
-      }
-      Attachment,
-      @Semantics.mimeType: true
-      Mimetype,
-      Filename,
-      FileStatus,
-      Criticality,
-      TemplateStatus,
-      TemplateCrticality,
-      LocalCreatedBy,
-      LocalCreatedAt,
-      LocalLastChangedBy,
-      LocalLastChangedAt,
-      LastChangedAt,
-      /* Associations */
-      _UserDev : redirected to composition child ZC_2123_USER_DEV
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Child View&lt;/STRONG&gt; :&amp;nbsp; ZC_2123_USER_DEV&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'user development details'
-@Metadata.ignorePropagatedAnnotations: true
-@Metadata.allowExtensions: true
-define view entity ZC_2123_USER_DEV
-  as projection on ZI_2123_user_dev
-{
-  key EmpId,
-  key DevId,
-  key SerialNo,
-      ObjectType,
-      ObjectName,
-      _User : redirected to parent ZC_2123_USER
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;4. Metadata Extensions on top of Consumption view&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&amp;nbsp;we will define metadata extension to change the look and feel of our app.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Parent View&lt;/STRONG&gt; : ZME_2123_USER&lt;/P&gt;&lt;P&gt;&lt;FONT color="#FF0000"&gt;&lt;STRONG&gt;Note: two action buttons have been defined here one for Upload and download Excel&amp;nbsp;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;identification: [{ type: #FOR_ACTION, label: 'Upload Data', dataAction: 'uploadExcelData' },
-              { type: #FOR_ACTION, label: 'Download Excel', dataAction: 'DownloadExcel' },&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Complete Metadata extension&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CORE
-@UI.headerInfo:{
-typeName: 'User',
-typeNamePlural: 'Users',
-title:{
-   type: #STANDARD,
-   value: 'EmpId' },
-   description:{ value: 'DevId' }
-
-    }
-annotate entity ZC_2123_USER with
-{
-  .facet: [
-  {
-  purpose: #HEADER,
-    type: #DATAPOINT_REFERENCE,
-    position: 10,
-    targetQualifier: 'description'
-
-  },
-    {
-  purpose: #HEADER,
-    type: #DATAPOINT_REFERENCE,
-    position: 20,
-    targetQualifier: 'fileStatus'
-
-  },
-     {
-  purpose: #HEADER,
-    type: #DATAPOINT_REFERENCE,
-    position: 25,
-    targetQualifier: 'templateStatus'
-
-  },
-      {
-  purpose: #HEADER,
-    type: #DATAPOINT_REFERENCE,
-    position: 30,
-    targetQualifier: 'fileChanged'
-
-  },
-  {
-  // this is a collection facet
-   purpose: #STANDARD,
-   type: #COLLECTION ,
-   label: 'General Info',
-   position: 10,
-   id : 'idBasic'
-  },
-  {
-  purpose: #STANDARD,
-  type: #IDENTIFICATION_REFERENCE ,
-  label: 'User Info',
-  position: 10,
-  id : 'idUser',
-  parentId: 'idBasic'
-  },
-  {
-  purpose: #STANDARD,
-  type: #FIELDGROUP_REFERENCE ,
-  label: 'Log Details',
-  position: 20,
-  id : 'idlogs',
-  parentId: 'idBasic',
-  targetQualifier: 'logs'
-  },
-  {
-  purpose: #STANDARD,
-  type: #LINEITEM_REFERENCE ,
-  label: 'Developed Objects',
-  position: 20,
-  id : 'idDevObj',
-  targetElement: '_UserDev'
-  }
-  ]
-  :{lineItem: [{position: 10,importance: #HIGH , label: 'User Id'} ],
-                 identification: [{ type: #FOR_ACTION, label: 'Upload Data', dataAction: 'uploadExcelData' },
-                               { type: #FOR_ACTION, label: 'Download Excel', dataAction: 'DownloadExcel' },
-                { position: 10,  label: 'User Id' }],
-                selectionField: [{ position: 10}]
-    }
-  @EndUserText.label: 'User Id'
-  EmpId;
-  :{lineItem: [{position: 20,importance: #HIGH , label: 'Development Id'} ],
-   selectionField: [{ position: 20 }],
-    identification: [{ position: 20 , label: 'Development Id'}]
-  }
-  @EndUserText.label: 'Development Id'
-  DevId;
-  :{lineItem: [{position: 30,importance: #HIGH , label: 'Development Description'} ],
-        dataPoint :{ qualifier: 'description' , title: 'Development Description'},
-       identification: [{ position: 30 , label: 'Development Description'}]
-  }
-  DevDescription;
-  .identification: [{ position: 40 , label: 'Choose Excel File'}]
-  Attachment;
-  :{lineItem: [{position: 55,importance: #HIGH , label: 'Template Status', criticality: 'TemplateCrticality'} ] ,
-  dataPoint :{ qualifier: 'templateStatus' , title: 'Template Status',criticality: 'TemplateCrticality'}}
-  TemplateStatus;
-  :{lineItem: [{position: 40,importance: #HIGH , label: 'Excel Filename'} ]}
-  Filename;
-  :{lineItem: [{position: 50,importance: #HIGH , label: 'File Status', criticality: 'Criticality'} ] ,
-   dataPoint :{ qualifier: 'fileStatus' , title: 'File Status',criticality: 'Criticality'}}
-  FileStatus;
-  :{lineItem: [{position: 60,importance: #HIGH , label: 'Last Changed At'} ],
-  fieldGroup: [{ qualifier: 'logs', label: 'Last Changed At' , position: 20 }],
-  dataPoint :{ qualifier: 'fileChanged' , title: 'Last Changed At'} }
-  LocalLastChangedAt;
-  :{lineItem: [{position: 70,importance: #HIGH , label: 'Created By'} ],
-  fieldGroup: [{ qualifier: 'logs', label: 'Created By' , position: 10 }] }
-  LocalCreatedBy;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Child View&lt;/STRONG&gt; : ZME_2123_USER_DEV&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CORE
-@UI.headerInfo : {
- typeName: 'Developed Object',
- typeNamePlural: 'Developed Objects',
- title: {
-        type: #STANDARD,
-        label: 'Development Id',
-        value: 'DevId' // this will display as Header title
-    },
- description : { value: 'ObjectName' } //this will be dispalyed below header title
-}
-annotate view ZC_2123_USER_DEV with
-{
-
-  .facet: [
-   {
-   purpose: #STANDARD,
-   type: #IDENTIFICATION_REFERENCE ,
-   label: 'Developed Objects',
-   position: 10
-   }]
-
-  .hidden: true
-  :{
-   identification: [{ position: 10 , label: 'Employee Id'}]
-  }
-  EmpId;
-  :{lineItem: [{position: 10,importance: #HIGH , label: 'Development Id' } ],
-  identification: [{ position: 20 , label: 'Development Id'}]
-    }
-  DevId;
-  :{lineItem: [{position: 1,importance: #HIGH , label: 'Serial No'} ]}
-  SerialNo;
-  :{lineItem: [{position: 20,importance: #HIGH , label: 'Object Type'} ],
-  identification: [{ position: 30 , label: 'Object Type'}]
-    }
-  ObjectType;
-  :{lineItem: [{position: 30,importance: #HIGH , label: 'Object Name'} ],
-  identification: [{ position: 40 , label: 'Object Name'}]
-    }
-  ObjectName;
-  .hidden: true
-  _User;
-
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;5. Create Service binding and service definition .&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Note : I have created OData V2 - UI&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-10-19 143439.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/329592i8DB4DFF5E69F5AA1/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-10-19 143439.png" alt="Screenshot 2025-10-19 143439.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Preview the application and&amp;nbsp; we can see our application .&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-10-19 143955.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/329593i6D9126321E10C29B/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-10-19 143955.png" alt="Screenshot 2025-10-19 143955.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;since we don't have any records for now , so&lt;STRONG&gt; No data found&lt;/STRONG&gt; is being displayed here.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;&amp;nbsp;6. Behavior definition on Parent Interface view.&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed implementation in class zbp_i_2123_user unique;
-strict ( 2 );
-define behavior for zi_2123_user alias User
-persistent table zt2123_user
-lock master
-authorization master ( instance )
-etag master LocalLastChangedAt
-{
-  create ( authorization : global );
-  update;
-  delete;
-  field ( readonly : update ) EmpId, DevId;
-  field ( readonly ) LocalCreatedBy, LocalLastChangedAt;
-  field ( mandatory : create ) EmpId, DevId, DevDescription;
-  association _UserDev { create ( features : instance ); }
-  // Logic to read excel data into associated entity ZI_2123_User_Dev
-  action ( features : instance ) uploadExcelData result [1] $self;
-   action ( features : instance ) DownloadExcel result [1] $self;
-  // Change File Status During Creation of new record
-  determination FillFileStatus on modify { field EmpId, DevId; }
-  // Change File Status When file is selected
-  determination FillSelectedStatus on modify { field Attachment; }
-  // for reloading ui after data has been uploaded
-  side effects
-  {
-    field Attachment affects field FileStatus  ;
-    action uploadExcelData affects $self, field _UserDev.*;
-  }
-
-mapping for zt2123_user
-    {
-      EmpId              = emp_id;
-      DevId              = dev_id;
-      DevDescription     = dev_description;
-      Filename           = filename;
-      Attachment         = attachment;
-      Mimetype           = mimetype;
-      FileStatus         = file_status;
-      TemplateStatus     = template_status;
-      LocalCreatedBy     = local_created_by;
-      LocalCreatedAt     = local_created_at;
-      LastChangedAt      = last_changed_at;
-      LocalLastChangedAt = local_last_changed_at;
-      LocalLastChangedBy = local_last_changed_by;
-    }
-}
-
-define behavior for ZI_2123_user_dev alias UserDev
-persistent table zt2123_user_dev
-lock dependent by _User
-authorization dependent by _User
-//etag master
-{
-  update;
-  delete;
-  field ( readonly ) EmpId, DevId, SerialNo;
-//  field ( readonly : update ) ObjectType , ObjectName ;
-//  field ( mandatory : create ) ObjectName, ObjectType;
-  association _User;
-  mapping for zt2123_user_dev
-    {
-      EmpId      = emp_id;
-      DevId      = dev_id;
-      SerialNo   = serial_no;
-      ObjectType = object_type;
-      ObjectName = object_name;
-    }
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Lets Break down the behavior definition.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Action buttons defined for Upload and download&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="2"&gt;&lt;STRONG&gt;&lt;EM&gt;feature instances as we want the button to be displayed dynamically .&lt;/EM&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt; // Logic to read excel data into associated entity ZI_2123_User_Dev
-  action ( features : instance ) uploadExcelData result [1] $self;
-// To download excel 
-  action ( features : instance ) DownloadExcel result [1] $self;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Determination to change file status, file selection status and template status&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;// Change File Status During Creation of new record
-  determination FillFileStatus on modify { field EmpId, DevId; }
-  // Change File Status When file is selected
-  determination FillSelectedStatus on modify { field Attachment; }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Side effects to reflect uploaded data simultaneously when upload button is pressed.&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  // for reloading ui after data has been uploaded
-  side effects
-  {
-    field Attachment affects field FileStatus  ;
-    action uploadExcelData affects $self, field _UserDev.*;
-  }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;7. Behavior definition on Parent Consumption View&amp;nbsp;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection;
-strict ( 2 );
-use side effects;
-define behavior for ZC_2123_USER alias User
-{
-  use create;
-  use update;
-  use delete;
-  use action uploadExcelData;
-  //  use  action UploadExcel;
-  use action DownloadExcel;
-//  use action TemplateDownload;
-  use association _UserDev { create; }
-}
-
-define behavior for ZC_2123_USER_DEV alias UserDev
-{
-  use update;
-  use delete;
-
-  use association _User;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;8. Implementation class&lt;/STRONG&gt;&lt;/FONT&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Global behavior class&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zbp_i_2123_user DEFINITION PUBLIC ABSTRACT FINAL FOR BEHAVIOR OF zi_2123_user.
-  PUBLIC SECTION.
-    TYPES: BEGIN OF gty_exl_file,
-             emp_id    TYPE string,
-             dev_id    TYPE string,
-             dev_desc  TYPE string,
-             obj_type  TYPE string,
-             obj_name  TYPE string,
-             serial_no TYPE string,
-           END OF gty_exl_file.
-ENDCLASS.
-
-CLASS zbp_i_2123_user IMPLEMENTATION.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Local handler class&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_User DEFINITION INHERITING FROM cl_abap_behavior_handler.
-  PRIVATE SECTION.
-
-    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-      IMPORTING keys REQUEST requested_authorizations FOR User RESULT result.
-
-    METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
-      IMPORTING REQUEST requested_authorizations FOR User RESULT result.
-    METHODS uploadExcelData FOR MODIFY
-      IMPORTING keys FOR ACTION User~uploadExcelData RESULT result.
-    METHODS get_instance_features FOR INSTANCE FEATURES
-      IMPORTING keys REQUEST requested_features FOR User RESULT result.
-    METHODS fillselectedstatus FOR DETERMINE ON MODIFY
-      IMPORTING keys FOR user~fillselectedstatus.
-    METHODS fillfilestatus FOR DETERMINE ON MODIFY
-      IMPORTING keys FOR user~fillfilestatus.
-    METHODS downloadexcel FOR MODIFY
-      IMPORTING keys FOR ACTION user~downloadexcel RESULT result.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;Method Implementation&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Download Excel&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt; METHOD DownloadExcel.
-    DATA: lt_template        TYPE STANDARD TABLE OF zbp_i_2123_user=&amp;gt;gty_exl_file.
-
-    DATA(lo_write_access) = xco_cp_xlsx=&amp;gt;document-&amp;gt;empty( )-&amp;gt;write_access( ).
-    DATA(lo_worksheet) = lo_write_access-&amp;gt;get_workbook(
-        )-&amp;gt;worksheet-&amp;gt;at_position( 1 ).
-
-    DATA(lo_selection_pattern) = xco_cp_xlsx_selection=&amp;gt;pattern_builder-&amp;gt;simple_from_to(
-                               )-&amp;gt;from_column( xco_cp_xlsx=&amp;gt;coordinate-&amp;gt;for_alphabetic_value( 'A' )
-                               )-&amp;gt;to_column( xco_cp_xlsx=&amp;gt;coordinate-&amp;gt;for_alphabetic_value( 'M' )
-                               )-&amp;gt;from_row( xco_cp_xlsx=&amp;gt;coordinate-&amp;gt;for_numeric_value( 1 )
-                               )-&amp;gt;get_pattern( ).
-
-    lt_template = VALUE #( (
-    emp_id = 'User Id'
-    dev_id = 'Development Id'
-    dev_desc = 'Development Description'
-    obj_type = 'Object Type'
-    obj_name = 'Object Name'
-    ) ).
-
-    lo_worksheet-&amp;gt;select( lo_selection_pattern
-        )-&amp;gt;row_stream(
-        )-&amp;gt;operation-&amp;gt;write_from( REF #( lt_template )
-        )-&amp;gt;execute( ).
-
-    DATA(lv_file_content) = lo_write_access-&amp;gt;get_file_content( ).
-
-*  "Modify Root Entity
-    MODIFY ENTITIES OF zi_2123_user IN LOCAL MODE
-    ENTITY User
-    UPDATE FROM VALUE #( FOR ls_key IN keys
-       (
-       EmpId      = ls_key-EmpId
-       DevId      = ls_key-DevId
-       Attachment = lv_file_content
-       Filename   = 'template.xlsx'
-       Mimetype   = 'application/vnd.ms-excel'
-       %control-Attachment  = if_abap_behv=&amp;gt;mk-on
-       %control-Filename   = if_abap_behv=&amp;gt;mk-on
-       %control-Mimetype  = if_abap_behv=&amp;gt;mk-on
-       ) )
-    MAPPED DATA(ls_mapped_update)
-    REPORTED DATA(ls_reported_update)
-    FAILED DATA(ls_failed_update).
-
-*    "Read Updated Entry
-    READ ENTITIES OF zi_2123_user IN LOCAL MODE
-    ENTITY  User
-    ALL FIELDS WITH
-    CORRESPONDING #( Keys )
-    RESULT DATA(lt_User).
-*    "Update File Status
-    LOOP AT lt_User INTO DATA(ls_user).
-      MODIFY ENTITIES OF ZI_2123_user IN LOCAL MODE
-      ENTITY User
-      UPDATE FIELDS ( FileStatus TemplateStatus )
-      WITH VALUE #( (
-          %tky                  = ls_user-%tky
-          %data-FileStatus      = 'File not Selected'
-          %data-TemplateStatus      = 'Present'
-          %control-FileStatus   = if_abap_behv=&amp;gt;mk-on
-          %control-TemplateStatus   = if_abap_behv=&amp;gt;mk-on
-          ) )
-          MAPPED DATA(ls_mapped_status)
-    REPORTED DATA(ls_reported_status)
-    FAILED DATA(ls_failed_status).
-    ENDLOOP.
-
-
-    "Send Status back to front end
-    result = VALUE #( FOR ls_upd_user IN lt_User
-                      ( %tky   = ls_upd_user-%tky
-                        %param = ls_upd_user
-                        ) ).
-
-    IF ls_failed_update IS INITIAL.
-   reported = VALUE #( BASE reported user = VALUE #( ( %tky = keys[ 1 ]-%tky
-    %msg = new_message_with_text( severity =                                                   if_abap_behv_message=&amp;gt;severity-success
-                     text = 'Template Available.' )
-
-                                                                    ) )  ).
-    ENDIF.
-
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Upload Excel Data&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD uploadExcelData.
-    DATA: lt_rows         TYPE STANDARD TABLE OF string,
-          lv_content      TYPE string,
-          lo_table_descr  TYPE REF TO cl_abap_tabledescr,
-          lo_struct_descr TYPE REF TO cl_abap_structdescr,
-          lt_excel        TYPE STANDARD TABLE OF zbp_i_2123_user=&amp;gt;gty_exl_file,
-          lt_excel_temp   TYPE STANDARD TABLE OF zbp_i_2123_user=&amp;gt;gty_exl_file,
-          lt_excel_filter TYPE SORTED TABLE OF zbp_i_2123_user=&amp;gt;gty_exl_file WITH UNIQUE KEY emp_id dev_id,
-          lt_data         TYPE TABLE FOR CREATE zi_2123_user\_UserDev,
-          lv_index        TYPE sy-index.
-
-
-    FIELD-SYMBOLS: &amp;lt;lfs_col_header&amp;gt; TYPE string.
-
-    DATA(lv_user) = cl_abap_context_info=&amp;gt;get_user_technical_name( ).
-
-    READ ENTITIES OF zi_2123_user IN LOCAL MODE
-    ENTITY User
-    ALL FIELDS WITH CORRESPONDING #( keys )
-    RESULT DATA(lt_file_entity).
-
-    DATA(lv_attachment) = lt_file_entity[ 1 ]-attachment.
-    CHECK lv_attachment IS NOT INITIAL.
-
-    "Move Excel Data to Internal Table
-    DATA(lo_xlsx)      = xco_cp_xlsx=&amp;gt;document-&amp;gt;for_file_content( iv_file_content = lv_attachment )-&amp;gt;read_access( ).
-    DATA(lo_worksheet) = lo_xlsx-&amp;gt;get_workbook( )-&amp;gt;worksheet-&amp;gt;at_position( 1 ).
-    DATA(lo_selection_pattern) = xco_cp_xlsx_selection=&amp;gt;pattern_builder-&amp;gt;simple_from_to( )-&amp;gt;get_pattern( ).
-    DATA(lo_execute) = lo_worksheet-&amp;gt;select( lo_selection_pattern )-&amp;gt;row_stream( )-&amp;gt;operation-&amp;gt;write_to(
-                                                                                   REF #( lt_excel_temp ) ).
-    lo_execute-&amp;gt;set_value_transformation(
-        xco_cp_xlsx_read_access=&amp;gt;value_transformation-&amp;gt;string_value )-&amp;gt;if_xco_xlsx_ra_operation~execute( ).
-
-    " Get number of columns in upload file for validation
-    TRY.
-        lo_table_descr ?= cl_abap_tabledescr=&amp;gt;describe_by_data( p_data = lt_excel_temp ).
-        lo_struct_descr ?= lo_table_descr-&amp;gt;get_table_line_type( ).
-        DATA(lv_no_of_cols) = lines( lo_struct_descr-&amp;gt;components ).
-      CATCH cx_sy_move_cast_error.
-        "Implement error handling
-    ENDTRY.
-
-    "Validate Header record
-    DATA(ls_excel) = VALUE #( lt_excel_temp[ 1 ] OPTIONAL ).
-    IF ls_excel IS NOT INITIAL.
-      DO lv_no_of_cols TIMES.
-        lv_index = sy-index.
-        ASSIGN COMPONENT lv_index OF STRUCTURE ls_excel TO &amp;lt;lfs_col_header&amp;gt;.
-        CHECK &amp;lt;lfs_col_header&amp;gt; IS ASSIGNED.
-        DATA(lv_value) =  to_upper(  &amp;lt;lfs_col_header&amp;gt; ) .
-        DATA(lv_has_error) = abap_false.
-        CASE lv_index.
-          WHEN 1.
-            lv_has_error = COND #( WHEN lv_value &amp;lt;&amp;gt; 'USER ID' THEN abap_true ELSE lv_has_error ).
-          WHEN 2.
-            lv_has_error = COND #( WHEN lv_value &amp;lt;&amp;gt; 'DEVELOPMENT ID' THEN abap_true ELSE lv_has_error ).
-          WHEN 3.
-            lv_has_error = COND #( WHEN lv_value &amp;lt;&amp;gt; 'DEVELOPMENT DESCRIPTION' THEN abap_true ELSE lv_has_error ).
-          WHEN 4.
-            lv_has_error = COND #( WHEN lv_value &amp;lt;&amp;gt; 'OBJECT TYPE' THEN abap_true ELSE lv_has_error ).
-          WHEN 5.
-            lv_has_error = COND #( WHEN lv_value &amp;lt;&amp;gt; 'OBJECT NAME' THEN abap_true ELSE lv_has_error ).
-          WHEN 9. "More than 7 columns (error)
-            lv_has_error = abap_true.
-        ENDCASE.
-        IF lv_has_error = abap_true.
-          APPEND VALUE #( %tky = lt_file_entity[ 1 ]-%tky ) TO failed-user.
-          APPEND VALUE #(
-            %tky = lt_file_entity[ 1 ]-%tky
-            %msg = new_message_with_text(
-                     severity = if_abap_behv_message=&amp;gt;severity-error
-                     text     = 'One or more heading is incorrect !!' )
-          ) TO reported-user.
-          UNASSIGN &amp;lt;lfs_col_header&amp;gt;.
-          EXIT.
-        ENDIF.
-        UNASSIGN &amp;lt;lfs_col_header&amp;gt;.
-      ENDDO.
-    ENDIF.
-    CHECK lv_has_error = abap_false.
-
-    DELETE lt_excel_temp INDEX 1.
-    DELETE lt_excel_temp WHERE emp_id  IS INITIAL AND dev_id IS INITIAL.
-    " Filter with current dev id details
-    lt_excel_filter = VALUE #( ( emp_id = keys[ 1 ]-EmpId dev_id = keys[ 1 ]-DevId ) ).
-    " excel data with  current dev id details
-    lt_excel = FILTER #( lt_excel_temp IN lt_excel_filter WHERE emp_id = emp_id AND dev_id = dev_id ).
-    IF lt_excel IS  INITIAL.
-
-      reported = VALUE #( BASE reported user = VALUE #( ( %tky = keys[ 1 ]-%tky
-                                                                        %msg = new_message_with_text( severity =
-                                                                        if_abap_behv_message=&amp;gt;severity-error
-                                                                        text = 'Trying to insert Invalid /Blank Values.' )
-                                                                      ) )  ).
-    ELSE.
-      "Fill serial number
-      LOOP AT lt_excel ASSIGNING FIELD-SYMBOL(&amp;lt;lfs_excel&amp;gt;).
-        &amp;lt;lfs_excel&amp;gt;-serial_no = sy-tabix.
-      ENDLOOP.
-
-      "Prepare Data for  Child Entity (UserDev)
-      lt_data = VALUE #(
-          (   %cid_ref  = keys[ 1 ]-%cid_ref
-              EmpId   = keys[ 1 ]-EmpId
-              DevId    = keys[ 1 ]-DevId
-              %target   = VALUE #(
-                               FOR lwa_excel IN lt_excel (
-                                    %cid         = keys[ 1 ]-%cid_ref
-                                    %data = VALUE #(
-                                                     EmpId = keys[ 1 ]-EmpId
-                                                     DevId = keys[ 1 ]-DevId
-                                                     SerialNo = lwa_excel-serial_no
-                                                     ObjectType = lwa_excel-obj_type
-                                                     ObjectName = lwa_excel-obj_name
-                                                  )
-                                     %control = VALUE #(
-                                                     EmpId = if_abap_behv=&amp;gt;mk-on
-                                                     DevId = if_abap_behv=&amp;gt;mk-on
-                                                     SerialNo = if_abap_behv=&amp;gt;mk-on
-                                                     ObjectType = if_abap_behv=&amp;gt;mk-on
-                                                     ObjectName = if_abap_behv=&amp;gt;mk-on
-
-                                        )
-                      ) ) ) ).
-
-      "Delete Existing entry for user if any
-      READ ENTITIES OF zi_2123_user IN LOCAL MODE
-      ENTITY User BY \_UserDev
-      ALL FIELDS WITH CORRESPONDING #( keys )
-      RESULT DATA(lt_existing_UserDev).
-
-      IF lt_existing_UserDev IS NOT INITIAL.
-        MODIFY ENTITIES OF zi_2123_user IN LOCAL MODE
-        ENTITY UserDev DELETE FROM VALUE #(
-          FOR lwa_data IN lt_existing_UserDev (
-            %key        = lwa_data-%key
-          )
-        )
-        MAPPED DATA(lt_del_mapped)
-        REPORTED DATA(lt_del_reported)
-        FAILED DATA(lt_del_failed).
-      ENDIF.
-
-      "Add New Entry for XLData (association)
-      MODIFY ENTITIES OF ZI_2123_User IN LOCAL MODE
-      ENTITY User CREATE BY \_UserDev
-      AUTO FILL CID WITH lt_data.
-
-*    "Modify Status
-      MODIFY ENTITIES OF ZI_2123_User IN LOCAL MODE
-      ENTITY User
-      UPDATE FROM VALUE #(  (
-          %tky        = lt_file_entity[ 1 ]-%tky "keys[ 1 ]-%tky
-          FileStatus  = 'Excel Uploaded'
-          %control-FileStatus = if_abap_behv=&amp;gt;mk-on ) )
-      MAPPED DATA(lt_upd_mapped)
-      FAILED DATA(lt_upd_failed)
-      REPORTED DATA(lt_upd_reported).
-
-      "Read Updated Entry
-      READ ENTITIES OF ZI_2123_User IN LOCAL MODE
-      ENTITY User ALL FIELDS WITH CORRESPONDING #( Keys )
-      RESULT DATA(lt_updated_User).
-
-      "Send Status back to front end
-      result = VALUE #(
-        FOR lwa_upd_head IN lt_updated_User (
-          %tky    = lwa_upd_head-%tky
-          %param  = lwa_upd_head
-        )
-      ).
-      IF lt_upd_failed IS INITIAL.
-   reported = VALUE #( BASE reported user = VALUE #( ( %tky = keys[ 1 ]-%tky
- %msg = new_message_with_text( severity =                                                                 if_abap_behv_message=&amp;gt;severity-success
-                       text = 'Excel Uploaded Successfully.' )
-  ) )  ).
-      ENDIF.
-    ENDIF.
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;File status&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD FillFileStatus.
-    "Read the data to be modified
-    READ ENTITIES OF ZI_2123_User IN LOCAL MODE
-    ENTITY User FIELDS ( EmpId DevId FileStatus )
-    WITH CORRESPONDING #( keys )
-    RESULT DATA(lt_user).
-
-    "Update File Status
-    LOOP AT lt_user INTO DATA(ls_user).
-      MODIFY ENTITIES OF ZI_2123_User IN LOCAL MODE
-      ENTITY User
-      UPDATE FIELDS ( FileStatus TemplateStatus )
-      WITH VALUE #( (
-          %tky                  = ls_user-%tky
-          %data-FileStatus      = 'File not Selected'
-          %data-TemplateStatus      = 'Absent'
-          %control-FileStatus   = if_abap_behv=&amp;gt;mk-on
-           %control-TemplateStatus   = if_abap_behv=&amp;gt;mk-on
-          ) ).
-    ENDLOOP.
-
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;File selection status&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD FillSelectedStatus.
-    "Read XL_Head Entities and change file status
-    READ ENTITIES OF ZI_2123_user IN LOCAL MODE
-    ENTITY User ALL FIELDS WITH CORRESPONDING #( keys )
-    RESULT DATA(lt_User).
-
-    "Update File Status
-    LOOP AT lt_User INTO DATA(ls_user).
-      MODIFY ENTITIES OF ZI_2123_user IN LOCAL MODE
-      ENTITY User
-      UPDATE FIELDS ( FileStatus TemplateStatus  )
-      WITH VALUE #( (
-          %tky                  = ls_user-%tky
-          %data-FileStatus      = COND #(
-                                    WHEN ls_user-Attachment IS INITIAL
-                                    THEN 'File not Selected'
-                                    ELSE 'File Selected' )
-          %control-FileStatus   = if_abap_behv=&amp;gt;mk-on
-          ) ).
-    ENDLOOP.
-
-    READ ENTITIES OF ZI_2123_user IN LOCAL MODE
-  ENTITY User ALL FIELDS WITH CORRESPONDING #( keys )
-  RESULT DATA(lt_User_updated).
-    "Update template Status
-    LOOP AT lt_User_updated INTO DATA(ls_user_updated).
-      MODIFY ENTITIES OF ZI_2123_user IN LOCAL MODE
-      ENTITY User
-      UPDATE FIELDS ( TemplateStatus  )
-      WITH VALUE #( (
-                    %tky                = ls_user-%tky
-                    %data-TemplateStatus = COND #(
-                                    WHEN ls_user-Attachment IS NOT INITIAL
-                                    THEN COND #( WHEN ls_user-FileStatus = 'File Selected' THEN ' ' )
-                                    ELSE 'Absent'
-
-                                     )
-          %control-TemplateStatus   = if_abap_behv=&amp;gt;mk-on
-
-          ) ).
-    ENDLOOP.
-
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Global Feature Instance&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;to enable upload / download and create buttons dynamically&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt; METHOD get_instance_features.
-    READ ENTITIES OF zi_2123_user IN LOCAL MODE ENTITY User
-    FIELDS ( EmpId DevId FileStatus TemplateStatus ) WITH CORRESPONDING #( keys )
-    RESULT DATA(lt_users) FAILED failed.
-
-
-    result = VALUE #( FOR user IN lt_users
-                      LET uploadBtn = COND #( WHEN user-FileStatus = 'File Selected'
-                                             THEN if_abap_behv=&amp;gt;fc-o-enabled
-                                             ELSE if_abap_behv=&amp;gt;fc-o-disabled )
-                         DownloadTemplate = COND #( WHEN user-TemplateStatus = 'Absent'
-                                             THEN if_abap_behv=&amp;gt;fc-o-enabled
-                                             ELSE if_abap_behv=&amp;gt;fc-o-disabled )
-                      IN
-                                            ( %tky = user-%tky
-                                             %assoc-_UserDev = if_abap_behv=&amp;gt;fc-o-disabled
-                                             %action-uploadExcelData = uploadBtn
-                                             %action-DownloadExcel = DownloadTemplate
-                                            ) ).
-
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;now our app is ready . Lets create one record and see&lt;/P&gt;&lt;P&gt;we can see initially that Template is absent&amp;nbsp; &amp;nbsp;and no file is selected.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-10-19 144043.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/329595iE407722AC288D1A6/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-10-19 144043.png" alt="Screenshot 2025-10-19 144043.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Lets Download Template . We can see &lt;EM&gt;&lt;STRONG&gt;template.xlsx&lt;/STRONG&gt;&lt;/EM&gt;&amp;nbsp; now exists in attachment and template status changes to &lt;STRONG&gt;Present&lt;/STRONG&gt; and &lt;STRONG&gt;download excel&lt;/STRONG&gt; button disappears as template exist .&amp;nbsp; Remove the the template and you can see &lt;STRONG&gt;download button&lt;/STRONG&gt; again .&lt;BR /&gt;Also &lt;STRONG&gt;file not selected&lt;/STRONG&gt; as this is empty file . If you remove and upload it again , status will change to &lt;STRONG&gt;File selected.&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-10-19 151444.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/329604i304DAEB536CB8C73/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-10-19 151444.png" alt="Screenshot 2025-10-19 151444.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Download Template with predefined header&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-10-19 151519.png" style="width: 898px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/329597iAE0485F25F14E0F2/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-10-19 151519.png" alt="Screenshot 2025-10-19 151519.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;Fill the excel . Make sure&lt;STRONG&gt; user id&lt;/STRONG&gt; and &lt;STRONG&gt;development id&lt;/STRONG&gt;&amp;nbsp;should match with the record where you will upload data. Other wise it will throw error.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-10-19 151659.png" style="width: 892px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/329598iAEE3C1D8888BD294/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-10-19 151659.png" alt="Screenshot 2025-10-19 151659.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Choose the filled&amp;nbsp; file and you can see &lt;STRONG&gt;upload excel&lt;/STRONG&gt; button appears.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-10-19 152348.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/329601iFB309DD519F9D33A/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-10-19 152348.png" alt="Screenshot 2025-10-19 152348.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Press upload and data will be reflected.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-10-19 152502.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/329603i5A2933FF9512FD61/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-10-19 152502.jpg" alt="Screenshot 2025-10-19 152502.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Hope this will be helpful.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-blog-posts/rap-excel-upload-and-download-excel-using-rap-only/ba-p/14247979"/>
-    <published>2025-11-13T05:19:33.199000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/abap-blog-posts/sap-abap-cds-scalar-function/ba-p/14259799</id>
     <title>SAP ABAP - CDS Scalar Function</title>
@@ -2062,5 +1283,97 @@ ENDMODULE.
  &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-architecture-blog-posts/how-to-enhance-sales-order-item-processing-in-sap-tabstrip-ui-popup/ba-p/14281143"/>
     <published>2025-12-01T23:23:26.763000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/abap-blog-posts/pattern-funtion-for-rfc/ba-p/14282086</id>
+    <title>Pattern funtion for RFC</title>
+    <updated>2025-12-02T14:15:39.540000+01:00</updated>
+    <author>
+      <name>ykaldirim</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/182293</uri>
+    </author>
+    <content>&lt;P&gt;SAP has many functionalities that simplify coders. But We didn't sometimes find a simple requirement. This is one of them. Pattern for RFCs. Here the solution of steps.&lt;/P&gt;&lt;P&gt;All of ABAP coders know and like Patterns. But there is not a simple way to put RFC functions.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ykaldirim_0-1764679866673.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347562i77B8188E73C03633/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="ykaldirim_0-1764679866673.png" alt="ykaldirim_0-1764679866673.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Here the solution:&lt;/P&gt;&lt;P&gt;1- Define Custom Pattern&amp;nbsp;&lt;/P&gt;&lt;P&gt;Follow&amp;nbsp;&lt;STRONG&gt;&lt;EM&gt;SE38-&amp;gt;Utilities-&amp;gt;More Utilities-&amp;gt;Edit Pattern&lt;/EM&gt;&lt;/STRONG&gt;&amp;nbsp; node and define a new one with the name "&lt;/P&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ykaldirim_2-1764680094304.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347566i08DDCFFA21C15C59/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="ykaldirim_2-1764680094304.png" alt="ykaldirim_2-1764680094304.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ykaldirim_3-1764680154442.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347568iF840C18DDB0BFA29/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="ykaldirim_3-1764680154442.png" alt="ykaldirim_3-1764680154442.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;2- We will create a function in both systems. First below code is for source system which will call target RFC. Function name should start with the name of pattern Z_RFC_FUNCTION and follow EDITOR_EXIT So it's :&amp;nbsp;&lt;STRONG&gt;Z_RFC_FUNCTION_EDITOR_EXIT.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;You will see I'm calling a function which will return required source code for RFC call at the line of 31. Of course you should change the DESTINATION with your system rfc.&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;FUNCTION z_rfc_function_editor_exit.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  TABLES
+*"      BUFFER TYPE  RSWSOURCET
+*"----------------------------------------------------------------------
+  DATA lt_sval TYPE STANDARD TABLE OF sval.
+  DATA ls_sval TYPE sval.
+
+  DATA: buffer2 TYPE rswsourcet.
+
+* Get name of structure from user
+  ls_sval-tabname = 'RS38L'.
+  ls_sval-fieldname = 'NAME'.
+  ls_sval-field_attr  = '00'.
+  APPEND ls_sval TO lt_sval.
+
+  CALL FUNCTION 'POPUP_GET_VALUES'
+    EXPORTING
+      popup_title     = 'Enter Function Name'
+    TABLES
+      fields          = lt_sval
+    EXCEPTIONS
+      error_in_fields = 1
+      OTHERS          = 2.
+
+* Get the given structure name
+  READ TABLE lt_sval INTO ls_sval INDEX 1.
+  check ls_sval-value is not INITIAL.
+
+  CALL FUNCTION 'Z_RFC_FUNCTION_EDITOR_EXIT'
+    DESTINATION 'KHDCLNT100'
+    EXPORTING
+      funcname = ls_sval-value
+    IMPORTING
+      buffer   = buffer2.
+
+  LOOP AT buffer2 INTO DATA(ls_buffer).
+
+    APPEND ls_buffer TO buffer.
+
+  ENDLOOP.
+ENDFUNCTION.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;3- Second is for target system which RFC will be run. I gave the same name for the function to get the source code from target system. Here it's&amp;nbsp;&lt;STRONG&gt;Z_RFC_FUNCTION_EDITOR_EXIT.&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;FUNCTION z_rfc_function_editor_exit.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  IMPORTING
+*"     VALUE(FUNCNAME) TYPE  RS38L-NAME
+*"  EXPORTING
+*"     VALUE(BUFFER) TYPE  RSWSOURCET
+*"----------------------------------------------------------------------
+
+  DATA: l_pattern_obj TYPE REF TO cl_sedi_pattern_generator,
+        l_pattern     TYPE swbse_max_line_tab,
+        l_pattern_new TYPE swbse_max_line_tab.
+
+  DATA: lv_line TYPE LINE OF swbse_max_line_tab.
+
+  CREATE OBJECT l_pattern_obj
+    EXPORTING
+      i_column  = 0
+      i_include = CONV #( 'ZTESTYK' ).
+
+  l_pattern_obj-&amp;gt;built_function(
+             EXPORTING
+               i_function_name = CONV #( funcname )
+             IMPORTING
+               e_pattern       = l_pattern ).
+  LOOP AT l_pattern INTO lv_line.
+
+    APPEND lv_line TO l_pattern_new.
+
+    IF lv_line CP 'CALL FUNCTION*'.
+      APPEND 'DESTINATION ''KHDCLNT100''' TO l_pattern_new.
+    ENDIF.
+
+
+  ENDLOOP.
+
+  buffer[] = l_pattern_new.
+
+ENDFUNCTION.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;And it's coming to test &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&lt;/P&gt;&lt;P&gt;You will simply select other pattern and it will ask function name.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ykaldirim_4-1764680784387.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347572iEB3B790FF7EAC594/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="ykaldirim_4-1764680784387.png" alt="ykaldirim_4-1764680784387.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Just put the RFC function name.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ykaldirim_5-1764680884299.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347574iCF938839CCCA7BB4/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="ykaldirim_5-1764680884299.png" alt="ykaldirim_5-1764680884299.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Here it comes.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ykaldirim_6-1764681084355.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347575i16284088EC497A2D/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="ykaldirim_6-1764681084355.png" alt="ykaldirim_6-1764681084355.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Also i suggest doing the below settings for better editorial.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ykaldirim_7-1764681124455.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347576iA6096B0E8380E6C1/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="ykaldirim_7-1764681124455.png" alt="ykaldirim_7-1764681124455.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Cheers ykburda &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/abap-blog-posts/pattern-funtion-for-rfc/ba-p/14282086"/>
+    <published>2025-12-02T14:15:39.540000+01:00</published>
   </entry>
 </feed>
