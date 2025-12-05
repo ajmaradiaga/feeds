@@ -2,165 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-RESTful-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2025-12-05T12:00:06.920994+00:00</updated>
+  <updated>2025-12-05T15:00:06.880634+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/rap-event-consume-sap-standard-event-and-trigger-custom-rap-event/ba-p/14241235</id>
-    <title>RAP Event: consume SAP standard event and trigger custom RAP event</title>
-    <updated>2025-10-14T18:00:00.028000+02:00</updated>
-    <author>
-      <name>hironobu_nakayama</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/781777</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-1633627625"&gt;1. Introduction&lt;/H1&gt;&lt;P&gt;Event-driven architecture (EDA) is an integrated model that detects critical business "events" and responds to them in real time. As modern businesses seek real-time operations and flexible, responsive systems, EDA has become an essential technology.&lt;BR /&gt;Many standard RAP events are provided for the implementation of the event-driven architecture in SAP S/4HANA, but the standard event payload may not meet business requirements and require customization. In particular, there is a use case where SAP standard events are extended with Derived Events for the purpose of filtering by event data and payload completion of standard events.&lt;BR /&gt;Derived Event is available in S/4HANA Cloud, private edition &amp;amp; S/4HANA 2023 / S/4HANA Cloud, public edition Introduced in the 2308 release, this feature allows you to define new events with custom payloads based on existing SAP standard events. This allows you to reuse standard event implementations while creating events with additional fields and filtering criteria that you need for your business.&lt;BR /&gt;SAP Community Blog: &lt;SPAN&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/derived-events-how-to-trigger-custom-event-from-an-sap-standard-event/ba-p/13955193" target="_blank"&gt;Derived Events- How to Trigger Custom Event from an SAP Standard Event&lt;/A&gt;&lt;/SPAN&gt;&lt;BR /&gt;On the other hand, a Derived Event requires that the SAP Standard object to be extended meets the following conditions:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The business object containing the referring event must be extensible.&lt;/LI&gt;&lt;LI&gt;The referenced event must be published on the C0 and C1 released RAP BO interfaces&lt;/LI&gt;&lt;LI&gt;The CDS view entity used as the data source for the Derived Event payload must have been released in C1&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Therefore, some objects do not support extensibility with Derived Events in SAP Standard RAP BO. In this case, there may be cases where the requirements that should be solved by Derived Events cannot be realized.&lt;BR /&gt;So, in this blog, we will introduce a workaround approach that enables payload expansion with custom RAP BO for SAP standard events that cannot be extended with Derived Events.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1437114120"&gt;2. Workaround Solutions&lt;/H1&gt;&lt;P&gt;If Derived Events are not available, a workaround approach that combines Local Event Consumption with custom RAP events can be an effective approach. This approach involves consuming SAP standard events locally (custom ABAP classes) and using them as triggers to raise custom RAP events. By setting the payload of a custom event to meet your business requirements, you can use event filters.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="hironobu_nakayama_1-1760225484634.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/326000i65E19ECBA8BC68CD/image-size/large?v=v2&amp;amp;px=999" role="button" title="hironobu_nakayama_1-1760225484634.png" alt="hironobu_nakayama_1-1760225484634.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1240600615"&gt;3. Implementation Sample&lt;/H1&gt;&lt;P&gt;In this blog, we will use a non-extensible r_purchaseordertp as the target object to extend the event payload for data changes in a PO document. SAP standard events have a payload of only the purchase order document number, whereas custom events have a purchase order document number and purchase order type as the payload. For more information on Event Binding and channel configuration with Event Mesh, please visit the SAP Community Blog: &lt;SPAN&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/how-to-create-rap-business-events-in-sap-s-4hana-on-premise-2022/ba-p/13553312" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-sap/how-to-create-rap-business-events-in-sap-s-4hana-on-premise-2022/ba-p/13553312&lt;/A&gt;&lt;/SPAN&gt;&amp;nbsp;. Please note that the RAP BO in the implementation sample in this blog does not implement CRUD or save processing other than events.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1302252548"&gt;(1) Local Consumer (Custom ABAP Class for Local Event Consumption)&lt;/H3&gt;&lt;H5 id="toc-hId-1363904481"&gt;Global class: zcl_event_consump&lt;/H5&gt;&lt;P&gt;In the Global class, the definition FOR EVENTS OF r_purchaseordertp sets the standard events to be consumed.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_event_consump DEFINITION
-  PUBLIC
-  ABSTRACT
-  FINAL
-  FOR EVENTS OF r_purchaseordertp.
-
-  PUBLIC SECTION.
-  PROTECTED SECTION.
-  PRIVATE SECTION.
-ENDCLASS.
-
-
-
-CLASS zcl_event_consump IMPLEMENTATION.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H5 id="toc-hId-1167390976"&gt;Local class: zcl_event_consump&lt;/H5&gt;&lt;P&gt;The Local class performs additional data retrieval based on the data from the standard event payload consumed to trigger a custom RAP event.&lt;BR /&gt;It is important to note that triggering events is only possible in the RAP framework with a Save Sequence, so you must explicitly change it to Save Sequence by cl_abap_tx=&amp;gt;save( ).&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;*"* use this source file for the definition and implementation of
-*"* local helper classes, interface definitions and type
-*"* declarations
-CLASS lcl_event_consump DEFINITION INHERITING FROM cl_abap_behavior_event_handler.
-  PRIVATE SECTION.
-    METHODS:
-      consume_changed FOR ENTITY EVENT changed_instances FOR purchaseorder~changed.
-ENDCLASS.
-
-CLASS lcl_event_consump IMPLEMENTATION.
-
-  METHOD consume_changed.
-    cl_abap_tx=&amp;gt;save(  ).
-
-    DATA lv_potype TYPE mm_purchaseordertype.
-
-    CHECK changed_instances IS NOT INITIAL.
-
-    LOOP AT changed_instances INTO DATA(changed_instance).
-
-      SELECT SINGLE purchaseordertype
-      FROM c_purchaseordertp
-      INTO _potype
-      WHERE purchaseorder = @changed_instance-purchaseorder.
-
-      DATA(et_events) = VALUE zbp_i_purchseorder_test=&amp;gt;tt_events(
-        (
-        purchaseorder = changed_instance-purchaseorder
-        purchaseordertype = lv_potype
-        )
-      ).
-
-      zbp_i_purchseorder_event=&amp;gt;raise_po_changed_event( it_events = et_events ).
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-712712033"&gt;(2) Custom RAP BO (Custom Event)&lt;/H3&gt;&lt;H5 id="toc-hId-774363966"&gt;CDS View: &lt;SPAN&gt;ZI_purchseorder_event&lt;/SPAN&gt;&lt;/H5&gt;&lt;P&gt;In the CDS View, I define only the purchase order.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Consume purchase order event'
-@Metadata.ignorePropagatedAnnotations: true
-@ObjectModel.usageType:{
-  serviceQuality: #X,
-  sizeCategory: #S,
-  dataClass: #MIXED
-}
-define root view entity ZI_purchseorder_event as select from I_PurchaseOrder
-{
-  key PurchaseOrder
-}&lt;/code&gt;&lt;/pre&gt;&lt;H5 id="toc-hId-577850461"&gt;&amp;nbsp;&lt;/H5&gt;&lt;H5 id="toc-hId-381336956"&gt;Behavior Definition: &lt;SPAN&gt;ZI_purchseorder_event&lt;/SPAN&gt;&lt;/H5&gt;&lt;P&gt;Custom RAP BO for event triggers does not define the create/update/delete function.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed with unmanaged save implementation in class zbp_i_purchseorder_event unique;
-strict ( 2 );
-
-define behavior for ZI_purchseorder_event //alias &amp;lt;alias_name&amp;gt;
-//persistent table ekko
-lock master
-authorization master ( instance )
-//etag master &amp;lt;field_name&amp;gt;
-{
-  //  create;
-  //  update;
-  //  delete;
-  event purchaseorder_changed parameter ZAB_PO_changed_event;
-
-  field ( readonly ) PurchaseOrder;
-}&lt;/code&gt;&lt;/pre&gt;&lt;H5 id="toc-hId--735379370"&gt;Behavior Implementation (Global class) : &lt;SPAN&gt;zbp_i_purchseorder_event&lt;/SPAN&gt;&lt;/H5&gt;&lt;P&gt;In the Global class, I define a method for triggering events.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zbp_i_purchseorder_event DEFINITION PUBLIC ABSTRACT FINAL FOR BEHAVIOR OF zi_purchseorder_event.
-
-  TYPES tt_events TYPE TABLE FOR EVENT zi_purchseorder_event~purchaseorder_changed.
-
-  PUBLIC SECTION.
-        CLASS-METHODS raise_po_changed_event
-            IMPORTING it_events TYPE tt_events.
-
-ENDCLASS.
-
-CLASS zbp_i_purchseorder_event IMPLEMENTATION.
-METHOD raise_po_changed_event.
-  lcl_event_handler=&amp;gt;on_po_changed_event( it_events ).
-endmethod.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;H5 id="toc-hId--931892875"&gt;&amp;nbsp;&lt;/H5&gt;&lt;H5 id="toc-hId--1128406380"&gt;Behavior Implementation (Local class) : &lt;SPAN&gt;lhc_zi_purchseorder_event&lt;/SPAN&gt;&lt;/H5&gt;&lt;P&gt;The Local class does not implement save processing, etc., but only implements methods for triggering events.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_zi_purchseorder_event DEFINITION INHERITING FROM cl_abap_behavior_handler.
-  PRIVATE SECTION.
-
-    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-      IMPORTING keys REQUEST requested_authorizations FOR zi_purchseorder_event RESULT result.
-
-ENDCLASS.
-
-CLASS lhc_zi_purchseorder_event IMPLEMENTATION.
-
-  METHOD get_instance_authorizations.
-  ENDMETHOD.
-
-ENDCLASS.
-
-CLASS lsc_zi_purchseorder_event DEFINITION INHERITING FROM cl_abap_behavior_saver.
-  PROTECTED SECTION.
-
-    METHODS save_modified REDEFINITION.
-
-    METHODS cleanup_finalize REDEFINITION.
-
-ENDCLASS.
-
-CLASS lsc_zi_purchseorder_event IMPLEMENTATION.
-
-  METHOD save_modified.
-  ENDMETHOD.
-
-  METHOD cleanup_finalize.
-  ENDMETHOD.
-
-ENDCLASS.
-
-CLASS lcl_event_handler DEFINITION FRIENDS zbp_i_purchseorder_event.
-  PUBLIC SECTION.
-    CLASS-METHODS on_po_changed_event IMPORTING it_events TYPE zbp_i_purchseorder_event=&amp;gt;tt_events.
-ENDCLASS.
-
-CLASS lcl_event_handler IMPLEMENTATION.
-   METHOD on_po_changed_event.
-
-    RAISE ENTITY EVENT ZI_purchseorder_event~purchaseorder_changed FROM it_events.
-
-   ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;H5 id="toc-hId--1324919885"&gt;&amp;nbsp;&lt;/H5&gt;&lt;H5 id="toc-hId--1521433390"&gt;Abstract Entity: &lt;SPAN&gt;ZAB_PO_changed_event&lt;/SPAN&gt;&lt;/H5&gt;&lt;P&gt;Abstract entity adds a purchase order document type. This results in the payload of the custom RAP event being the purchase order document number and the purchase order document type.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Abastract entity for po changed event'
-define abstract entity ZAB_PO_changed_event
-  //  with parameters parameter_name : parameter_type
-{
-  PurchaseOrderType : mm_purchaseordertype;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--544334867"&gt;4. Implementation Results&lt;/H1&gt;&lt;P&gt;Modify and save an existing purchase order document from the Manage Purchase Orders (F0842A) app.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="hironobu_nakayama_0-1760229645619.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/326001iA137C622300D0D19/image-size/large?v=v2&amp;amp;px=999" role="button" title="hironobu_nakayama_0-1760229645619.png" alt="hironobu_nakayama_0-1760229645619.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;You can receive custom events triggered from S/4HANA in SAP Event Mesh.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="hironobu_nakayama_1-1760229707438.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/326002i776A835D573B8867/image-size/large?v=v2&amp;amp;px=999" role="button" title="hironobu_nakayama_1-1760229707438.png" alt="hironobu_nakayama_1-1760229707438.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--740848372"&gt;5. Summary&lt;/H1&gt;&lt;P&gt;When it is not possible to scale with Derived Events in implementing an event-driven architecture, a workaround approach that combines Local Event Consumption with custom RAP events is an effective approach.&lt;BR /&gt;This approach enables custom payloads and filtering capabilities based on business requirements, providing event consumers with the data they need to optimize cross-system integration.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--937361877"&gt;References&lt;/H1&gt;&lt;P&gt;SAP Learning：&lt;SPAN&gt;&lt;A href="https://learning.sap.com/learning-journeys/discovering-event-driven-integration-with-sap-integration-suite-advanced-event-mesh/explaining-event-driven-architecture_d02a51bb-1ce4-4c2d-a25d-8b9c9198ffd2" target="_blank" rel="noopener noreferrer"&gt;Explaining Event-Driven Architecture&lt;/A&gt;&lt;/SPAN&gt;&lt;BR /&gt;SAP Help: &lt;SPAN&gt;&lt;A href="https://help.sap.com/docs/sap-btp-guidance-framework/integration-architecture-guide/event-driven-architecture?amp;state=PRODUCTION&amp;amp;amp;version=Cloud" target="_blank" rel="noopener noreferrer"&gt;Event-driven Architecture&lt;/A&gt;&lt;/SPAN&gt;&lt;BR /&gt;SAP Community Blog: &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/rap-business-events-with-advanced-event-mesh-2-creating-custom-business/ba-p/13914171" target="_blank"&gt;RAP Business Events with Advanced Event Mesh [2]: Creating custom business events&lt;/A&gt;&lt;BR /&gt;SAP Community Blog: &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/rap-business-events-with-advanced-event-mesh-5-consuming-a-local-business/ba-p/13915138" target="_blank"&gt;RAP Business Events with Advanced Event Mesh [5]: Consuming a local business event&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/rap-event-consume-sap-standard-event-and-trigger-custom-rap-event/ba-p/14241235"/>
-    <published>2025-10-14T18:00:00.028000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/abap-blog-posts/f4-search-help-not-working-in-application-jobs-fiori-app-in-s4-hana-2023/ba-p/14244453</id>
     <title>F4 Search help not working in Application Jobs fiori app in S4/HANA 2023</title>
@@ -3358,5 +3203,17 @@ define service ZUN_SRV_DD {
 }&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId-452467556"&gt;&lt;STRONG&gt;Step 9: Bind the Service to Make it Available&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;Once we define the service, we create a &lt;STRONG&gt;Service Binding&lt;/STRONG&gt; to make the service available for use in the system.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 798px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347382i644BAFEFF71F8936/image-dimensions/798x289/is-moderation-mode/true?v=v2" width="798" height="289" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H4 id="toc-hId-255954051"&gt;&lt;STRONG&gt;Step 10: Test CRUD Operations&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;Finally, we test the system by adding, updating, and deleting records. This shows how the system behaves when interacting with employee data.&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347384i797850E9DEB5D62C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;I am testing a create operation.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347399i4635AD372AF4FD39/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347400i730BEA633B194E24/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347402iD083FEFAB3E31649/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Successfully created a record.&amp;nbsp;Updating a record that we created.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347403iD88800C2AC67FDB9/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347404i5F81A99022099A42/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Successfully updated the record. Now, I am going to delete the updated record.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347407iEF2FC67E3199325D/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347410i3431AE05CAAE2BBB/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;STRONG&gt;Successfully deleted the record.&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;H3 id="toc-hId--144873542"&gt;Conclusion and Usage&lt;/H3&gt;&lt;P&gt;In this blog, we learned how to implement CRUD operations in SAP RAP using an employee management example. We created a database table, set up views, and defined behavior for creating, updating, and deleting employee records.&lt;/P&gt;&lt;H3 id="toc-hId--341387047"&gt;Why We Use Flags&lt;/H3&gt;&lt;P&gt;The flags (&lt;CODE&gt;C&lt;/CODE&gt; for Create, &lt;CODE&gt;U&lt;/CODE&gt; for Update, &lt;CODE&gt;D&lt;/CODE&gt; for Delete) help us track which operation needs to be performed on the data. These flags allow the system to know whether to insert, update, or delete a record in the database.&lt;/P&gt;&lt;H3 id="toc-hId--537900552"&gt;Using AI for Faster Content Creation&lt;/H3&gt;&lt;P&gt;While practicing and writing the code, I used &lt;STRONG&gt;AI&lt;/STRONG&gt; for faster content generation. AI helps speed up tasks like documentation and explanations, but the real learning comes from coding and understanding the process firsthand.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/implementing-unmanaged-crud-operations-in-sap-rap-a-hands-on-guide/ba-p/14281820"/>
     <published>2025-12-03T06:15:44.874000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/generating-odata-service-artifacts-from-multiple-cds-views-tables/ba-p/14284725</id>
+    <title>Generating OData Service Artifacts from Multiple CDS Views/Tables</title>
+    <updated>2025-12-05T13:02:08.408000+01:00</updated>
+    <author>
+      <name>Srivatsa</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1392861</uri>
+    </author>
+    <content>&lt;H2 id="toc-hId-1766498575"&gt;&lt;span class="lia-unicode-emoji" title=":hammer_and_wrench:"&gt;🛠&lt;/span&gt;️ Step 1: Initialize the Service Generator&lt;/H2&gt;&lt;P&gt;Start the Service Generator tool (often accessed via ADT or a relevant Fiori tool). You will typically begin by defining the main service configuration.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Srivatsa_0-1764935874648.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348940iFDC84D46AADAEB83/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Srivatsa_0-1764935874648.png" alt="Srivatsa_0-1764935874648.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Srivatsa_8-1764935963049.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348948iEF648500C3D7BDA8/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Srivatsa_8-1764935963049.png" alt="Srivatsa_8-1764935963049.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1569985070"&gt;&lt;span class="lia-unicode-emoji" title=":link:"&gt;🔗&lt;/span&gt; Step 2: Define Business Object Entities&lt;/H2&gt;&lt;P&gt;The key to multi-entity services is correctly defining all entities and their relationships.&lt;/P&gt;&lt;H3 id="toc-hId-1502554284"&gt;A. Define the Parent Entity (Header)&lt;/H3&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Add Entity:&lt;/STRONG&gt; Start by adding the primary, or "Header," entity. In your case, this is &lt;CODE&gt;R_S2P_VendMGNT&lt;/CODE&gt;.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Entity Alias:&lt;/STRONG&gt; &lt;CODE&gt;R_S2P_VendMGNT&lt;/CODE&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Parent Name:&lt;/STRONG&gt; Not applicable (as this is the top-level entity)&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Fields:&lt;/STRONG&gt; Define the necessary fields, such as &lt;CODE&gt;VendorLegalName1&lt;/CODE&gt;, ensuring correct data types and lengths (e.g., &lt;CODE&gt;Char&lt;/CODE&gt;, length 10).&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;You dont have to pass the key field, it will automatically generate to SAP UUID.&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Srivatsa_2-1764935910461.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348942iAB0871491947D606/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Srivatsa_2-1764935910461.png" alt="Srivatsa_2-1764935910461.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Srivatsa_3-1764935916589.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348943i1533874456A33829/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Srivatsa_3-1764935916589.png" alt="Srivatsa_3-1764935916589.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1306040779"&gt;B. Define the Child Entity (Item)&lt;/H3&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Add Entity:&lt;/STRONG&gt; Add the secondary, or "Item," entity, which represents the line items. In your scenario, this is &lt;CODE&gt;R_S2P_VMITem&lt;/CODE&gt;.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Establish Relationship:&lt;/STRONG&gt; This entity must be defined as a child of the header entity to enable navigation properties in the final OData service.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Entity Alias:&lt;/STRONG&gt; &lt;CODE&gt;R_S2P_VMITem&lt;/CODE&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Parent Name:&lt;/STRONG&gt; &lt;CODE&gt;R_S2P_VendMGNT&lt;/CODE&gt; (The header entity)&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Cardinality:&lt;/STRONG&gt; &lt;STRONG&gt;"To Many"&lt;/STRONG&gt; - This is crucial as one vendor (header) can have multiple line items (items).&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Fields:&lt;/STRONG&gt; Define the item-specific fields (your image shows fields being added to &lt;CODE&gt;R_S2P_VMITem&lt;/CODE&gt; as well).&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Srivatsa_4-1764935930924.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348944iA0AD4BFD93FA08A9/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Srivatsa_4-1764935930924.png" alt="Srivatsa_4-1764935930924.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-980444555"&gt;&lt;span class="lia-unicode-emoji" title=":gear:"&gt;⚙️&lt;/span&gt; Step 3: Review and Generate Artifacts&lt;/H2&gt;&lt;P&gt;After defining both entities and their relationship, you can proceed to the generation step.&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Review Artifacts:&lt;/STRONG&gt; The generator will prepare a list of ABAP Repository Objects to be created. This list confirms the successful configuration of the multi-entity service.&lt;/P&gt;&lt;P&gt;The generated artifacts will include:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Service Definition (&lt;CODE&gt;ZUI_R_S2P_VENDMGNT...&lt;/CODE&gt;&lt;span class="lia-unicode-emoji" title=":disappointed_face:"&gt;😞&lt;/span&gt;&lt;/STRONG&gt; Defines the entire OData service structure and exposes the entities.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Service Binding (&lt;CODE&gt;ZUI_R_S2P_VENDMGNT...&lt;/CODE&gt;&lt;span class="lia-unicode-emoji" title=":disappointed_face:"&gt;😞&lt;/span&gt;&lt;/STRONG&gt; Provides a deployable endpoint for the OData service.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;SAP Object Node Types (&lt;CODE&gt;ZR_S2P_VENDMGNT&lt;/CODE&gt;&lt;span class="lia-unicode-emoji" title=":disappointed_face:"&gt;😞&lt;/span&gt;&lt;/STRONG&gt; Defines the underlying object structure for each entity.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Data Definitions (&lt;CODE&gt;D ZC_R_S2P...&lt;/CODE&gt;&lt;span class="lia-unicode-emoji" title=":disappointed_face:"&gt;😞&lt;/span&gt;&lt;/STRONG&gt; Defines the core ABAP structures.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Business Object Projection Entities:&lt;/STRONG&gt; Maps the CDS entities to the Business Object layer.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Generate:&lt;/STRONG&gt; Click &lt;STRONG&gt;Finish&lt;/STRONG&gt; to generate these artifacts.&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Srivatsa_5-1764935949209.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348945i3F4C59B97868CF7E/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Srivatsa_5-1764935949209.png" alt="Srivatsa_5-1764935949209.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Srivatsa_6-1764935954019.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348946iC188D7F7D9E0CC14/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Srivatsa_6-1764935954019.png" alt="Srivatsa_6-1764935954019.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Srivatsa_7-1764935958554.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348947i06E1317B3A5582F3/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Srivatsa_7-1764935958554.png" alt="Srivatsa_7-1764935958554.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Srivatsa_9-1764935971191.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348949iB370F9E132CBC875/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Srivatsa_9-1764935971191.png" alt="Srivatsa_9-1764935971191.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-783931050"&gt;&lt;span class="lia-unicode-emoji" title=":party_popper:"&gt;🎉&lt;/span&gt; Conclusion&lt;/H2&gt;&lt;P&gt;By defining a hierarchical structure where the item entity is a child of the header entity with &lt;STRONG&gt;"To Many"&lt;/STRONG&gt; cardinality, you successfully generate all required ABAP artifacts for a robust OData service that handles complex data from multiple source tables/CDS views. This service can now be consumed by Fiori applications to retrieve both header and line item data efficiently.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Srivatsa_10-1764935981706.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348951i0EBDEFE3018CF1B9/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Srivatsa_10-1764935981706.png" alt="Srivatsa_10-1764935981706.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Srivatsa_11-1764935990860.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348952iC4348601F9A73391/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Srivatsa_11-1764935990860.png" alt="Srivatsa_11-1764935990860.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Srivatsa_12-1764935998981.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348953iB7EDBBCAF65AE48A/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Srivatsa_12-1764935998981.png" alt="Srivatsa_12-1764935998981.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/generating-odata-service-artifacts-from-multiple-cds-views-tables/ba-p/14284725"/>
+    <published>2025-12-05T13:02:08.408000+01:00</published>
   </entry>
 </feed>
