@@ -2,615 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2025-12-10T10:29:01.659890+00:00</updated>
+  <updated>2025-12-10T10:44:01.285288+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/rap-based-adobeform-with-custom-action-and-annotations/ba-p/14281893</id>
-    <title>RAP BASED ADOBEFORM WITH CUSTOM ACTION and Annotations</title>
-    <updated>2025-12-10T07:53:48.802000+01:00</updated>
-    <author>
-      <name>harsha_reddy24</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2263071</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Introduction:&lt;/STRONG&gt;&lt;BR /&gt;In this blog, we explore how RAP and Adobe Forms can be integrated to deliver a fully digital, end-to-end document generation experience directly from Fiori. By leveraging custom actions, virtual elements, and media-stream handling, we can trigger Adobe Form generation from the UI, manage the file output within RAP, and enable users to download the PDF instantly—ensuring a clean, cloud-ready and future-proof architecture.&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;Solution Overview:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In modern SAP applications, combining &lt;STRONG&gt;RAP (RESTful ABAP Programming Model)&lt;/STRONG&gt; with Adobe Forms unlocks a clean, scalable way to generate and manage documents directly from Fiori. By extending the Fiori Elements UI with a custom action through the Integrative Extension Controller, we can trigger Adobe form generation seamlessly from the frontend. Using RAP virtual elements and media-stream properties, the generated PDF can be stored, retrieved, and downloaded. This approach delivers a fully end-to-end, cloud-ready solution for document creation, storage, and user-triggered actions—all built natively within &lt;STRONG&gt;RAP&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Root Entity:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED         // No authorization checks required for read access
-@EndUserText.label: 'ROOT ENTITY FOR ADOBE FORM'         // Description for display in tools
-@Metadata.ignorePropagatedAnnotations: true              // Avoid unwanted propagated annotations
-
-define root view entity ZRV_AFORM 
-  as select from vbap                                    // Based on VBAP (Sales Order Item Data)
-{
-
-  /*-----------------------------------------------------------
-    Key Fields for RAP Root Entity
-  -----------------------------------------------------------*/
-  key vbeln,          // Sales Document Number
-  posnr,              // Item Number
-  matnr,              // Material Number
-
-  /*-----------------------------------------------------------
-    Display text: Shown in UI for SEGW/Fiori preview
-    Not used for actual functionality, only for readability.
-  -----------------------------------------------------------*/
-  'Preview(SEGW)' as ShowPDF,
-
-  /*-----------------------------------------------------------
-    Dynamic URL to download the Adobe Form PDF
-    Format:
-      /sap/opu/odata/SAP/ZRAP_ADOBE_FORM_SRV/adobeSet('&amp;lt;VBELN&amp;gt;')/$value
-    This URL triggers GET_STREAM in the OData service.
-  -----------------------------------------------------------*/
-  concat(
-    '/sap/opu/odata/SAP/ZRAP_ADOBE_FORM_SRV/adobeSet(''',
-    concat( vbeln, ''')') /$value'
-  ) as LinkToPDF
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;OData Service:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Include &lt;STRONG&gt;vbeln&lt;/STRONG&gt; as a property in your entity type, and when the user provides a sales document number, the service should return the corresponding Adobe Form data in the response, implement &lt;STRONG&gt;GET_STREAM&lt;/STRONG&gt; Method .&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;Implementation:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  METHOD /IWBEP/IF_MGW_APPL_SRV_RUNTIME~GET_STREAM.
-
-    "---------------------------------------------------------------
-    " Data Declarations
-    "---------------------------------------------------------------
-    DATA: lv_funcname   TYPE funcname,         " Generated FM name for Adobe Form
-          ls_o_p        TYPE sfpoutputparams,  " Output parameters for Adobe Forms
-          ls_formoutput TYPE fpformoutput,     " Adobe form output structure
-          ls_stream     TYPE ty_s_media_resource,  " Stream returned to OData
-          gv_bin_file   TYPE xstring.          " PDF binary data (unused variable)
-
-    "---------------------------------------------------------------
-    " Read Input Key from OData Request
-    " Example: /sap/opu/odata/SRV/FormSet(vbeln='12345')/$value
-    "---------------------------------------------------------------
-    DATA(lv_vbeln) = VALUE vbeln_vl(
-                        it_key_tab[ name = 'vbeln' ]-value OPTIONAL ).
-
-    "---------------------------------------------------------------
-    " STEP 1: Retrieve Adobe Form Generated Function Module
-    "---------------------------------------------------------------
-    TRY.
-        CALL FUNCTION 'FP_FUNCTION_MODULE_NAME'
-          EXPORTING
-            i_name     = 'ZSALES_FORM_ITEMS'   " Adobe Form interface name
-          IMPORTING
-            e_funcname = lv_funcname.          " Generated FM name
-
-        IF sy-subrc &amp;lt;&amp;gt; 0.
-          RETURN.  " Stop processing if FM not found
-        ENDIF.
-
-        "-----------------------------------------------------------
-        " STEP 2: Adobe Form Output Setup (Request PDF Only)
-        "-----------------------------------------------------------
-        ls_o_p-nodialog  = abap_true.   " No dialog popups
-        ls_o_p-getpdf    = abap_true.   " Request PDF output
-        ls_o_p-nopreview = abap_true.   " Skip preview
-
-        " Open Adobe spool job
-        CALL FUNCTION 'FP_JOB_OPEN'
-          CHANGING
-            ie_outputparams = ls_o_p
-          EXCEPTIONS
-            cancel          = 1
-            usage_error     = 2
-            system_error    = 3
-            internal_error  = 4
-            OTHERS          = 5.
-
-      CATCH cx_root.
-        " Ideally log or raise error
-        RETURN.
-    ENDTRY.
-
-    "---------------------------------------------------------------
-    " STEP 3: Call Adobe Form Generated Function Module
-    "---------------------------------------------------------------
-    CALL FUNCTION lv_funcname
-      EXPORTING
-        p_vbeln            = lv_vbeln         " Sales document number
-      IMPORTING
-        /1bcdwb/formoutput = ls_formoutput    " PDF Output (XSTRING)
-      EXCEPTIONS
-        usage_error        = 1
-        system_error       = 2
-        internal_error     = 3
-        OTHERS             = 4.
-
-    IF sy-subrc &amp;lt;&amp;gt; 0.
-      RETURN.    " Handle form rendering errors
-    ENDIF.
-
-    "---------------------------------------------------------------
-    " STEP 4: Close Adobe Print Job
-    "---------------------------------------------------------------
-    CALL FUNCTION 'FP_JOB_CLOSE'
-      EXCEPTIONS
-        usage_error    = 1
-        system_error   = 2
-        internal_error = 3
-        OTHERS         = 4.
-
-    IF sy-subrc &amp;lt;&amp;gt; 0.
-      RETURN.
-    ENDIF.
-
-    "---------------------------------------------------------------
-    " STEP 5: Populate OData Media Stream
-    "---------------------------------------------------------------
-    ls_stream-mime_type = 'application/pdf'.   " MIME type for PDF
-    ls_stream-value     = ls_formoutput-pdf.   " XSTRING PDF data
-
-    "---------------------------------------------------------------
-    " STEP 6: Set Filename in Response Header
-    "---------------------------------------------------------------
-    DATA: ls_header   TYPE ihttpnvp,
-          lv_filename TYPE string.
-
-    " Dynamic file name e.g. SalesDoc_80001234.pdf
-    lv_filename = |SalesDoc_{ lv_vbeln }.pdf|.
-
-    ls_header-name  = 'Content-Disposition'.
-    ls_header-value = |attachment; filename="{ lv_filename }"|.
-
-    " Add header to OData HTTP response
-    me-&amp;gt;set_header( is_header = ls_header ).
-
-    "---------------------------------------------------------------
-    " STEP 7: Return Stream to OData Framework
-    "---------------------------------------------------------------
-    CALL METHOD me-&amp;gt;copy_data_to_ref
-      EXPORTING
-        is_data = ls_stream
-      CHANGING
-        cr_data = er_stream.
-
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Projection View:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;To expose the Adobe Form download link in the Fiori UI, I used a projection view with ui.lineItem and type: &lt;STRONG&gt;WITH_URL&lt;/STRONG&gt; so the PDF URL becomes directly clickable in the list and object page. The actual PDF content&amp;nbsp; BASE64&amp;nbsp; is not stored in the CDS view; instead,&lt;STRONG&gt; I used a RAP virtual element attach calculated by an ABAP class for Custom Action&lt;/STRONG&gt;. This virtual element lets me fetch and return the generated Adobe Form dynamically at runtime without persisting the binary in the database.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED          // No auth checks for read access
-@EndUserText.label: 'PV FOR ADOBE FORM'                   // Description of the view
-@Metadata.ignorePropagatedAnnotations: true               // Prevent annotation inheritance from base view
-
-define root view entity ZPV_AFORM 
-  as projection on ZRV_AFORM                               // Projection on RAP consumption view
-{
-
-  /*-----------------------------------------------------------
-    Key Field: Sales Document (VBELN)
-    Displayed in UI (List + Object Page)
-  -----------------------------------------------------------*/
-  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.facet: [{ type: #IDENTIFICATION_REFERENCE }]
-  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.lineItem: [{ position: 10 }]
-  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.identification: [{ position: 10 }]
-  key vbeln,
-
-  /*-----------------------------------------------------------
-    Item Number
-  -----------------------------------------------------------*/
-  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.lineItem: [{ position: 20 }]
-  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.identification: [{ position: 20 }]
-  posnr,
-
-  /*-----------------------------------------------------------
-    Material
-  -----------------------------------------------------------*/
-  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.lineItem: [{ position: 30 }]
-  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.identification: [{ position: 30 }]
-  matnr,
-
-  /*-----------------------------------------------------------
-    PDF Link Column (UI: Display as clickable URL)
-    This displays a clickable link "Show PDF" in the List Report.
-  -----------------------------------------------------------*/
-  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.lineItem: [{
-     position: 10,
-     type: #WITH_URL,      // URL-enabled column
-     url: 'LinkToPDF'      // Field used as hyperlink
-  }]
-  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.identification: [{
-     position: 61,
-     type: #WITH_URL,
-     url: 'LinkToPDF'
-  }]
-  ShowPDF,                // UI label for the clickable link
-
-  /*-----------------------------------------------------------
-    URL Field - Populated in Behavior Implementation
-    Used by Fiori to download/open the PDF.
-  -----------------------------------------------------------*/
-  LinkToPDF,
-
-  /*-----------------------------------------------------------
-    Virtual Field for Base64 PDF content
-    RAP calculates this via ZCL_ADOBEFORMM class.
-  -----------------------------------------------------------*/
-  @ObjectModel.virtualElement: true
-  @ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_ADOBEFORMM'
-  virtual attach : abap.string(0)     // Base64 PDF to be fetched on-demand
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Virtual Elements Implementation:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_adobeformm IMPLEMENTATION.
-
-  METHOD if_sadl_exit_calc_element_read~calculate.
-
-    " Internal table for virtual elements defined in projection view
-    DATA: lt_virtual TYPE TABLE OF zpv_aform,
-          lv_base64 TYPE string.
-
-    " Move original RAP data into a working virtual table
-    lt_virtual = CORRESPONDING #( it_original_data ).
-
-    " Loop over each row to calculate the virtual element (Base64 PDF)
-    LOOP AT lt_virtual INTO DATA(ls_virtual).
-
-      " Get Sales Order number from the current row
-      DATA(lv_vbeln) = ls_virtual-vbeln.
-
-      " Create instance of Adobe Form handler class
-      DATA(lo_inst) = NEW zcl_adobeform( ).
-
-      " Call Adobe Form generator to get raw PDF (XSTRING)
-      DATA(rv_pdf) = lo_inst-&amp;gt;get_data(
-                        EXPORTING
-                          p_vbeln = lv_vbeln     " Sales Order
-                     ).
-
-      " Convert PDF (XSTRING) → Base64 string, required for RAP media download
-      CALL FUNCTION 'SCMS_BASE64_ENCODE_STR'
-        EXPORTING
-          input  = rv_pdf
-        IMPORTING
-          output = lv_base64.
-
-      " Assign Base64 string to virtual element field
-      ls_virtual-attach = lv_base64.
-
-    ENDLOOP.
-
-    " Move calculated data back to RAP consumption structure
-    ct_calculated_data = CORRESPONDING #( lt_virtual ).
-
-  ENDMETHOD.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;To retrieve the Adobe Form as an XSTRING, I implemented a dedicated ABAP class responsible for generating and returning the PDF content. The implementation code is as follows:&lt;BR /&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  method GET_DATA.
-
-    " Adobe Form name
-    DATA(lv_form_name) = CONV tdsfname( 'ZSALES_FORM_ITEMS' ).
-
-    " Name of the generated function module for the form
-    DATA(lv_form_fm_name) = VALUE rs38l_fnam( ).
-
-    " Structures for Adobe Form parameters
-    DATA(ls_docparams)    = VALUE sfpdocparams( ).
-    DATA(ls_outputparams) = VALUE sfpoutputparams( ).
-    DATA(ls_formoutput)   = VALUE fpformoutput( ).
-
-*--------------------------------------------------------------------*
-*   STEP 1: Get the Generated Function Module of the Adobe Form
-*--------------------------------------------------------------------*
-    TRY.
-        CALL FUNCTION 'FP_FUNCTION_MODULE_NAME'
-          EXPORTING
-            i_name     = lv_form_name          " Form name
-          IMPORTING
-            e_funcname = lv_form_fm_name.      " Generated FM name
-
-      CATCH cx_fp_api INTO DATA(lx_fp_api).
-        " Handle form API errors
-        MESSAGE ID lx_fp_api-&amp;gt;msgid TYPE lx_fp_api-&amp;gt;msgty
-                NUMBER lx_fp_api-&amp;gt;msgno
-                WITH lx_fp_api-&amp;gt;msgv1 lx_fp_api-&amp;gt;msgv2
-                     lx_fp_api-&amp;gt;msgv3 lx_fp_api-&amp;gt;msgv4.
-        RETURN.
-    ENDTRY.
-
-
-*--------------------------------------------------------------------*
-*   STEP 2: Prepare Output Parameters for PDF Generation
-*--------------------------------------------------------------------*
-    ls_outputparams-nodialog = 'X'.   " Avoid popup / preview dialog
-    ls_outputparams-getpdf   = 'X'.   " Request PDF output only
-
-
-*--------------------------------------------------------------------*
-*   STEP 3: Open Adobe Form Spool Job
-*--------------------------------------------------------------------*
-    CALL FUNCTION 'FP_JOB_OPEN'
-      CHANGING
-        ie_outputparams = ls_outputparams
-      EXCEPTIONS
-        cancel          = 1
-        usage_error     = 2
-        system_error    = 3
-        internal_error  = 4
-        OTHERS          = 5.
-
-    IF sy-subrc &amp;lt;&amp;gt; 0.
-      " Display error message and exit
-      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
-              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
-      RETURN.
-    ENDIF.
-
-
-*--------------------------------------------------------------------*
-*   STEP 4: Call the Generated Adobe Form Function Module
-*--------------------------------------------------------------------*
-    CALL FUNCTION lv_form_fm_name
-      EXPORTING
-        /1BCDWB/DOCPARAMS  = ls_docparams    " Document parameters
-        p_vbeln            = p_vbeln          " Sales document input
-      IMPORTING
-        /1BCDWB/FORMOUTPUT = ls_formoutput    " Output structure
-      EXCEPTIONS
-        USAGE_ERROR        = 1
-        SYSTEM_ERROR       = 2
-        INTERNAL_ERROR     = 3
-        OTHERS             = 4.
-
-    IF sy-subrc &amp;lt;&amp;gt; 0.
-      " Errors during form rendering
-      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
-              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
-      RETURN.
-    ENDIF.
-
-
-*--------------------------------------------------------------------*
-*   STEP 5: Close Adobe Form Spool Job
-*--------------------------------------------------------------------*
-    CALL FUNCTION 'FP_JOB_CLOSE'
-      EXCEPTIONS
-        usage_error    = 1
-        system_error   = 2
-        internal_error = 3
-        OTHERS         = 4.
-
-    IF sy-subrc &amp;lt;&amp;gt; 0.
-      " Handle spool closing issues
-      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
-              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
-      RETURN.
-    ENDIF.
-
-
-*--------------------------------------------------------------------*
-*   STEP 6: Return Base64 PDF string to RAP Virtual Element
-*--------------------------------------------------------------------*
-    rv_string = ls_formoutput-pdf.    " Base64 encoded PDF
-
-  endmethod.&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;&lt;EM&gt;generate service definition and binding.&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;&lt;EM&gt;bind our service to list report.&lt;BR /&gt;&lt;BR /&gt;&lt;/EM&gt;&lt;/EM&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="harsha_reddy24_0-1764672827401.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347434iD5FFDE825C148890/image-size/medium?v=v2&amp;amp;px=400" role="button" title="harsha_reddy24_0-1764672827401.png" alt="harsha_reddy24_0-1764672827401.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;The link is highlighted in the UI, and when the user clicks it, the corresponding Adobe Form for that specific sales document is downloaded instantly.&lt;/LI&gt;&lt;LI&gt;&lt;P class="" align="left"&gt;Right click on web app and click on open guided development.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;We need custom action to be implemented.&lt;/LI&gt;&lt;LI&gt;Click on add a custom action.&lt;/LI&gt;&lt;LI&gt;Add necessary details and click on insert code snippet it will be added to manifest.json, it will add one more controller, where we can add our custom logic.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;To handle multi-PDF downloads from the List Report, I implemented a custom action in the controller extension. When the user selects one or more rows, a confirmation popup is shown using MessageBox.confirm. After the user confirms, the extension reads each selected entity via the OData model and retrieves the attach virtual element, which contains the Adobe Form as a Base64 string. The code then converts the Base64 into a PDF Blob and automatically triggers a download for each sales document, generating individual files such as Sales_Document_&amp;lt;VBELN&amp;gt;.pdf. This approach provides a smooth, scalable way to download multiple Adobe Forms directly from the Fiori UI without additional backend endpoints.&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;sap.ui.define([
-    "sap/m/MessageToast",
-    "sap/m/MessageBox"
-], function (MessageToast, MessageBox) {
-    "use strict";
-
-    return {
-        adf: function (oEvent) {
-
-            // Get the SmartTable from the view
-            var oSmartTable = this.getView().byId("listReport");
-            if (!oSmartTable) {
-                MessageToast.show("SmartTable not found");
-                return;
-            }
-
-            // Get the inner table (GridTable/ResponsiveTable)
-            var oTable = oSmartTable.getTable();
-            if (!oTable || typeof oTable.getSelectedContexts !== "function") {
-                // If table is not ready or does not support selection
-                MessageToast.show("Table not ready or selection not supported");
-                return;
-            }
-
-            // Get selected row contexts
-            var aSelectedContexts = oTable.getSelectedContexts();
-            if (aSelectedContexts.length === 0) {
-                // User must select at least one row
-                MessageToast.show("Please select at least one row.");
-                return;
-            }
-
-            // Ask user for confirmation before downloading PDFs
-            MessageBox.confirm("Do you want to download the selected PDF(s)?", {
-                title: "Confirm Download",
-                actions: [MessageBox.Action.OK, MessageBox.Action.CANCEL],
-
-                onClose: function (oAction) {
-                    if (oAction === MessageBox.Action.OK) {
-
-                        // Get OData model
-                        var oModel = this.getOwnerComponent().getModel();
-
-                        // Loop through all selected rows
-                        aSelectedContexts.forEach(function (oContext, index) {
-                            var sPath = oContext.getPath();  // Entity path of the row
-
-                            // Read entity to fetch Base64 PDF (virtual element)
-                            oModel.read(sPath, {
-                                success: function (odata) {
-
-                                    // Extract Base64 string from response
-                                    var base64String = odata.attach;
-
-                                    try {
-                                        // Convert Base64 → binary
-                                        var binaryString = atob(base64String);
-                                        var len = binaryString.length;
-                                        var bytes = new Uint8Array(len);
-
-                                        for (var i = 0; i &amp;lt; len; i++) {
-                                            bytes[i] = binaryString.charCodeAt(i);
-                                        }
-
-                                        // Create Blob for PDF download
-                                        var blob = new Blob([bytes], { type: "application/pdf" });
-
-                                        // Create a temporary download link
-                                        var link = document.createElement("a");
-                                        link.href = URL.createObjectURL(blob);
-
-                                        // File name: Sales_Document_&amp;lt;VBELN&amp;gt;.pdf
-                                        link.download = "Sales_Document_" + odata.vbeln + ".pdf";
-
-                                        // Trigger download
-                                        document.body.appendChild(link);
-                                        link.click();
-                                        document.body.removeChild(link);
-
-                                    } catch (e) {
-                                        // Invalid Base64 or conversion failure
-                                        MessageToast.show("Invalid base64 for: " + odata.vbeln);
-                                    }
-                                },
-
-                                // Error while calling OData service
-                                error: function () {
-                                    MessageToast.show("Error fetching PDF for: " + sPath);
-                                }
-                            });
-                        });
-                    }
-                }.bind(this)
-            });
-        }
-    };
-});&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="harsha_reddy24_1-1764673727896.png" style="width: 320px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347441i86766F8B44AFE42D/image-dimensions/320x169?v=v2" width="320" height="169" role="button" title="harsha_reddy24_1-1764673727896.png" alt="harsha_reddy24_1-1764673727896.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion:&lt;/STRONG&gt;&lt;BR /&gt;This end-to-end setup demonstrates how RAP, Adobe Forms, and Fiori Elements can work together seamlessly to deliver a modern document-generation experience. By leveraging virtual elements for XSTRING handling, URL-based PDF links, and a custom UI action for multi-file downloads, we can generate, expose, and retrieve Adobe Forms without any custom Gateway coding. The solution is clean, extensible, and fully aligned with SAP’s cloud-ready RAP architecture making it a practical template for building similar document-driven features in enterprise applications.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;BR /&gt;Thanks For Reading, Good Wishes&lt;BR /&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Connectivity/pd-p/266264953119842772207986043063520" class="lia-product-mention" data-product="313-1"&gt;ABAP Connectivity&lt;/a&gt;&amp;nbsp;&amp;nbsp;&lt;BR /&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Development/pd-p/833755570260738661924709785639136" class="lia-product-mention" data-product="314-1"&gt;ABAP Development&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+BTP+ABAP+environment/pd-p/73555000100800001164" class="lia-product-mention" data-product="11-1"&gt;SAP BTP ABAP environment&lt;/a&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/rap-based-adobeform-with-custom-action-and-annotations/ba-p/14281893"/>
-    <published>2025-12-10T07:53:48.802000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/financial-management-blog-posts-by-members/sap-copc-amp-ps-eto-scenario-results-analysis-revenue-based-method-with/bc-p/14287559#M5897</id>
-    <title>Re: SAP COPC &amp; PS - ETO Scenario - Results Analysis: Revenue-Based Method with Profit Realizatio</title>
-    <updated>2025-12-10T07:55:59.919000+01:00</updated>
-    <author>
-      <name>Srinivas_Gudla</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/3260</uri>
-    </author>
-    <content>&lt;P&gt;Thank You Marssel !&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/financial-management-blog-posts-by-members/sap-copc-amp-ps-eto-scenario-results-analysis-revenue-based-method-with/bc-p/14287559#M5897"/>
-    <published>2025-12-10T07:55:59.919000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/making-s-4hana-conversions-reliable-with-data-transition-validation-dtv/ba-p/14286078</id>
-    <title>Making S/4HANA Conversions Reliable with Data Transition Validation (DTV)</title>
-    <updated>2025-12-10T07:57:41.906000+01:00</updated>
-    <author>
-      <name>vishalbalagiri</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2268684</uri>
-    </author>
-    <content>&lt;P&gt;&lt;SPAN&gt;Every S/4HANA program reaches the same moment of truth: “Did our data make it across safely?” Data Transition Validation (DTV) answers that question with evidence. It runs systematic before-and-after checks across your business reports and transactional data, giving finance, operations, and audits a clear, defensible view that their numbers still hold and their processes still work. It turns data migration from a leap of faith into a controlled, reviewable step in the transformation.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;What DTV Does &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;DTV captures business data before and after your S/4HANA conversion or upgrade, compares them using consistent logic, and highlights the outcomes that matter: &lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Equal – your data matches &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Difference – something changed &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Missing in Target – not carried over &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Unexpected in Target – appeared after conversion &lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;This lets teams spot issues immediately, rather than finding surprises in production.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Why Leadership Pays Attention (The 3C Outcomes) &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Confidence:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; Automated comparisons replace scattered spreadsheets and manual reconciliations. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Compliance:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; You get an audit-ready trail showing that balances and business-critical snapshots match. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Continuity:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; Discrepancies surface during mock cycles and release upgrades, not after go-live.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Where DTV Fits &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;DTV is purpose-built for scenarios where data integrity directly affects how your business performs: &lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;ECC to S/4HANA brownfield conversions &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;S/4HANA release upgrades where business validation is essential&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;What DTV Covers &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Standard Coverage:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; Finance, Procurement, Sales, Manufacturing, Quality, Plant Maintenance, and Warehouse/EWM — with ready-to-use report templates across each area. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Custom&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; &lt;STRONG&gt;Coverage&lt;/STRONG&gt;: Your Z/Y ALV reports can be validated the same way, making it possible to test true business KPIs, not just system-delivered objects. &lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Note:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; Keep the scope anchored on a concise list of reports per function (e.g., asset history, AP aging, order backlogs). Expand only as needed.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;What’s Improved Recently &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Work-item re-execution lets you re-run only the slices that failed. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Expanded delivered content provides richer coverage in DTV 1.5 and 1.6. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Operational enhancements include clearer logs, better summaries, and improved workload handling.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Prerequisites to Get DTV Right&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;DTV is available natively in S/4HANA 2021 and above, with TCI-based enablement for earlier versions. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Access is provided through DVF or DTV depending on your system release. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Current SAP Notes must be applied and shared-memory issues in SHMA should be resolved early. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Roles must be designed so business users can evaluate results without having execution privileges.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;The DTV Workflow Explained&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Below is the sample Asset Balance report as executed in ECC (before conversion) and in S/4HANA (after conversion). This becomes the benchmark for validating behavior, structure, and results. The same workflow applies to every other report you evaluate — just repeat the sequence end-to-end.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_0-1765197740522.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349749i2DF232C8AE803037/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_0-1765197740522.png" alt="vishalbalagiri_0-1765197740522.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Create a Single Project for the Entire Conversion &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Maintain one consolidated project that spans the before-and-after phases so every comparison stays consistent and you avoid rework.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_1-1765197740528.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349751i2AAD3EC167F2CFAF/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_1-1765197740528.png" alt="vishalbalagiri_1-1765197740528.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_2-1765197740530.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349750iB913AA1993898C00/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_2-1765197740530.png" alt="vishalbalagiri_2-1765197740530.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Maintain System Connections &amp;amp; Performance Settings &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Map your Source (ECC or pre-upgrade S/4) and Target systems (Post-upgrade S/4) and set the right performance parameters to handle large-volume extractions smoothly.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_3-1765197740532.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349755iEB713AF59EADD459/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_3-1765197740532.png" alt="vishalbalagiri_3-1765197740532.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_4-1765197740533.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349752iD22D5BE1C25962BA/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_4-1765197740533.png" alt="vishalbalagiri_4-1765197740533.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Import Pre-Delivered Report Templates &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Begin with the high-value, low-debate reports already provided, and expand to additional reports as needed.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_5-1765197740535.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349754i003162BE46E1B298/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_5-1765197740535.png" alt="vishalbalagiri_5-1765197740535.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_6-1765197740538.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349758iAC9953BF83CC5E0A/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_6-1765197740538.png" alt="vishalbalagiri_6-1765197740538.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Define Global Data Once &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Set up company codes, ledgers, fiscal year variants, and other shared parameters at the project level to keep everything aligned.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_7-1765197740540.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349756iDE1B0FEB9304034A/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_7-1765197740540.png" alt="vishalbalagiri_7-1765197740540.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Configure Test Specifications &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Establish real-world test conditions, ignored fields, and the report variants you want the system to validate against.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_8-1765197740543.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349757i4FA1B293B679B468/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_8-1765197740543.png" alt="vishalbalagiri_8-1765197740543.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_9-1765197740546.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349761iFABEE3A554AD7A9E/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_9-1765197740546.png" alt="vishalbalagiri_9-1765197740546.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_10-1765197740547.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349759i33B1FB166CA29E6F/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_10-1765197740547.png" alt="vishalbalagiri_10-1765197740547.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Simulate &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Run a safe trial to surface issues such as missing authorizations, incorrect variants, or volume mismatches before extraction begins.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_11-1765197740549.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349760i75A1CABEFF72AA36/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_11-1765197740549.png" alt="vishalbalagiri_11-1765197740549.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_12-1765197740551.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349763iF37F8E7B03723AD3/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_12-1765197740551.png" alt="vishalbalagiri_12-1765197740551.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_13-1765197740553.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349764i79A7092BD9BEBC7A/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_13-1765197740553.png" alt="vishalbalagiri_13-1765197740553.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_14-1765197740554.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349762i7CCA9C01593B3EE8/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_14-1765197740554.png" alt="vishalbalagiri_14-1765197740554.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Logs&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_15-1765197740556.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349766i37DC8D77D230C76F/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_15-1765197740556.png" alt="vishalbalagiri_15-1765197740556.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Extract Source and Target &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Extract the Source system first, followed by the Target system after cutover, and monitor job queues while sampling data where needed.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_16-1765197740558.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349765i28DC486B3E13C6D6/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_16-1765197740558.png" alt="vishalbalagiri_16-1765197740558.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_17-1765197740563.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349767i9DA2DA94A48575D0/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_17-1765197740563.png" alt="vishalbalagiri_17-1765197740563.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Post Conversion Target&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_18-1765197740567.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349769i9EACE577CDE5CCC5/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_18-1765197740567.png" alt="vishalbalagiri_18-1765197740567.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_19-1765197740571.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349770iA9C374D38A85F7CD/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_19-1765197740571.png" alt="vishalbalagiri_19-1765197740571.png" /&gt;&lt;/span&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Evaluate the Results &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Review DTV outcomes — Equal, Difference, Missing, and Unexpected — then drill into root causes and categorize follow-up actions.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_20-1765197740572.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349768i0EEE2D3EDCF99B6E/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_20-1765197740572.png" alt="vishalbalagiri_20-1765197740572.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_21-1765197740576.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349772i23E1EA84F608CC0E/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_21-1765197740576.png" alt="vishalbalagiri_21-1765197740576.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Results&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; – Equal / Differences / Missing / Unexpected&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_22-1765197740577.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349771iB948A71E35A38781/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_22-1765197740577.png" alt="vishalbalagiri_22-1765197740577.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_23-1765197740580.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349773iBD578B6E4D6D1CF1/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_23-1765197740580.png" alt="vishalbalagiri_23-1765197740580.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Summarize and Sign Off &lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Prepare a crisp summary for business owners and convert validated discrepancies into tickets for resolution.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vishalbalagiri_24-1765197740583.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349774i436FCEC19AD69BF3/image-size/medium?v=v2&amp;amp;px=400" role="button" title="vishalbalagiri_24-1765197740583.png" alt="vishalbalagiri_24-1765197740583.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;A Scorecard That Makes Sense to Business&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;A single page per area is enough: &lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Scope (reports and filters). &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Coverage (% matched, records compared).&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Exceptions by type Top root causes and owners. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Decision (accept, fix next cycle, or defer). &lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Practical Guidance &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Keep Source and Target variants identical.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Use executing groups + parallel processes for volume-heavy areas. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Sort shared-memory (SHMA) issues early. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Start with finance anchor set (GL, AP/AR, AA), then expand to SD/MM/PP/PM. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Use partial re-runs to avoid redundant processing. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Include custom ALV reports to reflect actual business KPIs.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Common Pitfalls and How Teams Avoid Them&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Variant mismatches are prevented by locking standardized templates early. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Authorization gaps are avoided by validating roles before mock cycles. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Volume timeouts are minimized by tuning parallelism and running jobs during quiet windows. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;False differences are reduced by thoughtfully excluding formatting and non-business fields.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Quick Start Checklist &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Confirm release and enable DTV. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Apply current notes and resolve SHMA issues. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Import SAP-delivered content and add custom ALV reports. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Build specs, simulate, extract.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Evaluate results, share summaries, and iterate through cycles.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;What This Delivers to the Business &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Provides audit-ready evidence confirming that balances and line items align perfectly. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Reduces risk by identifying issues during mock cycles rather than after go-live. &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Speeds up cutover sign-offs with clear, defensible metrics and consistent validation. &lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;DTV gives project teams and leadership a shared view of data quality, so decisions move faster and cutover becomes a controlled step, not a stressful leap.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/making-s-4hana-conversions-reliable-with-data-transition-validation-dtv/ba-p/14286078"/>
-    <published>2025-12-10T07:57:41.906000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/deep-dive-inside-the-framework-of-rise-with-sap-methodology/ba-p/14284060</id>
-    <title>Deep Dive: Inside the Framework of RISE with SAP Methodology</title>
-    <updated>2025-12-10T08:00:00.041000+01:00</updated>
-    <author>
-      <name>Manuel_Lederle</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1456211</uri>
-    </author>
-    <content>&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ML_Banners_2 (3).jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348582i6EA412B9D39DBA64/image-size/large?v=v2&amp;amp;px=999" role="button" title="ML_Banners_2 (3).jpg" alt="ML_Banners_2 (3).jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#FF6600"&gt;&lt;EM&gt;Part two of the five-part series, “RISE with SAP Methodology”&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;After reading &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/rise-with-sap-methodology-a-practical-guide-to-modernizing-with-confidence/ba-p/14277250" target="_blank"&gt;part one&lt;/A&gt; of this series, it’s clear that RISE with SAP Methodology guides organizations through a complex, high-stakes transformation with clarity and confidence. Now, let’s bring this conversation one level deeper into the methodology’s framework and how the SAP Activate phases bring it to life.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;A proven approach you can trust&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;When companies shift from a trusted on-premises landscape to the cloud, one question keeps surfacing: “Where do we start?”&lt;/P&gt;&lt;P&gt;However, a digital transformation isn’t a simple IT upgrade. It’s a sweeping business-wide shift that touches systems, processes, data, and people. Teams must move in sync, decisions must stay aligned, and workstreams must remain coordinated throughout.&lt;/P&gt;&lt;P&gt;That’s why SAP designed a standardized framework as part of &lt;SPAN&gt;&lt;A href="https://www.sap.com/products/erp/rise/methodology.html" target="_blank" rel="noopener noreferrer"&gt;RISE with SAP Methodology&lt;/A&gt;&lt;/SPAN&gt;. By giving you a structured, flexible, and repeatable approach, it allows you to connect business goals with technical execution. Each phase builds logically on the last, creating a clear step-by-step path. Think of it like building a house—before you lay a single brick, you need a blueprint, the right experts, and a sequence you can trust.&lt;/P&gt;&lt;P&gt;Transformation works the very same way.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Quality gates: Confidence checkpoints that keep you on track&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Before we explore the single phases of SAP Activate, it’s important to understand the mechanism that keeps them aligned and moving in the right direction: quality gates (Q-gates).&lt;/P&gt;&lt;P&gt;Acting as checkpoints between each phase, Q-gates help ensure teams move forward in the right direction with project alignment, a validated design, and a fact-driven perspective (see Figure 1).&lt;/P&gt;&lt;P&gt;At each milestone, SAP experts and the project team pause for a structured review to answer key questions, including:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;EM&gt;Is the project still aligned with SAP best practices?&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Are all tasks defined in the success plan completed?&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Does the solution design adhere to the standardized blueprint?&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Have we documented what matters and prepared the right deliverables for the next phase?&lt;/EM&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This process is not meant to slow teams down—on the contrary. The Q-gates prevent projects from drifting into unnecessary customization complexity and give everyone clarity about where the project truly stands.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Manuel_Lederle_3-1764859469046.png" style="width: 901px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348585iF13A746D2E1E8830/image-dimensions/901x151?v=v2" width="901" height="151" role="button" title="Manuel_Lederle_3-1764859469046.png" alt="Manuel_Lederle_3-1764859469046.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;EM&gt;Figure 1: The positioning of quality gates in RISE with SAP Methodology&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;Beneath each Q-gate is a consistent sequence designed to ensure the transformation remains grounded in validated progress. This begins with a strategic checklist composed of focused, phase-specific questions and topics that guide teams through a comprehensive assessment of what’s been accomplished. From there, a formal report documents critical findings, risks, and recommended actions. Increasingly, this reporting is supported by real-time dashboards that surface metrics and operational statuses, helping teams make timely, fact-based decisions. A practical run book tracks the progress of recommended actions across phases, reinforcing accountability and keeping teams aligned on what needs attention as they move forward.&lt;/P&gt;&lt;P&gt;Together, these elements create a predictable rhythm: structured reflection, shared transparency, and a clean handoff into the next phase.&lt;/P&gt;&lt;P&gt;SAP has also expanded the Q-gate framework to make these checkpoints even more actionable. A new executive summary distills key findings and system measurements into concise guidance for senior leaders, enabling faster, more informed decision-making. In addition, enhanced dashboard metrics provide deeper operational insight, giving project teams a more complete view of their transformation’s progress and readiness.&lt;/P&gt;&lt;P&gt;The result is a more enriched, data-informed Q-gate experience that customers often describe as the moment they “regain control” of their transformation.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;SAP Activate: Your guided transformation approach&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;SAP Activate serves as the delivery backbone of RISE with SAP Methodology. Providing a phased approach, proven workflows, and best practices, it turns the transformation strategy into tangible outcomes. This approach follows a path of six specific phases: Discover, Prepare, Explore, Realize, Deploy, and Run (see Figure 2).&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Manuel_Lederle_1-1764859279029.png" style="width: 904px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348580iDFBE6CD0322EB2F7/image-dimensions/904x405?v=v2" width="904" height="405" role="button" title="Manuel_Lederle_1-1764859279029.png" alt="Manuel_Lederle_1-1764859279029.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;EM&gt;Figure 2: The phases of SAP Activate supporting RISE with SAP Methodology&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;Once quality gates are in place, organizations can move through the SAP Activate methodology with far more clarity and predictability. Here’s how the journey unfolds.&lt;BR /&gt;&lt;BR /&gt;&lt;FONT size="5" color="#000000"&gt;&lt;STRONG&gt;&lt;FONT color="#0000FF"&gt;Discover:&amp;nbsp;&lt;/FONT&gt;Setting the direction&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;The “Discover” phase is where the foundation of your transformation takes shape. This is the moment when uncertainty becomes clarity, and the first outline of your future state emerges.&lt;/P&gt;&lt;P&gt;The steps include:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Clarify business goals&lt;/LI&gt;&lt;LI&gt;Shape the solution scope&lt;/LI&gt;&lt;LI&gt;Build the business case&lt;/LI&gt;&lt;LI&gt;Select the SAP solutions that match your needs&lt;/LI&gt;&lt;LI&gt;Draft the initial project plan and timeline&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;With the assistance of the digital discovery assessment toolkit, you can validate priorities, identify the right capabilities, and lay a strong foundation for your road map.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;&lt;FONT color="#0000FF"&gt;Prepare:&lt;/FONT&gt; Getting ready for execution&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Once the vision is established, the “Prepare” phase turns it into a practical, actionable plan. This is where teams align, structures solidify, and the transformation gains its starting momentum.&lt;/P&gt;&lt;P&gt;The activities that support this phase are:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Expert Guidance for a professional Onboarding (see info below)&lt;/LI&gt;&lt;LI&gt;Finalize the project road map and timeline&lt;/LI&gt;&lt;LI&gt;Establish quality gates&lt;/LI&gt;&lt;LI&gt;Define your project team&lt;/LI&gt;&lt;LI&gt;Align on governance&lt;/LI&gt;&lt;LI&gt;Build a clean core strategy&lt;/LI&gt;&lt;LI&gt;Equip the team for execution&lt;/LI&gt;&lt;/UL&gt;&lt;P data-unlink="true"&gt;&lt;A href="https://www.sap.com/products/erp/rise/methodology.html#guidance" target="_self" rel="noopener noreferrer"&gt;Expert Guidance&lt;/A&gt; is part of the RISE with SAP Methodology and includes the Onboarding service called Embedded Launch Activities and&amp;nbsp;the &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/unlocking-the-future-accelerated-transformation-to-sap-cloud-erp-private/ba-p/14105570" target="_self"&gt;Transformation Preparation Service&lt;/A&gt;. These two services help to ensure the project begins with the right structure, people, and tools, starting on day one.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;&lt;FONT color="#0000FF"&gt;Explore:&lt;/FONT&gt; Designing the future&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;The “Explore” phase is where your ideas become tangible. Business and IT stakeholders come together to shape the future state of your processes, guided by SAP best practices.&lt;/P&gt;&lt;P&gt;In this phase, you can:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Conduct fit-to-standard workshops&lt;/LI&gt;&lt;LI&gt;Explore industry best-practices via SAP Model Company (pre-defined content)&lt;/LI&gt;&lt;LI&gt;Review business capabilities&lt;/LI&gt;&lt;LI&gt;Identify required extensions or integrations&lt;/LI&gt;&lt;LI&gt;Validate solution design assumptions&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Remember: the goal is to establish alignment across business teams, processes, and expectations.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;&lt;FONT color="#0000FF"&gt;Realize:&lt;/FONT&gt; Building what you’ve designed&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;All of your hard work begins to take shape in the “Realize” phase, which includes configuration, testing, data migration, and training.&lt;/P&gt;&lt;P&gt;With each sprint, you can:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Configure and build the solution&lt;/LI&gt;&lt;LI&gt;Execute data migration cycles&lt;/LI&gt;&lt;LI&gt;Develop extensions and integrations&lt;/LI&gt;&lt;LI&gt;Perform end-to-end testing&lt;/LI&gt;&lt;LI&gt;Complete user acceptance tests&lt;/LI&gt;&lt;LI&gt;Train key users&lt;/LI&gt;&lt;LI&gt;Build the cutover plan&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This phase is hands-on, collaborative, and fast-moving. And best of all, it’s the moment where real progress becomes visible.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;&lt;FONT color="#0000FF"&gt;Deploy:&lt;/FONT&gt; Going live with support&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;The “Deploy” phase marks the transition from preparation to real-world use.&lt;/P&gt;&lt;P&gt;Here, teams execute the final steps required to bring the solution live in production with activities, such as:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Execute the cutover plan&lt;/LI&gt;&lt;LI&gt;Move final data into the production environment&lt;/LI&gt;&lt;LI&gt;Stabilize operations with post go-live support&lt;/LI&gt;&lt;LI&gt;Transition the system to business operations&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;In this pivotal moment for users, the methodology helps ensure a stable, well-supported, and smooth transition.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;&lt;FONT color="#0000FF"&gt;Run:&lt;/FONT&gt; Driving continuous value&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;The “Run” phase helps ensure that the transformation delivers sustained value long after go-live. Operations become more efficient, innovation continues, and improvements build over time.&lt;/P&gt;&lt;P&gt;This phase is most successful when organizations prioritize tasks that:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Monitor adoption&lt;/LI&gt;&lt;LI&gt;Address improvement opportunities&lt;/LI&gt;&lt;LI&gt;Optimize processes&lt;/LI&gt;&lt;LI&gt;Drive ongoing innovation&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This is where long-term value is delivered and sustained.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;A proven framework that builds continuous momentum&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;When you follow the structured framework of RISE with SAP Methodology and the SAP Activate phases, everyone—from the business to IT—knows what’s happening, why it matters, and how it contributes to the broader goals. No more searching through disconnected files or relying on inconsistent updates.&lt;/P&gt;&lt;P&gt;More important, the true strength of RISE with SAP Methodology lies in its end-to-end transparency, predictable governance, and shared alignment across teams. With this proven framework in place, transformation becomes organized, confident, and genuinely achievable.&lt;/P&gt;&lt;P&gt;&lt;FONT color="#000000"&gt;&lt;EM&gt;To learn more about &lt;/EM&gt;&lt;SPAN&gt;&lt;A href="https://www.sap.com/products/erp/rise/methodology.html" target="_blank" rel="noopener noreferrer"&gt;&lt;EM&gt;RISE with SAP Methodology&lt;/EM&gt;&lt;/A&gt;&lt;/SPAN&gt;&lt;EM&gt;, read &lt;/EM&gt;&lt;SPAN&gt;&lt;A href="https://dam.sap.com/mac/app/p/pdf/asset/preview/HGGANyW?ltr=a&amp;amp;rc=10&amp;amp;doi=SAP1246926" target="_blank" rel="noopener noreferrer"&gt;&lt;EM&gt;our in-depth overview&lt;/EM&gt;&lt;/A&gt;&lt;/SPAN&gt;&lt;EM&gt;.&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT color="#000000"&gt;&lt;FONT color="#FF9900"&gt;-&lt;FONT color="#FF6600"&gt;-------------------------------------------------------------------------------------------------------------------------------------------------&lt;/FONT&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#FF6600"&gt;&lt;STRONG&gt;&lt;FONT size="4"&gt;What’s next?&lt;/FONT&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/FONT&gt;In the next installment of our “RISE with SAP Methodology” series, we’ll take a closer look at the tools that support your transformation journey:&lt;/P&gt;&lt;P&gt;&lt;FONT size="4" color="#FF6600"&gt;&lt;STRONG&gt;January 14: "The Integrated Toolchain in a Nutshell"&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Stay tuned for the rest of the blog series, too:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Part 1: &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/rise-with-sap-methodology-a-practical-guide-to-modernizing-with-confidence/ba-p/14277250" target="_blank"&gt;RISE with SAP Methodology: A Practical Guide to Modernizing with Confidence&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;January 28: Expert Guidance: Your Guided Transformation Accelerator&lt;/LI&gt;&lt;LI&gt;February 11: The Combined Power of SAP Business AI and RISE with SAP Methodology&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;EM&gt;&lt;STRONG&gt;&lt;FONT color="#000000"&gt;&lt;FONT color="#FF9900"&gt;-&lt;FONT color="#FF6600"&gt;-------------------------------------------------------------------------------------------------------------------------------------------------&lt;/FONT&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;#clouderpprivate #s4hanacloud #sap #risewithsap #transformation #risewithsapmethodology&lt;/EM&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/deep-dive-inside-the-framework-of-rise-with-sap-methodology/ba-p/14284060"/>
-    <published>2025-12-10T08:00:00.041000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/user-provisioning-with-microsoft-entra-id-ad-in-cloud-identity-service/bc-p/14287560#M176681</id>
-    <title>Re: User Provisioning with Microsoft Entra ID (AD) in Cloud Identity Service</title>
-    <updated>2025-12-10T08:00:51.454000+01:00</updated>
-    <author>
-      <name>Yogananda</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/75</uri>
-    </author>
-    <content>&lt;P&gt;Hi&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/7607"&gt;@ROHITGERA1&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;Thanks for writing the blog.. it would look good when you add the pictures into the each section .. It looks like you have attached the images.. it would be difficult for readers to understand.. you can make some adjustment with editing your blog.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/user-provisioning-with-microsoft-entra-id-ad-in-cloud-identity-service/bc-p/14287560#M176681"/>
-    <published>2025-12-10T08:00:51.454000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/accrual-reversals-before-final-settlement/qaq-p/14287570</id>
-    <title>Accrual reversals before final settlement</title>
-    <updated>2025-12-10T08:07:35.810000+01:00</updated>
-    <author>
-      <name>sami3r</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/414629</uri>
-    </author>
-    <content>&lt;P&gt;Hi All,&lt;/P&gt;&lt;P&gt;We generally reverse the remaining accruals at the end of the CC validity i.e., once CC is fully settled and status is set to "Locked". However, sometimes, business wants to release the accruals much earlier partially without waiting for final settlement to run to release the remaining accrual at the validity end of the contract.&lt;/P&gt;&lt;P&gt;What is the best way forward for it?&lt;/P&gt;&lt;P&gt;Regards&lt;/P&gt;&lt;P&gt;Samier Danish&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/accrual-reversals-before-final-settlement/qaq-p/14287570"/>
-    <published>2025-12-10T08:07:35.810000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/spend-management-q-a/plant-id-replication-in-punchout-catalog-request/qaq-p/14287581</id>
-    <title>Plant ID replication in punchout catalog request</title>
-    <updated>2025-12-10T08:13:25.407000+01:00</updated>
-    <author>
-      <name>Laci1</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1654447</uri>
-    </author>
-    <content>&lt;P&gt;Hello Pros!&lt;/P&gt;&lt;P&gt;Kindly would need to get clarity: what is the prerequisite and where&amp;amp;how do I setup so to replicate the Plant ID during a punchout catalog connection?&amp;nbsp; We would need to provide the PlantID to the catalog when punching out, and retrieve it during punching back.&lt;/P&gt;&lt;P&gt;I am in Customer side, not supplier - so I would need my activities/actions to be done.&lt;/P&gt;&lt;P&gt;Many thanks for your advise,&lt;/P&gt;&lt;P&gt;Laszlo&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/spend-management-q-a/plant-id-replication-in-punchout-catalog-request/qaq-p/14287581"/>
-    <published>2025-12-10T08:13:25.407000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/building-an-enterprise-application-using-fiori-elements-and-cap-part-1/ba-p/14286609</id>
-    <title>Building an Enterprise Application Using Fiori Elements and CAP - Part 1</title>
-    <updated>2025-12-10T08:13:26.785000+01:00</updated>
-    <author>
-      <name>Farooq</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/11373</uri>
-    </author>
-    <content>&lt;P&gt;&lt;SPAN&gt;This series focuses on building a full application using SAP CAP and Fiori Elements. The intention is to keep the setup simple enough for anyone new to the stack, while still following the standard project structure recommended for enterprise development. The goal is to understand how the backend and frontend fit together, and how CAP services can be used directly by Fiori Elements without writing custom front-end controllers.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;This first part prepares the CAP backend that will later serve as the data source for the Fiori Elements application.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;1. Why CAP and Fiori Elements&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;CAP provides a way to define data models, services, and business logic using CDS. It handles a large portion of the technical work such as OData exposure, validations, and persistence. This makes it easier to focus on the domain rather than the setup.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Fiori Elements uses OData metadata and annotations to generate UI automatically. This reduces the amount of front-end coding needed and keeps the application aligned with SAP design guidelines.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Together, CAP and Fiori Elements form a consistent stack for building enterprise applications with predictable structure and behavior.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;2. Choosing the CAP Runtime&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;CAP applications can run on Node.js or Java. Both runtimes share the same modeling approach, but each has its own advantages.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;The Node.js runtime is commonly used when developing with SAP Fiori tools and when building full-stack applications. It has a simple setup and most CAP examples follow this runtime.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;The Java runtime fits teams that work mainly in Java or need integration with existing Java systems.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;For this series, the Node.js runtime is used because it provides a straightforward setup for linking with Fiori Elements.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;3. Prerequisites&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;The following tools are required before starting:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Node.js (LTS version recommended)&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;SAP CDS development kit&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;npm install -g &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1862993"&gt;@SAP&lt;/a&gt;/cds-dk&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Visual Studio Code&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;SAP Fiori tools - Extension Pack (VS Code extension)&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;SAP CDS Language Support (VS Code extension)&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;These tools provide the environment needed for developing both the CAP backend and the Fiori Elements application.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;4. Creating the CAP Project&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Create a new folder for the project and initialize it:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;mkdir product-management 
-cd product-management 
-cds init &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;This creates the standard CAP project structure as shown below:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="Farooq_1-1765258511008.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349938iA84652B42DF72A57/image-size/large?v=v2&amp;amp;px=999" role="button" title="Farooq_1-1765258511008.png" alt="Farooq_1-1765258511008.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;The db folder is used for data models&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;The srv folder contains the service definitions&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;The app folder will later hold the Fiori Elements application&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;5. Defining the Data Model&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Create a new file under folder ‘&lt;STRONG&gt;&lt;EM&gt;db&lt;/EM&gt;’ &lt;/STRONG&gt;&lt;/SPAN&gt;&lt;SPAN&gt;as &lt;STRONG&gt;‘&lt;EM&gt;schema.cds&lt;/EM&gt;’&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;SPAN&gt; and define the Product entity:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;namespace my.products; 
-entity Products {
-    key ID          	: UUID;
-    name            	: String(100);
-    description     	: String(255);
-    price           	: Decimal(9,2);
-    stock           	: Integer;
-    category        	: String(50);
-    releaseDate     	: Date;
-    isAvailable     	: Boolean;
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;This model creates the basic structure for product data. CAP will map this entity to a database table and generate OData metadata for it.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="Farooq_2-1765258721230.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349939iB86C12DB5E29AEE2/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Farooq_2-1765258721230.png" alt="Farooq_2-1765258721230.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;6. Creating the Service&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Create the service file under folder ‘&lt;EM&gt;&lt;STRONG&gt;srv&lt;/STRONG&gt;&lt;/EM&gt;’ &lt;/SPAN&gt;&lt;SPAN&gt;as &lt;EM&gt;&lt;STRONG&gt;‘product-service.cds’&lt;/STRONG&gt;&lt;/EM&gt;&lt;/SPAN&gt;&lt;SPAN&gt; and expose the entity:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;using { my.products as my } from '../db/schema';
-service ProductService {
-    entity Products as projection on my.Products;
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;The projection makes the Products entity available as an OData V4 service. CAP automatically adds support for standard operations such as read, create, update, and &lt;/SPAN&gt;&lt;SPAN class=""&gt;delete&lt;/SPAN&gt;&lt;SPAN class=""&gt;.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="Farooq_3-1765258983376.png" style="width: 754px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349968iCBDA1611AE030589/image-dimensions/754x327?v=v2" width="754" height="327" role="button" title="Farooq_3-1765258983376.png" alt="Farooq_3-1765258983376.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;7. Adding Sample Data&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;To load initial data at runtime, create a file named '&lt;/SPAN&gt;&lt;STRONG&gt;&lt;I&gt;my.products-Products.csv'&lt;/I&gt;&lt;/STRONG&gt;&lt;SPAN&gt; under '&lt;/SPAN&gt;&lt;STRONG&gt;db/data'&lt;/STRONG&gt;&lt;SPAN&gt;:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;ID,name,description,price,stock,category,releaseDate,isAvailable 
-1,Laptop,A powerful laptop for all your computing needs,1200.00,50,Electronics,2024-01-15,true 
-2,Headphones,High-quality noise-cancelling headphones,250.00,150,Electronics,2024-02-20,true 
-3,Smartphone,The latest smartphone with a stunning camera,899.99,200,Electronics,2024-03-10,true 
-4,Coffee Maker,A machine that brews a perfect cup of coffee,75.50,80,Home Appliances,2023-11-05,false 
-5,Keyboard,A mechanical keyboard for a superior typing experience,125.00,120,Electronics,2024-04-01,true 
-6,Blender,A high-speed blender for smoothies and more,99.99,60,Home Appliances,2023-12-15,true 
-7,Desk Chair,Ergonomic desk chair for maximum comfort,180.00,40,Furniture,2024-02-28,true 
-8,Monitor,A 27-inch 4K UHD monitor,350.00,70,Electronics,2024-03-25,true 
-9,Vacuum Cleaner,A powerful vacuum cleaner for all floor types,150.00,90,Home Appliances,2023-10-30,true 
-10,Tablet,A lightweight tablet perfect for on-the-go use,450.00,110,Electronics,2024-01-20,true &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;CAP reads this file automatically when the application starts.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="Farooq_4-1765259205054.png" style="width: 729px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349969i71DD970B782079F7/image-dimensions/729x212?v=v2" width="729" height="212" role="button" title="Farooq_4-1765259205054.png" alt="Farooq_4-1765259205054.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;8. Running the Application&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Start the service locally:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;cds watch&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="Farooq_5-1765259303849.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349970i57E677F53D929E9E/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Farooq_5-1765259303849.png" alt="Farooq_5-1765259303849.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;Once the server starts, open the brower with link&amp;nbsp;&lt;A href="http://localhost:4004" target="_blank" rel="noopener nofollow noreferrer"&gt;http://localhost:4004&lt;/A&gt;&amp;nbsp;which will open the below endpoints&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&lt;SPAN class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="Farooq_6-1765259376284.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349971i9C94A2B410DF01D8/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Farooq_6-1765259376284.png" alt="Farooq_6-1765259376284.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;The &lt;/SPAN&gt;&lt;EM&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;ProductService&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/EM&gt;&lt;SPAN class=""&gt; link appears on the home page. Opening the Products entity displays the sample records in JSON format. This confirms that the service and data model are working as expected.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="Farooq_7-1765259523650.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349972i07028B59C110304F/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Farooq_7-1765259523650.png" alt="Farooq_7-1765259523650.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;9. Summary&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;At this point, the backend is ready with:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;A clean data model&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;An exposed OData V4 service&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Sample data for testing&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;A structure prepared for Fiori Elements development&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;This backend serves as the base for building the Fiori Elements application in the next part.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Next Part&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The next part will focus on generating a Fiori Elements List Report application and connecting it to the ProductService created here. The List Report will display the product data and use annotations to control fields, behavior, and layout.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/building-an-enterprise-application-using-fiori-elements-and-cap-part-2/ba-p/14287618" target="_blank"&gt;Building an Enterprise Application Using Fiori Elements and CAP – Part 2&lt;/A&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/building-an-enterprise-application-using-fiori-elements-and-cap-part-1/ba-p/14286609"/>
-    <published>2025-12-10T08:13:26.785000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/how-to-manual-input-external-hu-identification-number-when-creating-hu-by/qaq-p/14287582</id>
-    <title>How to manual input external HU identification number when creating HU by COP1 with paking instruct.</title>
-    <updated>2025-12-10T08:15:28.504000+01:00</updated>
-    <author>
-      <name>Don10</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1654978</uri>
-    </author>
-    <content>&lt;P&gt;hi all, I try to create HU by COP1 with external number. but It seems I failed. I don't know which configuration I can use to control it so that HU can be created by the external manual input number in COP1, as shown in the screenshot. I have already defined exteranl number range for Z001 paking material type.&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Don10_0-1765350076176.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350564i548105A194CF01E3/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Don10_0-1765350076176.png" alt="Don10_0-1765350076176.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Don10_1-1765350665667.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350580i4425D5BC7A4F9CF0/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Don10_1-1765350665667.png" alt="Don10_1-1765350665667.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Don10_2-1765350707562.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350581iA282102CEC195BDB/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Don10_2-1765350707562.png" alt="Don10_2-1765350707562.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Can you please let me know which configuration I missing?&amp;nbsp; Thanks in advance!&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/how-to-manual-input-external-hu-identification-number-when-creating-hu-by/qaq-p/14287582"/>
-    <published>2025-12-10T08:15:28.504000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/building-secure-sapui5-applications-best-practices-for-developers/ba-p/14267269</id>
-    <title>Building Secure SAPUI5 Applications: Best Practices for Developers</title>
-    <updated>2025-12-10T08:16:09.335000+01:00</updated>
-    <author>
-      <name>Manisha_19</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1695623</uri>
-    </author>
-    <content>&lt;H3 id="toc-hId-1893818948"&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;In today’s enterprise landscape, security is fundamental, not optional. As the user-facing gateway to SAP systems, SAPUI5 apps must be built with security in mind from the start.&lt;/P&gt;&lt;P&gt;This blog shares practical, developer-focused techniques to help you secure your SAPUI5 applications from input validation and Cross-Site Scripting (XSS) prevention to using ESLint and safe communication practices. By adopting secure coding habits early, you can ensure your UI remains clean, efficient, and resilient against modern threats.&lt;/P&gt;&lt;H3 id="toc-hId-1697305443"&gt;&lt;STRONG&gt;Why Security Matters in SAPUI5&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;The UI layer is where users interact, input data, and access sensitive information.&lt;BR /&gt;Even a small oversight like an unsanitized binding or debug log can lead to security exposure or data misuse.&lt;/P&gt;&lt;P&gt;By following secure UI5 coding standards, developers can:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Maintain data integrity and confidentiality&lt;/LI&gt;&lt;LI&gt;Prevent unauthorized access&lt;/LI&gt;&lt;LI&gt;Build user trust through reliable and safe design&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1500791938"&gt;&lt;STRONG&gt;Secure Coding Practices for SAPUI5 Developers&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;1. Validate and Sanitize User Input&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Always validate what users enter before sending it to your backend.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Use data types in input fields for built-in validation:&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;Input value="{path: 'age', type: 'sap.ui.model.type.Integer'}" /&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;Add custom formatters or validators for domain-specific logic.&lt;/LI&gt;&lt;LI&gt;Reject invalid inputs early, don’t rely on the backend to catch them.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;2.&amp;nbsp;&lt;/STRONG&gt;&lt;STRONG&gt;Prevent Cross-Site Scripting (XSS)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;XSS attacks occur when untrusted input is rendered as executable code in the browser.&lt;BR /&gt;To prevent it in UI5:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Use &lt;STRONG&gt;Text&lt;/STRONG&gt; control instead of &lt;STRONG&gt;FormattedText&lt;/STRONG&gt; unless the content is sanitized.&lt;/LI&gt;&lt;LI&gt;Escape dynamic strings using encodeHTML().&lt;/LI&gt;&lt;LI&gt;Avoid direct DOM manipulation like innerHTML or jQuery .html().&lt;/LI&gt;&lt;LI&gt;Never include untrusted HTML in views or models.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;3.&amp;nbsp;&lt;/STRONG&gt;&lt;STRONG&gt;Protect Sensitive Information&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Do &lt;STRONG&gt;not&lt;/STRONG&gt; store tokens, passwords, or system URLs in &lt;STRONG&gt;localStorage&lt;/STRONG&gt; or &lt;STRONG&gt;sessionStorage&lt;/STRONG&gt;.&lt;/LI&gt;&lt;LI&gt;Avoid exposing business logic or identifiers in console logs.&lt;/LI&gt;&lt;LI&gt;Remove debug logs before deployment as they often reveal internal system details.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;4.&amp;nbsp;&lt;/STRONG&gt;&lt;STRONG&gt;Use ESLint for Secure and Consistent Code&amp;nbsp; &lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Static code analysis helps detect vulnerabilities and enforces coding standards.&lt;/P&gt;&lt;P&gt;Install and configure ESLint with SAP’s recommended rules:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;npm install eslint eslint-config-ui5 --save-dev&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Create a .eslintrc.json file:&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{
-  "extends": ["eslint-config-ui5"]
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Benefits:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Detects unsafe DOM access or unused imports&lt;/LI&gt;&lt;LI&gt;Prevents insecure practices like eval statements&lt;/LI&gt;&lt;LI&gt;Promotes consistent, readable, and maintainable code&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Run ESLint regularly as part of your build or CI pipeline:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;eslint .&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;5.&amp;nbsp;&lt;/STRONG&gt;&lt;STRONG&gt;Secure Communication with Backend&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Even though backend services handle authentication, the UI must communicate securely.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Always use &lt;STRONG&gt;HTTPS&lt;/STRONG&gt; for service endpoints.&lt;/LI&gt;&lt;LI&gt;Avoid hardcoding URLs use destination configurations or environment variables.&lt;/LI&gt;&lt;LI&gt;Enable &lt;STRONG&gt;Cross-Site Request Forgery&lt;/STRONG&gt; &lt;STRONG&gt;(CSRF) protection&lt;/STRONG&gt;&amp;nbsp;in your ODataModel configuration:&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;let oModel = new sap.ui.model.odata.v2.ODataModel("/odata/service", {
-  tokenHandling: true
-});&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-1304278433"&gt;&lt;STRONG&gt;Developer Mindset: Security as a Habit&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Security isn’t a one-time setup, it’s an ongoing practice.&lt;BR /&gt;Adopt a security-first mindset by:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Reviewing code with security in mind&lt;/LI&gt;&lt;LI&gt;Regularly updating libraries and dependencies&lt;/LI&gt;&lt;LI&gt;Integrating linting and vulnerability scans in CI/CD&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;When security becomes part of your coding routine, your applications naturally grow more resilient and trustworthy.&lt;/P&gt;&lt;H3 id="toc-hId-1107764928"&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Building secure SAPUI5 applications isn’t just about backend policies, it starts right in your controllers, bindings, and XML views.&lt;BR /&gt;By validating inputs, preventing XSS, protecting sensitive data, and using tools like ESLint, you strengthen your application’s defense without compromising usability or performance.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/building-secure-sapui5-applications-best-practices-for-developers/ba-p/14267269"/>
-    <published>2025-12-10T08:16:09.335000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/vl09-error-no-data-available-for-these-selection-criteria/qaa-p/14287583#M4233027</id>
     <title>Re: VL09 Error - no data available for these selection criteria</title>
@@ -2220,5 +1615,125 @@ sap.ui.define(["sap/fe/core/AppComponent"],function(e){"use strict";return e.ext
     <content>Thanks, Kangkana! It works now</content>
     <link href="https://community.sap.com/t5/financial-management-q-a/joule-not-working-since-yesterday-message-unable-to-process-your-request/qaa-p/14287805#M256876"/>
     <published>2025-12-10T11:15:11.068000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/access-cds-objects-exposed-as-sql-services-using-microsoft-sql-server/bc-p/14287807#M187041</id>
+    <title>Re: Access CDS Objects Exposed as SQL Services Using Microsoft SQL Server</title>
+    <updated>2025-12-10T11:21:24.381000+01:00</updated>
+    <author>
+      <name>Roberto_</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1641801</uri>
+    </author>
+    <content>&lt;P&gt;Hi,&lt;/P&gt;&lt;P&gt;When analyzing the minidump files generated during SQL Service crashes using WinDbg, I frequently see the ODBC_driver_for_ABAP!&lt;STRONG&gt;SQLSetScrollOptions&lt;/STRONG&gt; function in the stack trace of the faulting component.&lt;BR /&gt;This might serve as a useful indicator for further investigation.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Captura de pantalla 2025-12-10 105019.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350706i0D8BE06BC3E68F57/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Captura de pantalla 2025-12-10 105019.png" alt="Captura de pantalla 2025-12-10 105019.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Please let me know if you need any additional information.&lt;/P&gt;&lt;P&gt;Kind regards,&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/access-cds-objects-exposed-as-sql-services-using-microsoft-sql-server/bc-p/14287807#M187041"/>
+    <published>2025-12-10T11:21:24.381000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sap-codejam-discussions/codejam-at-coimbatore-bosch-global-software-technologies-pvt-ltd-bgsw-q1-or/td-p/14287809</id>
+    <title>CodeJam at Coimbatore - Bosch Global Software Technologies Pvt Ltd (BGSW) Q1 or Q2</title>
+    <updated>2025-12-10T11:30:18.736000+01:00</updated>
+    <author>
+      <name>usha_rajarathna1</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/411809</uri>
+    </author>
+    <content>&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif" size="2"&gt;We would like to host a CodeJam at&amp;nbsp;Bosch Global Software Technologies Pvt Ltd (BGSW), Coimbatore location.&amp;nbsp;&amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif" size="2"&gt;Address:&amp;nbsp;&lt;SPAN&gt;KGISL Infrastructures Private Ltd&amp;nbsp; SEZ Keeranatham Village | Coimbatore | Tamil Nadu - 641035 | INDIA |&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif" size="2"&gt;&lt;SPAN&gt;Probable topics:&amp;nbsp;&lt;/SPAN&gt;With SAP Build, Create Apps, Processes, and Business Sites Without Coding&lt;STRONG&gt; AND/OR&amp;nbsp;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;FONT face="arial,helvetica,sans-serif" size="2"&gt;Build AI services using the SAP Cloud Application Programming Model, SAP AI Core and SAP generative AI Hub&lt;/FONT&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/sap-codejam-discussions/codejam-at-coimbatore-bosch-global-software-technologies-pvt-ltd-bgsw-q1-or/td-p/14287809"/>
+    <published>2025-12-10T11:30:18.736000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/me-po-confirm-and-output-afterwards/qaq-p/14287811</id>
+    <title>ME_PO_CONFIRM and output afterwards</title>
+    <updated>2025-12-10T11:33:24.054000+01:00</updated>
+    <author>
+      <name>henrikgodiksen</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/869988</uri>
+    </author>
+    <content>&lt;P&gt;I am using&amp;nbsp;ME_PO_CONFIRM to create confirmations on purchase orders. After the purchase order is updated with a confirmation then I need an output to be generated. If I update the purchase order with an AB line then the output is running as expected. But if I try with a Z-Category version of LA then the output is not triggered. If I enter the same Z confirmation category in the transaction ME22N then the output is determined as expected.&lt;/P&gt;&lt;P&gt;The Z confirmation category is mapped to the Internal Confirmation Category - Shipping Notification.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/me-po-confirm-and-output-afterwards/qaq-p/14287811"/>
+    <published>2025-12-10T11:33:24.054000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/payroll-connection-to-s-4hana-rise/qaa-p/14287810#M4933352</id>
+    <title>Re: Payroll connection to S/4HANA RISE</title>
+    <updated>2025-12-10T11:33:26.083000+01:00</updated>
+    <author>
+      <name>sachin_117</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2139405</uri>
+    </author>
+    <content>&lt;P&gt;Hi Team,&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;Please share the outcome it is possible, and how you proceeded with saprouter based connectivity&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/payroll-connection-to-s-4hana-rise/qaa-p/14287810#M4933352"/>
+    <published>2025-12-10T11:33:26.083000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/payroll-connection-to-s-4hana-rise/qaa-p/14287812#M4933353</id>
+    <title>Re: Payroll connection to S/4HANA RISE</title>
+    <updated>2025-12-10T11:33:39.414000+01:00</updated>
+    <author>
+      <name>sachin_117</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2139405</uri>
+    </author>
+    <content>HI Team,</content>
+    <link href="https://community.sap.com/t5/technology-q-a/payroll-connection-to-s-4hana-rise/qaa-p/14287812#M4933353"/>
+    <published>2025-12-10T11:33:39.414000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sap-codejam-discussions/codejam-at-bosch-hyderabad-bosch-global-software-technologies-pvt-ltd-q1-q2/td-p/14287813</id>
+    <title>CodeJam at Bosch, Hyderabad (Bosch Global Software Technologies Pvt Ltd) - Q1 / Q2</title>
+    <updated>2025-12-10T11:34:31.350000+01:00</updated>
+    <author>
+      <name>usha_rajarathna1</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/411809</uri>
+    </author>
+    <content>&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif" size="2"&gt;We would like to host a CodeJam at&amp;nbsp;Bosch Global Software Technologies Pvt Ltd (BGSW), Hyderabad location.&amp;nbsp;&amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif" size="2"&gt;Please consider to accommodate the request in Q1 or Q2.&amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif" size="2"&gt;Address: &lt;SPAN&gt;Sattva Knowledge Park Tower 1 Raidurg Village,&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;Hyderabad&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/sap-codejam-discussions/codejam-at-bosch-hyderabad-bosch-global-software-technologies-pvt-ltd-q1-q2/td-p/14287813"/>
+    <published>2025-12-10T11:34:31.350000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/supply-chain-management-q-a/how-to-combine-multiple-mrp-purchase-proposals-and-apply-minimum-lot-size/qaa-p/14287815#M208495</id>
+    <title>Re: How to Combine Multiple MRP Purchase Proposals and Ap...</title>
+    <updated>2025-12-10T11:35:32.318000+01:00</updated>
+    <author>
+      <name>Chris1973</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2035121</uri>
+    </author>
+    <content>&lt;P&gt;Good day&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1912360"&gt;@kuroneko96&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/supply-chain-management-q-a/how-to-combine-multiple-mrp-purchase-proposals-and-apply-minimum-lot-size/qaa-p/14287815#M208495"/>
+    <published>2025-12-10T11:35:32.318000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/mcp-a-comprehensive-guide/bc-p/14287818#M187042</id>
+    <title>Re: MCP: A Comprehensive Guide</title>
+    <updated>2025-12-10T11:38:27.034000+01:00</updated>
+    <author>
+      <name>jayarams</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1751722</uri>
+    </author>
+    <content>&lt;P&gt;Hi Pramod, I developed fastmcp based mcp server client , but unable to push to sap system to access. can you pls provide more information on this with any example.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/mcp-a-comprehensive-guide/bc-p/14287818#M187042"/>
+    <published>2025-12-10T11:38:27.034000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/btp-trial-update-cf-runtime-availability/bc-p/14287820#M187043</id>
+    <title>Re: BTP Trial Update: CF Runtime Availability</title>
+    <updated>2025-12-10T11:39:57.038000+01:00</updated>
+    <author>
+      <name>CarolinBoeke</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/44516</uri>
+    </author>
+    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/151531"&gt;@sonyvirendra&lt;/a&gt;&amp;nbsp;please delete your trial and create a new one. The Cloud Foundry Runtime should be back now.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Best regards,&lt;BR /&gt;Carolin&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/btp-trial-update-cf-runtime-availability/bc-p/14287820#M187043"/>
+    <published>2025-12-10T11:39:57.038000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/btp-trial-update-cf-runtime-availability/bc-p/14287824#M187044</id>
+    <title>Re: BTP Trial Update: CF Runtime Availability</title>
+    <updated>2025-12-10T11:41:39.486000+01:00</updated>
+    <author>
+      <name>CarolinBoeke</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/44516</uri>
+    </author>
+    <content>&lt;P&gt;Dear&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1483521"&gt;@seifeldin322&lt;/a&gt;, please reach out to the partner support to get more insights into the TDD license or write an email to&amp;nbsp;&lt;A href="mailto:sapbtptrialsupport@sap.com" target="_blank" rel="nofollow noopener noreferrer"&gt;sapbtptrialsupport@sap.com&lt;/A&gt;&amp;nbsp;so that I can connect you.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Best regards,&lt;BR /&gt;Carolin&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/btp-trial-update-cf-runtime-availability/bc-p/14287824#M187044"/>
+    <published>2025-12-10T11:41:39.486000+01:00</published>
   </entry>
 </feed>
