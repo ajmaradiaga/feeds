@@ -2,74 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Cloud-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - SAP Cloud Application Programming Model</title>
-  <updated>2025-12-10T15:00:47.410155+00:00</updated>
+  <updated>2025-12-10T18:00:49.313450+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Cloud Application Programming Model/pd-p/9f13aee1-834c-4105-8e43-ee442775e5ce" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Cloud Application Programming Model blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/handling-filter-search-and-orderby-in-sap-cap-when-consuming-external-rest/ba-p/14276281</id>
-    <title>Handling $filter,$search and $orderby in SAP CAP when consuming External REST APIs</title>
-    <updated>2025-11-25T05:57:09.692000+01:00</updated>
-    <author>
-      <name>prajnaparmita</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/589135</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;When building applications with the &lt;STRONG&gt;SAP Cloud Application Programming Model (CAP)&lt;/STRONG&gt;, a very common real-world scenario is:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Your CAP service acts as a proxy&lt;/LI&gt;&lt;LI&gt;Data is fetched from an external REST API&lt;/LI&gt;&lt;LI&gt;The external API does not&amp;nbsp;support OData&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;But&amp;nbsp;your Fiori/UI5 frontend still sends OData queries like:&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;$filter=country eq 'IN'&amp;amp;$search=Bangalore&amp;amp;$orderby=name desc&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This blog explains how to handle &lt;STRONG&gt;OData query options&lt;/STRONG&gt; like $filter, $search, and $orderby in &lt;STRONG&gt;SAP CAP Node.js&lt;/STRONG&gt; when your service consumes a &lt;STRONG&gt;non-OData external REST API&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;Here is a lightweight JavaScript utility (handleOData.js) that:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Interprets CAP’s query structure (req.query.SELECT)&lt;/LI&gt;&lt;LI&gt;Applies filtering logic directly on API responses&lt;/LI&gt;&lt;LI&gt;Adds full-text search capability&lt;/LI&gt;&lt;LI&gt;Supports dynamic sorting based on $orderby&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;With this approach, your Fiori/UI applications can continue using rich OData queries without any dependency on the external API.&lt;/P&gt;&lt;P&gt;This solution is ideal for building &lt;STRONG&gt;CAP-based proxy services&lt;/STRONG&gt; on SAP BTP that integrate with legacy or third-party REST systems.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Problem Statement :&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Consider this scenario:&amp;nbsp;Your frontend sends&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;GET /odata/v4/srv/DemandAreas?$filter=country eq 'IN'&amp;amp;$orderby=name asc&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;But your backend actually calls ,&amp;nbsp; &amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;GET https://external.api/demandAreas&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The external API:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Does not support $filter&lt;/LI&gt;&lt;LI&gt;Does not support $search&lt;/LI&gt;&lt;LI&gt;Does not support $orderby&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Yet you still want your frontend to fully leverage OData features.&lt;/P&gt;&lt;P&gt;So how do we bridge this gap?&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Architecture Overview:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Architecture.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/344663i95131553C4F7EA6A/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Architecture.png" alt="Architecture.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Solution Overview:&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Utility file , handleOData.js exposes three main functions:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;module.exports = { handleFilter, handleSearch, handleSort }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Each function handles a specific OData concept.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;1. Handling $filter&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;CAP provides filters in a structured format (req.query.SELECT.where).&lt;/P&gt;&lt;P&gt;This utility interprets this structure and evaluates it against each result record.&lt;/P&gt;&lt;P&gt;Core logic idea:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;function handleFilter(filters, item) {
-  const stack = [];
-
-  const applyComparison = (field, op, value) =&amp;gt; {
-    const fieldValue = item[field];
-
-    switch (op) {
-      case '=': return fieldValue == value;
-      case '!=': return fieldValue != value;
-      case '&amp;gt;': return fieldValue &amp;gt; value;
-      case '&amp;gt;=': return fieldValue &amp;gt;= value;
-      case '&amp;lt;': return fieldValue &amp;lt; value;
-      case '&amp;lt;=': return fieldValue &amp;lt;= value;
-      default: return false;
-    }
-  };
-
-  // Logic continues to resolve AND / OR conditions}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This supports:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;eq, ne, gt, ge, lt, le&lt;/LI&gt;&lt;LI&gt;Logical operations: AND, OR&lt;/LI&gt;&lt;LI&gt;Nested conditions&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;2. Handling $search&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;CAP exposes the search phrase via req.query.SELECT.search. The utility applies search across properties of each record.&lt;/P&gt;&lt;P&gt;Simplified logic:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;function handleSearch(searchTerm, data) {
-  return data.filter(item =&amp;gt;
-    Object.values(item).some(val =&amp;gt;
-      String(val).toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This allows our Fiori/UI app to use for example , $search=Bangalore&lt;/P&gt;&lt;P&gt;Even if the external API has no search support at all.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;3. Handling $orderby&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Ordering is handled using CAP’s orderBy structure.&lt;/P&gt;&lt;P&gt;Logic overview:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;function handleSort(req, result) {
-  const [orderClause] = req.query.SELECT.orderBy;
-  const field = orderClause.ref[0];
-  const dir = orderClause.sort === 'desc' ? -1 : 1;
-
-  return [...result].sort((a, b) =&amp;gt;
-    a[field] &amp;gt; b[field] ? 1 * dir : -1 * dir
-  );
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Supported:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;$orderby=name asc&lt;/LI&gt;&lt;LI&gt;$orderby=createdAt desc&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;CAP Service Integration Example&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Below is how you can plug this into your service implementation file:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;const { handleFilter, handleSearch, handleSort } = require('./code/handleOData');
-module.exports = (srv) =&amp;gt; {
-
-  srv.on('READ', 'DemandAreas', async (req) =&amp;gt; {
-
-    // 1. Call external REST APIlet data = await fetchExternalData();
-
-    // 2. Apply $filterif (req.query.SELECT.where) {
-      data = data.filter(item =&amp;gt; handleFilter(req.query.SELECT.where, item));
-    }
-
-    // 3. Apply $searchif (req.query.SELECT.search) {
-      data = handleSearch(req.query.SELECT.search, data);
-    }
-
-    // 4. Apply $orderbyif (req.query.SELECT.orderBy) {
-      data = handleSort(req, data);
-    }
-
-    return data;
-  });
-};&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Benefits of this Approach&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Clean separation between CAP and external REST API&lt;/LI&gt;&lt;LI&gt;Full OData filtering support for Fiori/UI apps&lt;/LI&gt;&lt;LI&gt;No dependency on the external service supporting OData&lt;/LI&gt;&lt;LI&gt;Plug-and-play in any Node.js CAP project&lt;/LI&gt;&lt;LI&gt;Easy to extend with more operators&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This utility helps bridge the gap between &lt;STRONG&gt;OData-driven applications&lt;/STRONG&gt; and &lt;STRONG&gt;non-OData REST services&lt;/STRONG&gt;, while keeping our CAP service clean and the UI fully functional. If you’re building similar integrations, I hope this helps accelerate your work.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/handling-filter-search-and-orderby-in-sap-cap-when-consuming-external-rest/ba-p/14276281"/>
-    <published>2025-11-25T05:57:09.692000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/implementing-event-driven-architecture-in-cap-java-using-sap-event-mesh/ba-p/14277885</id>
     <title>Implementing Event-Driven Architecture in CAP Java using SAP Event Mesh</title>
@@ -763,5 +699,261 @@ annotate prod.Products with @(
 ); &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;After applying this file and refreshing the preview, the Object Page should now have:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Friendly labels&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;A clean header&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Product details section&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Stock section&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Proper grouping of fields&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;7. Summary&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;At this stage, the Object Page now feels like a proper application screen rather than a raw auto-generated view. The fields have meaningful labels, the content is organized into sections, and navigation works without errors. These elements provide the structure needed for the next phase of enhancements as the application grows.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/building-an-enterprise-application-using-fiori-elements-and-cap-part-3/ba-p/14287644"/>
     <published>2025-12-10T09:06:26.866000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sap-cap-blog-posts/from-zero-to-fiori-building-sap-apps-with-ai-agents-and-why-i-use-markdown/ba-p/14288142</id>
+    <title>From Zero to Fiori: Building SAP Apps with AI Agents (And Why I Use Markdown Files Instead of MCP)</title>
+    <updated>2025-12-10T18:25:17.582000+01:00</updated>
+    <author>
+      <name>michal_majer</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/160961</uri>
+    </author>
+    <content>&lt;P class=""&gt;&lt;STRONG&gt;45 minutes. &lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;That's how long it took to build a Customer Feedback &amp;amp; Complaint Management system on SAP BTP: 11 backend entities, 4 Fiori apps with 2,500+ lines of UI annotations, semantic coloring, and working navigation.&lt;/P&gt;&lt;P class=""&gt;It's not ready to ship project - but solid base to start devloping.&lt;/P&gt;&lt;P class=""&gt;I didn't write the code. I orchestrated 5 specialized AI agents while focusing on architecture decisions and error correction. The agents are Markdown files with specific instructions, not an MCP server, not a fine-tuned model.&lt;/P&gt;&lt;P class=""&gt;This choice surprises people. Let me explain why it works.&lt;BR /&gt;&lt;BR /&gt;The agent Markdown files are in my GitHub repository: &lt;A href="https://github.com/michal-majer/sap-cap-fiori-ai-agents" target="_self" rel="nofollow noopener noreferrer"&gt;https://github.com/michal-majer/sap-cap-fiori-ai-agents&lt;/A&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;BR /&gt;&lt;STRONG&gt;The Real Problem: Generic AI Fails at SAP&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;Ask ChatGPT or Claude to "build a Fiori app" and watch it fail. The model will write outdated syntax, hallucinate file structures instead of using generators, skip authorization patterns, and forget annotations that make Fiori actually usable.&lt;/P&gt;&lt;P class=""&gt;The reason is simple: SAP CAP and Fiori Elements have specific conventions that aren't well-represented in public training data. The models know JavaScript and OData in general, but they don't know that &lt;CODE&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.LineItem&lt;/CODE&gt; annotations need specific ordering, or that Fiori generators create &lt;CODE&gt;manifest.json&lt;/CODE&gt; files you shouldn't edit manually.&lt;/P&gt;&lt;P class=""&gt;Generic prompts produce generic (broken) code.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Why Markdown Agents Instead of MCP?&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;Model Context Protocol is powerful. It lets AI tools call external services, access databases, and execute actions. So why am I using plain text files?&lt;/P&gt;&lt;P class=""&gt;Three reasons:&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;1. Portability across AI interfaces&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;My Markdown agents work in Claude, in Cursor, in Windsurf, in any AI tool that accepts context files. When I switch tools (which happens often during experimentation), my agents come with me. No reconfiguration, no server setup.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;2. Transparency and version control&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;Every instruction my agent follows is visible in a &lt;CODE&gt;.md&lt;/CODE&gt; file I can read, edit, and commit to Git. When the AI makes a mistake, I can trace it back to which rule was missing or unclear. With MCP, the logic lives in server code. That's fine for stable integrations, but during iteration I need to see exactly what the AI "knows."&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;3. Lower barrier to iteration&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;Changing agent behavior means editing text. I can do it mid-session. "Add a rule: always use &lt;CODE&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1434188"&gt;@CDS&lt;/a&gt;.localized&lt;/CODE&gt; for text fields" takes 10 seconds. Building this into an MCP server would require deployment cycles.&lt;/P&gt;&lt;P class=""&gt;MCP makes sense for production integrations where you need real-time data access or external API calls. For development workflows where the AI manipulates local files, Markdown agents are faster to iterate.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;The Agent Architecture&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;Five Markdown files, each with a specific role:&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Full Stack Orchestrator&lt;/STRONG&gt; breaks requirements into tasks and asks clarifying questions before any code gets written. It enforces the planning phase that developers usually skip.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;SAP CAP Developer&lt;/STRONG&gt; handles &lt;CODE&gt;schema.cds&lt;/CODE&gt; and &lt;CODE&gt;service.cds&lt;/CODE&gt;. It knows authorization patterns, associations, and generates mock data automatically.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;SAP Fiori Designer&lt;/STRONG&gt; decides which floorplans fit the use case. List Report for the Support Workbench, Object Page for complaint details, Worklist for the Customer Portal.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;SAP Fiori Scaffolder&lt;/STRONG&gt; has one strict rule: never create Fiori file structures manually. It uses Yeoman generators because manually written &lt;CODE&gt;manifest.json&lt;/CODE&gt; files always have subtle bugs.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Fiori Elements Developer&lt;/STRONG&gt; adds UI annotations: &lt;CODE&gt;@UI.LineItem&lt;/CODE&gt;, &lt;CODE&gt;@UI.SelectionField&lt;/CODE&gt;, &lt;CODE&gt;@UI.FieldGroup&lt;/CODE&gt;, and criticality coloring. This is where raw IDs become human-readabledropdowns.&lt;/P&gt;&lt;HR /&gt;&lt;P class=""&gt;&lt;STRONG&gt;The Exact Prompts I Used&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;Here's the actual conversation flow from my session:&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Initial prompt to Orchestrator:&lt;/STRONG&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;Develop a SAP CAP application for managing customer feedback and complaints. &lt;/SPAN&gt;&lt;SPAN&gt;The application should allow customers to submit feedback, enable support staff &lt;/SPAN&gt;&lt;SPAN&gt;to categorize, assign, and resolve issues, and provide reporting on trends &lt;/SPAN&gt;&lt;SPAN&gt;and recurring problems. Ensure a clean data model, CRUD services, and &lt;/SPAN&gt;&lt;SPAN&gt;REST/OData endpoints for integration. @./ai/sap-full-stack-orchestrator&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P class=""&gt;&lt;STRONG&gt;Phase 1: Requirements gathering&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;The Orchestrator didn't write any code. Instead, it asked clarifying questions:&lt;/P&gt;&lt;UL class=""&gt;&lt;LI&gt;What user roles do we need? → Customer, Support Staff, Manager, Admin&lt;/LI&gt;&lt;LI&gt;What is the lifecycle of a complaint? → Submit → Categorize → Assign → Resolve, with reopen capability&lt;/LI&gt;&lt;LI&gt;Do customers have BTP accounts? → Yes, managed internally&lt;/LI&gt;&lt;LI&gt;Multi-language support? → English only, single-tenant&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;After I answered, the Orchestrator produced a detailed implementation plan covering all phases. I reviewed it, asked for adjustments, and approved.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Phase 2-6: Backend development&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;The CAP Developer agent took over. It generated:&lt;/P&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;CODE&gt;db/schema.cds&lt;/CODE&gt; with 11 entities&lt;/LI&gt;&lt;LI&gt;8 CSV files with seed data&lt;/LI&gt;&lt;LI&gt;5 service definitions (customer, support, manager, admin, analytics)&lt;/LI&gt;&lt;LI&gt;Service handlers with business logic&lt;/LI&gt;&lt;LI&gt;Authorization rules in &lt;CODE&gt;access-control.cds&lt;/CODE&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;I ran &lt;CODE&gt;cds watch&lt;/CODE&gt; after each major step. When the Customers endpoint returned 403, I pasted the error. The agent found the missing authorization scope and fixed it.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Phase 7: Frontend scaffolding&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;This is where the AI initially went off track:&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;Stop. Please use generator.&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;Please follow guide in @sap-fiori-scaffolder.md and use fiori-elements-writer&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P class=""&gt;The AI had tried to create Fiori folder structures manually. After my correction, it installed &lt;CODE&gt;@sap-ux/fiori-elements-writer&lt;/CODE&gt; and generated all 4 apps using the official SAP tooling. The resulting &lt;CODE&gt;manifest.json&lt;/CODE&gt; files were correctly configured for deployment.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Phase 8: UI annotations&lt;/STRONG&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;Let's go to the next phase, please create perfect fiori application. &lt;/SPAN&gt;&lt;SPAN&gt;@.ai/sap-fiori-elements-developer.md&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P class=""&gt;The Fiori Elements Developer agent scanned all OData services and generated 2,500+ lines of annotations: labels, value helps, criticality coloring, header facets, conditional actions, and organized object pages.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Error correction pattern:&lt;/STRONG&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;I have some errors in admin-console application.&lt;/SPAN&gt;&lt;SPAN&gt;RoutingServiceFactory-dbg.js:61 Uncaught (in promise) TypeError: &lt;/SPAN&gt;&lt;SPAN&gt;Cannot read properties of undefined (reading 'getMetaModel')&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P class=""&gt;The AI immediately identified the issue: manifest.json had a named model "Complaints" instead of the default unnamed model "". Fixed in under a minute.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Triggering annotation phase:&lt;/STRONG&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;Let's go to the next phase, please create perfect fiori application. &lt;/SPAN&gt;&lt;SPAN&gt;@.ai/sap-fiori-elements-developer.md&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;HR /&gt;&lt;P class=""&gt;&lt;STRONG&gt;What Got Generated&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;11 database entities (Customers, Complaints, Categories, Priorities, Statuses, StatusTransitions, Comments, Attachments, StatusHistory, SupportStaff, ComplaintAnalytics)&lt;/LI&gt;&lt;LI&gt;5 OData services with role-based access&lt;/LI&gt;&lt;LI&gt;4 Fiori Elements apps&lt;/LI&gt;&lt;LI&gt;2,500+ lines of UI annotations&lt;/LI&gt;&lt;LI&gt;8 CSV files with seed data&lt;/LI&gt;&lt;LI&gt;6 mocked users for testing&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;The Data Model&lt;BR /&gt;&lt;/STRONG&gt;The CAP Developer agent generated a clean domain model following CAP conventions:&lt;STRONG&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;amespace customer.complaints;
+
+using { managed, cuid, User, Country } from '@sap/cds/common';
+
+/**
+ * CUSTOMERS
+ * Users who submit and track feedback/complaints
+ */
+entity Customers : cuid, managed {
+  customerNumber   : String(20);                 // Auto-generated (e.g., CUST-20251207-00001)
+  firstName        : String(100) @mandatory;
+  lastName         : String(100) @mandatory;
+  email            : String(256) @mandatory;     // BTP account email
+  phone            : String(50);
+  company          : String(200);
+
+  // BTP Integration
+  btpUserId        : String(256) @mandatory;     // BTP user ID for authentication
+  isActive         : Boolean default true;
+
+  // Relationships
+  complaints       : Composition of many Complaints on complaints.customer = $self;
+}
+
+/**
+ * COMPLAINTS
+ * Core entity for customer feedback and complaints
+ */
+entity Complaints : cuid, managed {
+  complaintNumber  : String(30) not null;        // Auto-generated (e.g., CMP-20251207-00001)
+
+  // Basic Information
+  title            : String(200) @mandatory;
+  description      : String(5000) @mandatory @UI.MultiLineText;
+
+  // Classification
+  category         : Association to Categories @mandatory;
+  priority         : Association to Priorities @mandatory;
+  status           : Association to Statuses @mandatory;
+
+  // Assignment
+  customer         : Association to Customers @mandatory;
+  assignedTo       : Association to SupportStaff;
+  assignedBy       : Association to SupportStaff;  // Manager who assigned
+  assignedAt       : DateTime;
+
+  // Dates
+  submittedDate    : DateTime @mandatory @cds.on.insert: $now;
+  targetDate       : Date;                        // Expected resolution date
+  resolvedDate     : DateTime;
+  closedDate       : DateTime;
+  reopenedDate     : DateTime;
+
+  // Resolution
+  resolutionNotes  : String(5000) @UI.MultiLineText;
+  rootCause        : String(1000);
+  correctiveAction : String(1000);
+
+  // Metrics (virtual fields calculated in handlers)
+  virtual daysOpen        : Integer;
+  virtual isOverdue       : Boolean;
+  virtual statusCriticality: Integer;
+  virtual priorityCriticality: Integer;
+
+  // Relationships
+  comments         : Composition of many Comments on comments.complaint = $self;
+  attachments      : Composition of many Attachments on attachments.complaint = $self;
+  history          : Composition of many StatusHistory on history.complaint = $self;
+}
+
+/**
+ * CATEGORIES
+ * Hierarchical categorization system
+ */
+entity Categories : cuid {
+  code             : String(20) not null;
+  name             : String(100) not null;
+  description      : String(500);
+
+  // Hierarchy support
+  parent           : Association to Categories;
+  children         : Composition of many Categories on children.parent = $self;
+
+  // Routing
+  defaultPriority  : Association to Priorities;
+  autoAssignTo     : Association to SupportStaff;  // Auto-assign to specific staff
+
+  isActive         : Boolean default true;
+  sortOrder        : Integer default 0;
+}
+
+/**
+ * PRIORITIES
+ * Priority levels for complaints
+ */
+entity Priorities : cuid {
+  code             : String(20) not null;
+  name             : String(100) not null;
+  description      : String(500);
+
+  // SLA Configuration
+  slaHours         : Integer;                     // Target resolution time in hours
+  escalateAfterHours: Integer;                    // Auto-escalate if not resolved
+
+  // Display
+  criticality      : Integer default 0;           // 0=Grey, 1=Red, 2=Orange, 3=Green
+  sortOrder        : Integer default 0;
+  isActive         : Boolean default true;
+}
+
+/**
+ * STATUSES
+ * Workflow states for complaints
+ */
+entity Statuses : cuid {
+  code             : String(20) not null;
+  name             : String(100) not null;
+  description      : String(500);
+
+  // Workflow Control
+  isInitialStatus  : Boolean default false;       // New complaints start here
+  isFinalStatus    : Boolean default false;       // Terminal states
+  canReopen        : Boolean default false;       // Can reopen from this status
+
+  // Valid transitions
+  allowedTransitions: Association to many StatusTransitions on allowedTransitions.fromStatus = $self;
+
+  // Display
+  criticality      : Integer default 0;
+  sortOrder        : Integer default 0;
+  isActive         : Boolean default true;
+}
+
+/**
+ * STATUS TRANSITIONS
+ * Allowed state transitions
+ */
+entity StatusTransitions : cuid {
+  fromStatus       : Association to Statuses @mandatory;
+  toStatus         : Association to Statuses @mandatory;
+  requiredRole     : String(50);                  // Role required for transition
+  requiresComment  : Boolean default false;
+  isActive         : Boolean default true;
+}
+
+/**
+ * COMMENTS
+ * Timeline of updates and communications
+ */
+entity Comments : cuid, managed {
+  complaint        : Association to Complaints @mandatory;
+  commentText      : String(5000) @mandatory @UI.MultiLineText;
+
+  // Categorization
+  commentType      : String(50) default 'UPDATE'; // UPDATE, INTERNAL, CUSTOMER, SYSTEM
+  isInternal       : Boolean default false;       // Hide from customer
+  isSystemGenerated: Boolean default false;       // Auto-generated
+
+  // User info captured at creation time
+  authorName       : String(200);
+  authorRole       : String(50);
+}
+
+/**
+ * ATTACHMENTS
+ * File attachments for complaints
+ */
+entity Attachments : cuid, managed {
+  complaint        : Association to Complaints @mandatory;
+
+  @Core.MediaType: mediaType
+  @Core.ContentDisposition.Filename: filename
+  content          : LargeBinary;
+
+  @Core.IsMediaType
+  mediaType        : String;
+  filename         : String(256);
+  fileSize         : Integer;
+  description      : String(500);
+}
+
+/**
+ * STATUS HISTORY
+ * Audit trail of status changes
+ */
+entity StatusHistory : cuid {
+  complaint        : Association to Complaints @mandatory;
+  fromStatus       : Association to Statuses;
+  toStatus         : Association to Statuses @mandatory;
+  changedAt        : DateTime @mandatory @cds.on.insert: $now;
+  changedBy        : String(256);                 // BTP user ID
+  changedByName    : String(200);
+  reason           : String(1000);
+}
+
+/**
+ * SUPPORT STAFF
+ * Internal users handling complaints
+ */
+entity SupportStaff : cuid, managed {
+  staffNumber      : String(20);
+  firstName        : String(100) @mandatory;
+  lastName         : String(100) @mandatory;
+  email            : String(256) @mandatory;
+  phone            : String(50);
+
+  // BTP Integration
+  btpUserId        : String(256) @mandatory;
+
+  // Role &amp;amp; Capacity
+  role             : String(50) @mandatory;       // SUPPORT, MANAGER, ADMIN
+  department       : String(100);
+  isActive         : Boolean default true;
+  maxConcurrentCases: Integer default 20;
+
+  // Specialization
+  specializations  : Association to many Categories on specializations.autoAssignTo = $self;
+
+  // Metrics
+  virtual currentCaseload: Integer;
+  virtual avgResolutionDays: Decimal(5,2);
+}
+
+/**
+ * ANALYTICS VIEWS
+ * Pre-aggregated data for reporting
+ */
+@readonly
+entity ComplaintAnalytics as projection on Complaints {
+  key ID,
+  complaintNumber,
+  category.code as categoryCode,
+  category.name as categoryName,
+  priority.code as priorityCode,
+  priority.name as priorityName,
+  status.code as statusCode,
+  status.name as statusName,
+  assignedTo.ID as assignedToID,
+  assignedTo.firstName || ' ' || assignedTo.lastName as assignedToName : String(200),
+  submittedDate,
+  resolvedDate,
+  closedDate,
+  daysOpen,
+  isOverdue
+};&lt;/code&gt;&lt;/pre&gt;&lt;P class=""&gt;Preview of one of the application after using &lt;STRONG&gt;Fiori Elements Developer agent:&lt;BR /&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="List Page" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350908i0F0A27A6FEF8F94C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="fiori-1.png" alt="List Page" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;List Page&lt;/span&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="Object Page" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350909i3238AB41CCEE193D/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="fiori-2.png" alt="Object Page" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Object Page&lt;/span&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;HR /&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;&lt;BR /&gt;What I Learned&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Planning time isn't wasted time.&lt;/STRONG&gt; The Orchestrator agent spent 5 minutes asking about user roles, complaint lifecycles, and entity relationships before writing any code. Skipping this produces apps that need restructuring later.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Explicit rules beat implicit knowledge.&lt;/STRONG&gt; I added "always generate mock CSV data" to the CAP Developer agent after sessions where the AI forgot. Now it never forgets. Every bug becomes a rule.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;The AI doesn't know what it doesn't know.&lt;/STRONG&gt; It won't tell you it's uncertain about Fiori annotation syntax. It will confidently write something wrong. Your job is recognizing when output looks suspicious and asking for verification or alternatives.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Human oversight scales the bottleneck, doesn't remove it.&lt;/STRONG&gt; You still need to understand CAP and Fiori to review what the agents produce. The speedup comes from not typing boilerplate, not from removing the need for expertise.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Correction prompts are shorter than initial prompts.&lt;/STRONG&gt; Once the AI has context, you can say "fix authorization for admin" instead of explaining the entire access control model. The AI remembers what it built.&lt;/P&gt;&lt;HR /&gt;&lt;P class=""&gt;&lt;STRONG&gt;Try It Yourself&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;The agent Markdown files are in my GitHub repository: &lt;A href="https://github.com/michal-majer/sap-cap-fiori-ai-agents" target="_self" rel="nofollow noopener noreferrer"&gt;https://github.com/michal-majer/sap-cap-fiori-ai-agents&lt;/A&gt;&lt;/P&gt;&lt;P class=""&gt;Prerequisites:&lt;/P&gt;&lt;UL class=""&gt;&lt;LI&gt;Visual Studio Code with an AI extension that supports file context (Claude Dev, Cursor, or similar)&lt;/LI&gt;&lt;LI&gt;Choose between Claude Opus 4.5 / Sonnet 4.5 or Gemini Pro 3&lt;/LI&gt;&lt;LI&gt;Node.js&lt;/LI&gt;&lt;LI&gt;Basic familiarity with SAP CAP (you need to recognize when output is wrong)&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;Drop the &lt;CODE&gt;.md&lt;/CODE&gt; files in your project root, start a session, and give the Orchestrator a business requirement. Watch how it decomposes the task before coding begins.&lt;/P&gt;&lt;P class=""&gt;Video walkthrough: &lt;A title="  PL  Pomiń nawigację Szukaj     Utwórz   Awatar Build a Full-Stack SAP App in Minutes using AI Agents (CAP &amp;amp; Fiori)" href="https://www.youtube.com/watch?v=LFWGp-60xcI&amp;amp;t=800s" target="_blank" rel="noopener nofollow noreferrer"&gt;youtube.com&lt;/A&gt;&lt;/P&gt;&lt;HR /&gt;&lt;P class=""&gt;What should I build agents for next?&lt;BR /&gt;&lt;SPAN&gt;What errors did you encounter?&lt;BR /&gt;&lt;/SPAN&gt;Which agent was most useful?&lt;/P&gt;&lt;P class=""&gt;Drop a comment &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/sap-cap-blog-posts/from-zero-to-fiori-building-sap-apps-with-ai-agents-and-why-i-use-markdown/ba-p/14288142"/>
+    <published>2025-12-10T18:25:17.582000+01:00</published>
   </entry>
 </feed>
