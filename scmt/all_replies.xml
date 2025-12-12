@@ -2,737 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2025-12-12T11:59:01.411817+00:00</updated>
+  <updated>2025-12-12T12:14:02.049378+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/convert-xml-file-to-internal-table-and-download-into-csv-format-in-abap/ba-p/14274725</id>
-    <title>Convert XML File to Internal Table And Download Into CSV Format In ABAP</title>
-    <updated>2025-12-12T07:59:31.023000+01:00</updated>
-    <author>
-      <name>harsha_reddy24</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2263071</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Introduction:&lt;/STRONG&gt;&lt;BR /&gt;In most SAP ABAP projects, file uploads are a very common requirement—particularly in formats like &lt;STRONG&gt;TXT, CSV, or Excel&lt;/STRONG&gt;. These formats are straightforward to parse using standard approaches such as &lt;STRONG&gt;GUI_UPLOAD, CL_GUI_FRONTEND_SERVICES&lt;/STRONG&gt;, or transformations.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;However, during a recent requirement, I encountered a different scenario:&lt;BR /&gt;the business team wanted to upload an XML file, extract specific fields from the XML structure, convert the values into an ABAP internal table, and finally allow users to download the processed data in CSV format.&lt;/LI&gt;&lt;LI&gt;While XML is widely used for integrations, parsing XML inside ABAP is not as common in day-to-day development—especially when the XML structure is nested and needs to be converted into a flattened internal table.&lt;BR /&gt;This made the requirement both interesting and challenging:&lt;/LI&gt;&lt;LI&gt;How do we read an XML file from the presentation server?&lt;/LI&gt;&lt;LI&gt;How do we parse the XML structure into an easily consumable internal table?&lt;/LI&gt;&lt;LI&gt;How do we convert the extracted data into a CSV file dynamically?&lt;/LI&gt;&lt;LI&gt;How do we present the parsed data to the user (ALV) before export?&lt;/LI&gt;&lt;LI&gt;SAP fortunately provides powerful XML-handling tools such as &lt;STRONG&gt;CL_XML_DOCUMENT&lt;/STRONG&gt; and &lt;STRONG&gt;SMUM_XML_PARSE&lt;/STRONG&gt;, which help convert XML into a tree-like format that can be processed easily. Using these, we can extract required data nodes (like EmpID, EmpName, Salary) and map them into a custom structure.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;This blog explains the complete end-to-end solution:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Reading XML from local file&lt;/LI&gt;&lt;LI&gt;Parsing XML using SMUM_XML_PARSE&lt;/LI&gt;&lt;LI&gt;Populating an internal table&lt;/LI&gt;&lt;LI&gt;Displaying the result in ALV&lt;/LI&gt;&lt;LI&gt;Exporting the final output to CSV&lt;/LI&gt;&lt;LI&gt;This approach can be reused for any XML To ABAP conversion scenario, not just employee data. Whether you are processing orders, invoices, or custom data feeds, the same logic applies with minor adjustments.&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;" Data declarations
-DATA: gcl_xml       TYPE REF TO cl_xml_document,
-      gv_xml_string TYPE xstring,
-      gv_size       TYPE sytabix,
-      gt_xml_data   TYPE TABLE OF smum_xmltb,
-      gwa_xml_data  TYPE smum_xmltb,
-      gt_return     TYPE TABLE OF bapiret2.
-
-" Employee structure
-TYPES: BEGIN OF ty_employee,
-         empid   TYPE char10,
-         empname TYPE char50,
-         salary  TYPE char15,
-       END OF ty_employee.
-
-DATA: gt_employees TYPE TABLE OF ty_employee,
-      gwa_employee TYPE ty_employee.
-
-" File parameter
-PARAMETERS: p_file TYPE ibipparms-path.
-
-" F4 help for file selection
-AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
-  CALL FUNCTION 'F4_FILENAME'
-    IMPORTING
-      file_name = p_file.
-
-START-OF-SELECTION.
-
-  " Create XML document object
-  CREATE OBJECT gcl_xml.
-
-  " Import XML from file
-  gcl_xml-&amp;gt;import_from_file( filename = p_file ).
-
-  IF sy-subrc = 0.
-    " Render XML to xstring
-    gcl_xml-&amp;gt;render_2_xstring( IMPORTING
-                               stream = gv_xml_string
-                               size = gv_size ).
-
-    IF sy-subrc = 0.
-      " Parse XML
-      CALL FUNCTION 'SMUM_XML_PARSE'
-        EXPORTING
-          xml_input = gv_xml_string
-        TABLES
-          xml_table = gt_xml_data
-          return    = gt_return.
-
-      IF sy-subrc = 0.
-        " Process XML data to extract employee information
-        LOOP AT gt_xml_data INTO gwa_xml_data.
-          CASE gwa_xml_data-cname.
-            WHEN 'EmpID'.
-              gwa_employee-empid = gwa_xml_data-cvalue.
-            WHEN 'EmpName'.
-              gwa_employee-empname = gwa_xml_data-cvalue.
-            WHEN 'Salary'.
-              gwa_employee-salary = gwa_xml_data-cvalue.
-              " Append when all fields are collected
-              APPEND gwa_employee TO gt_employees.
-              CLEAR gwa_employee.
-          ENDCASE.
-        ENDLOOP.
-
-        " Display data using ALV
-        IF gt_employees IS NOT INITIAL.
-          TRY.
-
-              CALL METHOD cl_salv_table=&amp;gt;factory
-                IMPORTING
-                  r_salv_table = data(lo_alv)
-                CHANGING
-                  t_table      = gt_employees.
-
-              " Get columns object
-              DATA(lo_columns) = lo_alv-&amp;gt;get_columns( ).
-              lo_columns-&amp;gt;set_optimize( abap_true ).
-
-              " Set column headers
-              TRY.
-                  DATA(lo_column) = lo_columns-&amp;gt;get_column( columnname = 'EMPID' ).
-                  lo_column-&amp;gt;set_long_text( 'Employee ID' ).
-                  lo_column-&amp;gt;set_medium_text( 'Emp ID' ).
-                  lo_column-&amp;gt;set_short_text( 'EmpID' ).
-                CATCH cx_salv_not_found.
-              ENDTRY.
-
-              TRY.
-                  lo_column = lo_columns-&amp;gt;get_column( columnname = 'EMPNAME' ).
-                  lo_column-&amp;gt;set_long_text( 'Employee Name' ).
-                  lo_column-&amp;gt;set_medium_text( 'Emp Name' ).
-                  lo_column-&amp;gt;set_short_text( 'EmpName' ).
-                CATCH cx_salv_not_found.
-              ENDTRY.
-
-              TRY.
-                  lo_column = lo_columns-&amp;gt;get_column( columnname = 'SALARY' ).
-                  lo_column-&amp;gt;set_long_text( 'Employee Salary' ).
-                  lo_column-&amp;gt;set_medium_text( 'Salary' ).
-                  lo_column-&amp;gt;set_short_text( 'Salary' ).
-                CATCH cx_salv_not_found.
-              ENDTRY.
-
-              " Display ALV
-              lo_alv-&amp;gt;display( ).
-
-            CATCH cx_salv_msg.
-          ENDTRY.
-        ENDIF.
-      ENDIF.
-    ENDIF.
-
-  ENDIF.
-Data : IOUT          TYPE TABLE OF STRING,
-      XOUT TYPE STRING.
-      FIELD-SYMBOLS: &amp;lt;FS&amp;gt;.
-
-
-  LOOP AT GT_EMPLOYEES INTO GWA_EMPLOYEE.
-
-    CLEAR XOUT.
-    DO.
-      ASSIGN COMPONENT SY-INDEX OF STRUCTURE GWA_EMPLOYEE TO &amp;lt;FS&amp;gt;.
-      IF SY-SUBRC &amp;lt;&amp;gt; 0.
-        EXIT.
-      ENDIF.
-      IF SY-INDEX = 1.
-        XOUT = &amp;lt;FS&amp;gt;.
-      ELSE.
-        CONCATENATE XOUT &amp;lt;FS&amp;gt; INTO XOUT SEPARATED BY ','.
-      ENDIF.
-    ENDDO.
-
-    APPEND XOUT TO IOUT.
-
-  ENDLOOP.
-
-  CALL FUNCTION 'GUI_DOWNLOAD'
-    EXPORTING
-      FILENAME = 'C:- Tech_csv.csv'
-    TABLES
-      DATA_TAB = IOUT.
-&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion:&lt;BR /&gt;&lt;BR /&gt;&lt;/STRONG&gt;This blog demonstrated a clear and practical approach to reading XML files in ABAP and transforming their contents into structured data using the Factory Method pattern. By separating file parsing, object creation, and data handling, the solution becomes more scalable, maintainable, and easy to extend for future XML formats. This design not only improves code readability but also ensures that enhancements or format changes can be accommodated with minimal impact on existing logic.&lt;BR /&gt;&lt;BR /&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Development/pd-p/833755570260738661924709785639136" class="lia-product-mention" data-product="314-1"&gt;ABAP Development&lt;/a&gt;&amp;nbsp;&amp;nbsp;&lt;BR /&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Connectivity/pd-p/266264953119842772207986043063520" class="lia-product-mention" data-product="313-1"&gt;ABAP Connectivity&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/convert-xml-file-to-internal-table-and-download-into-csv-format-in-abap/ba-p/14274725"/>
-    <published>2025-12-12T07:59:31.023000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/sost-subject-translation-issue/qaa-p/14289201#M4933450</id>
-    <title>Re: SOST - Subject translation issue</title>
-    <updated>2025-12-12T08:00:01.724000+01:00</updated>
-    <author>
-      <name>Sandra_Rossi</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/145194</uri>
-    </author>
-    <content>Your question title is about emails, not about work item texts. Anyway, this additional question has been already answered in the forum, it's like anything else: if it's standard, you install the language supplement; if it's custom, you log in the wanted language and you type the text. Good luck.</content>
-    <link href="https://community.sap.com/t5/technology-q-a/sost-subject-translation-issue/qaa-p/14289201#M4933450"/>
-    <published>2025-12-12T08:00:01.724000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/dynamic-alv-grid-output-using-salv-and-docking-container-in-abap/ba-p/14271669</id>
-    <title>Dynamic ALV Grid Output Using SALV and Docking Container in ABAP</title>
-    <updated>2025-12-12T08:04:03.442000+01:00</updated>
-    <author>
-      <name>manijangiti</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2174619</uri>
-    </author>
-    <content>&lt;P&gt;Hi Everyone,&lt;/P&gt;&lt;P&gt;Recently, I worked on a requirement where the ALV output needed to appear dynamically on the same screen using a docking container instead of a separate list output. This makes the UI much more user-friendly, especially when running programs multiple times during testing.&lt;/P&gt;&lt;P&gt;While SALV handles the ALV part, the interesting part is embedding it inside a docking container placed at the bottom of the screen.&lt;BR /&gt;Below is a simple example using the SFLIGHT table. I drafted this article with support from a generative AI tool, but the explanation and experiences shared here are based on my own learning and practical testing.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;REPORT ZALV_SALV_DOCK_DEMO.
-
-
-CLASS LCL_REPORT DEFINITION.
-  PUBLIC SECTION.
-    DATA: LT_DATA   TYPE STANDARD TABLE OF SFLIGHT,     "Output data
-          LR_CARRID TYPE RANGE OF SFLIGHT-CARRID.      "Select Options
-
-    METHODS:
-      GET_DATA,
-      GENERATE_OUTPUT.
-ENDCLASS.
-
-DATA: LR_REPORT TYPE REF TO LCL_REPORT,
-      G_CARRID  TYPE SFLIGHT-CARRID.
-
-
-SELECTION-SCREEN BEGIN OF BLOCK BLK1 WITH FRAME TITLE G_TITLE.
-SELECT-OPTIONS: S_CARRID FOR G_CARRID.
-SELECTION-SCREEN END OF BLOCK BLK1.
-
-INITIALIZATION.
-  G_TITLE = 'Selection Criteria'.
-  CREATE OBJECT LR_REPORT.
-  LR_REPORT-&amp;gt;GENERATE_OUTPUT( ).
-
-START-OF-SELECTION.
-  LR_REPORT-&amp;gt;LR_CARRID = S_CARRID[].
-  LR_REPORT-&amp;gt;GET_DATA( ).
-
-*---------------------------------------------------------------------*
-* Class Implementation
-*---------------------------------------------------------------------*
-CLASS LCL_REPORT IMPLEMENTATION.
-
-  METHOD GET_DATA.
-    "Fetch data
-    SELECT *
-      FROM SFLIGHT
-      INTO TABLE ME-&amp;gt;LT_DATA
-      WHERE CARRID IN LR_CARRID.
-
-    IF SY-DBCNT IS INITIAL.
-      MESSAGE S398(00) WITH 'No data selected'.
-    ENDIF.
-
-    "Export to memory
-    EXPORT DATA = ME-&amp;gt;LT_DATA TO MEMORY ID SY-CPROG.
-  ENDMETHOD.
-
-
-  METHOD GENERATE_OUTPUT.
-    DATA: LR_DOCK      TYPE REF TO CL_GUI_DOCKING_CONTAINER,
-          LR_CONTAINER TYPE REF TO CL_GUI_CONTAINER,
-          LR_ALV       TYPE REF TO CL_SALV_TABLE.
-
-    "Import internal table
-    IMPORT DATA = ME-&amp;gt;LT_DATA FROM MEMORY ID SY-CPROG.
-    FREE MEMORY ID SY-CPROG.
-
-    CHECK ME-&amp;gt;LT_DATA IS NOT INITIAL.
-
-    "Create docking container at bottom
-    CREATE OBJECT LR_DOCK
-      EXPORTING
-        REPID = SY-CPROG
-        DYNNR = SY-DYNNR
-        RATIO = 80
-        SIDE  = CL_GUI_DOCKING_CONTAINER=&amp;gt;DOCK_AT_BOTTOM
-        NAME  = 'DOCK_CONT'.
-
-    "Container assignment
-    LR_CONTAINER ?= LR_DOCK.
-
-    TRY.
-        "Create SALV inside the docking container
-        CL_SALV_TABLE=&amp;gt;FACTORY(
-          EXPORTING
-            LIST_DISPLAY   = IF_SALV_C_BOOL_SAP=&amp;gt;FALSE
-            R_CONTAINER    = LR_CONTAINER
-            CONTAINER_NAME = 'DOCK_CONT'
-          IMPORTING
-            R_SALV_TABLE   = LR_ALV
-          CHANGING
-            T_TABLE        = ME-&amp;gt;LT_DATA ).
-      CATCH CX_SALV_MSG.
-    ENDTRY.
-
-    "Enable standard functions
-    DATA(LR_FUNCTIONS) = LR_ALV-&amp;gt;GET_FUNCTIONS( ).
-    LR_FUNCTIONS-&amp;gt;SET_DEFAULT( ABAP_TRUE ).
-
-    "Display ALV
-    LR_ALV-&amp;gt;DISPLAY( ).
-  ENDMETHOD.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;The ALV appears at the bottom of the same screen&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;All SALV functions like sorting, filtering, and export are enabled&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Code is modular and reusable&lt;BR /&gt;This example is useful when building interactive ABAP reports where the user should not leave the main selection screen. Using a docking container provides a clean and modern presentation for your ALV list.&lt;/P&gt;&lt;P&gt;If you want to display multiple ALVs, add toolbars, or enhance SALV—for example with custom columns—I’d be happy to share extended examples as well.&lt;BR /&gt;&lt;BR /&gt;Selection Screen :&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/342152i724AB1EA1B4AB692/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;BR /&gt;After Executing :&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/342154iF7FFC3B0BD7EE243/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H1 id="toc-hId-1636402129"&gt;&lt;span class="lia-unicode-emoji" title=":white_heavy_check_mark:"&gt;✅&lt;/span&gt; &lt;STRONG&gt;Conclusion (Detailed &amp;amp; Explanatory)&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;By embedding the ALV Grid inside a docking container, we avoid the traditional list output and deliver a more user-friendly experience directly on the selection screen. SALV handles the formatting and functions, while the docking container ensures a flexible and consistent UI layout. This technique is highly useful for interactive reports, dashboards, and test-driven programs. While AI helped in organizing and refining the content, the logic, experimentation, and lessons shared are based on my own practical ABAP development work.&lt;/P&gt;&lt;BR /&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Development/pd-p/833755570260738661924709785639136" class="lia-product-mention" data-product="314-1"&gt;ABAP Development&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+BTP+ABAP+environment/pd-p/73555000100800001164" class="lia-product-mention" data-product="11-1"&gt;SAP BTP ABAP environment&lt;/a&gt;&amp;nbsp;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/dynamic-alv-grid-output-using-salv-and-docking-container-in-abap/ba-p/14271669"/>
-    <published>2025-12-12T08:04:03.442000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/editable-alv-report-with-row-based-field-editing-and-custom-f4-help-using/ba-p/14148370</id>
-    <title>Editable ALV Report with Row-Based Field Editing and Custom F4 Help Using OOP in ABAP</title>
-    <updated>2025-12-12T08:08:44.264000+01:00</updated>
-    <author>
-      <name>mubarakbashasyed</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2189365</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Introduction:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This blog shows how to create an editable ALV grid in ABAP using &lt;STRONG&gt;CL_GUI_ALV_GRID&lt;/STRONG&gt;, where only selected rows can be changed. It also explains how to add a custom F4 help to guide users with valid input. Together, these features make data editing easier, safer, and more user-friendly.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Solution Overview:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This ABAP report features an editable ALV grid built using Object-Oriented programming with CL_GUI_ALV_GRID. It allows users to edit a specific field only for the rows they explicitly select, ensuring controlled and precise data modification.&lt;/P&gt;&lt;P&gt;Additionally, a custom F4 help is implemented for one of the fields, providing tailored input assistance beyond the standard SAP search help. This approach improves data accuracy, enhances user experience, and supports business processes that require selective, validated updates to records within an ALV grid.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Selection-Screen:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="mubarakbashasyed_0-1752068913781.png" style="width: 589px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/284573i5E245693BC1BFA7C/image-dimensions/589x99?v=v2" width="589" height="99" role="button" title="mubarakbashasyed_0-1752068913781.png" alt="mubarakbashasyed_0-1752068913781.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Screen 100 - OUTPUT Module:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;*------------------------------------------------------------------------------*
-* MODULE: PBO
-*------------------------------------------------------------------------------*
-module status_0100 output.
-  set pf-status 'ZSTATUS'.
-
-  if gr_cont is initial.
-
-    create object gr_cont
-      exporting
-        container_name = 'CNTNR'.
-
-    create object gr_grid
-      exporting
-        i_parent = gr_cont.
-
-    call method gr_grid-&amp;gt;set_table_for_first_display
-      exporting
-        i_structure_name = 'TY_STATUS'
-        is_layout        = gs_layout
-      changing
-        it_fieldcatalog  = gt_fcat
-        it_outtab        = gt_data.
-
-    create object gr_event_receiver.
-    set handler gr_event_receiver-&amp;gt;on_f4 for gr_grid.
-  endif.
-endmodule.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Screen 100 - INPUT Module:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;*------------------------------------------------------------------------------*
-* MODULE: PAI
-*------------------------------------------------------------------------------*
-module user_command_0100 input.
-  gv_okcode = sy-ucomm.
-
-  case gv_okcode.
-
-    when 'BACK'.
-      leave to screen 0.
-
-    when 'EDIT'.
-      gr_grid-&amp;gt;check_changed_data( ).
-      perform set_cell_styles using abap_true .
-      perform refresh_grid.
-
-    when 'SAVE'.
-      perform save_to_db.
-      perform set_cell_styles using  abap_false.
-      perform refresh_grid.
-
-    when 'REFRESH'.
-      perform get_data.
-      perform set_cell_styles using  abap_false.
-      perform refresh_grid.
-
-    when 'SELECT'.
-      perform selectall.
-      perform refresh_grid.
-
-    when 'DESELECT'.
-      perform deselect.
-      perform set_cell_styles using  abap_false.
-      perform refresh_grid.
-  endcase.
-endmodule.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Custom F4 Help Event Handler :&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;A handler class registers for the STATUS field's F4 event to display allowed flags ('X', 'P', blank) via F4IF_INT_TABLE_VALUE_REQUEST.&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;class cl_event_receiver definition. 
-   public section. 
-     methods: on_f4 for event onf4 of cl_gui_alv_grid 
-       importing er_event_data e_fieldname es_row_no . 
-     methods: constructor. 
-  
- endclass.        
-
-class cl_event_receiver implementation. 
-  
-  method constructor. 
-     set handler on_f4 for gr_grid. 
-     gr_grid-&amp;gt;register_f4_for_fields( 
-         it_f4 = value #( ( fieldname = 'STATUS' register = 'X' chngeafter = 'X' ) ) ). 
-  
-  endmethod. 
-  
-  method on_f4. 
-   DATA: lt_return TYPE TABLE OF DDSHRETVAL. 
-   
-   if e_fieldname = 'STATUS'. 
-  
-       select distinct status from zdel_status into table (lt_flag) WHERE status NE ''. 
-        APPEND INITIAL LINE TO lt_flag. 
-  
-       call function 'F4IF_INT_TABLE_VALUE_REQUEST' 
-           exporting 
-             retfield        = 'STATUS' 
-             value_org       = 'S' 
-           tables 
-             value_tab       = lt_flag 
-             return_tab      = lt_return 
-           exceptions 
-             parameter_error = 1 
-             no_values_found = 2 
-           others            = 3. 
-  
-      if sy-subrc = 0 and lt_return is not initial. 
-  
-        field-symbols &amp;lt;table_modi&amp;gt; type lvc_t_modi. 
-         assign er_event_data-&amp;gt;m_data-&amp;gt;* to &amp;lt;table_modi&amp;gt;. 
-         &amp;lt;table_modi&amp;gt; = value #( 
-                     base &amp;lt;table_modi&amp;gt; 
-                     ( row_id    = es_row_no-row_id 
-                       fieldname = e_fieldname 
-                       value     = lt_return[ 1 ]-fieldval ) ). 
-         er_event_data-&amp;gt;m_event_handled = 'X'. 
-       endif. 
-  
-    endif. 
-   endmethod. &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="mubarakbashasyed_1-1752069844840.png" style="width: 556px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/284585iE7BE65AB90D1C1FC/image-dimensions/556x345?v=v2" width="556" height="345" role="button" title="mubarakbashasyed_1-1752069844840.png" alt="mubarakbashasyed_1-1752069844840.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="mubarakbashasyed_2-1752069893142.png" style="width: 559px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/284586i155363553A10EC7E/image-dimensions/559x266?v=v2" width="559" height="266" role="button" title="mubarakbashasyed_2-1752069893142.png" alt="mubarakbashasyed_2-1752069893142.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Enable Editing on Selected Rows&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;When users click Edit, the STATUS column for selected rows becomes editable.&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;form set_cell_styles using   iv_enable type abap_bool . 
-  
-  loop at gt_data assigning field-symbol(&amp;lt;ls_data&amp;gt;). 
-     clear &amp;lt;ls_data&amp;gt;-celltab. 
-     if iv_enable = abap_true and &amp;lt;ls_data&amp;gt;-sel = abap_true. 
-       data(ls_style) = value lvc_s_styl( 
-                                         fieldname = 'STATUS' 
-                                          style     = cl_gui_alv_grid=&amp;gt;mc_style_enabled ). 
-       append ls_style to &amp;lt;ls_data&amp;gt;-celltab. 
-     endif. 
-   endloop. 
-  
-endform. 
-
-form refresh_grid. 
-   if gr_grid is bound. 
-     gr_grid-&amp;gt;refresh_table_display( 
-       exporting is_stable = value lvc_s_stbl( row = 'X' col = 'X' ) ). 
-   endif. 
- endform.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="mubarakbashasyed_3-1752067655438.png" style="width: 575px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/284541iCEC9F1CE52EF7102/image-dimensions/575x246?v=v2" width="575" height="246" role="button" title="mubarakbashasyed_3-1752067655438.png" alt="mubarakbashasyed_3-1752067655438.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Save Changes Back to Database:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Only records marked with sel = abap_true are updated, with feedback on how many records were changed.&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;form save_to_db. 
-   gr_grid-&amp;gt;check_changed_data( ). 
-  
-  data count type i. 
-   loop at gt_data assigning field-symbol(&amp;lt;ls_data&amp;gt;) where sel = abap_true. 
-     update zdel_status 
-       set   status     = &amp;lt;ls_data&amp;gt;-status 
-       where plant      = &amp;lt;ls_data&amp;gt;-plant 
-       and deliveryno = &amp;lt;ls_data&amp;gt;-deliveryno. 
-     count = count + 1. 
-     if sy-subrc = 0. 
-       &amp;lt;ls_data&amp;gt;-sel = abap_false. 
-     endif. 
-   endloop. 
-   message count &amp;amp;&amp;amp; ' Records Updated Successfully.' type 'S'. 
-   commit work. 
- endform.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="mubarakbashasyed_5-1752070732836.png" style="width: 520px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/284590iFFA84129D256A99D/image-dimensions/520x205?v=v2" width="520" height="205" role="button" title="mubarakbashasyed_5-1752070732836.png" alt="mubarakbashasyed_5-1752070732836.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="mubarakbashasyed_4-1752070610202.png" style="width: 515px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/284588iD497693C2EF585F4/image-dimensions/515x408?v=v2" width="515" height="408" role="button" title="mubarakbashasyed_4-1752070610202.png" alt="mubarakbashasyed_4-1752070610202.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Changes are updated in database table:&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="mubarakbashasyed_6-1752070918598.png" style="width: 543px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/284592i4C951C4D88EB5C5C/image-dimensions/543x221?v=v2" width="543" height="221" role="button" title="mubarakbashasyed_6-1752070918598.png" alt="mubarakbashasyed_6-1752070918598.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;When clicking on ‘Refresh’ button it will display the old value of the field.&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;In edit mode of the field&amp;nbsp;:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="mubarakbashasyed_7-1752067711482.png" style="width: 508px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/284545iE2A3DFC9A072F847/image-dimensions/508x276?v=v2" width="508" height="276" role="button" title="mubarakbashasyed_7-1752067711482.png" alt="mubarakbashasyed_7-1752067711482.png" /&gt;&lt;/span&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The values are changed:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="mubarakbashasyed_8-1752067711483.png" style="width: 517px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/284547i503F5E2454859FD3/image-dimensions/517x243?v=v2" width="517" height="243" role="button" title="mubarakbashasyed_8-1752067711483.png" alt="mubarakbashasyed_8-1752067711483.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Before saving click on refresh &amp;nbsp;:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="mubarakbashasyed_7-1752071052575.png" style="width: 524px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/284594i47E2F2013C4E8494/image-dimensions/524x265?v=v2" width="524" height="265" role="button" title="mubarakbashasyed_7-1752071052575.png" alt="mubarakbashasyed_7-1752071052575.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;When click on ‘Select’, it will select all records through checkboxes&amp;nbsp;:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;form selectall . 
-  
-  loop at gt_data assigning field-symbol(&amp;lt;ls_data&amp;gt;). 
-     &amp;lt;ls_data&amp;gt;-sel = abap_true. 
-   endloop. 
- endform. &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="mubarakbashasyed_10-1752067741255.png" style="width: 527px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/284548i254443464A229470/image-dimensions/527x257?v=v2" width="527" height="257" role="button" title="mubarakbashasyed_10-1752067741255.png" alt="mubarakbashasyed_10-1752067741255.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;All select and edit:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="mubarakbashasyed_8-1752071764325.png" style="width: 527px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/284608i9D7091C02A5284D0/image-dimensions/527x179?v=v2" width="527" height="179" role="button" title="mubarakbashasyed_8-1752071764325.png" alt="mubarakbashasyed_8-1752071764325.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Clicking ‘Deselect’ will uncheck all currently selected records.&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;form deselect . 
-   loop at gt_data assigning field-symbol(&amp;lt;ls_data&amp;gt;). 
-     &amp;lt;ls_data&amp;gt;-sel = abap_false. 
-   endloop. 
-  
-endform. &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="mubarakbashasyed_11-1752067765126.png" style="width: 522px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/284549i7F69375BF3E55472/image-dimensions/522x261?v=v2" width="522" height="261" role="button" title="mubarakbashasyed_11-1752067765126.png" alt="mubarakbashasyed_11-1752067765126.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;Tables: zdel_status. 
- *-----------------------------------------------------------------------------* 
- * Types Declaration 
- *-----------------------------------------------------------------------------* 
- types: begin of ty_status, 
-          sel        type abap_bool, 
-          plant      type zdel_status-plant, "Plant 
-          deliveryno type zdel_status-deliveryno, "Delivery  Number 
-          statustime type zdel_status-statustime, "Status Time 
-          location   type zdel_status-location, "Location 
-          status     type zdel_status-status, "Status 
-          celltab    type lvc_t_styl, 
-        end   of ty_status. 
- *-----------------------------------------------------------------------------* 
- * Data Declaration 
- *-----------------------------------------------------------------------------* 
- data: gt_data   type standard table of ty_status, 
-       gr_grid   type ref to cl_gui_alv_grid, 
-       gr_cont   type ref to cl_gui_custom_container, 
-       gt_fcat   type lvc_t_fcat, 
-       gs_layout type lvc_s_layo, 
-       gv_okcode type sy-ucomm. 
- *------------------------------------------------------------------------------* 
- * Select Options and Parameters 
- *------------------------------------------------------------------------------* 
-  
-selection-screen begin of block bk1 with frame title text-t01. 
- select-options: s_plant  for zdel_status-plant, 
-                 s_delv   for zdel_status-deliveryno. 
- selection-screen end of block bk1. 
-  
-*-------------------------------------------------------------------------------* 
- * F4 Help Event Handler Class 
- *-------------------------------------------------------------------------------* 
- class cl_event_receiver definition. 
-   public section. 
-     methods: on_f4 for event onf4 of cl_gui_alv_grid 
-       importing er_event_data e_fieldname es_row_no . 
-     methods: constructor. 
- endclass. 
-  
-class cl_event_receiver implementation. 
-  method constructor. 
-     set handler on_f4 for gr_grid. 
-     gr_grid-&amp;gt;register_f4_for_fields( 
-             it_f4 = value #( ( fieldname = 'STATUS' register = 'X'    chngeafter = 'X' ) ) ). 
-  endmethod. 
-method on_f4. 
-   DATA: lt_return TYPE TABLE OF DDSHRETVAL. 
-  if e_fieldname = 'STATUS'. 
-          select distinct status from zdel_status into table (lt_flag)   WHERE status NE ''. 
-        APPEND INITIAL LINE TO lt_flag. 
-  
-       call function 'F4IF_INT_TABLE_VALUE_REQUEST' 
-           exporting 
-             retfield        = 'STATUS' 
-             value_org       = 'S' 
-           tables 
-             value_tab       = lt_flag 
-             return_tab      = lt_return 
-           exceptions 
-             parameter_error = 1 
-             no_values_found = 2 
-           others            = 3. 
-  
-      if sy-subrc = 0 and lt_return is not initial. 
-  
-        field-symbols &amp;lt;table_modi&amp;gt; type lvc_t_modi. 
-         assign er_event_data-&amp;gt;m_data-&amp;gt;* to &amp;lt;table_modi&amp;gt;. 
-         &amp;lt;table_modi&amp;gt; = value #( 
-                     base &amp;lt;table_modi&amp;gt; 
-                     ( row_id    = es_row_no-row_id 
-                       fieldname = e_fieldname 
-                       value     = lt_return[ 1 ]-fieldval ) ). 
-         er_event_data-&amp;gt;m_event_handled = 'X'. 
-       endif. 
-    endif. 
-   endmethod. 
- endclass. 
- *------------------------------------------------------------------------------* 
- * Start Of Selection 
- *------------------------------------------------------------------------------* 
- start-of-selection. 
-   perform get_data.
-   perform build_fcat.
-   perform build_layout.
-   call screen 100.               // using call screen
-   data: gr_event_receiver type ref to cl_event_receiver. 
- *------------------------------------------------------------------------------* 
- * FORM: get data 
- *------------------------------------------------------------------------------* 
- form get_data. 
-   clear gt_data. 
-  select plant, deliveryno, statustime, location, status 
-     from zdel_status 
-     into table (lt_status) 
-     where plant in @s_plant. 
-  
-  loop at lt_status into data(ls_status). 
-     append value ty_status( 
-       sel        = abap_false 
-       plant      = ls_status-plant 
-       deliveryno = ls_status-deliveryno 
-       statustime = ls_status-statustime 
-       location   = ls_status-location 
-       status     = ls_status-status ) to gt_data. 
-   endloop. 
- endform. 
- *------------------------------------------------------------------------------* 
- * MODULE: PBO 
- *------------------------------------------------------------------------------* 
- module status_0100 output. 
-   set pf-status 'ZSTATUS'.   //using custom set pf-status
-
-  if gr_cont is initial. 
-
-    create object gr_cont 
-       exporting 
-         container_name = 'CNTNR'. 
-  
-    create object gr_grid 
-       exporting 
-         i_parent = gr_cont. 
-  
-    perform build_fcat. 
-  
-    gs_layout-stylefname = 'CELLTAB'.   //container layout
-     gs_layout-no_rowmark = 'X'. 
-     gs_layout-no_toolbar = 'X'. 
-  
-    call method gr_grid-&amp;gt;set_table_for_first_display 
-       exporting 
-         i_structure_name = 'TY_STATUS' 
-         is_layout        = gs_layout 
-       changing 
-         it_fieldcatalog  = gt_fcat 
-         it_outtab        = gt_data. 
-  
-    create object gr_event_receiver. 
-     set handler gr_event_receiver-&amp;gt;on_f4 for gr_grid.  
-   endif. 
- endmodule. 
- *------------------------------------------------------------------------------* 
- * FORM: Bulid Field Catalog 
- *------------------------------------------------------------------------------* 
- form build_fcat. 
-   clear gt_fcat. 
-  gt_fcat = value lvc_t_fcat( ( fieldname = 'SEL'        col_pos = 1   coltext = 'Sel'               edit = abap_true  checkbox = abap_true ) 
-                               ( fieldname = 'PLANT'      col_pos = 2 coltext = 'Plant'             edit = abap_false ) 
-                               ( fieldname = 'DELIVERYNO' col_pos = 3 coltext = 'Delivery No'       edit = abap_false ) 
-                               ( fieldname = 'STATUSTIME' col_pos = 4 coltext = 'Status Time'       edit = abap_false ) 
-                               ( fieldname = 'LOCATION'   col_pos = 5 coltext = 'Location'          edit = abap_false ) 
-                               ( fieldname = 'STATUS'     col_pos = 6 coltext = 'Status'            edit = abap_false f4availabl = 'X' ) ). 
- endform. 
-*&amp;amp;---------------------------------------------------------------------*
-*&amp;amp;      Form  BUILD_LAYOUT
-*&amp;amp;---------------------------------------------------------------------*
-form build_layout .
-    gs_layout-stylefname = 'CELLTAB'.
-    gs_layout-no_rowmark = 'X'.
-    gs_layout-no_toolbar = 'X'.
-endform.
- *------------------------------------------------------------------------------* 
- * MODULE: PAI 
- *------------------------------------------------------------------------------* 
- module user_command_0100 input. 
-   gv_okcode = sy-ucomm. 
-  
-  case gv_okcode. 
-  
-    when 'BACK'. 
-       leave to screen 0. 
-  
-    when 'EDIT'. 
-       gr_grid-&amp;gt;check_changed_data( ). 
-       perform set_cell_styles using abap_true . 
-       perform refresh_grid. 
-  
-    when 'SAVE'. 
-       perform save_to_db. 
-       perform set_cell_styles using  abap_false . 
-       perform refresh_grid. 
-  
-    when 'REFRESH'. 
-       perform get_data. 
-       perform set_cell_styles using  abap_false . 
-       perform refresh_grid. 
-  
-    when 'SELECT'. 
-       perform selectall. 
-       perform refresh_grid. 
-  
-    when 'DESELECT'. 
-       perform deselect. 
-       perform set_cell_styles using  abap_false.
-       perform refresh_grid. 
-   endcase. 
- endmodule. 
- *------------------------------------------------------------------------------* 
- * FORM: Set Cell Style Based On Checkbox 
- *------------------------------------------------------------------------------* 
- form set_cell_styles using   iv_enable type abap_bool . 
-  
-  loop at gt_data assigning field-symbol(&amp;lt;ls_data&amp;gt;). 
-     clear &amp;lt;ls_data&amp;gt;-celltab. 
-     if iv_enable = abap_true and &amp;lt;ls_data&amp;gt;-sel = abap_true. 
-       data(ls_style) = value lvc_s_styl( 
-                                         fieldname = 'STATUS' 
-                                          style     = cl_gui_alv_grid=&amp;gt;mc_style_enabled ). 
-       append ls_style to &amp;lt;ls_data&amp;gt;-celltab. 
-     endif. 
-   endloop. 
-  
-endform. 
- *------------------------------------------------------------------------------* 
- * FORM: Refresh Alv 
- *------------------------------------------------------------------------------* 
- form refresh_grid. 
-   if gr_grid is bound. 
-     gr_grid-&amp;gt;refresh_table_display( 
-       exporting is_stable = value lvc_s_stbl( row = 'X' col = 'X' ) ). 
-   endif. 
- endform. 
- *------------------------------------------------------------------------------* 
- * FORM: Save Changes to ZDEL_STATUS 
- *------------------------------------------------------------------------------* 
- form save_to_db. 
-   gr_grid-&amp;gt;check_changed_data( ). 
-  
-  data count type i. 
-   loop at gt_data assigning field-symbol(&amp;lt;ls_data&amp;gt;) where sel = abap_true. 
-     update zdel_status 
-       set   status     = &amp;lt;ls_data&amp;gt;-status 
-       where plant      = &amp;lt;ls_data&amp;gt;-plant 
-       and deliveryno = &amp;lt;ls_data&amp;gt;-deliveryno. 
-     count = count + 1. 
-     if sy-subrc = 0. 
-       &amp;lt;ls_data&amp;gt;-sel = abap_false. 
-     endif. 
-   endloop. 
-   message count &amp;amp;&amp;amp; ' Records Updated Successfully.' type 'S'. 
-   commit work. 
- endform. 
- *&amp;amp;---------------------------------------------------------------------* 
- *&amp;amp;      Form  SELECTALL 
- *&amp;amp;---------------------------------------------------------------------* 
- *       text 
- *----------------------------------------------------------------------* 
- *  --&amp;gt;  p1        text 
- *  &amp;lt;--  p2        text 
- *----------------------------------------------------------------------* 
- form selectall . 
-  
-  loop at gt_data assigning field-symbol(&amp;lt;ls_data&amp;gt;). 
-     &amp;lt;ls_data&amp;gt;-sel = abap_true. 
-   endloop. 
- endform. 
- *&amp;amp;---------------------------------------------------------------------* 
- *&amp;amp;      Form  DESELECT 
- *&amp;amp;---------------------------------------------------------------------* 
- *       text 
- *----------------------------------------------------------------------* 
- *  --&amp;gt;  p1        text 
- *  &amp;lt;--  p2        text 
- *----------------------------------------------------------------------* 
- form deselect . 
-   loop at gt_data assigning field-symbol(&amp;lt;ls_data&amp;gt;). 
-     &amp;lt;ls_data&amp;gt;-sel = abap_false. 
-   endloop. 
-  
-endform. &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Implementing an editable ALV grid with selective row editing and a custom F4 help provides a powerful yet user-friendly way to manage data within SAP. By allowing updates only for chosen rows, you maintain control and reduce the risk of unintended changes. The addition of a tailored F4 help further enhances data quality by guiding users toward valid, business-specific input.&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Development/pd-p/833755570260738661924709785639136" class="lia-product-mention" data-product="314-1"&gt;ABAP Development&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Connectivity/pd-p/266264953119842772207986043063520" class="lia-product-mention" data-product="313-1"&gt;ABAP Connectivity&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Extensibility/pd-p/338571334339306322581424656448659" class="lia-product-mention" data-product="315-1"&gt;ABAP Extensibility&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/editable-alv-report-with-row-based-field-editing-and-custom-f4-help-using/ba-p/14148370"/>
-    <published>2025-12-12T08:08:44.264000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/supply-chain-management-blog-posts-by-sap/ewm-cycle-counting-physical-inventory-procedure/bc-p/14289213#M7952</id>
-    <title>Re: EWM Cycle Counting Physical Inventory Procedure</title>
-    <updated>2025-12-12T08:17:45.150000+01:00</updated>
-    <author>
-      <name>Dilli</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/154312</uri>
-    </author>
-    <content>&lt;P&gt;Hello Rafeal,&lt;/P&gt;&lt;P&gt;Quick question.&lt;/P&gt;&lt;P&gt;Traditional WM offers me to perform cycle counting either at Quant level ( LICC ) or at Bin Level ( LX26 ). With the above approach Warehouse team can still spread out their counting effort through the year because the count date is at each quant level. In other words, same material located in different bins could have different count date and the counting frequency uses this as base date for next due date calculation. Also there is an option in the WM wherein I can instruct system to consider the Stock put away date as invent. Date. This helps me to avoid counting a material received yesterday as due today.&lt;/P&gt;&lt;P&gt;Unfortunately EWM does not offers this flexibility wherein system is asking me to count a material across wall to wall even though the adopted counting methodology is Cycle counting. The count date is always considered at the material level&amp;nbsp; &amp;nbsp; ( Irrespective of different batches or different bin location ). On top of this, we are losing the functionality of considering the Put away Date considered as last count date which is forcing us to count immediately the next day after GR.&lt;/P&gt;&lt;P&gt;Any idea why SAP removed this concept in EWM, any rationale behind removal of this functionality.&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/supply-chain-management-blog-posts-by-sap/ewm-cycle-counting-physical-inventory-procedure/bc-p/14289213#M7952"/>
-    <published>2025-12-12T08:17:45.150000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/unable-to-add-in-memory-application-platform-bd-2-0/qaq-p/14289214</id>
     <title>Unable to Add In-Memory Application Platform BD 2.0</title>
@@ -1623,7 +896,7 @@ define service ZVA_HEADER_SERV_ROOT_PRO_SD {
       <name>FrankJentsch</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/4296</uri>
     </author>
-    <content>&lt;H1 id="toc-hId-1637560067"&gt;Overview&lt;/H1&gt;&lt;P&gt;Providing a significant number of new features is an important goal of release upgrades to deliver innovations to our customers and partners. There are four major release upgrades per year following a predefined schedule as described in this&amp;nbsp;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-btp-abap-environment-maintenance-windows-and-major-upgrade-windows-in/ba-p/14257326" target="_blank"&gt;blog post&lt;/A&gt;.&lt;BR /&gt;&lt;BR /&gt;An upgrade is intended as a “no event” for customers and partners. For example, only compatible changes of released objects (APIs) will be delivered. We recommend performing a test of the custom-built productive apps in a test environment for the new release. The complexity of the technical dependencies between the custom-built apps and the underlying environment cannot be tested isolated, only including the ABAP environment on SAP-side. Therefore, we offer you to pre-upgrade selected systems 29 days&amp;nbsp;in advance to test the applications prior to the planned standard-upgrade.&amp;nbsp; &amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1441046562"&gt;Purpose&lt;/H1&gt;&lt;P&gt;This option enables a customer or partner to test the applications they have already developed on top of the new release a couple of days before the standard-upgrade. With SAP BTP ABAP Environment (aka "Steampunk"), we follow the approach of keeping released objects stable and provide all enhancements in a compatible fashion. Early testing is an additional measure to ensure proper software quality and might be used to detect unforeseen regressions. However, this option is not intended to test new features or to consume new features earlier.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1244533057"&gt;Approach&lt;/H1&gt;&lt;P&gt;The standard-upgrade of all systems to release &lt;STRONG&gt;2602&lt;/STRONG&gt;&amp;nbsp;is planned for &lt;STRONG&gt;February 14/15&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;A customer or partner can nominate one or more already existing systems for the pre-upgrade. A nominated system will be upgraded on &lt;STRONG&gt;January 16&lt;/STRONG&gt;&amp;nbsp;within a planned downtime&amp;nbsp;&lt;STRONG&gt;from 8:00 to 16:00 CET&lt;/STRONG&gt;. Depending on the system settings, the actual technical downtime might be only ~20 min within the mentioned timeframe. Please refer to this &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-btp-abap-environment-downtime-optimized-upgrades-and-hotfix-collection/ba-p/13986913" target="_self"&gt;blog post&lt;/A&gt; about the downtime-optimized upgrade.&amp;nbsp;&lt;/P&gt;&lt;P&gt;We recommend nominating a non-development system, such as a test system. The nomination of a development system is technically also possible, but fixes or other changes must not be imported into another system with a lower release. The nomination of a productive system doesn’t make sense because the purpose of the pre-upgrade is the re-test of the existing application before the productive system gets the new release.&lt;/P&gt;&lt;P&gt;According to the approach explained above, this offer is only relevant for customers or partners having at least two systems.&lt;/P&gt;&lt;P&gt;There might be situations where a correction of custom objects needs to be deployed. Such corrections are possible if the development / correction system is on the older release and is imported into the pre-upgraded system with the higher release.&lt;/P&gt;&lt;P&gt;Except potential fixes, the pre-upgrade is based on the same version as the standard-upgrade. It is planned to perform the pre-upgrade based on &lt;STRONG&gt;hotfix collection 2&lt;/STRONG&gt;. The pre-upgrade systems will get the import of &lt;STRONG&gt;hotfix collection 3&lt;/STRONG&gt;&amp;nbsp;after 2 weeks in the middle of the entire pre-upgrade test phase.&amp;nbsp;It is planned to perform the standard-upgrade based on &lt;STRONG&gt;hotfix collection 4&lt;/STRONG&gt;&amp;nbsp;and import this hotfix collection 3 to the pre-upgrade systems on &lt;STRONG&gt;February 14/15&amp;nbsp;&lt;/STRONG&gt;as well.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1048019552"&gt;Costs&lt;/H1&gt;&lt;P&gt;This offering is optional and free of any additional charges.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-851506047"&gt;Planned New Features&lt;/H1&gt;&lt;P data-unlink="true"&gt;The planned new features will be published on the &lt;A href="https://help.sap.com/whats-new/7a822d3bcaa74f31b98fa315601e9c96?Version=ABAP%20Environment%202511" target="_blank" rel="noopener noreferrer"&gt;What's New for SAP BTP ABAP Environment&lt;/A&gt; on &lt;STRONG&gt;January 16&lt;/STRONG&gt;.&amp;nbsp;This list gives you an overview of potential areas for re-testing. The purpose of the pre-upgrade is not to consume these features before the standard-upgrade, because the documentation on help.sap.com will be delivered later before the standard-upgrade. It would also not be possible to transport code of such an adoption, because subsequent systems are not yet on the new release during the pre-upgrade phase.&lt;/P&gt;&lt;P&gt;Independent of the upgrades of the SAP BTP ABAP Environment, we recommend developing automated tests for the custom-built apps to detect regressions early on and without manual effort for re-testing. Such automated tests are perfectly suited to be run in the pre-upgrade test phase.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-654992542"&gt;Time Schedule&lt;/H1&gt;&lt;P&gt;The following figure summarizes the general approach:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="2025-06-17_16-57-23.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/275499iE301A3CB2199AF89/image-size/large?v=v2&amp;amp;px=999" role="button" title="2025-06-17_16-57-23.png" alt="2025-06-17_16-57-23.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Milestones for release &lt;STRONG&gt;2602&lt;/STRONG&gt;:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;December 15&lt;/STRONG&gt;: Nomination of system(s) is possible in the Landscape Portal&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;January 16&lt;/STRONG&gt;: Announcement of the planned new features&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;January 12&lt;/STRONG&gt;: Pre-upgrade systems are known&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;January 16: Pre-upgrade (with hotfix collection 2)&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;January 30&lt;/STRONG&gt;: Import of hotfix collection 3 into pre-upgrade systems&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;February 11&lt;/STRONG&gt;: Potential decision to postpone the upgrade&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;February 14/15: Standard-upgrade&amp;nbsp;(with hotfix collection 4)&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-458479037"&gt;System Nomination&lt;/H1&gt;&lt;P&gt;To nominate a system, please register the system(s) by &lt;STRONG&gt;January 12&lt;/STRONG&gt;&amp;nbsp;(EOB) latest by using the &lt;STRONG&gt;Landscape Portal&lt;/STRONG&gt;. You can find further information about &lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/landscape-portal/accessing-landscape-portal" target="_blank" rel="noopener noreferrer"&gt;Accessing the Landscape Portal&lt;/A&gt; and about &lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/landscape-portal/register-systems-for-pre-upgrade" target="_blank" rel="noopener noreferrer"&gt;Register Systems for Pre-Upgrade&lt;/A&gt;. Please do &lt;STRONG&gt;not&lt;/STRONG&gt; create customer tickets for system nomination like in previous pre-upgrades.&lt;/P&gt;&lt;P&gt;With such a nomination, the customer agrees to an extraordinary planned maintenance on &lt;STRONG&gt;January&lt;/STRONG&gt;&lt;STRONG&gt;&amp;nbsp;16&lt;/STRONG&gt;&amp;nbsp;(see above).&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-261965532"&gt;Report an Issue&lt;/H1&gt;&lt;P&gt;Issues should be reported as part of the regression test phase by &lt;STRONG&gt;January&lt;/STRONG&gt;&lt;STRONG&gt;&amp;nbsp;30&lt;/STRONG&gt;&amp;nbsp;(EOB) to allow for a sufficient time frame for issue analysis and potential corrections on SAP-side.&lt;/P&gt;&lt;P&gt;Please create a customer ticket by using component&amp;nbsp;&lt;STRONG&gt;BC-CP-ABA&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;If a detected issue is likely to endanger the productive use after the standard-upgrade, you should use ticket priority&amp;nbsp;&lt;STRONG&gt;very high&lt;/STRONG&gt;&amp;nbsp;despite the fact that the pre-upgrade system is not a productive system.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-65452027"&gt;Exceptional Process in Case of Unresolved Priority Very High Issues&lt;/H1&gt;&lt;P&gt;In case of the aligned decision on Wednesday, &lt;STRONG&gt;February 11&lt;/STRONG&gt;&amp;nbsp;(based on unresolved priority very high tickets) to postpone the upgrade, a dedicated mitigation process needs to be started&amp;nbsp;&lt;SPAN&gt;together with the respective customer or partner, with the following boundary conditions:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Resolving the open priority very high issues remains the highest priority for both, SAP and the customer or partner, as it is also the prerequisite for the upgrade.&lt;/LI&gt;&lt;LI&gt;According to the estimated issue resolution, catching up the upgrade needs to be planned.&lt;/LI&gt;&lt;LI&gt;The upgrade leads to a business downtime of 6 – 8 hours.&lt;/LI&gt;&lt;LI&gt;The upgrade must be scheduled within 7 calendar days the latest after fixing all remaining open priority very high issues.&lt;/LI&gt;&lt;LI&gt;We will not provide any fixes for the old release after the original date of the standard-upgrade to the new release.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;In case business-critical issues are detected after the upgrade:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Issues need to be reported as priority very high issues and will be processed accordingly.&lt;/LI&gt;&lt;LI&gt;Going back to the release before upgrade is not an option. Therefore, resolving the issues in the new release with the appropriate priority is the required approach.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--131061478"&gt;Summary&lt;/H1&gt;&lt;P&gt;We recommend performing regression tests in pre-upgraded test systems to avoid day-1 impacts of productive custom apps after the standard-upgrade.&lt;/P&gt;</content>
+    <content>&lt;H1 id="toc-hId-1637560067"&gt;Overview&lt;/H1&gt;&lt;P&gt;Providing a significant number of new features is an important goal of release upgrades to deliver innovations to our customers and partners. There are four major release upgrades per year following a predefined schedule as described in this&amp;nbsp;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-btp-abap-environment-maintenance-windows-and-major-upgrade-windows-in/ba-p/14257326" target="_blank"&gt;blog post&lt;/A&gt;.&lt;BR /&gt;&lt;BR /&gt;An upgrade is intended as a “no event” for customers and partners. For example, only compatible changes of released objects (APIs) will be delivered. We recommend performing a test of the custom-built productive apps in a test environment for the new release. The complexity of the technical dependencies between the custom-built apps and the underlying environment cannot be tested isolated, only including the ABAP environment on SAP-side. Therefore, we offer you to pre-upgrade selected systems 29 days&amp;nbsp;in advance to test the applications prior to the planned standard-upgrade.&amp;nbsp; &amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1441046562"&gt;Purpose&lt;/H1&gt;&lt;P&gt;This option enables a customer or partner to test the applications they have already developed on top of the new release a couple of days before the standard-upgrade. With SAP BTP ABAP Environment (aka "Steampunk"), we follow the approach of keeping released objects stable and provide all enhancements in a compatible fashion. Early testing is an additional measure to ensure proper software quality and might be used to detect unforeseen regressions. However, this option is not intended to test new features or to consume new features earlier.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1244533057"&gt;Approach&lt;/H1&gt;&lt;P&gt;The standard-upgrade of all systems to release &lt;STRONG&gt;2602&lt;/STRONG&gt;&amp;nbsp;is planned for &lt;STRONG&gt;February 14/15&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;A customer or partner can nominate one or more already existing systems for the pre-upgrade. A nominated system will be upgraded on &lt;STRONG&gt;January 16&lt;/STRONG&gt;&amp;nbsp;within a planned downtime&amp;nbsp;&lt;STRONG&gt;from 8:00 to 16:00 CET&lt;/STRONG&gt;. Depending on the system settings, the actual technical downtime might be only ~20 min within the mentioned timeframe. Please refer to this &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-btp-abap-environment-downtime-optimized-upgrades-and-hotfix-collection/ba-p/13986913" target="_self"&gt;blog post&lt;/A&gt; about the downtime-optimized upgrade.&amp;nbsp;&lt;/P&gt;&lt;P&gt;We recommend nominating a non-development system, such as a test system. The nomination of a development system is technically also possible, but fixes or other changes must not be imported into another system with a lower release. The nomination of a productive system doesn’t make sense because the purpose of the pre-upgrade is the re-test of the existing application before the productive system gets the new release.&lt;/P&gt;&lt;P&gt;According to the approach explained above, this offer is only relevant for customers or partners having at least two systems.&lt;/P&gt;&lt;P&gt;There might be situations where a correction of custom objects needs to be deployed. Such corrections are possible if the development / correction system is on the older release and is imported into the pre-upgraded system with the higher release.&lt;/P&gt;&lt;P&gt;Except potential fixes, the pre-upgrade is based on the same version as the standard-upgrade. It is planned to perform the pre-upgrade based on &lt;STRONG&gt;hotfix collection 2&lt;/STRONG&gt;. The pre-upgrade systems will get the import of &lt;STRONG&gt;hotfix collection 3&lt;/STRONG&gt;&amp;nbsp;after 2 weeks in the middle of the entire pre-upgrade test phase.&amp;nbsp;It is planned to perform the standard-upgrade based on &lt;STRONG&gt;hotfix collection 4&lt;/STRONG&gt;&amp;nbsp;and import this hotfix collection 4 to the pre-upgrade systems on &lt;STRONG&gt;February 14/15&amp;nbsp;&lt;/STRONG&gt;as well.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1048019552"&gt;Costs&lt;/H1&gt;&lt;P&gt;This offering is optional and free of any additional charges.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-851506047"&gt;Planned New Features&lt;/H1&gt;&lt;P data-unlink="true"&gt;The planned new features will be published on the &lt;A href="https://help.sap.com/whats-new/7a822d3bcaa74f31b98fa315601e9c96?Version=ABAP%20Environment%202511" target="_blank" rel="noopener noreferrer"&gt;What's New for SAP BTP ABAP Environment&lt;/A&gt; on &lt;STRONG&gt;January 16&lt;/STRONG&gt;.&amp;nbsp;This list gives you an overview of potential areas for re-testing. The purpose of the pre-upgrade is not to consume these features before the standard-upgrade, because the documentation on help.sap.com will be delivered later before the standard-upgrade. It would also not be possible to transport code of such an adoption, because subsequent systems are not yet on the new release during the pre-upgrade phase.&lt;/P&gt;&lt;P&gt;Independent of the upgrades of the SAP BTP ABAP Environment, we recommend developing automated tests for the custom-built apps to detect regressions early on and without manual effort for re-testing. Such automated tests are perfectly suited to be run in the pre-upgrade test phase.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-654992542"&gt;Time Schedule&lt;/H1&gt;&lt;P&gt;The following figure summarizes the general approach:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="2025-06-17_16-57-23.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/275499iE301A3CB2199AF89/image-size/large?v=v2&amp;amp;px=999" role="button" title="2025-06-17_16-57-23.png" alt="2025-06-17_16-57-23.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Milestones for release &lt;STRONG&gt;2602&lt;/STRONG&gt;:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;December 16&lt;/STRONG&gt;: Nomination of system(s) is possible in the Landscape Portal&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;January 16&lt;/STRONG&gt;: Announcement of the planned new features&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;January 12&lt;/STRONG&gt;: Pre-upgrade systems are known&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;January 16: Pre-upgrade (with hotfix collection 2)&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;January 30&lt;/STRONG&gt;: Import of hotfix collection 3 into pre-upgrade systems&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;February 11&lt;/STRONG&gt;: Potential decision to postpone the upgrade&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;February 14/15: Standard-upgrade&amp;nbsp;(with hotfix collection 4)&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-458479037"&gt;System Nomination&lt;/H1&gt;&lt;P&gt;To nominate a system, please register the system(s) by &lt;STRONG&gt;January 12&lt;/STRONG&gt;&amp;nbsp;(EOB) latest by using the &lt;STRONG&gt;Landscape Portal&lt;/STRONG&gt;. You can find further information about &lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/landscape-portal/accessing-landscape-portal" target="_blank" rel="noopener noreferrer"&gt;Accessing the Landscape Portal&lt;/A&gt; and about &lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/landscape-portal/register-systems-for-pre-upgrade" target="_blank" rel="noopener noreferrer"&gt;Register Systems for Pre-Upgrade&lt;/A&gt;. Please do &lt;STRONG&gt;not&lt;/STRONG&gt; create customer tickets for system nomination like in previous pre-upgrades.&lt;/P&gt;&lt;P&gt;With such a nomination, the customer agrees to an extraordinary planned maintenance on &lt;STRONG&gt;January&lt;/STRONG&gt;&lt;STRONG&gt;&amp;nbsp;16&lt;/STRONG&gt;&amp;nbsp;(see above).&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-261965532"&gt;Report an Issue&lt;/H1&gt;&lt;P&gt;Issues should be reported as part of the regression test phase by &lt;STRONG&gt;January&lt;/STRONG&gt;&lt;STRONG&gt;&amp;nbsp;30&lt;/STRONG&gt;&amp;nbsp;(EOB) to allow for a sufficient time frame for issue analysis and potential corrections on SAP-side.&lt;/P&gt;&lt;P&gt;Please create a customer ticket by using component&amp;nbsp;&lt;STRONG&gt;BC-CP-ABA&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;If a detected issue is likely to endanger the productive use after the standard-upgrade, you should use ticket priority&amp;nbsp;&lt;STRONG&gt;very high&lt;/STRONG&gt;&amp;nbsp;despite the fact that the pre-upgrade system is not a productive system.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-65452027"&gt;Exceptional Process in Case of Unresolved Priority Very High Issues&lt;/H1&gt;&lt;P&gt;In case of the aligned decision on Wednesday, &lt;STRONG&gt;February 11&lt;/STRONG&gt;&amp;nbsp;(based on unresolved priority very high tickets) to postpone the upgrade, a dedicated mitigation process needs to be started&amp;nbsp;&lt;SPAN&gt;together with the respective customer or partner, with the following boundary conditions:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Resolving the open priority very high issues remains the highest priority for both, SAP and the customer or partner, as it is also the prerequisite for the upgrade.&lt;/LI&gt;&lt;LI&gt;According to the estimated issue resolution, catching up the upgrade needs to be planned.&lt;/LI&gt;&lt;LI&gt;The upgrade leads to a business downtime of 6 – 8 hours.&lt;/LI&gt;&lt;LI&gt;The upgrade must be scheduled within 7 calendar days the latest after fixing all remaining open priority very high issues.&lt;/LI&gt;&lt;LI&gt;We will not provide any fixes for the old release after the original date of the standard-upgrade to the new release.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;In case business-critical issues are detected after the upgrade:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Issues need to be reported as priority very high issues and will be processed accordingly.&lt;/LI&gt;&lt;LI&gt;Going back to the release before upgrade is not an option. Therefore, resolving the issues in the new release with the appropriate priority is the required approach.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--131061478"&gt;Summary&lt;/H1&gt;&lt;P&gt;We recommend performing regression tests in pre-upgraded test systems to avoid day-1 impacts of productive custom apps after the standard-upgrade.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-btp-abap-environment-pre-upgrade-option-for-release-2602/ba-p/14289244"/>
     <published>2025-12-12T10:08:07.816000+01:00</published>
   </entry>
@@ -2334,5 +1607,65 @@ define service ZVA_HEADER_SERV_ROOT_PRO_SD {
     <content>&lt;P&gt;Irrespective of where your source system resides, SAP provides the capabilities to ingest, harmonize and unlock real-time and predictive insights on your target system with confidence. This is supported by resilient, enterprise-grade frameworks, tools, and methodologies that safeguard data quality, integrity, and consistency throughout the entire data lifecycle.&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="SAP. (2023). Figure:1 Source Systems for Data Provisioning in SAP" style="width: 590px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350863i677834D7174C2EA3/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Data source nice.jpg" alt="Data source nice.jpg" /&gt;&lt;/span&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;EM&gt;SAP. (2023). Figure:1&lt;/EM&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;EM&gt;Source Systems for Data Provisioning in SAP&lt;/EM&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;EM&gt;URL: &lt;A href="https://learning.sap.com/courses/implementing-data-provisioning-in-sap-bw-4hana/identifying-sap-bw-4hana-source-systems-and-their-use-cases" target="_blank" rel="noopener noreferrer"&gt;https://learning.sap.com/courses/implementing-data-provisioning-in-sap-bw-4hana/identifying-sap-bw-4hana-source-systems-and-their-use-cases&lt;/A&gt;&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The endless possibilities of raw, intrinsic data ingestion from e.g. Enterprise warehouses, data lakes, rational &amp;amp; in-memory databases, SaaS applications even social media into SAP HANA (On-premises and/ or Cloud) opens a world of opportunity for data engineers to acquire rich, accurate, and complete master and transactional data from all possible sources imaginable. Responsibility for managing the data acquisition processes depends on the provisioning type being used. Common approaches include:&lt;/P&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Provisioning Type&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Data Flow Responsibility&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Metadata Management&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Typical Use Cases&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Application-Controlled&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Source &lt;STRONG&gt;application pushes data&lt;/STRONG&gt; to target using APIs or connectors.&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Managed in &lt;STRONG&gt;application layer&lt;/STRONG&gt; (schema, mappings, transformations).&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Custom logic, application-driven workflows, SaaS integrations.&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Change Data Capture (CDC)&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;CDC engine streams changes&lt;/STRONG&gt; (insert/update/delete) from source to target in near real-time.&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Managed by &lt;STRONG&gt;CDC tool&lt;/STRONG&gt; (change logs, timestamps, transaction markers).&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Real-time replication, incremental updates, event-driven architectures.&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Database-Controlled&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Target database pulls data&lt;/STRONG&gt; from source using adapters or SDI.&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Centralized in &lt;STRONG&gt;database layer&lt;/STRONG&gt; (schemas, lineage, governance).&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Governance-heavy environments, centralized data lakes, enterprise ETL.&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;EM&gt;Figure:2&lt;/EM&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;EM&gt;Provisioning Types: Data Flow &amp;amp; Metadata Management&lt;/EM&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The utilization of high-performance ETL/ELT tools ensure the consistence, quality and reliability of the data is upheld and thus often used to unify the data to best meet the objectives of the stakeholder’s request either being executives, decision makers, marketing or product. A well-thought-out data provisioning strategy should always take precedence as this ensure a smooth flowing data process. Depending on the usage of the data, a data engineer may explorer the below different data provisioning approaches:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Data federation – &lt;/STRONG&gt;Data is not loaded nor persisted into the target system (SAP HANA) but rather read directly from the source system only when the data is needed for use.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Data replication –&lt;/STRONG&gt; Data from the source system is loaded, persisted into the target system and kept in sync using various mechanisms&lt;UL&gt;&lt;LI&gt;Real-time (Synchronous) replication&lt;/LI&gt;&lt;LI&gt;Delta load (asynchronous)replication&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Data transformation – &lt;/STRONG&gt;The raw data is enhanced with additional features e.g. calculation columns, renamed fields or new fields derived from other exiting fields&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;SAP provides but not limited to the below high-performance native data integration technologies:&lt;/P&gt;&lt;TABLE width="609"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Tool&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Primary Function&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;Position in Landscape Architecture&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;SLT (SAP Landscape Transformation Replication)&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Real-time replication (CDC)&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Integration layer between SAP sources and HANA DB&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;SDA (Smart Data Access)&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Virtual access to remote sources (federation)&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Integration layer enabling query pushdown to the HANA DB&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;STRONG&gt;SDI (Smart Data Integration)&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;ETL/ELT pipelines, adapters, dataflows&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Integration layer moving and transforming data before loading into the HANA DB&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;EM&gt;Figure 3:&lt;/EM&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;EM&gt;SAP Native ETL/ELT tools&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;Furthermore, for Data quality, cleansing and enrichment before persisting into the HANA DB, SAP provides the below:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;EM&gt;Smart Data quality (SDQ)&lt;/EM&gt;&lt;/STRONG&gt; for SAP HANA on-premises&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;EM&gt;Data Quality Management Microservices (DQMm)&lt;/EM&gt;&lt;/STRONG&gt; as a subscription-based microservice for SAP HANA Cloud&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;SAP Hana provides a variation of consolidated tools both on premise and in the cloud, all providing for various functionality for different use cases such as:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Supporting data provisioning &amp;nbsp;&lt;/LI&gt;&lt;LI&gt;Developing Database artefacts&lt;/LI&gt;&lt;LI&gt;Monitoring the performance of the develop artefacts&lt;/LI&gt;&lt;LI&gt;Monitoring the Database and its system performance&lt;/LI&gt;&lt;LI&gt;Administering and managing the Database&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;One of the key strengths of the SAP ecosystem is the ability to seamlessly combine cloud functionalities together with on-premises and still import specific/ needed applications as micro services into common IDE’s such as Microsoft Visual Studio code is commendable because it:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Provides business with a comprehensive 360-degree view of&lt;UL&gt;&lt;LI&gt;Database health overview.&lt;/LI&gt;&lt;LI&gt;Data life cycle from end to end.&lt;/LI&gt;&lt;LI&gt;Application life cycle from end to end.&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;Empowers the end users, data engineers, developers, data scientists, data analyst and support engineers with greater power and flexibility over the data being used.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Below are native tools used by SAP for various purposes:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;SAP Business Application studio&lt;/STRONG&gt; – Cloud development tool.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Web IDE&lt;/STRONG&gt; – On-premises development tool&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;SAP Hana cockpit&lt;/STRONG&gt; - a web-based tool for monitoring, administering, and managing SAP HANA databases, offering a centralized, browser-accessible interface with tile-based dashboards for performance, resource usage (CPU, memory, disk), alerts, and security. It allows tasks like starting/stopping services, managing users, viewing alerts, analyzing performance, and running SQL queries through its integrated Database Explorer.&amp;nbsp;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;SAP SaaS applications are imported into common IDE, s such as Microsoft Visual Studio code via extensions, libraries etc. for a specific purpose e.g.:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&amp;nbsp;&lt;STRONG&gt;Supportability tools for SAP HANA&lt;/STRONG&gt; - For both online and offline performance analysis and troubleshooting. With a focus on the needs of support engineers, the performance analysis tools provide enhanced analysis options for trace files and runtime dump files, as well as allowing in-depth analysis on extensive datasets.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;The SQL analyzer tool for SAP HANA&lt;/STRONG&gt; - A performance analysis tool that helps developers visualize and understand SQL execution plans. Designed for query tuning and optimization, it offers detailed insights into how queries run within the SAP HANA database.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;SAP HANA Database Explorer &lt;/STRONG&gt;- Provides functionality for accessing SAP HANA databases, browsing the database catalog, and executing SQL from a&amp;nbsp;SQL console.&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="SAP Dev and Adm tool.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350856iD98C53CD26472527/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="SAP Dev and Adm tool.jpg" alt="SAP Dev and Adm tool.jpg" /&gt;&lt;/span&gt;&lt;EM&gt;Figure 4:&lt;/EM&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;EM&gt;SAP Development and Administration Tools Overview&lt;/EM&gt;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The consolidated toolset further enhances productivity and convenience for end users, data engineers, developers, data scientists, data analyst and support engineers by enabling them to access all essential capabilities from a single unified platform. The choice and flexibility to work with the desired programming languages ranging from but not limited to: SQL, SQL Script, Python, Node.js, JavaScript and react native etc. Enable a cross-functional team with diverse skill set to collaborate effectively while striving towards the same common goal.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Language.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350858i3C91624D1DC9DDE2/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Language.jpg" alt="Language.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&amp;nbsp;&lt;EM&gt;Figure 5:&lt;/EM&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;EM&gt;Core Programming Languages and Frameworks for SAP HANA Cloud and On-Premises&lt;/EM&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;After successfully completing the Explore phase, with a solid fit -to-standard analysis of proposed use cases, Extrinsic data pipelines are then implemented for reliable and consistent data flow. These pipelines support a wide range of business needs such as decision making, go-to-market activities or ML/AI use cases requested by various stakeholders. The process is typically executed and maintained by data engineers, developers, data scientists, data analyst and/or support engineers.&lt;/P&gt;&lt;P&gt;The harmonized data is then governed, analyzed, and visualized through multiple front-end applications. These applications are powered by various integration frameworks e.g. REST APIs, OData v4, JDBC/ODBC, each serving different user needs and functional objectives:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="visual.jpg" style="width: 743px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350859i916A48C2451B6519/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="visual.jpg" alt="visual.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&amp;nbsp;&lt;EM&gt;Figure: 6&lt;/EM&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;EM&gt;SAP-Compatible Applications and Their Integration Frameworks&lt;/EM&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;Mutatis mutandis, Data is the inception of all there is, as it has been in the beginning, is now and ever shall be. Thank you all for taking a glimpse into the above Content. Please don’t for get to like, comment and share.&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Abbreviations:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;API&lt;/STRONG&gt;: Application Programming Interface&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;BTP&lt;/STRONG&gt;: Business Technology Platform&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;CDC&lt;/STRONG&gt;: Change Data Capture&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;DB&lt;/STRONG&gt;: Database&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;DQMm&lt;/STRONG&gt;: Data Quality Management Microservices&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;ELT&lt;/STRONG&gt;: Extract, Load, Transform&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;ETL&lt;/STRONG&gt;: Extract, Transform, Load&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;IDE&lt;/STRONG&gt;: Integrated Development Environment&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;ML/AI&lt;/STRONG&gt;: Machine Learning/Artificial Intelligence&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;ODBC&lt;/STRONG&gt;: Open Database Connectivity&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;OData&lt;/STRONG&gt;: Open Data Protocol&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;REST&lt;/STRONG&gt;: Representational State Transfer&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SaaS&lt;/STRONG&gt;: Software as a Service&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SDI&lt;/STRONG&gt;: Smart Data Integration&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SDA&lt;/STRONG&gt;: Smart Data Access&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SDQ&lt;/STRONG&gt;: Smart Data Quality&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SLT&lt;/STRONG&gt;: SAP Landscape Transformation Replication&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SQL&lt;/STRONG&gt;: Structured Query Language&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Reference:&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;EM&gt;SAP. (2023). Figure:1 Source Systems for Data Provisioning in SAP, URL: &lt;A href="https://learning.sap.com/courses/implementing-data-provisioning-in-sap-bw-4hana/identifying-sap-bw-4hana-source-systems-and-their-use-cases" target="_blank" rel="noopener noreferrer"&gt;https://learning.sap.com/courses/implementing-data-provisioning-in-sap-bw-4hana/identifying-sap-bw-4hana-source-systems-and-their-use-cases&lt;/A&gt;&lt;/EM&gt;&lt;/LI&gt;&lt;/OL&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/sap-btp-data-fabric/ba-p/14288089"/>
     <published>2025-12-12T12:50:49.920000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/how-to-restrict-access-to-material-types-and-material-groups-in-sap-s4-hana/bc-p/14289383#M187107</id>
+    <title>Re: How to restrict access to material types and material groups in SAP S4 HANA</title>
+    <updated>2025-12-12T12:51:49.657000+01:00</updated>
+    <author>
+      <name>TaniaTrindade</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1676926</uri>
+    </author>
+    <content>&lt;P&gt;Hi dear&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/891545"&gt;@PrashanthKumarDuvva&lt;/a&gt;,&lt;/P&gt;&lt;P&gt;Thanks for your this useful blog. Would you please confirm if this is only applicable to Material Master (creation/change) or this can be applied as well to restrict access on PR's and PO's? The client has the request to restrict users to create PR's or POs for specific Material Groups.&lt;/P&gt;&lt;P&gt;Many thanks.&lt;/P&gt;&lt;P&gt;Best regards&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/how-to-restrict-access-to-material-types-and-material-groups-in-sap-s4-hana/bc-p/14289383#M187107"/>
+    <published>2025-12-12T12:51:49.657000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/spend-management-q-a/allocate-line-item-on-sow-to-more-than-1-cost-center/qaq-p/14289385</id>
+    <title>allocate line item on sow to more than 1 cost center</title>
+    <updated>2025-12-12T12:57:45.217000+01:00</updated>
+    <author>
+      <name>a1sss</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2268575</uri>
+    </author>
+    <content>&lt;P&gt;How to allocate a line item on sow to more than 1 CC - can be done after in approved status&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/SAP_Fieldglass/c7aef35dbab54c6cbf040066ec033fe7/fafabbf8dc0b42958658f522bc694858.html" target="_blank" rel="noopener noreferrer"&gt;Editing Cost Allocation on Line Items | SAP Help Portal&lt;/A&gt;&lt;/P&gt;&lt;P&gt;how to do earlier?&lt;/P&gt;&lt;P&gt;thanks&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/spend-management-q-a/allocate-line-item-on-sow-to-more-than-1-cost-center/qaq-p/14289385"/>
+    <published>2025-12-12T12:57:45.217000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/sap-public-cloud-2508-errors-during-the-mass-creation-of-business-partner/qaa-p/14289391#M4233200</id>
+    <title>Re: SAP Public Cloud 2508 / Errors during the Mass Creati...</title>
+    <updated>2025-12-12T13:01:56.638000+01:00</updated>
+    <author>
+      <name>Chris1973</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2035121</uri>
+    </author>
+    <content>&lt;P&gt;Hello&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1448638"&gt;@LukasKuhn&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/sap-public-cloud-2508-errors-during-the-mass-creation-of-business-partner/qaa-p/14289391#M4233200"/>
+    <published>2025-12-12T13:01:56.638000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/connect-sap-business-application-studio-sap-bas-and-sap-s-4hana-cloud/qaa-p/14289396#M4933474</id>
+    <title>Re: Connect SAP Business Application Studio (SAP BAS) and...</title>
+    <updated>2025-12-12T13:12:22.878000+01:00</updated>
+    <author>
+      <name>jorbriceno</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/710021</uri>
+    </author>
+    <content>&lt;P&gt;Hello Henrike,&lt;BR /&gt;&lt;BR /&gt;Thank you very much for your prompt response and for sharing the note.&lt;BR /&gt;&lt;BR /&gt;I have carefully reviewed SAP Note 3501198. However, I noticed that this note specifically addresses scenarios involving SAP Cloud Connector (On-Premise to Cloud connectivity) and issues related to duplicate subaccount names within the Cloud Connector configuration.&lt;BR /&gt;&lt;BR /&gt;In my current scenario, I am establishing a purely Cloud-to-Cloud connection (SAP S/4HANA Cloud Public Edition ↔ SAP BTP) using the "Internet" Proxy Type. I am not using the SAP Cloud Connector in this architecture.&lt;BR /&gt;&lt;BR /&gt;Could you please let me know if there are any other notes or documentation specific to this "Request failed with status code 403" error in a Cloud-to-Cloud environment?&lt;BR /&gt;&lt;BR /&gt;Thank you again for your support.&lt;BR /&gt;&lt;BR /&gt;Best regards, Jorge&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/connect-sap-business-application-studio-sap-bas-and-sap-s-4hana-cloud/qaa-p/14289396#M4933474"/>
+    <published>2025-12-12T13:12:22.878000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/making-sap-business-one-web-client-accessible-externally-using-nginx-as-a/bc-p/14289397#M62777</id>
+    <title>Re: Making SAP Business One Web Client accessible externally using nginx as a reverse proxy</title>
+    <updated>2025-12-12T13:12:43.949000+01:00</updated>
+    <author>
+      <name>Andre_S</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/8892</uri>
+    </author>
+    <content>&lt;P&gt;Hi,&lt;/P&gt;&lt;P&gt;why does the web client architecture require that also SLD and Authentication Service must be published?&lt;BR /&gt;Why is it not possible to only expose web client and handle the login via internal connections or over the service layer connection? Or am I getting something wrong?&lt;/P&gt;&lt;P&gt;Based on internal security guidelines we have separated web client to a dedicated server.&lt;BR /&gt;Intention is to have a different update and restart cycle of this Linux machine and also the security that conencts only via service layer.&lt;/P&gt;&lt;P&gt;For our understanding SLD has always been the heart of a B1 installation which knows all about installed services, databases, users etc. We published web client via Citrix Netscaler only to realize that we would need additional netscaler addresses for SLD and Authentication service which will lead to additional discussions with our security team and also require maintenance of these adresses for different environments.&lt;/P&gt;&lt;P&gt;Is publishing of SLD really required? Are there plans to change that?&lt;BR /&gt;Thanks!&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/making-sap-business-one-web-client-accessible-externally-using-nginx-as-a/bc-p/14289397#M62777"/>
+    <published>2025-12-12T13:12:43.949000+01:00</published>
   </entry>
 </feed>
