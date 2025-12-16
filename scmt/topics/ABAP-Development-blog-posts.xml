@@ -2,149 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2025-12-16T12:00:07.829148+00:00</updated>
+  <updated>2025-12-16T15:00:04.902338+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/send-email-with-image-from-mime-repository-in-sap-abap/ba-p/14285931</id>
-    <title>Send Email with Image from MIME Repository in SAP ABAP.</title>
-    <updated>2025-12-09T11:15:49.325000+01:00</updated>
-    <author>
-      <name>manijangiti</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2174619</uri>
-    </author>
-    <content>&lt;H3 id="toc-hId-1895613034"&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;In many SAP projects, sending emails with proper formatting and images is a common requirement—whether it’s for birthday wishes, reminders, approvals, or dashboards. Recently, I faced a real-time scenario where I had to send an email that included an inline image stored in the SAP MIME Repository. Instead of attaching the image as a file, the business wanted it to appear directly inside the email body.&lt;/P&gt;&lt;P&gt;This pushed me to explore how the MIME Repository works and how to embed images using ABAP and the BCS classes. To make the explanation clear and easy to understand, I used AI-assisted content creation while writing this blog—helping me present the technical steps in a simple and readable format.&lt;/P&gt;&lt;P&gt;In this blog, I will walk you through the complete process of fetching an image from the MIME Repository and sending it in an HTML email using ABAP.&lt;BR /&gt;&lt;STRONG&gt;Example Code :&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;REPORT ZEMAIL_TO_SEND_IMG1.
-
-*----------------------------------------------------------------------
-* Data Declarations
-*----------------------------------------------------------------------
-DATA: lo_mime       TYPE REF TO cl_gbt_multirelated_service,
-      lo_doc        TYPE REF TO cl_document_bcs,
-      lo_bcs        TYPE REF TO cl_bcs,
-      lo_sender     TYPE REF TO if_sender_bcs,
-      lo_recipient  TYPE REF TO if_recipient_bcs.
-
-DATA: lv_xstr       TYPE xstring,           "Image content in XSTRING
-      lv_mime       TYPE w3conttype,        "MIME type like image/png
-      lv_filename   TYPE string VALUE 'Done.png', "Image name
-      lt_solix      TYPE solix_tab,         "Binary table
-      lt_html       TYPE soli_tab,          "HTML body lines
-      lv_len        TYPE so_obj_len.        "Length of binary content
-
-
-*----------------------------------------------------------------------
-* Step 1: Read Image From SAP MIME Repository
-*----------------------------------------------------------------------
-cl_mime_repository_api=&amp;gt;get_api( )-&amp;gt;get(
-  EXPORTING
-    i_url       = |/SAP/PUBLIC/TEST_W/{ lv_filename }|
-  IMPORTING
-    e_content   = lv_xstr
-    e_mime_type = lv_mime
-  EXCEPTIONS
-    OTHERS      = 1 ).
-
-IF sy-subrc &amp;lt;&amp;gt; 0 OR lv_xstr IS INITIAL.
-  MESSAGE |Image { lv_filename } missing in MIME Repo!| TYPE 'E'.
-ENDIF.
-
-
-*----------------------------------------------------------------------
-* Step 2: Convert XSTRING Image to SOLIX
-*----------------------------------------------------------------------
-lt_solix = cl_bcs_convert=&amp;gt;xstring_to_solix( lv_xstr ).
-lv_len   = xstrlen( lv_xstr ).
-
-
-*----------------------------------------------------------------------
-* Step 3: Create MIME Multi-Part Object for Email
-*----------------------------------------------------------------------
-CREATE OBJECT lo_mime.
-
-
-*----------------------------------------------------------------------
-* Step 4: Add Inline Image (Content-ID Based Embedding)
-*----------------------------------------------------------------------
-lo_mime-&amp;gt;add_binary_part(
-  content      = lt_solix,
-  content_type = lv_mime,
-  length       = lv_len,
-  content_id   = lv_filename ).   "Used as cid:Done.png in HTML
-
-
-*----------------------------------------------------------------------
-* Step 5: Build HTML Email Body
-*----------------------------------------------------------------------
-APPEND '&amp;lt;html&amp;gt;' TO lt_html.
-APPEND '&amp;lt;body style="background-color:#e6f0fa; font-family:Arial; margin:0; padding:10px;"&amp;gt;' TO lt_html.
-
-APPEND '&amp;lt;div style="max-width:600px; margin:auto; background:#ffffff; padding:20px; border-radius:8px; border:1px solid #d0d7e3;"&amp;gt;' TO lt_html.
-
-APPEND '&amp;lt;div style="text-align:center; margin-bottom:15px;"&amp;gt;' TO lt_html.
-APPEND |&amp;lt;img src="cid:{ lv_filename }" alt="Birthday Image" style="width:80px;" /&amp;gt;| TO lt_html.
-APPEND '&amp;lt;/div&amp;gt;' TO lt_html.
-
-APPEND '&amp;lt;p style="font-size:12px; color:#000;"&amp;gt;Dear &amp;lt;b&amp;gt;Mani JANGITI&amp;lt;/b&amp;gt;,&amp;lt;br&amp;gt;&amp;lt;br&amp;gt;' TO lt_html.
-APPEND 'Wishing you a very Happy Birthday!&amp;lt;br&amp;gt;&amp;lt;br&amp;gt;' TO lt_html.
-APPEND 'May your day be filled with joy, laughter, and wonderful moments.&amp;lt;br&amp;gt;' TO lt_html.
-APPEND 'May this new year of your life bring you happiness, success, good health, and all the blessings you deserve.&amp;lt;br&amp;gt;&amp;lt;br&amp;gt;' TO lt_html.
-APPEND 'Enjoy your special day to the fullest! &amp;lt;br&amp;gt;&amp;lt;br&amp;gt;' TO lt_html.
-APPEND '&amp;lt;/p&amp;gt;' TO lt_html.
-
-APPEND '&amp;lt;div style="text-align:center; margin:20px 0;"&amp;gt;' TO lt_html.
-APPEND '&amp;lt;a href="https://your-gift-link.com/open" style="background:#6a2ae8; color:#ffffff; padding:10px 20px; text-decoration:none; border-radius:6px; font-size:14px;"&amp;gt;' TO lt_html.
-APPEND 'Open Your Gift' TO lt_html.
-APPEND '&amp;lt;/a&amp;gt;' TO lt_html.
-APPEND '&amp;lt;/div&amp;gt;' TO lt_html.
-
-APPEND '&amp;lt;p style="margin-top:15px; font-size:12px;"&amp;gt;Warm Regards,&amp;lt;br&amp;gt; Company (IN)&amp;lt;/p&amp;gt;' TO lt_html.
-
-APPEND '&amp;lt;/div&amp;gt;' TO lt_html.
-APPEND '&amp;lt;/body&amp;gt;&amp;lt;/html&amp;gt;' TO lt_html.
-
-
-*----------------------------------------------------------------------
-* Step 6: Attach HTML Body into MIME Object
-*----------------------------------------------------------------------
-lo_mime-&amp;gt;set_main_html(
-  content     = lt_html,
-  filename    = 'email.htm',
-  description = 'Birthday Wishes' ).
-
-
-*----------------------------------------------------------------------
-* Step 7: Create Email Document with Subject
-*----------------------------------------------------------------------
-lo_doc = cl_document_bcs=&amp;gt;create_from_multirelated(
-            i_subject          = 'Birthday Wishes...',
-            i_multirel_service = lo_mime ).
-
-
-*----------------------------------------------------------------------
-* Step 8: Create and Send Email Using BCS
-*----------------------------------------------------------------------
-lo_bcs = cl_bcs=&amp;gt;create_persistent( ).
-lo_bcs-&amp;gt;set_document( lo_doc ).
-
-lo_sender = cl_sapuser_bcs=&amp;gt;create( sy-uname ).
-lo_bcs-&amp;gt;set_sender( lo_sender ).
-
-lo_recipient = cl_cam_address_bcs=&amp;gt;create_internet_address(
-                 'maniyadav2585@gmail.com' ).
-lo_bcs-&amp;gt;add_recipient( lo_recipient ).
-
-lo_bcs-&amp;gt;send( i_with_error_screen = abap_true ).
-COMMIT WORK AND WAIT.
-
-
-*----------------------------------------------------------------------
-* Final Message
-*----------------------------------------------------------------------
-WRITE / 'Email sent successfully Check It in SOST. !'.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Output :&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349697i8E9DEDDAA9335D2D/image-size/large?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;Explanation :&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;In SAP emails, images help make the message look professional and easy to understand.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;The image is usually stored in the &lt;STRONG&gt;MIME Repository&lt;/STRONG&gt;, which is SAP’s storage for logos, icons, and media files.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;When sending HTML emails, we convert the image to &lt;STRONG&gt;Base64&lt;/STRONG&gt; so that it appears directly inside the email body.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;We also add &lt;STRONG&gt;hyperlinks&lt;/STRONG&gt; in the email so the user can click and open related documents or applications (like a Fiori app or a PDF).&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;This method is often used in real-time scenarios like reports, dashboards, notifications, and approval emails.&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;Thanks for reading this blog! Implementing images and hyperlinks in SAP emails may look small, but it makes a huge difference in real-time business communication. I personally used AI tools to structure and refine this content, just like how we now use AI daily to speed up development and solve problems faster. In real project scenarios, features like embedded images, clickable links, and clean formatting help users quickly understand data and take action. Hope this guide helps you in your next SAP requirement!&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Connectivity/pd-p/266264953119842772207986043063520" class="lia-product-mention" data-product="313-1"&gt;ABAP Connectivity&lt;/a&gt;&amp;nbsp;&lt;BR /&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Development/pd-p/833755570260738661924709785639136" class="lia-product-mention" data-product="314-1"&gt;ABAP Development&lt;/a&gt;&amp;nbsp;&lt;/DIV&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/send-email-with-image-from-mime-repository-in-sap-abap/ba-p/14285931"/>
-    <published>2025-12-09T11:15:49.325000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/call-bapi-in-custom-entity-through-rap/ba-p/14268610</id>
     <title>CALL BAPI IN CUSTOM ENTITY THROUGH RAP</title>
@@ -3625,5 +3486,21 @@ ENDIF.
 *&amp;amp;---------------------------------------------------------------------*&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;!--        StartFragment         --&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;Output&amp;nbsp; for standard MD04&amp;nbsp; real stock view:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="reddysekharapathipati_0-1765352645154.png" style="width: 727px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350599iF2BBED715F2C3DDB/image-dimensions/727x308?v=v2" width="727" height="308" role="button" title="reddysekharapathipati_0-1765352645154.png" alt="reddysekharapathipati_0-1765352645154.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Output for custom Report output:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="reddysekharapathipati_1-1765352723809.png" style="width: 725px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350600i81D0676745289928/image-dimensions/725x243?v=v2" width="725" height="243" role="button" title="reddysekharapathipati_1-1765352723809.png" alt="reddysekharapathipati_1-1765352723809.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;Conclusion :&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;!--   StartFragment    --&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;This custom ABAP report demonstrates how standard SAP functionality like MD04 can be replicated and customized using clean ABAP logic and standard APIs. By leveraging MD_STOCK_REQUIREMENTS_LIST_API and combining it with stock data from MARD, the report provides a clear and reliable view of stock movements and future requirements.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;From my experience, building such custom reports not only helps meet specific business requirements but also improves understanding of SAP’s internal MRP data flow. This approach offers flexibility for further enhancements such as ALV output, additional filters, or integration with planning dashboards, making it a practical alternative to standard transactions when customization is required.&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;!--   EndFragment    --&gt;&lt;!--        StartFragment         --&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;Thanks for Reading My Blog..&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Connectivity/pd-p/266264953119842772207986043063520" class="lia-product-mention" data-product="313-1"&gt;ABAP Connectivity&lt;/a&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+BTP+ABAP+environment/pd-p/73555000100800001164" class="lia-product-mention" data-product="11-1"&gt;SAP BTP ABAP environment&lt;/a&gt;&amp;nbsp;.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;!--        EndFragment         --&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;!--        EndFragment         --&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;!--        EndFragment         --&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;&lt;!--        EndFragment         --&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;!--        EndFragment         --&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;!--        EndFragment         --&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN class=""&gt;&lt;!--        EndFragment         --&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;!--         EndFragment          --&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;!--         EndFragment          --&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/building-a-custom-stock-requirements-report-in-sap-abap/ba-p/14287594"/>
     <published>2025-12-16T06:16:16.031000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/abap-blog-posts/a-journey-from-netweaver-7-50-to-s-4hana-part-4-custom-code-conversion/ba-p/14277883</id>
+    <title>A journey from Netweaver 7.50 to S/4HANA - Part 4: Custom Code Conversion Conundrums</title>
+    <updated>2025-12-16T14:50:29.981000+01:00</updated>
+    <author>
+      <name>BaerbelWinkler</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/439</uri>
+    </author>
+    <content>&lt;P&gt;After the preliminary steps for our custom code conversion described in &lt;A href="https://community.sap.com/t5/application-development-and-automation-blog-posts/a-journey-from-netweaver-7-50-to-s-4hana-part-1-setting-the-stage/ba-p/13965761" target="_blank"&gt;part 1&lt;/A&gt;, &lt;A href="https://community.sap.com/t5/abap-blog-posts/a-journey-from-netweaver-7-50-to-s-4hana-part-2-what-s-cooking/ba-p/14068398" target="_blank"&gt;part 2&lt;/A&gt; and &lt;A href="https://community.sap.com/t5/abap-blog-posts/a-journey-from-netweaver-7-50-to-s-4hana-part-3-hitting-some-snags/ba-p/14122127" target="_blank"&gt;part 3&lt;/A&gt; of this blog series, we finally started the actual coding activity over the summer.&lt;/P&gt;&lt;P&gt;To begin with, about 120 objects needed to be tackled which had been classified as high priority by the functional and business teams, many of which would most likely be needed for process testing in the first of eventual four sandbox systems. Once done with those, a big list with about 2,500 objects needed to be processed by our development team. For this blog post I picked three issues we encountered and briefly describe how we tackled them.&lt;/P&gt;&lt;H3 id="toc-hId-1894748291"&gt;What to do with customer master creation or updates via XD01 and XD02?&lt;/H3&gt;&lt;P&gt;We have several programs which create new customers or update existing customers via batch input (or call transaction) logic based on transaction XD01/02 and targeting the "old" tables KNA1, KNB1, KNVV, etc.&amp;nbsp; While the tables still exist in S/4HANA, the transactions are no longer functional because customers now have to be created and maintained as business partners via transaction BP and the business partner tables are in the "lead". The old tables are then filled from the BP, so are still available but only for read access.&lt;/P&gt;&lt;P&gt;Some of our logic creates customers in bulk based on file uploads and we needed an alternative route for that because many users are relying on that logic. Other programs call XD02 in order to update some fields in the customer master. Searching for alternatives, we happened upon class CL_MD_BP_MAINTAIN&amp;nbsp;and method MAINTAIN, which - based on &lt;A class="" title="Follow link" href="https://me.sap.com/notes/2484299/E" target="_blank" rel="noopener noreferrer"&gt;OSS Note 2484299 - BAPI list for BP&lt;/A&gt;&amp;nbsp;- is the recommended "tool" in S/4HANA for these kind of tasks (the BAPIs (FMs) listed in the note are intended for an ECC-system).&lt;/P&gt;&lt;P&gt;At first glance, using this class and method looked straight-forward enough, given that it only requires one import parameter:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;cl_md_bp_maintain=&amp;gt;maintain(
+  EXPORTING
+    i_data   = l_data
+  IMPORTING
+    e_return = l_return ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The "fun" really started once we realised what this parameter "i_data" really is ... very deeply nested structure CVIS_EI_EXTERN! The "complex" in the description doesn't really do it justice - at the very least, I would have added an "extremely" before "complex"!&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="High level definition of deeply nested structure CVIS_EI_EXTERN" style="width: 716px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348937iE98BCD22F78A2EED/image-dimensions/716x232/is-moderation-mode/true?v=v2" width="716" height="232" role="button" title="BaerbelWinkler_0-1764935655506.png" alt="High level definition of deeply nested structure CVIS_EI_EXTERN" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;High level definition of deeply nested structure CVIS_EI_EXTERN&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;To get a better handle on what I was looking at, I extended all the structures and all of their sub-structures until reaching the lowest nesting level for each of them.&amp;nbsp; I then downloaded everything into a spreadsheet which ended up having 18(!) nested levels in columns A to R and over 32,000(!!!) rows. Here is a small snippet taken from the spreadsheet:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Green rows are for fields, blue lines indicate a (sub)structure and yellow rows tabletypes." style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348956i01CC7BBDF69BDA9A/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="BaerbelWinkler_1-1764936645778.png" alt="Green rows are for fields, blue lines indicate a (sub)structure and yellow rows tabletypes." /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Green rows are for fields, blue lines indicate a (sub)structure and yellow rows tabletypes.&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Based on a code example found in a helpful &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/how-to-create-business-partner-and-assign-multiple-customer-roles-by-using/ba-p/13471108" target="_blank"&gt;blog post here in SAP Community&lt;/A&gt;, we started to piece together the code needed to fill this gigantic structure in order to create a new customer in our system. By now, we do have some working code but are still working out some details for specific cases where only some fields need to be updated instead a new customer created.&lt;/P&gt;&lt;H3 id="toc-hId-1698234786"&gt;Syntax error while testing logic for Australia but due to a vanished table related to Taiwan&lt;/H3&gt;&lt;P&gt;As most of you will already know, SAP calls the OSS-notes related to a conversion to S/4HANA "Simplification Items" because SAP simplified the underlying database by eliminating tables and table fields and - to state the obvious - this makes the switch to S/4HANA anything but simple, at least if you have a large custom code base like we do!&amp;nbsp;&lt;/P&gt;&lt;P&gt;While our development team has been working through the custom code conversion, other teams are already testing processes in sandbox systems. These were created based on productive systems which - even though the code is sourced from the same development system - differ in the data they contain. One is for example a small system for only one company code, while another one is used in Asian-Pacific countries, so is much larger than the first sandbox to be converted and also covers many more test cases. Testing processes related to webshop orders for Australia came to a stop when the logic ran into a syntax error because a table and its structure needed for e-documents in Taiwan was found missing.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Dump due to a syntax error" style="width: 605px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350212iB12F3FE73F303905/image-dimensions/605x427?v=v2" width="605" height="427" role="button" title="JourneyNW-to-S4HANA-Part4-03.jpg" alt="Dump due to a syntax error" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Dump due to a syntax error&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The table KNA1_TW_EXT contains just a handful of fields but they are legal requirements in Taiwan for invoices. A simplification item exists for the table but it's only the rather generic one mentioning objects no longer available in S/4HANA and it doesn't go into anything specific: &lt;A href="https://me.sap.com/notes/2296016/E" target="_blank" rel="noopener noreferrer"&gt;2296016 - SAP S/4HANA custom code adaptation - removal of orphaned objects&lt;/A&gt;. So, we were wondering what happens to the data stored in the productive system in ECC during system conversion?&lt;/P&gt;&lt;P&gt;Digging around a bit more, I found OSS-Note &lt;A href="https://me.sap.com/notes/3166424/E" target="_blank" rel="noopener noreferrer"&gt;3166424 - eDocument Taiwan: Migrate Extension Fields for Electronic Documents for Taiwan&lt;/A&gt; directly related to table KNA1_TW_EXT. In it, the conversion steps are explained and - guess what? - they involve manually downloading the data from table KNA1_TW_EXT while still on ECC and then - again manually - running SAP-provided program&amp;nbsp;&lt;SPAN&gt;EDOC_TW_CUST_MIGRATE&lt;/SPAN&gt; to add the fields' content to their "new" location which is funnily enough table KNA1! Unfortunately, we didn't have the upload program in our system and the OSS-Note wasn't applicable to our version of the S/4HANA-system anyway.&amp;nbsp;&lt;/P&gt;&lt;P&gt;So, the next step was to create an SAP incident to ask about the note's applicability in our system and to get some confirmation that these manual steps are actually necessary. We got both quickly and could then run through these motions in the sandbox system. And these steps will need to be added to the big check list for needed manual activities when the actual productive system gets converted sometime next year.&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1501721281"&gt;The need for and fun with Retrofit&lt;/H3&gt;&lt;P&gt;Given the long-running nature of our custom code conversion and process testing in sandbox systems, we obviously couldn't impose a freeze on the productive landscape still on Netweaver 750 EHP8 (ECC). We therefore needed a means to keep our new S/4HANA landscape up to date with new developments and applied changes in the corresponding ECC-system. With help from SAP, a Retrofit system based on Solution Manager was established and can now be used to "merge" changes applied in the ECC-system with the code in S/4HANA.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Simplified system landscape" style="width: 697px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350215iBDA85B9E5423971B/image-dimensions/697x299?v=v2" width="697" height="299" role="button" title="JourneyNW-to-S4HANA-Part4-02.jpg" alt="Simplified system landscape" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Simplified system landscape&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Once transports hit our ECC productive systems, they become relevant for Retrofit in S/4HANA. The transports are automatically checked and the ones without conflicts - new objects, changed objects for which no S/4HANA code conversion has happened and which don't have S/4HANA Readiness findings - are directly imported into the S/4HANA development system. Other transports are held back for manual inspections.&lt;/P&gt;&lt;P&gt;While the Retrofit framework handles report programs and includes just fine by displaying differences in the two code versions side by side, it has its limitations when it comes to Adobe forms and enhancements. For these objects the side by side comparison doesn't work and it would need to be done manually via version compare which can not just be tedious but also rather error prone. Because of that, we are now asking our colleagues who applied changes in these objects in ECC to re-apply the same changes - adapted to the S/4HANA needs - in the S/4HANA development system.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Generally and speaking from a Retrofit perspective, any change not applied in the ECC system is a good change.&amp;nbsp;Even with the tools available in Retrofit, the effort increases with frequent changes in ECC to objects already converted to S/4. And with each new change, the complexity and chances for errors increases.&lt;/P&gt;&lt;HR /&gt;&lt;P&gt;This concludes part 4 of our journey from SAP Netweaver to S/4HANA - I'm sure that 2026 will throw some more curve balls our way!&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Cartoon generated with Gemini" style="width: 599px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350218iCB726C0EBB999422/image-dimensions/599x327/is-moderation-mode/true?v=v2" width="599" height="327" role="button" title="JourneyNW-to-S4HANA-Part4-01.jpg" alt="Cartoon generated with Gemini" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Cartoon generated with Gemini&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/abap-blog-posts/a-journey-from-netweaver-7-50-to-s-4hana-part-4-custom-code-conversion/ba-p/14277883"/>
+    <published>2025-12-16T14:50:29.981000+01:00</published>
   </entry>
 </feed>
