@@ -2,680 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2025-12-17T03:00:02.845082+00:00</updated>
+  <updated>2025-12-17T06:00:03.948519+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/call-bapi-in-custom-entity-through-rap/ba-p/14268610</id>
-    <title>CALL BAPI IN CUSTOM ENTITY THROUGH RAP</title>
-    <updated>2025-12-09T11:29:06.943000+01:00</updated>
-    <author>
-      <name>harsha_reddy24</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2263071</uri>
-    </author>
-    <content>&lt;P&gt;Hi RAP Developers, Good Day&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;Introduction:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In many business scenarios, we need to expose BAPI-based data to SAP Fiori applications without creating database tables or CDS-based persistency. With the RESTful ABAP Programming Model (RAP), this can be achieved efficiently using &lt;STRONG&gt;Custom Entities&lt;/STRONG&gt;, which allow us to call ABAP logic directly—such as BAPIs—and return the data as an OData service.&lt;/P&gt;&lt;P&gt;In this blog, I will walk through how to build a &lt;STRONG&gt;Custom Entity that fetches bank details by calling a BAPI&lt;/STRONG&gt;, how to annotate it for UI consumption, and how to expose it seamlessly to a Fiori Elements application. This approach is useful whenever you want to reuse existing BAPIs and business logic while keeping your RAP model clean, lightweight, and high-performing.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Solution Overview:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This solution demonstrates how RAP can seamlessly integrate with classic SAP functionality by exposing BAPI output through a &lt;STRONG&gt;Custom Entity&lt;/STRONG&gt;. Instead of relying on database tables or CDS views, the Custom Entity acts as a virtual data source whose data is supplied dynamically via an ABAP class.&lt;/P&gt;&lt;P&gt;When a Fiori Elements UI requests the entity, RAP forwards the query to the ABAP implementation class. This class reads the query parameters (filters, sorting, pagination) and uses them to call &lt;STRONG&gt;BAPI_BANK_GETDETAIL&lt;/STRONG&gt;. The BAPI returns the bank’s address, master data, and related details, which are then transformed into the response structure expected by the Custom Entity.&lt;/P&gt;&lt;P&gt;The result is an OData-based, read-only endpoint capable of delivering real-time data from a BAPI with full RAP features such as filtering, sorting, paging, and total count support. This approach makes it easy to modernize existing SAP data retrieval logic while still leveraging stable, proven BAPIs in the backend.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;Custom Entity:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;custom entity not underlying any data source.&lt;/LI&gt;&lt;LI&gt;data preview is not possible, becuase this should be implemented in seperate class.&lt;/LI&gt;&lt;LI&gt;suitable for paging,calling bapi's and external api's.&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Custom Entity calling bapi'
-@ObjectModel: {
-    query: {
-        implementedBy: 'ABAP:ZCL_BAPI_BANK'
-    }
-}
-
-@UI: {
-    headerInfo: {
-        typeName: 'Banks',
-        typeNamePlural: 'Banks',
-        title: { value: 'bank_ctry' },
-        description: { value: 'bank_ctry' }
-    }
-}
-
-@UI: {
-    presentationVariant: [{
-        sortOrder: [{
-            by: 'bank_ctry',
-            direction: #ASC
-        }],
-        visualizations: [{
-            type: #AS_LINEITEM
-        }]
-    }]
-}
-define root custom entity ZCE_BANK
-{
-      .facet                : [
-      {
-          id      : 'Bank_data',
-          purpose : #STANDARD,
-          type    : #IDENTIFICATION_REFERENCE,
-          label   : 'Bank Details',
-          position: 10 }
-      ]
-      .lineItem             : [{ position: 10 }]
-      .selectionField       : [{position: 10}]
-      .identification       : [{position: 10}]
-  key bank_ctry                : banks;
-      .lineItem             : [{ position: 20 }]
-      .selectionField       : [{position: 20}]
-      .identification       : [{position: 20}]
-  key bank_key                 : bankk;
-
-      .lineItem             : [{ position: 30 }]
-      .identification       : [{position: 30}]
-      bank_name                : banka;
-
-      .lineItem             : [{ position: 40 }]
-      .identification       : [{position: 40}]
-      street                   : stras_gp;
-
-      .lineItem             : [{ position: 50 }]
-      .identification       : [{position: 50}]
-      city                     : ort01_gp;
-
-      .lineItem             : [{ position: 60 }]
-      .identification       : [{position: 60}]
-      BANK_NO                  : bankl;
-
-      .lineItem             : [{ position: 70 }]
-      .identification       : [{position: 70}]
-      CREAT_DATE               : erdat_bf;
-
-      .lineItem             : [{ position: 80 }]
-      .identification       : [{position: 80}]
-      creator                  : ernam_bf;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;Implementation:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS ZCL_BAPI_BANK DEFINITION
-  PUBLIC
-  FINAL
-  CREATE PUBLIC .
-
-  PUBLIC SECTION.
-    " RAP interface for query implementation
-    INTERFACES IF_RAP_QUERY_PROVIDER.
-  PROTECTED SECTION.
-  PRIVATE SECTION.
-ENDCLASS.
-
-
-CLASS ZCL_BAPI_BANK IMPLEMENTATION.
-
-  METHOD IF_RAP_QUERY_PROVIDER~SELECT.
-
-    "----------------------------------------------------------------------
-    " Local type used to return data back to Custom Entity ZCE_BANK
-    "----------------------------------------------------------------------
-    TYPES: BEGIN OF TY_BANK_RESULT,
-             BANK_CTRY  TYPE BANKS,
-             BANK_KEY   TYPE BANKK,
-             BANK_NAME  TYPE BANKA,
-             STREET     TYPE STRAS_GP,
-             CITY       TYPE ORT01_GP,
-             BANK_NO    TYPE BANKL,
-             CREAT_DATE TYPE ERDAT_BF,
-             CREATOR    TYPE ERNAM_BF,
-           END OF TY_BANK_RESULT.
-
-    DATA: LT_RESULT  TYPE TABLE OF TY_BANK_RESULT,
-          LS_RESULT  TYPE TY_BANK_RESULT,
-          LS_ADDRESS TYPE BAPI1011_ADDRESS,
-          LS_DETAIL  TYPE BAPI1011_DETAIL,
-          LS_RETURN  TYPE BAPIRET2.
-
-    " Proceed only if the consumer has requested data
-    IF IO_REQUEST-&amp;gt;IS_DATA_REQUESTED( ).
-
-      "---------------------------------------------------------------
-      " Read pagination details (TOP and SKIP)
-      "---------------------------------------------------------------
-      DATA(LV_TOP)  = IO_REQUEST-&amp;gt;GET_PAGING( )-&amp;gt;GET_PAGE_SIZE( ).
-      DATA(LV_SKIP) = IO_REQUEST-&amp;gt;GET_PAGING( )-&amp;gt;GET_OFFSET( ).
-
-      "---------------------------------------------------------------
-      " Prepare ORDER BY clause based on sort request from UI
-      "---------------------------------------------------------------
-      DATA(LT_SORT) = IO_REQUEST-&amp;gt;GET_SORT_ELEMENTS( ).
-      DATA LV_ORDERBY TYPE STRING.
-
-      IF LT_SORT IS NOT INITIAL.
-        CLEAR LV_ORDERBY.
-
-        LOOP AT LT_SORT INTO DATA(LS_SORT).
-          IF SY-TABIX &amp;gt; 1.
-            LV_ORDERBY = |{ LV_ORDERBY }, |.
-          ENDIF.
-
-          " Construct ORDER BY element (ASCENDING/DESCENDING)
-          LV_ORDERBY =
-            |{ LV_ORDERBY }{ LS_SORT-ELEMENT_NAME } {
-               COND #( WHEN LS_SORT-DESCENDING = ABAP_TRUE
-                       THEN 'DESCENDING'
-                       ELSE 'ASCENDING' ) }|.
-        ENDLOOP.
-      ENDIF.
-
-      "---------------------------------------------------------------
-      " Derive SQL filter string from UI filter (if any)
-      "---------------------------------------------------------------
-      DATA(lv_conditions) = io_request-&amp;gt;get_filter( )-&amp;gt;get_as_sql_string( ).
-
-      "---------------------------------------------------------------
-      " Read bank master records (BNKA) based on filters
-      "---------------------------------------------------------------
-      SELECT BANKS AS bank_ctry,
-             BANKL AS bank_key,
-             BNKLZ AS bank_no,
-             ERDAT AS creat_date,
-             ERNAM AS creator
-        FROM BNKA
-        WHERE (lv_conditions)
-        ORDER BY (lv_orderby)
-        INTO TABLE &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1407137"&gt;@DATA&lt;/a&gt;(lt_banks)
-        UP TO &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1419942"&gt;@LV&lt;/a&gt;_top ROWS
-        OFFSET &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1419942"&gt;@LV&lt;/a&gt;_skip.
-
-      "---------------------------------------------------------------
-      " Loop through each BNKA record and enrich details using BAPI
-      "---------------------------------------------------------------
-      LOOP AT lt_banks INTO DATA(ls_bank).
-
-        " Get detailed bank address info
-        CALL FUNCTION 'BAPI_BANK_GETDETAIL'
-          EXPORTING
-            bankcountry  = ls_bank-bank_ctry
-            bankkey      = ls_bank-bank_key
-          IMPORTING
-            bank_address = ls_address
-            bank_detail  = ls_detail
-            return       = ls_return.
-
-        " Prepare output row
-        LS_RESULT-bank_ctry   = ls_bank-bank_ctry.
-        LS_RESULT-bank_key    = ls_bank-bank_key.
-        LS_RESULT-bank_name   = ls_address-bank_name.
-        LS_RESULT-street      = ls_address-street.
-        LS_RESULT-city        = ls_address-city.
-        LS_RESULT-bank_no     = ls_bank-bank_no.
-        LS_RESULT-creat_date  = ls_bank-creat_date.
-        LS_RESULT-creator     = ls_bank-creator.
-
-        APPEND LS_RESULT TO LT_RESULT.
-
-        CLEAR: ls_result, ls_address, ls_detail, ls_return.
-
-      ENDLOOP.
-
-      "---------------------------------------------------------------
-      " Return total count for UI pagination (if requested)
-      "---------------------------------------------------------------
-      IF IO_REQUEST-&amp;gt;IS_TOTAL_NUMB_OF_REC_REQUESTED( ).
-        SELECT COUNT(*)
-          FROM BNKA
-          WHERE (lv_conditions)
-          INTO &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1407137"&gt;@DATA&lt;/a&gt;(lv_count).
-
-        IO_RESPONSE-&amp;gt;SET_TOTAL_NUMBER_OF_RECORDS( lv_count ).
-      ENDIF.
-
-      "---------------------------------------------------------------
-      " Send final result back to RAP framework
-      "---------------------------------------------------------------
-      IO_RESPONSE-&amp;gt;SET_DATA( LT_RESULT ).
-
-    ENDIF.
-
-  ENDMETHOD.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="bank.jpg" style="width: 621px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/340394iA7F2C1EEC70EB6A5/image-dimensions/621x294/is-moderation-mode/true?v=v2" width="621" height="294" role="button" title="bank.jpg" alt="bank.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion:&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;this approach highlights how RAP can modernize SAP applications by exposing classic BAPI data through Custom Entities. It enables real-time, read-only access with full OData capabilities—filtering, sorting, paging—without changing existing backend logic, bridging the gap between proven SAP functionality and modern Fiori UIs.&lt;BR /&gt;Thanks For Reading, Best Wishes&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/call-bapi-in-custom-entity-through-rap/ba-p/14268610"/>
-    <published>2025-12-09T11:29:06.943000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/date-hierarchy-using-tree-alv-fm-amp-oops/ba-p/14267818</id>
-    <title>Date Hierarchy Using Tree ALV(FM &amp; OOPS )</title>
-    <updated>2025-12-09T11:37:56.809000+01:00</updated>
-    <author>
-      <name>harsha_reddy24</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2263071</uri>
-    </author>
-    <content>&lt;P&gt;Hi Everyone&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1893824558"&gt;&lt;FONT color="#000000"&gt;&lt;STRONG&gt;&lt;FONT face="Times New Roman, serif"&gt;&lt;FONT size="4"&gt;&lt;SPAN&gt;Introduction:&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/H3&gt;&lt;P class=""&gt;The user needs an interactive &lt;STRONG&gt;Date Hierarchy&lt;/STRONG&gt; display in SAP that provides a structured view of years, months, and individual dates.This helps users quickly navigate through large date ranges and select specific dates for downstream operations such as data extraction, reporting, or analysis.&lt;/P&gt;&lt;P class="" align="left"&gt;&lt;STRONG&gt;Solution Overview:&lt;/STRONG&gt;&lt;/P&gt;&lt;P class="" align="left"&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P class=""&gt;The screen should display a hierarchical &lt;STRONG&gt;Tree ALV&lt;/STRONG&gt; titled &lt;STRONG&gt;“DATE HIERARCHY”&lt;/STRONG&gt;.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;The top-level nodes represent &lt;STRONG&gt;Years&lt;/STRONG&gt; (e.g., 2021 to 2025).&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;When the user &lt;STRONG&gt;expands a Year&lt;/STRONG&gt;, the &lt;STRONG&gt;12 months (January to December)&lt;/STRONG&gt; are displayed as child nodes.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;When the user &lt;STRONG&gt;expands a Month&lt;/STRONG&gt;, all &lt;STRONG&gt;valid calendar dates&lt;/STRONG&gt; for that month are dynamically generated and displayed.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;Each date node should display the date in &lt;STRONG&gt;user’s local format (DD.MM.YYYY)&lt;/STRONG&gt;.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;The user should be able to:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P class=""&gt;Expand/collapse nodes dynamically.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P class=""&gt;View all levels of hierarchy.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P class="" align="left"&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;TABLES : BKPF.
-
-"Internal table and work area for tree nodes
-DATA: IT_NODE TYPE TABLE OF SNODETEXT,
-      WA_NODE TYPE SNODETEXT.
-
-"Variables for Year, Month, Date calculations
-DATA: LV_YEAR  TYPE GJAHR,
-      LV_MONTH TYPE NUMC2,
-      LV_DATE  TYPE DATUM,
-      LV_DAYS  TYPE I,
-      LV_DAY   TYPE NUMC2.
-
-"Keys for hierarchy levels
-DATA: LV_YEAR_KEY  TYPE CHAR10,
-      LV_MONTH_KEY TYPE CHAR15,
-      LV_DATE_KEY  TYPE CHAR20.
-
-"Selection range for fiscal year
-SELECT-OPTIONS: S_GJAHR FOR BKPF-GJAHR DEFAULT '2021' TO '2025'.
-
-START-OF-SELECTION.
-
-  CLEAR: WA_NODE, IT_NODE.
-
-"------------------------------------------------------------"
-" Root Node Creation                                         "
-"------------------------------------------------------------"
-WA_NODE-TYPE    = 'T'.             "Tree title
-WA_NODE-NAME    = 'DATE HIERARCHY'.
-WA_NODE-TLEVEL  = '01'.
-WA_NODE-NLENGTH = '18'.
-WA_NODE-COLOR   = '05'.
-APPEND WA_NODE TO IT_NODE.
-CLEAR WA_NODE.
-
-"------------------------------------------------------------"
-" Build Year → Month → Date Hierarchy                       "
-"------------------------------------------------------------"
-LOOP AT S_GJAHR.
-  DO.
-    "Loop through each year within the selected range
-    LV_YEAR = S_GJAHR-LOW + SY-INDEX - 1.
-    IF LV_YEAR &amp;gt; S_GJAHR-HIGH.
-      EXIT.
-    ENDIF.
-
-    "--------------------------------------------------------"
-    " Year Node (Level 02)                                   "
-    "--------------------------------------------------------"
-    LV_YEAR_KEY = LV_YEAR.
-    WA_NODE-TYPE    = 'P'.
-    WA_NODE-ID      = LV_YEAR_KEY.
-    CONCATENATE LV_YEAR ' ' INTO WA_NODE-NAME SEPARATED BY SPACE.
-    WA_NODE-TLEVEL  = '02'.
-    WA_NODE-NLENGTH = STRLEN( WA_NODE-NAME ).
-    WA_NODE-COLOR   = '03'.
-    APPEND WA_NODE TO IT_NODE.
-    CLEAR WA_NODE.
-
-    "--------------------------------------------------------"
-    " 12 Months Loop (Level 03)                              "
-    "--------------------------------------------------------"
-    DO 12 TIMES.
-      LV_MONTH = SY-INDEX.
-      CONCATENATE LV_YEAR_KEY LV_MONTH INTO LV_MONTH_KEY.
-
-      WA_NODE-TYPE = 'P'.
-      WA_NODE-ID   = LV_MONTH_KEY.
-
-      "Month Name Assignment"
-      CASE LV_MONTH.
-        WHEN '01'. WA_NODE-NAME = 'January'.
-        WHEN '02'. WA_NODE-NAME = 'February'.
-        WHEN '03'. WA_NODE-NAME = 'March'.
-        WHEN '04'. WA_NODE-NAME = 'April'.
-        WHEN '05'. WA_NODE-NAME = 'May'.
-        WHEN '06'. WA_NODE-NAME = 'June'.
-        WHEN '07'. WA_NODE-NAME = 'July'.
-        WHEN '08'. WA_NODE-NAME = 'August'.
-        WHEN '09'. WA_NODE-NAME = 'September'.
-        WHEN '10'. WA_NODE-NAME = 'October'.
-        WHEN '11'. WA_NODE-NAME = 'November'.
-        WHEN '12'. WA_NODE-NAME = 'December'.
-      ENDCASE.
-
-      WA_NODE-TLEVEL  = '03'.
-      WA_NODE-NLENGTH = STRLEN( WA_NODE-NAME ).
-      WA_NODE-COLOR   = '04'.
-      APPEND WA_NODE TO IT_NODE.
-      CLEAR WA_NODE.
-
-      "------------------------------------------------------"
-      " Determine number of days in the month                "
-      "------------------------------------------------------"
-      CONCATENATE LV_YEAR LV_MONTH '01' INTO LV_DATE.
-      CALL FUNCTION 'SLS_MISC_GET_LAST_DAY_OF_MONTH'
-        EXPORTING
-          DAY_IN            = LV_DATE
-        IMPORTING
-          LAST_DAY_OF_MONTH = LV_DATE.
-
-      LV_DAYS = LV_DATE+6(2). "Extract day part → last day of month
-
-      "------------------------------------------------------"
-      " Date Nodes (Level 04)                                "
-      "------------------------------------------------------"
-      DO LV_DAYS TIMES.
-        LV_DAY = SY-INDEX.
-        CONCATENATE LV_YEAR LV_MONTH LV_DAY INTO LV_DATE_KEY.
-
-        WA_NODE-TYPE    = 'P'.
-        WA_NODE-ID      = LV_DATE_KEY.
-        CONCATENATE LV_DAY '.' LV_MONTH '.' LV_YEAR INTO WA_NODE-NAME.
-        WA_NODE-TLEVEL  = '04'.
-        WA_NODE-NLENGTH = STRLEN( WA_NODE-NAME ).
-        WA_NODE-COLOR   = '06'.
-        APPEND WA_NODE TO IT_NODE.
-        CLEAR WA_NODE.
-
-      ENDDO.
-
-    ENDDO.
-
-  ENDDO.
-ENDLOOP.
-
-"------------------------------------------------------------"
-" Display the Tree Output                                    "
-"------------------------------------------------------------"
-CALL FUNCTION 'RS_TREE_CONSTRUCT'
-  TABLES
-    NODETAB = IT_NODE.
-
-CALL FUNCTION 'RS_TREE_LIST_DISPLAY'
-  EXPORTING
-    CALLBACK_PROGRAM = SY-REPID.&lt;/code&gt;&lt;/pre&gt;&lt;P class="" align="left"&gt;&lt;STRONG&gt;Output:&lt;/STRONG&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="tree.png" style="width: 812px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/339971i42BB7569A9EF68CF/image-dimensions/812x534/is-moderation-mode/true?v=v2" width="812" height="534" role="button" title="tree.png" alt="tree.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;STRONG&gt;OOPS Approach:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;TABLES: MARA, BKPF.
-
-*---------------------------------------------------------------------*
-* Data Declarations
-*---------------------------------------------------------------------*
-"ALV Tree objects
-DATA: GO_TREE      TYPE REF TO CL_GUI_ALV_TREE,
-      GO_CONTAINER TYPE REF TO CL_GUI_CUSTOM_CONTAINER.
-
-"ALV field catalog and layout
-DATA: GT_FIELDCAT TYPE LVC_T_FCAT,
-      GS_FIELDCAT TYPE LVC_S_FCAT,
-      GS_LAYOUT   TYPE LVC_S_LAYO.
-
-"Output structure for tree text
-TYPES: BEGIN OF TY_OUTPUT,
-         COLUMN1 TYPE CHAR255,  "Single text column for tree nodes
-       END OF TY_OUTPUT.
-
-DATA: GT_OUTPUT TYPE TABLE OF TY_OUTPUT,
-      GS_OUTPUT TYPE TY_OUTPUT.
-
-"Variables used for Year → Month → Date hierarchy
-DATA: LV_YEAR       TYPE GJAHR,
-      LV_MONTH      TYPE NUMC2,
-      LV_DATE       TYPE DATUM,
-      LV_LAST_DATE  TYPE DATUM,
-      LV_DAYS       TYPE I,
-      LV_DAY        TYPE NUMC2,
-      LV_YEAR_KEY   TYPE LVC_NKEY,
-      LV_MONTH_KEY  TYPE LVC_NKEY,
-      LV_DATES_LINE TYPE STRING.
-
-"Node layout (folder / item)
-DATA: LS_NODE_LAYOUT TYPE LVC_S_LAYN.
-
-"Year range for hierarchy
-SELECT-OPTIONS: S_GJAHR FOR BKPF-GJAHR DEFAULT '2021' TO '2025'.
-
-*---------------------------------------------------------------------*
-* Selection Screen Trigger
-*---------------------------------------------------------------------*
-START-OF-SELECTION.
-  CALL SCREEN 100.  "Call main screen
-
-*---------------------------------------------------------------------*
-* PBO: Set status and create tree
-*---------------------------------------------------------------------*
-MODULE STATUS_0100 OUTPUT.
-  SET PF-STATUS 'ZSTANDARD'.
-
-  "Create the tree only once
-  IF GO_CONTAINER IS INITIAL.
-    PERFORM CREATE_AND_FILL_TREE.
-  ENDIF.
-ENDMODULE.
-
-*---------------------------------------------------------------------*
-* PAI: Handle user commands
-*---------------------------------------------------------------------*
-MODULE USER_COMMAND_0100 INPUT.
-  CASE SY-UCOMM.
-    WHEN 'BACK' OR 'EXIT' OR 'CANCEL'.
-      "Release frontend controls
-      PERFORM FREE_RESOURCES.
-      LEAVE TO SCREEN 0.
-  ENDCASE.
-ENDMODULE.
-
-*---------------------------------------------------------------------*
-* Create container, tree control, root node and load hierarchy
-*---------------------------------------------------------------------*
-FORM CREATE_AND_FILL_TREE.
-
-  "Create custom container inside screen element 'CONTAINER'
-  CREATE OBJECT GO_CONTAINER
-    EXPORTING
-      CONTAINER_NAME = 'CONTAINER'.
-
-  "Build ALV field catalog
-  PERFORM BUILD_FIELDCAT.
-
-  "Create ALV tree control
-  CREATE OBJECT GO_TREE
-    EXPORTING
-      PARENT              = GO_CONTAINER
-      NODE_SELECTION_MODE = CL_GUI_COLUMN_TREE=&amp;gt;NODE_SEL_MODE_SINGLE
-      ITEM_SELECTION      = 'X'
-    EXCEPTIONS
-      OTHERS              = 1.
-
-  "Bind output table and field catalog to tree
-  CALL METHOD GO_TREE-&amp;gt;SET_TABLE_FOR_FIRST_DISPLAY
-    CHANGING
-      IT_OUTTAB       = GT_OUTPUT
-      IT_FIELDCATALOG = GT_FIELDCAT.
-
-  "---------------------------------------------------------------*
-  " Create Root Node (DATE HIERARCHY)
-  "---------------------------------------------------------------*
-  CLEAR: LS_NODE_LAYOUT, GS_OUTPUT.
-  LS_NODE_LAYOUT-ISFOLDER  = 'X'.
-  LS_NODE_LAYOUT-N_IMAGE   = '@AV@'.
-  LS_NODE_LAYOUT-EXP_IMAGE = '@AV@'.
-  GS_OUTPUT-COLUMN1        = 'DATE HIERARCHY'.
-
-  "Add root node
-  CALL METHOD GO_TREE-&amp;gt;ADD_NODE
-    EXPORTING
-      I_RELAT_NODE_KEY = ''  "Root level
-      I_RELATIONSHIP   = CL_GUI_COLUMN_TREE=&amp;gt;RELAT_LAST_CHILD
-      IS_OUTTAB_LINE   = GS_OUTPUT
-      IS_NODE_LAYOUT   = LS_NODE_LAYOUT
-    IMPORTING
-      E_NEW_NODE_KEY   = LV_YEAR_KEY.
-
-  "Build full tree under root node
-  PERFORM BUILD_TREE_NODES USING LV_YEAR_KEY.
-
-  "Auto-expand root node
-  CALL METHOD GO_TREE-&amp;gt;EXPAND_NODE
-    EXPORTING
-      I_NODE_KEY = LV_YEAR_KEY.
-
-  CALL METHOD GO_TREE-&amp;gt;FRONTEND_UPDATE.
-
-ENDFORM.
-
-*---------------------------------------------------------------------*
-* Create field catalog for ALV tree
-*---------------------------------------------------------------------*
-FORM BUILD_FIELDCAT.
-  CLEAR GS_FIELDCAT.
-  GS_FIELDCAT-FIELDNAME = 'COLUMN1'.
-  GS_FIELDCAT-COLTEXT   = 'Description'.
-  GS_FIELDCAT-OUTPUTLEN = 255.
-  APPEND GS_FIELDCAT TO GT_FIELDCAT.
-ENDFORM.
-
-*---------------------------------------------------------------------*
-* Build YEAR → MONTH → DAY hierarchy inside ALV Tree
-*---------------------------------------------------------------------*
-FORM BUILD_TREE_NODES USING IV_ROOT_KEY TYPE LVC_NKEY.
-
-  DATA: LV_PARENT_YEAR  TYPE LVC_NKEY,
-        LV_PARENT_MONTH TYPE LVC_NKEY,
-        LV_MONTH_NAME   TYPE STRING,
-        LV_CHUNK        TYPE STRING,
-        LV_CHUNK_COUNT  TYPE I,
-        GV_GROUP_SIZE   TYPE I VALUE 10,  "Group 10 days per line
-        LV_DATE_STRING  TYPE STRING.
-
-  "Loop through selected year range
-  LOOP AT S_GJAHR.
-    DO.
-      LV_YEAR = S_GJAHR-LOW + SY-INDEX - 1.
-      IF LV_YEAR &amp;gt; S_GJAHR-HIGH.
-        EXIT.
-      ENDIF.
-
-      "---------------------------------------------------------------*
-      " Create YEAR Node
-      "---------------------------------------------------------------*
-      CLEAR: LS_NODE_LAYOUT, GS_OUTPUT.
-      LS_NODE_LAYOUT-ISFOLDER  = 'X'.
-      LS_NODE_LAYOUT-N_IMAGE   = '@AV@'.
-      LS_NODE_LAYOUT-EXP_IMAGE = '@AV@'.
-      GS_OUTPUT-COLUMN1        = |Year: { LV_YEAR }|.
-
-      CALL METHOD GO_TREE-&amp;gt;ADD_NODE
-        EXPORTING
-          I_RELAT_NODE_KEY = IV_ROOT_KEY      "Attach to root
-          I_RELATIONSHIP   = CL_GUI_COLUMN_TREE=&amp;gt;RELAT_LAST_CHILD
-          IS_OUTTAB_LINE   = GS_OUTPUT
-          IS_NODE_LAYOUT   = LS_NODE_LAYOUT
-        IMPORTING
-          E_NEW_NODE_KEY   = LV_PARENT_YEAR.
-
-      "---------------------------------------------------------------*
-      " Create MONTH Nodes under each Year
-      "---------------------------------------------------------------*
-      DO 12 TIMES.
-        LV_MONTH = SY-INDEX.
-
-        "Month name mapping
-        CASE LV_MONTH.
-          WHEN 1.  LV_MONTH_NAME = 'January'.
-          WHEN 2.  LV_MONTH_NAME = 'February'.
-          WHEN 3.  LV_MONTH_NAME = 'March'.
-          WHEN 4.  LV_MONTH_NAME = 'April'.
-          WHEN 5.  LV_MONTH_NAME = 'May'.
-          WHEN 6.  LV_MONTH_NAME = 'June'.
-          WHEN 7.  LV_MONTH_NAME = 'July'.
-          WHEN 8.  LV_MONTH_NAME = 'August'.
-          WHEN 9.  LV_MONTH_NAME = 'September'.
-          WHEN 10. LV_MONTH_NAME = 'October'.
-          WHEN 11. LV_MONTH_NAME = 'November'.
-          WHEN 12. LV_MONTH_NAME = 'December'.
-        ENDCASE.
-
-        CLEAR: LS_NODE_LAYOUT, GS_OUTPUT.
-        LS_NODE_LAYOUT-ISFOLDER  = 'X'.
-        LS_NODE_LAYOUT-N_IMAGE   = '@2L@'.
-        LS_NODE_LAYOUT-EXP_IMAGE = '@2L@'.
-        GS_OUTPUT-COLUMN1        = LV_MONTH_NAME.
-
-        "Add Month node
-        CALL METHOD GO_TREE-&amp;gt;ADD_NODE
-          EXPORTING
-            I_RELAT_NODE_KEY = LV_PARENT_YEAR
-            I_RELATIONSHIP   = CL_GUI_COLUMN_TREE=&amp;gt;RELAT_LAST_CHILD
-            IS_OUTTAB_LINE   = GS_OUTPUT
-            IS_NODE_LAYOUT   = LS_NODE_LAYOUT
-          IMPORTING
-            E_NEW_NODE_KEY   = LV_PARENT_MONTH.
-
-        "-----------------------------------------------------------*
-        " Determine last day of month
-        "-----------------------------------------------------------*
-        CONCATENATE LV_YEAR LV_MONTH '01' INTO LV_DATE.
-        CALL FUNCTION 'LAST_DAY_OF_MONTHS'
-          EXPORTING
-            DAY_IN            = LV_DATE
-          IMPORTING
-            LAST_DAY_OF_MONTH = LV_LAST_DATE.
-
-        LV_DAYS = LV_LAST_DATE+6(2).  "Extract number of days
-
-        "-----------------------------------------------------------*
-        " Add DAY Nodes grouped (10 days per node)
-        "-----------------------------------------------------------*
-        CLEAR: LV_CHUNK, LV_CHUNK_COUNT.
-
-        DO LV_DAYS TIMES.
-          LV_DAY = SY-INDEX.
-
-          "Format date string: DD.MM.YYYY
-          LV_DATE_STRING = |{ LV_DAY WIDTH = 2 }.{ LV_MONTH WIDTH = 2 }.{ LV_YEAR }|.
-
-          "Build chunk of 10 dates
-          IF LV_CHUNK IS INITIAL.
-            LV_CHUNK = LV_DATE_STRING.
-          ELSE.
-            CONCATENATE LV_CHUNK LV_DATE_STRING INTO LV_CHUNK SEPARATED BY SPACE.
-          ENDIF.
-
-          ADD 1 TO LV_CHUNK_COUNT.
-
-          "Add one group node after every 10 days OR last day
-          IF LV_CHUNK_COUNT &amp;gt;= GV_GROUP_SIZE OR LV_DAY = LV_DAYS.
-
-            CLEAR: LS_NODE_LAYOUT, GS_OUTPUT.
-            LS_NODE_LAYOUT-ISFOLDER = ''.   "Leaf node
-            LS_NODE_LAYOUT-N_IMAGE  = '@3C@'.
-            GS_OUTPUT-COLUMN1       = LV_CHUNK.
-
-            "Add day-chunk node
-            CALL METHOD GO_TREE-&amp;gt;ADD_NODE
-              EXPORTING
-                I_RELAT_NODE_KEY = LV_PARENT_MONTH
-                I_RELATIONSHIP   = CL_GUI_COLUMN_TREE=&amp;gt;RELAT_LAST_CHILD
-                IS_OUTTAB_LINE   = GS_OUTPUT
-                IS_NODE_LAYOUT   = LS_NODE_LAYOUT.
-
-            CLEAR: LV_CHUNK, LV_CHUNK_COUNT.
-          ENDIF.
-        ENDDO.
-
-      ENDDO.  "End Month Loop
-
-    ENDDO.
-  ENDLOOP.
-
-ENDFORM.
-
-*---------------------------------------------------------------------*
-* Release frontend controls
-*---------------------------------------------------------------------*
-FORM FREE_RESOURCES.
-  IF GO_TREE IS BOUND.
-    CALL METHOD GO_TREE-&amp;gt;FREE.
-    FREE GO_TREE.
-  ENDIF.
-
-  IF GO_CONTAINER IS BOUND.
-    CALL METHOD GO_CONTAINER-&amp;gt;FREE.
-    FREE GO_CONTAINER.
-  ENDIF.
-ENDFORM.&lt;/code&gt;&lt;/pre&gt;&lt;P class="" align="left"&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="date.jpg" style="width: 619px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/339973i6AA78918170CB894/image-dimensions/619x242/is-moderation-mode/true?v=v2" width="619" height="242" role="button" title="date.jpg" alt="date.jpg" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;Conclusion:&lt;/STRONG&gt;&lt;BR /&gt;This solution showcases a practical and user-friendly way to visualize date structures by building a dynamic Year–Month–Day hierarchy using the ALV Tree control. By grouping daily entries and leveraging container-based GUI elements, the approach delivers a clean, scalable, and intuitive navigation experience. It also demonstrates how classic ABAP techniques—selection screens, tree controls, and month/day calculations—can be combined to create interactive UI components that enhance data exploration within SAP GUI.&lt;STRONG&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/date-hierarchy-using-tree-alv-fm-amp-oops/ba-p/14267818"/>
-    <published>2025-12-09T11:37:56.809000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/abap-blog-posts/collective-value-helps-in-rap-v2-and-v4-implementation-guide-part-2/ba-p/14286757</id>
-    <title>Collective Value Helps in RAP: V2 and V4 Implementation Guide - Part 2</title>
-    <updated>2025-12-09T15:35:14.655000+01:00</updated>
-    <author>
-      <name>Abhinav_Roy</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1109</uri>
-    </author>
-    <content>&lt;P&gt;&lt;SPAN&gt;In &lt;A href="https://community.sap.com/t5/abap-blog-posts/collective-value-helps-in-rap-v2-and-v4-implementation-guide-part-1/ba-p/14271885" target="_blank"&gt;Part 1&lt;/A&gt;&amp;nbsp;of this series, we explored the fundamentals of &lt;STRONG&gt;Collective Value Helps&lt;/STRONG&gt; in RAP, covering implementation patterns across OData V2 and V4 service bindings. The community response has been overwhelming, with particular interest in hierarchical implementations for complex business scenarios.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;While CDS hierarchies are extensively documented in the SAP ecosystem and widely used for representing parent-child relationships across business objects, a critical implementation gap exists: &lt;STRONG&gt;there are virtually no practical examples of incorporating hierarchical display patterns within Collective Value Helps.&lt;/STRONG&gt; &lt;STRONG&gt;Part 2&lt;/STRONG&gt; bridges this gap by demonstrating how to seamlessly integrate hierarchical search templates into the collective value help framework we built in Part 1.&lt;BR /&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;&lt;STRONG&gt;Watch the demonstration video below&lt;/STRONG&gt; to see hierarchical value helps in action, including how they work alongside existing flat list search templates, in a Collective Value Help:&lt;BR /&gt;&lt;BR /&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2F2Zt9gykfJOE%3Ffeature%3Doembed&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D2Zt9gykfJOE&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2F2Zt9gykfJOE%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="400" height="225" scrolling="no" title="SAP Community Hierarchical Variant - CVH" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture;" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#339966"&gt;&lt;U&gt;&lt;SPAN&gt;System Requirements&lt;/SPAN&gt;&lt;/U&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#339966"&gt;&lt;EM&gt;**Hierarchical Value Help Dialogs require: **&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#339966"&gt;&lt;EM&gt;**SAP S/4HANA Cloud**&lt;BR /&gt;&lt;/EM&gt;&lt;EM&gt;--Minimum Release: 2311&lt;BR /&gt;&lt;/EM&gt;&lt;EM&gt;--Protocol: OData V4 service binding&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#339966"&gt;&lt;EM&gt;**SAP S/4HANA On-Premise/Private Edition: **&lt;BR /&gt;&lt;/EM&gt;&lt;EM&gt;--Minimum Release : S/4HANA 2025 onwards&lt;BR /&gt;&lt;/EM&gt;&lt;EM&gt;--Protocol: OData V4 service binding&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#339966"&gt;&lt;EM&gt;**Important: ** OData V2 does not support hierarchical&lt;/EM&gt; visualization&amp;nbsp;&lt;EM&gt;out of the box via CDS Hierarchy due to protocol limitations. CDS hierarchical patterns require OData V4.&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;CDS Hierarchies: Foundation for Hierarchical Value Helps&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;CDS (Core Data Services) hierarchies are well-established patterns in the SAP landscape for representing parent-child relationships. SAP provides comprehensive documentation and numerous community resources for learning hierarchy fundamentals:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;A href="https://help.sap.com/docs/abap-cloud/abap-data-models/hierarchy-definition" target="_blank" rel="noopener noreferrer"&gt;Hierarchy Definition | SAP Help Portal&lt;/A&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/treeview-with-read-only-capability?version=sap_btp" target="_blank" rel="noopener noreferrer"&gt;Treeviews with Read-Only Capabilities | SAP Help Portal&lt;/A&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/cds-how-to-define-hierarchy-view/ba-p/13758059" target="_self"&gt;SAP Community: CDS Hierarchy Articles&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;This article focuses specifically on utilizing CDS hierarchies within RAP-compliant value helps&lt;/STRONG&gt; and demonstrating how to incorporate hierarchical search templates alongside the flat templates created in Part 1.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Key Use Case:&lt;/STRONG&gt; Hierarchies are particularly powerful in domains like Asset Management, where technical objects form complex parent-child structures that users need to navigate when making selections.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Business Context: Asset Management-&amp;gt; Hierarchical Relationships&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In Asset Management, technical objects naturally form hierarchical structures that reflect real-world installations and organizational relationships:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Functional Location Hierarchies:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Parent functional locations contain child functional locations&lt;/LI&gt;&lt;LI&gt;Example: TATM → TATM-UT3 → TATM-UT3-001&lt;/LI&gt;&lt;LI&gt;Represents physical plant structure and organizational grouping&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Equipment Hierarchies:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Equipment can be installed under functional locations&lt;/LI&gt;&lt;LI&gt;Equipment can be installed under other equipment (sub-assemblies)&lt;/LI&gt;&lt;LI&gt;Example: Main equipment (11947458) contains sub-equipment (11947627)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Mixed Hierarchies:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Equipment installed at functional locations&lt;/LI&gt;&lt;LI&gt;Sub-equipment installed under main equipment&lt;/LI&gt;&lt;LI&gt;Creates complex parent-child navigation &lt;SPAN&gt;requirements&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;A sample Hierarchy in Asset Management:&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Transaction: IH01 - Structure List" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350113i6B449DCB4E2430AE/image-size/large?v=v2&amp;amp;px=999" role="button" title="Abhinav_Roy_0-1765275145771.png" alt="Transaction: IH01 - Structure List" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Transaction: IH01 - Structure List&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Why Hierarchical Value Helps Matter:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;When users select technical objects in business processes (work orders, maintenance notifications, asset transfers), they need to:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Understand the installation hierarchy&lt;/LI&gt;&lt;LI&gt;Navigate parent-child relationships visually&lt;/LI&gt;&lt;LI&gt;Select objects while seeing their organizational context&lt;/LI&gt;&lt;LI&gt;Identify relationships between equipment and functional locations&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Standard flat list value helps lose this critical hierarchical context, making object selection difficult and error-prone in complex asset structures.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Implementation: Building the Hierarchical VDM Model &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 1: Interface View (I-View) with Parent Association&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The foundation of any CDS hierarchy is a self-association that establishes the parent-child relationship.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="I-View" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350176i90BA3A7BE43AA7E5/image-size/large?v=v2&amp;amp;px=999" role="button" title="Abhinav_Roy_0-1765276862163.png" alt="I-View" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;I-View&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Critical Elements:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Self-Association _ParentNode:&lt;/STRONG&gt; Establishes the many-to-one parent relationship&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Cardinality [0..1]:&lt;/STRONG&gt; Each node has either zero (root) or one parent&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Join Condition:&lt;/STRONG&gt; Links child's SuperiorTechnicalObject to parent's TechnicalObject&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This I-View serves as the data foundation, providing the parent-child relationship that the hierarchy view will consume.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 2: Hierarchy View Definition&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The hierarchy view transforms the I-View's parent association into an actual hierarchical structure with defined traversal rules.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Hierarchy View" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350177i06598EFF9C04E570/image-size/large?v=v2&amp;amp;px=999" role="button" title="Abhinav_Roy_1-1765276926694.png" alt="Hierarchy View" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Hierarchy View&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Critical Hierarchy Annotations:&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;source ZAR_I_TechObjHierarchy:&lt;/STRONG&gt; References the I-View containing the parent association&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;child to parent association _ParentNode:&lt;/STRONG&gt; Specifies which association defines the hierarchy&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;start where SuperiorTechnicalObject is initial:&lt;/STRONG&gt; Defines root nodes (no parent = top of hierarchy)&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;siblings order by TechnicalObject:&lt;/STRONG&gt; Sorts nodes at the same level&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;multiple parents not allowed:&lt;/STRONG&gt; Enforces strict tree structure (each node has max one parent)&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;This hierarchy view establishes the traversal logic and structural rules for displaying the parent-child relationships.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 3: Consumption (C-View) Definition&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The consumption view serves as the bridge between the CDS hierarchy and the collective value help framework. It exposes the hierarchy as a searchable value help provider while maintaining the hierarchical data structure.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="C-View" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350178i1A66EA4BBEADFDAB/image-size/large?v=v2&amp;amp;px=999" role="button" title="Abhinav_Roy_2-1765277179651.png" alt="C-View" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;C-View&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Critical Annotations:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;@ObjectModel.supportedCapabilities&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;#VALUE_HELP_PROVIDER&lt;/STRONG&gt;: Enables this view to provide value help data&lt;BR /&gt;&lt;STRONG&gt;#SEARCHABLE_ENTITY&lt;/STRONG&gt;: Allows search functionality within the value help dialog&lt;BR /&gt;These capabilities are essential for user interaction&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1599241"&gt;@odata&lt;/a&gt;.hierarchy.recursiveHierarchy: [{ entity.name: 'ZAR_I_TechObjHierarchyView' }]&lt;/STRONG&gt;&lt;BR /&gt;THE CRITICAL HIERARCHICAL LINK&lt;BR /&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; The entity name should reference the &lt;STRONG&gt;Hierarchy View&lt;/STRONG&gt; (from Step 2), not the I-View or C-View itself.&lt;BR /&gt;Points to the CDS hierarchy view created in Step 2&lt;BR /&gt;Instructs OData V4 service to use hierarchical structure&lt;BR /&gt;Without this annotation, hierarchy won't display in value help&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;association of many to one ... as _ParentNode&lt;/STRONG&gt;&lt;BR /&gt;Recreates the parent association in the consumption layer&lt;BR /&gt;Must match the join conditions from the I-View&lt;BR /&gt;Required for OData V4 hierarchy metadata generation&lt;BR /&gt;Links both TechnicalObject AND TechObjIsEquipOrFuncnLoc (composite key)&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;BR /&gt;Step 4: Including Hierarchical Template in Collective Value Help&lt;BR /&gt;&lt;BR /&gt;&lt;/STRONG&gt;Now we integrate the hierarchical search template into our existing collective value help framework from Part 1:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="CVH V2 Metadata Extension" style="width: 742px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350276iA574D0E8B7D628A7/image-size/large?v=v2&amp;amp;px=999" role="button" title="Abhinav_Roy_0-1765284016068.png" alt="CVH V2 Metadata Extension" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;CVH V2 Metadata Extension&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="CVH V4 Metadata Extension" style="width: 785px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350277i534D6BAD5BEC6D23/image-size/large?v=v2&amp;amp;px=999" role="button" title="Abhinav_Roy_1-1765284037633.png" alt="CVH V4 Metadata Extension" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;CVH V4 Metadata Extension&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Service Definition" style="width: 698px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350278iAF30882ADD5E2AB7/image-size/large?v=v2&amp;amp;px=999" role="button" title="Abhinav_Roy_2-1765284142136.png" alt="Service Definition" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Service Definition&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;OData V2 Service Binding: The Limitation&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Service Binding OData V2" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350279i5E8C2D9DE435F840/image-size/large?v=v2&amp;amp;px=999" role="button" title="Abhinav_Roy_3-1765284199980.png" alt="Service Binding OData V2" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Service Binding OData V2&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;This eliminates the possibility of incorporating hierarchical search templates via CDS hierarchy in V2 collective value helps.&lt;/STRONG&gt; OData V2's protocol limitations prevent hierarchy visualization in value help dialogs&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;BR /&gt;OData V4 Service Binding: The Solution Path&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Service Binding OData V4" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350280i61F5F556EF135F3C/image-size/large?v=v2&amp;amp;px=999" role="button" title="Abhinav_Roy_0-1765284407687.png" alt="Service Binding OData V4" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Service Binding OData V4&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The V4 service binding successfully exposes the hierarchical template without errors.&lt;/P&gt;&lt;H3 id="toc-hId-1895640971"&gt;&lt;BR /&gt;The Problem - Flat List Display&lt;/H3&gt;&lt;P class=""&gt;Even with a properly defined hierarchy view exposed in V4, the initial preview reveals an unexpected result:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Flat List Display (as opposed to expected Hierarchical display)" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350282i95E36C0C3779F7B5/image-size/large?v=v2&amp;amp;px=999" role="button" title="Abhinav_Roy_1-1765284477750.png" alt="Flat List Display (as opposed to expected Hierarchical display)" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Flat List Display (as opposed to expected Hierarchical display)&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;&lt;BR /&gt;The Problem:&lt;BR /&gt;&lt;/STRONG&gt;&lt;SPAN&gt;Despite having a hierarchical CDS view, the value help displays data as a &lt;/SPAN&gt;&lt;STRONG&gt;flat list&lt;/STRONG&gt;&lt;SPAN&gt; without any parent-child visualization. Users see individual records but lose all hierarchical context.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Why This Happens:&lt;BR /&gt;&lt;/STRONG&gt;&lt;SPAN&gt;Creating a CDS hierarchy view is necessary but &lt;/SPAN&gt;&lt;STRONG&gt;not sufficient&lt;/STRONG&gt;&lt;SPAN&gt; for hierarchical display in value helps. The RAP framework requires &lt;EM&gt;explicit UI presentation instructions&lt;/EM&gt; to render hierarchy in the value help dialog.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;The Missing Piece:&lt;/STRONG&gt; The framework needs explicit instructions via presentation variant annotations to understand that this data should be rendered as a hierarchy tree, not a flat table. Without these annotations, OData V4 treats the hierarchy view as just another data source.&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;The Solution - Presentation Variant Annotations&lt;/STRONG&gt;&lt;BR /&gt;To provision hierarchical display in value helps, we must add specific presentation variant annotations that declare hierarchical visualization intent.&lt;BR /&gt;&lt;BR /&gt;&lt;U&gt;Consumption View (C-View) Annotations&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="C-View (Presentation Variant Added)" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350296i16DB4408E668ECBE/image-size/large?v=v2&amp;amp;px=999" role="button" title="Abhinav_Roy_0-1765284859373.png" alt="C-View (Presentation Variant Added)" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;C-View (Presentation Variant Added)&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;A presentation variant annotation needs to be included here which will contain the InitialExpansionLevel for the hierarchy and&amp;nbsp; a property RecursiveHierarchyQualifier.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;RecursiveHierarchyQualifier&lt;/STRONG&gt; - This annotation contains a string with the name of the hierarchy view and make possible that the data is then shown on UI as tree table. The projection view should also have the annotation&lt;BR /&gt;&lt;BR /&gt;&lt;SPAN&gt;&lt;STRONG&gt;InitialExpansionLevel&lt;/STRONG&gt; - This annotation indicates up to which level a display hierarchy shall be initially expanded.&lt;/SPAN&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;U&gt;Collective Value Help Metadata Extension&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="CVH V4 Metadata Extension (Presentation Variant annotation added)" style="width: 668px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350312i4D5761FE4F127D32/image-size/large?v=v2&amp;amp;px=999" role="button" title="Abhinav_Roy_0-1765285284629.png" alt="CVH V4 Metadata Extension (Presentation Variant annotation added)" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;CVH V4 Metadata Extension (Presentation Variant annotation added)&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;A &lt;SPAN&gt;&lt;STRONG&gt;presentationVariantQualifier&lt;/STRONG&gt; annotation needs to be included here, which should've the same value as the Qualifier in the C-View, i.e., '&lt;STRONG&gt;HIERARCHY&lt;/STRONG&gt;', in this case. This annotation&amp;nbsp;indicates how the value help result should be displayed.&lt;BR /&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;The Result: Hierarchical Value Help in Action&lt;/STRONG&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Hierarchical value help display" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350315i8BC8724DE1A9A35B/image-size/large?v=v2&amp;amp;px=999" role="button" title="Abhinav_Roy_1-1765285480130.png" alt="Hierarchical value help display" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Hierarchical value help display&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;U&gt;Success! The hierarchical variant now displays&lt;/U&gt;&lt;/STRONG&gt;:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Parent-child relationships visualized as tree structure&lt;/LI&gt;&lt;LI&gt;Expand/collapse controls for navigation&lt;/LI&gt;&lt;LI&gt;Indentation showing hierarchy levels&lt;/LI&gt;&lt;LI&gt;Seamless integration with flat templates from Part 1&lt;/LI&gt;&lt;LI&gt;Full hierarchy traversal in value help dialog&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;U&gt;User Experience - End Users can now&lt;/U&gt;&lt;/STRONG&gt;:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Switch between flat and hierarchical search templates&lt;/LI&gt;&lt;LI&gt;Navigate parent-child relationships visually&lt;/LI&gt;&lt;LI&gt;Expand/collapse hierarchy nodes and even the entire Tree View&lt;/LI&gt;&lt;LI&gt;Select objects while understanding their organizational context&lt;/LI&gt;&lt;LI&gt;See equipment installation hierarchies and functional location structures&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Key Takeaways: When to Use Hierarchical Collective Value Helps&lt;BR /&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;U&gt;&lt;STRONG&gt;Use Hierarchical Patterns When&lt;/STRONG&gt;&lt;/U&gt;:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Parent-Child Relationships Matter: Business objects naturally form hierarchies (org structures, location hierarchies etc)&lt;/LI&gt;&lt;LI&gt;Context Aids Selection: Users need to see relationships to make correct selections&lt;/LI&gt;&lt;LI&gt;Navigation is Important: Users need to browse up/down hierarchies during selection&lt;/LI&gt;&lt;LI&gt;OData V4 is Available: V2 protocol does not support hierarchy visualization&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;Implementation Checklist&lt;/STRONG&gt;&lt;/U&gt;:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Define I-View with self-association (_ParentNode)&lt;/LI&gt;&lt;LI&gt;Create hierarchy view with traversal rules (start where, siblings order by)&lt;/LI&gt;&lt;LI&gt;Use OData V4 service binding (V2 not supported)&lt;/LI&gt;&lt;LI&gt;Add presentation variant in C-View&lt;/LI&gt;&lt;LI&gt;Reference presentation variant in CVH metadata extension&lt;/LI&gt;&lt;LI&gt;Test expand/collapse and hierarchy navigation&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;Key Implementation points&lt;/STRONG&gt;&lt;/U&gt;:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Cardinality Enforcement: multiple parents not allowed ensures tree structure&lt;/LI&gt;&lt;LI&gt;Root Node Definition: start where clause correctly identifies top-level nodes&lt;/LI&gt;&lt;LI&gt;Presentation Variant annotation must be added in&amp;nbsp;C-View and CVH metadata&lt;/LI&gt;&lt;LI&gt;Qualifier Consistency: Same qualifier in C-View and CVH metadata&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;BR /&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Series Conclusion&lt;/STRONG&gt;&lt;/FONT&gt;&lt;BR /&gt;This two-part series has explored the complete spectrum of collective value helps in RAP:&lt;BR /&gt;&lt;STRONG&gt;&lt;U&gt;Part 1 established the foundation&lt;/U&gt;&lt;/STRONG&gt;:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Basic collective value help concepts and structure&lt;/LI&gt;&lt;LI&gt;Implementation across OData V2 and V4 service bindings&lt;/LI&gt;&lt;LI&gt;Service binding architectural differences&lt;/LI&gt;&lt;LI&gt;Nested value help workarounds&lt;/LI&gt;&lt;LI&gt;Multi-dimensional search capabilities&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;U&gt;Part 2 extended to advanced patterns&lt;/U&gt;&lt;/STRONG&gt;:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Hierarchical CDS view construction&lt;/LI&gt;&lt;LI&gt;VDM model for hierarchy-enabled value helps&lt;/LI&gt;&lt;LI&gt;OData V2 protocol limitations&lt;/LI&gt;&lt;LI&gt;Presentation variant configuration for hierarchy visualization&lt;/LI&gt;&lt;LI&gt;Seamless integration of flat and hierarchical search templates&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Together, these patterns enable user-centric, multi-criteria search capabilities that leverage RAP's full value help framework while maintaining clean architectural separation and reusability.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Key Architectural Insight&lt;/STRONG&gt;:&lt;BR /&gt;Collective value helps in RAP provide a powerful, user-centric approach to value help management by enabling multi-criteria search through a single, reusable model. The addition of hierarchical display patterns extends this capability to complex business scenarios requiring parent-child navigation—delivering a comprehensive search experience that adapts to diverse user needs.&lt;BR /&gt;&lt;BR /&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/FONT&gt;&lt;BR /&gt;Hierarchical collective value helps represent the convergence of RAP's value help framework with CDS hierarchy capabilities, enabling rich, context-aware search experiences for complex business objects. While implementation requires careful attention to presentation variant configuration and V4 protocol requirements, the result is a powerful pattern applicable across any SAP domain where parent-child relationships drive user decision-making.&lt;BR /&gt;Whether you're building asset management applications, organizational hierarchies, material master navigation, or any scenario requiring hierarchical context during selection, this pattern provides the foundation for delivering intuitive, efficient user experiences.&lt;BR /&gt;The combination of CDS hierarchies, collective value helps, and RAP's presentation variant framework creates a powerful combination for solving complex data selection challenges-no custom coding required, just optimal usage of key annotations.&lt;BR /&gt;Thank you for following this two-part series. I welcome your feedback, and experiences implementing collective value helps in your own RAP applications.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-blog-posts/collective-value-helps-in-rap-v2-and-v4-implementation-guide-part-2/ba-p/14286757"/>
-    <published>2025-12-09T15:35:14.655000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/you-are-standing-in-an-open-field-inside-sap-gui/ba-p/14287253</id>
     <title>You Are Standing in an Open Field... Inside SAP GUI</title>
@@ -3502,5 +2832,282 @@ ENDIF.
     e_return = l_return ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The "fun" really started once we realised what this parameter "i_data" really is ... very deeply nested structure CVIS_EI_EXTERN! The "complex" in the description doesn't really do it justice - at the very least, I would have added an "extremely" before "complex"!&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="High level definition of deeply nested structure CVIS_EI_EXTERN" style="width: 716px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348937iE98BCD22F78A2EED/image-dimensions/716x232/is-moderation-mode/true?v=v2" width="716" height="232" role="button" title="BaerbelWinkler_0-1764935655506.png" alt="High level definition of deeply nested structure CVIS_EI_EXTERN" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;High level definition of deeply nested structure CVIS_EI_EXTERN&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;To get a better handle on what I was looking at, I extended all the structures and all of their sub-structures until reaching the lowest nesting level for each of them.&amp;nbsp; I then downloaded everything into a spreadsheet which ended up having 18(!) nested levels in columns A to R and over 32,000(!!!) rows. Here is a small snippet taken from the spreadsheet:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Green rows are for fields, blue lines indicate a (sub)structure and yellow rows tabletypes." style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348956i01CC7BBDF69BDA9A/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="BaerbelWinkler_1-1764936645778.png" alt="Green rows are for fields, blue lines indicate a (sub)structure and yellow rows tabletypes." /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Green rows are for fields, blue lines indicate a (sub)structure and yellow rows tabletypes.&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Based on a code example found in a helpful &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/how-to-create-business-partner-and-assign-multiple-customer-roles-by-using/ba-p/13471108" target="_blank"&gt;blog post here in SAP Community&lt;/A&gt;, we started to piece together the code needed to fill this gigantic structure in order to create a new customer in our system. By now, we do have some working code but are still working out some details for specific cases where only some fields need to be updated instead a new customer created.&lt;/P&gt;&lt;H3 id="toc-hId-1698234786"&gt;Syntax error while testing logic for Australia but due to a vanished table related to Taiwan&lt;/H3&gt;&lt;P&gt;As most of you will already know, SAP calls the OSS-notes related to a conversion to S/4HANA "Simplification Items" because SAP simplified the underlying database by eliminating tables and table fields and - to state the obvious - this makes the switch to S/4HANA anything but simple, at least if you have a large custom code base like we do!&amp;nbsp;&lt;/P&gt;&lt;P&gt;While our development team has been working through the custom code conversion, other teams are already testing processes in sandbox systems. These were created based on productive systems which - even though the code is sourced from the same development system - differ in the data they contain. One is for example a small system for only one company code, while another one is used in Asian-Pacific countries, so is much larger than the first sandbox to be converted and also covers many more test cases. Testing processes related to webshop orders for Australia came to a stop when the logic ran into a syntax error because a table and its structure needed for e-documents in Taiwan was found missing.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Dump due to a syntax error" style="width: 605px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350212iB12F3FE73F303905/image-dimensions/605x427?v=v2" width="605" height="427" role="button" title="JourneyNW-to-S4HANA-Part4-03.jpg" alt="Dump due to a syntax error" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Dump due to a syntax error&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The table KNA1_TW_EXT contains just a handful of fields but they are legal requirements in Taiwan for invoices. A simplification item exists for the table but it's only the rather generic one mentioning objects no longer available in S/4HANA and it doesn't go into anything specific: &lt;A href="https://me.sap.com/notes/2296016/E" target="_blank" rel="noopener noreferrer"&gt;2296016 - SAP S/4HANA custom code adaptation - removal of orphaned objects&lt;/A&gt;. So, we were wondering what happens to the data stored in the productive system in ECC during system conversion?&lt;/P&gt;&lt;P&gt;Digging around a bit more, I found OSS-Note &lt;A href="https://me.sap.com/notes/3166424/E" target="_blank" rel="noopener noreferrer"&gt;3166424 - eDocument Taiwan: Migrate Extension Fields for Electronic Documents for Taiwan&lt;/A&gt; directly related to table KNA1_TW_EXT. In it, the conversion steps are explained and - guess what? - they involve manually downloading the data from table KNA1_TW_EXT while still on ECC and then - again manually - running SAP-provided program&amp;nbsp;&lt;SPAN&gt;EDOC_TW_CUST_MIGRATE&lt;/SPAN&gt; to add the fields' content to their "new" location which is funnily enough table KNA1! Unfortunately, we didn't have the upload program in our system and the OSS-Note wasn't applicable to our version of the S/4HANA-system anyway.&amp;nbsp;&lt;/P&gt;&lt;P&gt;So, the next step was to create an SAP incident to ask about the note's applicability in our system and to get some confirmation that these manual steps are actually necessary. We got both quickly and could then run through these motions in the sandbox system. And these steps will need to be added to the big check list for needed manual activities when the actual productive system gets converted sometime next year.&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1501721281"&gt;The need for and fun with Retrofit&lt;/H3&gt;&lt;P&gt;Given the long-running nature of our custom code conversion and process testing in sandbox systems, we obviously couldn't impose a freeze on the productive landscape still on Netweaver 750 EHP8 (ECC). We therefore needed a means to keep our new S/4HANA landscape up to date with new developments and applied changes in the corresponding ECC-system. With help from SAP, a Retrofit system based on Solution Manager was established and can now be used to "merge" changes applied in the ECC-system with the code in S/4HANA.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Simplified system landscape" style="width: 697px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350215iBDA85B9E5423971B/image-dimensions/697x299?v=v2" width="697" height="299" role="button" title="JourneyNW-to-S4HANA-Part4-02.jpg" alt="Simplified system landscape" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Simplified system landscape&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Once transports hit our ECC productive systems, they become relevant for Retrofit in S/4HANA. The transports are automatically checked and the ones without conflicts - new objects, changed objects for which no S/4HANA code conversion has happened and which don't have S/4HANA Readiness findings - are directly imported into the S/4HANA development system. Other transports are held back for manual inspections.&lt;/P&gt;&lt;P&gt;While the Retrofit framework handles report programs and includes just fine by displaying differences in the two code versions side by side, it has its limitations when it comes to Adobe forms and enhancements. For these objects the side by side comparison doesn't work and it would need to be done manually via version compare which can not just be tedious but also rather error prone. Because of that, we are now asking our colleagues who applied changes in these objects in ECC to re-apply the same changes - adapted to the S/4HANA needs - in the S/4HANA development system.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Generally and speaking from a Retrofit perspective, any change not applied in the ECC system is a good change.&amp;nbsp;Even with the tools available in Retrofit, the effort increases with frequent changes in ECC to objects already converted to S/4. And with each new change, the complexity and chances for errors increases.&lt;/P&gt;&lt;HR /&gt;&lt;P&gt;This concludes part 4 of our journey from SAP Netweaver to S/4HANA - I'm sure that 2026 will throw some more curve balls our way!&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Cartoon generated with Gemini" style="width: 599px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350218iCB726C0EBB999422/image-dimensions/599x327/is-moderation-mode/true?v=v2" width="599" height="327" role="button" title="JourneyNW-to-S4HANA-Part4-01.jpg" alt="Cartoon generated with Gemini" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Cartoon generated with Gemini&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/abap-blog-posts/a-journey-from-netweaver-7-50-to-s-4hana-part-4-custom-code-conversion/ba-p/14277883"/>
     <published>2025-12-16T14:50:29.981000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/alv-vs-alv-ida-in-sap-abap-simple-explanation-differences-amp-examples/ba-p/14287541</id>
+    <title>ALV vs ALV IDA in SAP ABAP: Simple Explanation, Differences &amp; Examples</title>
+    <updated>2025-12-17T06:13:28.720000+01:00</updated>
+    <author>
+      <name>vinodkumarreddyappannagari</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2174225</uri>
+    </author>
+    <content>&lt;H2 id="toc-hId-1766586084"&gt;&lt;FONT size="3"&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/H2&gt;&lt;P&gt;ABAP developers have been using &lt;STRONG&gt;ALV (ABAP List Viewer)&lt;/STRONG&gt; for decades to display tabular data in SAP GUI applications. With the introduction of SAP HANA and Fiori-based development, SAP delivered a new, optimized framework called &lt;STRONG&gt;ALV with IDA (Integrated Data Access)&lt;/STRONG&gt;.&lt;BR /&gt;Although both approaches serve the purpose of displaying data, they work very differently under the hood and are suitable for different use cases.&lt;/P&gt;&lt;P&gt;In this blog, I will explain the key differences between traditional ALV and ALV with IDA, how they behave on SAP HANA, and when you should choose one over the other.&lt;/P&gt;&lt;P&gt;SAP offers two main technologies to display tabular data in ABAP:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Classic ALV&lt;/STRONG&gt; (REUSE_ALV, CL_GUI_ALV_GRID, CL_SALV_TABLE)&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;ALV with IDA&lt;/STRONG&gt; (CL_SALV_GUI_TABLE_IDA, SAP HANA–optimized ALV)&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Although both display lists/grids, the internal architecture and performance are &lt;STRONG&gt;completely different&lt;/STRONG&gt;.&lt;BR /&gt;IDA ALV is specifically designed for &lt;STRONG&gt;SAP HANA systems&lt;/STRONG&gt;, while Classic ALV works on any system.&lt;/P&gt;&lt;H1 id="toc-hId-1440989860"&gt;&lt;FONT size="3"&gt;&lt;STRONG&gt;Simple Comparison: Classic ALV vs ALV with IDA&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/H1&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&amp;nbsp; &lt;STRONG&gt;Topic&amp;nbsp;&lt;/STRONG&gt; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;&lt;STRONG&gt;Classic ALV&lt;/STRONG&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &lt;STRONG&gt;ALV with IDA&lt;/STRONG&gt; &lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Where data comes from&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;First loads everything into an internal table&lt;/TD&gt;&lt;TD&gt;Reads directly from the database (no internal table)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Speed&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;Slow when data is large&lt;/TD&gt;&lt;TD&gt;Very fast, made for HANA&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Big data handling&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;Can crash or dump&lt;/TD&gt;&lt;TD&gt;Handles millions of rows easily&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Memory usage&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;Uses a lot of memory&lt;/TD&gt;&lt;TD&gt;Uses very little memory&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Filtering &amp;amp; Sorting&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;Done in ABAP (slower)&lt;/TD&gt;&lt;TD&gt;Done in HANA (super fast)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Customization&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;Many options (buttons, colors, events)&lt;/TD&gt;&lt;TD&gt;Very few options (mostly read-only)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Editable?&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;Yes&lt;/TD&gt;&lt;TD&gt;No&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Events (double-click, hotspot)&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;Many available&lt;/TD&gt;&lt;TD&gt;Very limited&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;System support&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;Works on any SAP system&lt;/TD&gt;&lt;TD&gt;Works only on SAP HANA / S/4HANA&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Coding effort&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;More coding needed&lt;/TD&gt;&lt;TD&gt;Very simple (few lines only)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Best for&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;Interactive, colorful, editable ALVs&lt;/TD&gt;&lt;TD&gt;Fast display of very large tables&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Not good for&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;Huge datasets&lt;/TD&gt;&lt;TD&gt;Custom UI features&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;&lt;STRONG&gt;Example for ALV :-&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;REPORT ZVA_ALV_IDA.
+select * from ZVA_HDR_SERVICE into table (lt_tab) up to 5 rows .
+data : lv_alv type ref to cl_salv_table.
+cl_salv_table=&amp;gt;factory(
+  IMPORTING
+    r_salv_table   =  lv_alv
+  CHANGING
+    t_table        = lt_tab
+).
+lv_alv-&amp;gt;display( ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Output :&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-12-12 152652.png" style="width: 854px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/351427iA64DA6CEFBA30F91/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-12 152652.png" alt="Screenshot 2025-12-12 152652.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Example for ALV with IDA :-&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;REPORT ZVA_ALV_IDA.
+DATA(lo_ida) = cl_salv_gui_table_ida=&amp;gt;create( 'ZVA_HDR_SERVICE' ).
+lo_ida-&amp;gt;set_maximum_number_of_rows( 5 ).
+lo_ida-&amp;gt;fullscreen( )-&amp;gt;display( ).&lt;/code&gt;&lt;/pre&gt;&lt;H1 id="toc-hId-1244476355"&gt;&lt;FONT size="3"&gt;&lt;STRONG&gt;Output:&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/H1&gt;&lt;P&gt;&lt;FONT size="3"&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-12-12 152501.png" style="width: 638px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/351428i5FE30C4941E1B67D/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-12 152501.png" alt="Screenshot 2025-12-12 152501.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H1 id="toc-hId-1047962850"&gt;&lt;FONT size="3"&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/H1&gt;&lt;H3 id="toc-hId-1109614783"&gt;&lt;FONT size="3"&gt;&lt;STRONG&gt;Classic ALV&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Best for &lt;STRONG&gt;customized, interactive, editable&lt;/STRONG&gt; applications&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Works everywhere (ECC + S/4HANA)&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-913101278"&gt;&lt;FONT size="3"&gt;&lt;STRONG&gt;ALV with IDA&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Best for &lt;STRONG&gt;high-performance, HANA-optimized, large-volume&lt;/STRONG&gt; reports&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Minimal coding, maximum performance&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Read-only analytical UI&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Development/pd-p/833755570260738661924709785639136" class="lia-product-mention" data-product="314-1"&gt;ABAP Development&lt;/a&gt;&amp;nbsp;,&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+HANA+Cloud%25252C+SAP+HANA+database/pd-p/ada66f4e-5d7f-4e6d-a599-6b9a78023d84" class="lia-product-mention" data-product="40-1"&gt;SAP HANA Cloud, SAP HANA database&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/alv-vs-alv-ida-in-sap-abap-simple-explanation-differences-amp-examples/ba-p/14287541"/>
+    <published>2025-12-17T06:13:28.720000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/how-to-merge-two-separate-smart-forms-into-a-single-pdf-in-sap/ba-p/14271306</id>
+    <title>How to Merge Two Separate Smart Forms into a Single PDF in SAP</title>
+    <updated>2025-12-17T06:17:38.050000+01:00</updated>
+    <author>
+      <name>chandu_kumar_badukuri</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2265436</uri>
+    </author>
+    <content>&lt;OL&gt;&lt;LI&gt;&lt;P&gt;I received a requirement to merge two Smart Forms into a single output, even though they are not part of the same form. In other words, they are two separate Smart Forms, but the final printout should combine them for better user understanding.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;First, I created the Smart Forms in transaction &lt;STRONG&gt;SMARTFORMS&lt;/STRONG&gt; as usual. I designed each form, placed all the required elements, and completed the layout according to the specifications.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;After finishing both Smart Forms, I wrote the logic in the corresponding program. In the program (using the appropriate transaction) T-Code &lt;STRONG&gt;SE38&lt;/STRONG&gt;, I called each Smart Form by referencing its generated function module, as shown below.&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;* Data Declarations.
+DATA: lv_fm_dpr     TYPE rs38l_fnam,
+      lv_fm_inv     TYPE rs38l_fnam,
+      lv_otf1       TYPE ssfcrescl,
+      lv_otf2       TYPE ssfcrescl,
+      lt_otf1       TYPE STANDARD TABLE OF itcoo,
+      lt_otf2       TYPE STANDARD TABLE OF itcoo,
+      lt_TLINE      TYPE STANDARD TABLE OF tline,
+      lv_pdf_xstr1  TYPE xstring,
+      lv_pdf_xstr2  TYPE xstring,
+      lv_len        TYPE i,
+      lt_data       TYPE STANDARD TABLE OF raw255,
+      lv_file       TYPE string,
+      lv_path       TYPE string,
+      lv_file_name  TYPE string,
+      lv_merged_xstr TYPE xstring,
+      lv_rc         TYPE i.
+
+* Data Declarations.
+DATA: ls_ctrlop TYPE ssfctrlop,
+      ls_compop TYPE ssfcompop.
+
+ls_ctrlop-no_dialog = abap_true.
+ls_ctrlop-getotf    = abap_true.
+
+* Get Function Module Names of SmartForms for form 1.
+CALL FUNCTION 'SSF_FUNCTION_MODULE_NAME'
+  EXPORTING
+    formname = 'ZTEST_SMF'
+  IMPORTING
+    fm_name  = lv_fm_dpr.
+* Get Function Module Names of SmartForms for form 2.
+CALL FUNCTION 'SSF_FUNCTION_MODULE_NAME'
+  EXPORTING
+    formname = 'ZSF_TEST2'
+  IMPORTING
+    fm_name  = lv_fm_inv.
+
+* Call SmartForm 1 and capture OTF (Output text format )
+CALL FUNCTION lv_fm_dpr
+  EXPORTING
+    control_parameters = ls_ctrlop
+    output_options     = ls_compop
+  IMPORTING
+    job_output_info    = lv_otf1.
+
+lt_otf1[] = lv_otf1-otfdata.
+
+* Convert to PDF (XSTRING)
+CALL FUNCTION 'CONVERT_OTF'
+  EXPORTING
+    format       = 'PDF'
+  IMPORTING
+    bin_file     = lv_pdf_xstr1
+  TABLES
+    otf          = lt_otf1
+    lines        = lt_TLINE
+  EXCEPTIONS
+    OTHERS       = 1.
+
+* Call SmartForm 2 and capture OTF
+CALL FUNCTION lv_fm_inv
+  EXPORTING
+    control_parameters = ls_ctrlop
+    output_options     = ls_compop
+  IMPORTING
+    job_output_info    = lv_otf2.
+
+lt_otf2[] = lv_otf2-otfdata.
+
+* Convert to PDF (XSTRING)
+CALL FUNCTION 'CONVERT_OTF'
+  EXPORTING
+    format       = 'PDF'
+  IMPORTING
+    bin_file     = lv_pdf_xstr2
+  TABLES
+    otf          = lt_otf2
+    lines        = lt_TLINE
+  EXCEPTIONS
+    OTHERS       = 1.
+
+* Merge the two XSTRING PDFs
+DATA(lo_merger) = NEW cl_rspo_pdf_merge( ).
+lo_merger-&amp;gt;add_document( lv_pdf_xstr1 ).
+lo_merger-&amp;gt;add_document( lv_pdf_xstr2 ).
+
+* merging 2 documents into one
+lo_merger-&amp;gt;merge_documents(
+  IMPORTING
+    merged_document = lv_merged_xstr
+    rc              = lv_rc ).
+
+IF lv_rc &amp;lt;&amp;gt; 0.
+  MESSAGE 'PDF merge failed. Please check input documents.' TYPE 'E'.
+ENDIF.
+
+* Converting XSTRING to binary table
+CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
+  EXPORTING
+    buffer        = lv_merged_xstr
+  IMPORTING
+    output_length = lv_len
+  TABLES
+    binary_tab    = lt_data.
+
+
+CALL METHOD cl_gui_frontend_services=&amp;gt;file_save_dialog
+  EXPORTING
+    window_title         = 'Save Combined PDF'
+    default_file_name    = 'Combined_SmartForms.pdf'
+    default_extension    = 'pdf'
+  CHANGING
+    filename             = lv_file_name
+    path                 = lv_path
+    fullpath             = lv_file
+  EXCEPTIONS
+    OTHERS               = 1.
+
+IF lv_file IS INITIAL.
+  MESSAGE 'File path not selected' TYPE 'I'.
+  EXIT.
+ENDIF.
+
+* Download Merged PDF to Frontend
+CALL METHOD cl_gui_frontend_services=&amp;gt;gui_download
+  EXPORTING
+    bin_filesize = lv_len
+    filename     = lv_file
+    filetype     = 'BIN'
+  CHANGING
+    data_tab     = lt_data
+  EXCEPTIONS
+    OTHERS       = 1.
+
+* Open PDF after saving
+CALL METHOD cl_gui_frontend_services=&amp;gt;execute
+  EXPORTING
+    document    = lv_file
+    synchronous = 'X'
+  EXCEPTIONS
+    OTHERS      = 1.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;After the code is executed, the system will prompt you to enter the name or path of your local device, as shown below. This allows the application to determine where the generated PDF should be saved.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="chandu_kumar_badukuri_0-1763397697625.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/342011i9DFB6264857D0163/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="chandu_kumar_badukuri_0-1763397697625.png" alt="chandu_kumar_badukuri_0-1763397697625.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Next, the system will once again prompt you to click on &lt;STRONG&gt;Print Preview&lt;/STRONG&gt; for the second PDF.&lt;BR /&gt;After that, you will be required to select the destination path where the merged PDF should be downloaded and saved on your local device.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="chandu_kumar_badukuri_1-1763398023126.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/342014iAF48B1C44B6BFA39/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="chandu_kumar_badukuri_1-1763398023126.png" alt="chandu_kumar_badukuri_1-1763398023126.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;the final output will be generated in PDF format, where both Smart Forms—originally created as two separate documents—will be successfully combined into a single, unified PDF file.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="chandu_kumar_badukuri_2-1763398184696.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/342015i418518B649FC72A1/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="chandu_kumar_badukuri_2-1763398184696.png" alt="chandu_kumar_badukuri_2-1763398184696.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;CONCLUSION:&lt;/STRONG&gt;&lt;BR /&gt;Upon executing the above code, you must specify the desired local system path where the output should be saved. Once the path is provided, the system will generate and download a single PDF file to your local machine. This PDF will contain both Smart Forms seamlessly merged into one consolidated document.&lt;/P&gt;&lt;P&gt;Thank You...&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Connectivity/pd-p/266264953119842772207986043063520" class="lia-product-mention" data-product="313-1"&gt;ABAP Connectivity&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Extensibility/pd-p/338571334339306322581424656448659" class="lia-product-mention" data-product="315-1"&gt;ABAP Extensibility&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Development/pd-p/833755570260738661924709785639136" class="lia-product-mention" data-product="314-1"&gt;ABAP Development&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/how-to-merge-two-separate-smart-forms-into-a-single-pdf-in-sap/ba-p/14271306"/>
+    <published>2025-12-17T06:17:38.050000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/handling-double-click-event-in-abap-using-the-salv-factory-method/ba-p/14145223</id>
+    <title>Handling Double-Click Event in ABAP Using the SALV Factory Method</title>
+    <updated>2025-12-17T06:39:43.960000+01:00</updated>
+    <author>
+      <name>vinodkumarreddyappannagari</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2174225</uri>
+    </author>
+    <content>&lt;P&gt;In this blog post, we explore how to implement interactive ALV reports in ABAP using the&amp;nbsp;&amp;nbsp;&lt;STRONG&gt;CL_SALV_TABLE&lt;/STRONG&gt; class and its &lt;STRONG&gt;FACTORY&lt;/STRONG&gt; method. Specifically, we focus on handling &lt;STRONG&gt;double-click event&lt;/STRONG&gt;&amp;nbsp;to display related or detailed data dynamically.&lt;/P&gt;&lt;H1 id="toc-hId-1605117605"&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/H1&gt;&lt;P&gt;In many SAP reports, users often want to see more details about a record by simply double-clicking on it. For example, when looking at a list of vendors, a user may want to quickly view all the items or company-code details related to that vendor.&lt;/P&gt;&lt;P&gt;In this blog, I will show how to create an ALV report where a user can double-click a vendor in the main list and automatically open another ALV showing the related vendor-item details. This makes the report more interactive and user-friendly without needing extra screens or complex logic.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Code:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;REPORT ZOOPS_DOUBLECLICK_FACTORY.
+
+" Declare internal tables for vendor header and item data
+TABLES: zva_vendor_item, zva_vendor_ta.
+
+DATA: lt_vendor     TYPE TABLE OF zva_vendor_ta,
+      lt_vendoritem TYPE TABLE OF zva_vendor_item.
+
+" Selection screen: allows filtering vendors by vendor number
+SELECT-OPTIONS: s_veno FOR zva_vendor_ta-venderno.
+
+*---------------------------------------------------------------------*
+* Event handler class for SALV double-click
+*---------------------------------------------------------------------*
+CLASS cl1 DEFINITION.
+  PUBLIC SECTION.
+    METHODS handle FOR EVENT double_click OF cl_salv_events_table
+      IMPORTING row column.
+ENDCLASS.
+
+CLASS cl1 IMPLEMENTATION.
+  METHOD handle.
+    " Read the vendor entry that was double-clicked
+    READ TABLE lt_vendor INTO DATA(ls_vendor) INDEX row.
+    IF sy-subrc EQ 0.
+
+      " Fetch related vendor items for selected vendor
+      SELECT * FROM zva_vendor_item
+        INTO TABLE lt_vendoritem
+        WHERE venderno = ls_vendor-venderno.
+
+      " Display item data only if available
+      IF lt_vendoritem IS NOT INITIAL.
+        TRY.
+            " Create new SALV table to show vendor items
+            CALL METHOD cl_salv_table=&amp;gt;factory
+              IMPORTING
+                r_salv_table = DATA(lo_salv1)
+              CHANGING
+                t_table      = lt_vendoritem.
+        CATCH cx_salv_msg.
+            " Handle SALV creation error (optional logging)
+        ENDTRY.
+
+        " Display the item list
+        lo_salv1-&amp;gt;display( ).
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+ENDCLASS.
+
+*---------------------------------------------------------------------*
+* Main program logic (initial ALV display)
+*---------------------------------------------------------------------*
+START-OF-SELECTION.
+
+  " Read vendor master data based on selection criteria
+  SELECT venderno, name, city, postalcode,
+         accountgroup, processorgroup, postingblock
+    FROM zva_vendor_ta
+    INTO CORRESPONDING FIELDS OF TABLE _vendor
+    WHERE venderno IN @s_veno.
+
+  IF lt_vendor IS NOT INITIAL.
+    TRY.
+        " Create SALV table for vendor master list
+        CALL METHOD cl_salv_table=&amp;gt;factory
+          IMPORTING
+            r_salv_table = DATA(lo_salv)
+          CHANGING
+            t_table      = lt_vendor.
+    CATCH cx_salv_msg.
+        " Handle SALV creation error (optional)
+    ENDTRY.
+
+    " Register double-click event handler
+    CALL METHOD lo_salv-&amp;gt;get_event
+      RECEIVING
+        value = DATA(lo_event).
+
+    " Instantiate event handler class
+    DATA(lo_cl) = NEW cl1( ).
+
+    " Link handler method to SALV event
+    SET HANDLER lo_cl-&amp;gt;handle FOR lo_event.
+
+    " Display the vendor list ALV
+    lo_salv-&amp;gt;display( ).
+  ENDIF.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Output :&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-12-16 105826.png" style="width: 796px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/352457i96E8C9EFB31330E1/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-16 105826.png" alt="Screenshot 2025-12-16 105826.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;I Double click on 1st row&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="dfccc6af-345c-40a3-abba-88763de57fa8.jpg" style="width: 653px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/283064iDDEA1B7772BD1BDC/image-size/large?v=v2&amp;amp;px=999" role="button" title="dfccc6af-345c-40a3-abba-88763de57fa8.jpg" alt="dfccc6af-345c-40a3-abba-88763de57fa8.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H1 id="toc-hId-1408604100"&gt;&lt;FONT size="3"&gt;&lt;STRONG&gt;Summary:&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/H1&gt;&lt;P&gt;This example demonstrates how to enhance a standard ALV report by enabling &lt;STRONG&gt;interactive navigation through double-click events&lt;/STRONG&gt;. Using the class &lt;CODE&gt;CL_SALV_TABLE&lt;/CODE&gt; together with the event handler &lt;CODE&gt;CL_SALV_EVENTS_TABLE&lt;/CODE&gt;, the program allows users to double-click a vendor row in the header ALV to immediately view the corresponding vendor-item details in a secondary ALV.&lt;/P&gt;&lt;P&gt;The solution showcases several key SAP GUI reporting capabilities:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Displaying master data using the SALV framework&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Capturing user interaction through the &lt;CODE&gt;double_click&lt;/CODE&gt; event&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Dynamically reading and displaying detail records based on user selection&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Using a clean, object-oriented approach to separate event handling from the main program logic&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;With minimal coding effort, this technique significantly improves usability by allowing users to drill down into related records without creating additional screens or complex logic. This interactive ALV pattern is highly reusable and suitable for many SAP GUI scenarios involving master–detail relationships.&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Development/pd-p/833755570260738661924709785639136" class="lia-product-mention" data-product="314-1"&gt;ABAP Development&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/handling-double-click-event-in-abap-using-the-salv-factory-method/ba-p/14145223"/>
+    <published>2025-12-17T06:39:43.960000+01:00</published>
   </entry>
 </feed>
