@@ -2,98 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2026-01-05T13:29:01.768254+00:00</updated>
+  <updated>2026-01-05T13:44:01.700745+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/crm-and-cx-blog-posts-by-sap/sap-commerce-cloud-media-import-through-api/ba-p/14301184</id>
-    <title>SAP Commerce Cloud Media Import through API</title>
-    <updated>2026-01-05T10:08:13.206000+01:00</updated>
-    <author>
-      <name>joris_quenee</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/173030</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-1658561885"&gt;Introduction&lt;/H1&gt;&lt;P data-unlink="true"&gt;In SAP Commerce Cloud, we've powerful API to do data synchronisation: &lt;A href="https://help.sap.com/docs/SAP_COMMERCE_CLOUD_PUBLIC_CLOUD/bad9b0b66bac476f8a4a5c4a08e4ab6b/a369beb4497b44d08eb7f548147cae1d.html" target="_self" rel="noopener noreferrer"&gt;Integration API Module&lt;/A&gt;. Basically, this OData/Integration is designed to work with data model mapping. For each table, we can define an Integration Object. And through this Integration Object, we can import or export data from database.&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;However, Media Item is not physically stored in database. Media is stored in Blob Storage. And here lies the main issue for using Integration API module. To bypass this limitation, we could use Cloud Hotfolder. But this approach is not ideal for many reasons:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;overhead : HTTPS data transfer (hotfolder blob storage) + file persistence + HTTPS data reading&amp;nbsp;(hotfolder blob storage) + data processing (Commerce) + HTTPS data transfer (media blob storage)&lt;/LI&gt;&lt;LI&gt;asynchronous processing/manual validation: end result is known indirectly by checking BackOffice&lt;/LI&gt;&lt;LI&gt;settings: impex template and spring integration&lt;/LI&gt;&lt;LI&gt;deletion: data deletion will demand another impex/setting&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;A better approach is to use API and this article will explain how for doing Media Item import.&lt;/P&gt;&lt;H1 id="toc-hId-1462048380"&gt;&amp;nbsp;&lt;/H1&gt;&lt;H1 id="toc-hId-1265534875"&gt;Native API v1&lt;/H1&gt;&lt;P&gt;SmartEdit is using API v1 to push new media in content catalog. This API can be re-used even for product catalog. And it is defined under this following class :&amp;nbsp;de.hybris.platform.cmswebservices.media.controller.&lt;STRONG&gt;&lt;EM&gt;CatalogVersionMediaController&lt;/EM&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;For doing so, you need first to create a dedicated OAuth application client&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;INSERT_UPDATE OAuthClientDetails ; clientId[unique = true] ; resourceIds ; scope ; authorizedGrantTypes ; authorities ; clientSecret
-; media_integration ; hybris ; basic ; client_credentials ; ROLE_ADMINGROUP ; secret&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Then, you can get OAuth token simply by executing this following request&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;curl -v -k -X 'POST' https://localhost:9002/authorizationserver/oauth/token \
--d "grant_type=client_credentials" \
--d "client_id=media_integration" \
--d "client_secret=secret"&lt;/code&gt;&lt;/pre&gt;&lt;P data-unlink="true"&gt;As result, you should get Bearer token&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{"access_token":"....","token_type":"Bearer","expires_in":299}&lt;/code&gt;&lt;/pre&gt;&lt;P data-unlink="true"&gt;And finally, to import your media, you can execute this following request&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;curl -v -k -X 'POST' 'https://localhost:9002/cmswebservices/v1/catalogs/electronicsProductCatalog/versions/Staged/media' \
--H 'Authorization: Bearer ...' \
--F "code=img.png" \
--F "description=img.png" \
--F "altText=img.png" \
--F "folder=images" \
--F "file=@img.png"&lt;/code&gt;&lt;/pre&gt;&lt;P data-unlink="true"&gt;This API imports data in streaming. By consequence, you should not have memory leak issue when large file is imported. But file uploading size limitation is by default at 10MB.&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In other hand, this API capability is limited to media creation exclusively. Media cannot be updated or deleted through this API.&lt;/P&gt;&lt;H1 id="toc-hId-1069021370"&gt;&amp;nbsp;&lt;/H1&gt;&lt;H1 id="toc-hId-872507865"&gt;Custom OCC API (v2)&lt;/H1&gt;&lt;P&gt;Knowing this API v1 limited capability, it makes sense to create a custom OCC API to get other HTTP method capacity as PUT and DELETE.&lt;/P&gt;&lt;P&gt;To create a new custom OCC API, you need to create a new extension by following this official documentation: &lt;A href="https://help.sap.com/docs/SAP_COMMERCE_CLOUD_PUBLIC_CLOUD/3476714bba0b4cb9b3eb58c270e44439/8ef2d8d7baf1443dbed3affb49606adf.html" target="_self" rel="noopener noreferrer"&gt;Creating an OCC Extension&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Pay attention, your extension name &lt;STRONG&gt;must end with &lt;STRONG&gt;occ suffix.&lt;/STRONG&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In your new extension, you should add an exception url path mapping for the filter&amp;nbsp;&lt;STRONG&gt;&lt;EM&gt;&lt;SPAN&gt;baseSiteMatchingFilter.&amp;nbsp;&lt;/SPAN&gt;&lt;/EM&gt;&lt;/STRONG&gt;Indeed, base site information is not required for publishing new media&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;alias alias="baseSiteMatchingFilter" name="customBaseSiteMatchingFilter" /&amp;gt;
-&amp;lt;bean id="customBaseSiteMatchingFilter" class="de.hybris.platform.commercewebservices.core.v2.filter.BaseSiteMatchingFilter"&amp;gt;
- &amp;lt;property name="regexp" value="^/(?!(media)|(swagger)|(.*api-docs)|(csrf)|(webjars))([^/]+)" /&amp;gt;
- &amp;lt;property name="baseSiteService" ref="baseSiteService" /&amp;gt;
-&amp;lt;/bean&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Then, you need to create a new Controller. Please find in below pseudo code example.&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;@RequestMapping(value = "/media/{catalogId}/version/{versionId}")
-@CacheControl(directive = CacheControlDirective.NO_CACHE)
-@Tag(name = "Media Controller")
-@Secured({ "ROLE_INTEGRATION" })
-public class MediaController&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;@PostMapping(consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
-@ResponseStatus(HttpStatus.CREATED)
-[...]
-public MediaData uploadMedia(...) {
- [...]
- return createOrUpdateMedia(media, folder, multiPart, false);
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Processing logic should use as much as possible existing facade and service to minimise the customisation and to be agnostic regarding local implementation (filesystem) and cloud (blob storage)&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;private void removeMedia(String catalogId, String versionId, String code) {
- MediaModel exitingMedia = getMediaService().getMedia(getCatalogVersionService().getCatalogVersion(catalogId, versionId), code);
- getMediaService().removeDataFromMedia(exitingMedia);
- getModelService().remove(exitingMedia);
-}
-
-private MediaData createOrUpdateMedia(MediaData media, String folder, MultipartFile multiPart, boolean isUpdate) {
-		try 
- 		{
- 		 if (isUpdate) {
-		  removeMedia(media.getCatalogId(), media.getCatalogVersion(), media.getCode());
-		 }
-					
- final MediaData newMedia = getMediaFacade()
-	.addMediaToFolder(media, getFile(multiPart, multiPart.getInputStream()), folder);
-				IOUtils.closeQuietly(multiPart.getInputStream());
-				return newMedia;
-	}
-	[...]
-}
-
-private MediaFileDto getFile(final MultipartFile file, final InputStream inputStream) {
- final MediaFileDto mediaFile = new MediaFileDto();
- mediaFile.setInputStream(inputStream);
- mediaFile.setName(file.getOriginalFilename());
- mediaFile.setSize(file.getSize());
- mediaFile.setMime(file.getContentType());
- return mediaFile;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;By default, upload file size limitation is 10MB. This limitation is defined in&amp;nbsp;&lt;STRONG&gt;&lt;EM&gt;commercewebservices/web.xml&lt;/EM&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;multipart-config&amp;gt;
- &amp;lt;location&amp;gt;&amp;lt;/location&amp;gt;
- &amp;lt;max-file-size&amp;gt;10485760&amp;lt;/max-file-size&amp;gt;
- &amp;lt;max-request-size&amp;gt;-1&amp;lt;/max-request-size&amp;gt;
- &amp;lt;file-size-threshold&amp;gt;0&amp;lt;/file-size-threshold&amp;gt;
-&amp;lt;/multipart-config&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;To test this new API, you have to create a dedicated OAuth client granted as ROLE_INTEGRATION&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;INSERT_UPDATE OAuthClientDetails ; clientId[unique = true] ; resourceIds ; scope ; authorizedGrantTypes ; authorities ; clientSecret
-; media_integration ; hybris ; basic ; client_credentials ; ROLE_INTEGRATION ; secret&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Then you can execute this following POST HTTP request to import the media into electronicsProductCatalog in Staged version.&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;curl -v -k -X 'POST' 'https://localhost:9002/occ/v2/media/electronicsProductCatalog/Staged' \
-  -H 'Authorization: Bearer ...' \
-  -F "code=img.png" \
-  -F "description=img.png" \
-  -F "altText=img.png" \
-  -F "folder=images" \
-  -F "file=@img.png"&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-675994360"&gt;Conclusion&lt;/H1&gt;&lt;P&gt;As we can see, you can easily import media via the API, which will likely greatly simplify the end-to-end integration process.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;If you need more support, please don't hesitate to contact&amp;nbsp;&lt;/SPAN&gt;&lt;A href="mailto:sapcx-expertservices@sap.com" target="_blank" rel="nofollow noopener noreferrer ugc"&gt;SAP Expert Services.&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/crm-and-cx-blog-posts-by-sap/sap-commerce-cloud-media-import-through-api/ba-p/14301184"/>
-    <published>2026-01-05T10:08:13.206000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/human-capital-management-q-a/onboarding-your-hr-manager-has-requested-a-correction-to-your-personal-data/qaa-p/14301214#M50109</id>
-    <title>Re: Onboarding - Your HR manager has requested a correcti...</title>
-    <updated>2026-01-05T10:09:49.793000+01:00</updated>
-    <author>
-      <name>Gopinath_Murugaiyan</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/17956</uri>
-    </author>
-    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/125567"&gt;@SathyaM&lt;/a&gt;&amp;nbsp;There could be many potential causes for this issue and this is generic error .&lt;/P&gt;&lt;P&gt;1.This required backend logs investigation to verify which field or any attachments causing this issue.&lt;/P&gt;&lt;P&gt;2.I would suggest once you to ask candidate try some different browsers and see whether it is picking up.&lt;/P&gt;&lt;P&gt;Next Action:&lt;/P&gt;&lt;P&gt;If candidate face same issue in other browser as well , i would recommend you to file support ticket to check backend logs for your instance.&lt;/P&gt;&lt;P&gt;Thanks,&lt;/P&gt;&lt;P&gt;Gopi&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/human-capital-management-q-a/onboarding-your-hr-manager-has-requested-a-correction-to-your-personal-data/qaa-p/14301214#M50109"/>
-    <published>2026-01-05T10:09:49.793000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/supply-chain-management-q-a/several-po-with-the-same-dp-chain-number/qaa-p/14301215#M208779</id>
     <title>Re: Several po with the same DP chain number</title>
@@ -1595,5 +1507,29 @@ early numbering
     <content>&lt;P&gt;Unfortunately, still access denied, also via opening in an incognito window or normally.... any advices what might be missing for me?&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/business-transformation-discussions/new-learning-group-on-sap-business-transformation-management-topic/m-p/14301407#M68"/>
     <published>2026-01-05T14:14:52.466000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/spend-management-q-a/new-custom-po-header-condition-created-as-a-percentage-but-is-not-dividing/qaa-p/14301412#M180912</id>
+    <title>Re: New custom po header condition created as a percentag...</title>
+    <updated>2026-01-05T14:35:55.509000+01:00</updated>
+    <author>
+      <name>dawid90</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/172309</uri>
+    </author>
+    <content>&lt;P&gt;Dear&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2042954"&gt;@R971&lt;/a&gt;,&lt;/P&gt;&lt;P&gt;In Public Cloud this is normal behavior for a header % condition because:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;In the item Conditions view the Amount column is the rate 20%&lt;/LI&gt;&lt;LI&gt;A percentage condition rate is &lt;STRONG&gt;not&lt;/STRONG&gt; split across items. SAP will always show the same % rate on each item&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;What is distributed is the money value of that header condition:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Look at Condition Value on each item, not Amount&lt;/LI&gt;&lt;LI&gt;In your screenshots, the system is already distributing correctly:&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;Item 1: 20%, value 20&lt;/LI&gt;&lt;LI&gt;Item 2: 20%, value 20&lt;/LI&gt;&lt;LI&gt;Header total 40 &lt;STRONG&gt;BUT&lt;/STRONG&gt; in Amount 20% each lines&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/UL&gt;&lt;P&gt;That is exactly distributed by item value (proportional distribution). This aligns with standard SAP pricing logic: header conditions distribute condition value to items the rate may still appear identical on each line&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;IMPORTANT:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Group condition does not mean divide the % by number of items&lt;/LI&gt;&lt;LI&gt;It’s mainly used to calculate based on grouped bases for example for scales / thresholds and to control distribution behavior for value-based header conditions &lt;STRONG&gt;BUT&lt;/STRONG&gt; it won’t change the fact that a % rate stays a % rate at item display&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Cloud-friendly option:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Option A.&lt;/STRONG&gt; You want a fixed total amount at header distributed across items&lt;/P&gt;&lt;P&gt;Create the condition as a value/amount condition (not %), keep it as header and let SAP distribute that amount to items standard approach for freight/surcharges&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Option B.&lt;/STRONG&gt; You really want SAP to calculate different % per item&lt;/P&gt;&lt;P&gt;That’s not achievable with pure configuration for standard pricing behavior. In Public Cloud this typically needs an alternative calculation routine/Badi. SAP provides an approach using Badi: PRCG_DOC_ITEM_CONDITION_AMOUNT and SSCUI for alternative calculation routines and then assign it in the pricing procedure&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="dawid90_0-1767619900454.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/358184i1E338C3CA8BD4459/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="dawid90_0-1767619900454.png" alt="dawid90_0-1767619900454.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;SAP Notes below for more details:&lt;/P&gt;&lt;P&gt;&lt;A href="https://me.sap.com/notes/0003580006" target="_blank" rel="noopener noreferrer"&gt;https://me.sap.com/notes/0003580006&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://me.sap.com/notes/0003043325" target="_blank" rel="noopener noreferrer"&gt;https://me.sap.com/notes/0003043325&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://me.sap.com/notes/0003580006" target="_blank" rel="noopener noreferrer"&gt;https://me.sap.com/notes/0003580006&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Best Regards,&lt;/P&gt;&lt;P&gt;Dawid&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/spend-management-q-a/new-custom-po-header-condition-created-as-a-percentage-but-is-not-dividing/qaa-p/14301412#M180912"/>
+    <published>2026-01-05T14:35:55.509000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/999-the-number-of-the-bseg/bc-p/14301414#M62978</id>
+    <title>Re: 999 – The Number of the BSEG</title>
+    <updated>2026-01-05T14:38:56.035000+01:00</updated>
+    <author>
+      <name>Stefan_Gauger</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/136427</uri>
+    </author>
+    <content>&lt;P&gt;Hello Jack,&lt;/P&gt;&lt;P&gt;sorry for the late reply. And thanks for your observation: yes, it is standard design right now to remove all account assignment fields even for open item managed items. BUT: I also agree that this is not nice and should be changed. Since OSS note&amp;nbsp;3535886, we changed the behavior for all BAdi summarized BSEG items, so that only non open item managed BSEG items will be cleared for summarization. And this special tax payables summarization should work the same way. So please open a ticket again on component FI-GL-GL-A, the colleagues will then (hopefully) provide a correction along the lines of note 3535886 for this. (Adding an "IF accit_fi-xopvw = abap_false AND accit_fi-xlgclr = abap_false AND ls_sako-x_uj_clr = abap_false" before the tax payables summarization).&amp;nbsp;&lt;/P&gt;&lt;P&gt;Kind regards,&amp;nbsp;&lt;/P&gt;&lt;P&gt;Stefan&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/999-the-number-of-the-bseg/bc-p/14301414#M62978"/>
+    <published>2026-01-05T14:38:56.035000+01:00</published>
   </entry>
 </feed>
