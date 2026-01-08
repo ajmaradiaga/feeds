@@ -2,38 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2026-01-08T12:00:04.156644+00:00</updated>
+  <updated>2026-01-08T15:00:03.496922+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/abap-blog-posts/a-journey-from-netweaver-7-50-to-s-4hana-part-4-custom-code-conversion/ba-p/14277883</id>
-    <title>A journey from Netweaver 7.50 to S/4HANA - Part 4: Custom Code Conversion Conundrums</title>
-    <updated>2025-12-16T14:50:29.981000+01:00</updated>
-    <author>
-      <name>BaerbelWinkler</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/439</uri>
-    </author>
-    <content>&lt;P&gt;After the preliminary steps for our custom code conversion described in &lt;A href="https://community.sap.com/t5/application-development-and-automation-blog-posts/a-journey-from-netweaver-7-50-to-s-4hana-part-1-setting-the-stage/ba-p/13965761" target="_blank"&gt;part 1&lt;/A&gt;, &lt;A href="https://community.sap.com/t5/abap-blog-posts/a-journey-from-netweaver-7-50-to-s-4hana-part-2-what-s-cooking/ba-p/14068398" target="_blank"&gt;part 2&lt;/A&gt; and &lt;A href="https://community.sap.com/t5/abap-blog-posts/a-journey-from-netweaver-7-50-to-s-4hana-part-3-hitting-some-snags/ba-p/14122127" target="_blank"&gt;part 3&lt;/A&gt; of this blog series, we finally started the actual coding activity over the summer.&lt;/P&gt;&lt;P&gt;To begin with, about 120 objects needed to be tackled which had been classified as high priority by the functional and business teams, many of which would most likely be needed for process testing in the first of eventual four sandbox systems. Once done with those, a big list with about 2,500 objects needed to be processed by our development team. For this blog post I picked three issues we encountered and briefly describe how we tackled them.&lt;/P&gt;&lt;H3 id="toc-hId-1894748291"&gt;What to do with customer master creation or updates via XD01 and XD02?&lt;/H3&gt;&lt;P&gt;We have several programs which create new customers or update existing customers via batch input (or call transaction) logic based on transaction XD01/02 and targeting the "old" tables KNA1, KNB1, KNVV, etc.&amp;nbsp; While the tables still exist in S/4HANA, the transactions are no longer functional because customers now have to be created and maintained as business partners via transaction BP and the business partner tables are in the "lead". The old tables are then filled from the BP, so are still available but only for read access.&lt;/P&gt;&lt;P&gt;Some of our logic creates customers in bulk based on file uploads and we needed an alternative route for that because many users are relying on that logic. Other programs call XD02 in order to update some fields in the customer master. Searching for alternatives, we happened upon class CL_MD_BP_MAINTAIN&amp;nbsp;and method MAINTAIN, which - based on &lt;A class="" title="Follow link" href="https://me.sap.com/notes/2484299/E" target="_blank" rel="noopener noreferrer"&gt;OSS Note 2484299 - BAPI list for BP&lt;/A&gt;&amp;nbsp;- is the recommended "tool" in S/4HANA for these kind of tasks (the BAPIs (FMs) listed in the note are intended for an ECC-system).&lt;/P&gt;&lt;P&gt;At first glance, using this class and method looked straight-forward enough, given that it only requires one import parameter:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;cl_md_bp_maintain=&amp;gt;maintain(
-  EXPORTING
-    i_data   = l_data
-  IMPORTING
-    e_return = l_return ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The "fun" really started once we realised what this parameter "i_data" really is ... very deeply nested structure CVIS_EI_EXTERN! The "complex" in the description doesn't really do it justice - at the very least, I would have added an "extremely" before "complex"!&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="High level definition of deeply nested structure CVIS_EI_EXTERN" style="width: 716px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348937iE98BCD22F78A2EED/image-dimensions/716x232?v=v2" width="716" height="232" role="button" title="BaerbelWinkler_0-1764935655506.png" alt="High level definition of deeply nested structure CVIS_EI_EXTERN" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;High level definition of deeply nested structure CVIS_EI_EXTERN&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;To get a better handle on what I was looking at, I extended all the structures and all of their sub-structures until reaching the lowest nesting level for each of them.&amp;nbsp; I then downloaded everything into a spreadsheet which ended up having 18(!) nested levels in columns A to R and over 32,000(!!!) rows. Here is a small snippet taken from the spreadsheet:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Green rows are for fields, blue lines indicate a (sub)structure and yellow rows tabletypes." style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348956i01CC7BBDF69BDA9A/image-size/large?v=v2&amp;amp;px=999" role="button" title="BaerbelWinkler_1-1764936645778.png" alt="Green rows are for fields, blue lines indicate a (sub)structure and yellow rows tabletypes." /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Green rows are for fields, blue lines indicate a (sub)structure and yellow rows tabletypes.&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Based on a code example found in a helpful &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/how-to-create-business-partner-and-assign-multiple-customer-roles-by-using/ba-p/13471108" target="_blank"&gt;blog post here in SAP Community&lt;/A&gt;, we started to piece together the code needed to fill this gigantic structure in order to create a new customer in our system. By now, we do have some working code but are still working out some details for specific cases where only some fields need to be updated instead a new customer created.&lt;/P&gt;&lt;H3 id="toc-hId-1698234786"&gt;Syntax error while testing logic for Australia but due to a vanished table related to Taiwan&lt;/H3&gt;&lt;P&gt;As most of you will already know, SAP calls the OSS-notes related to a conversion to S/4HANA "Simplification Items" because SAP simplified the underlying database by eliminating tables and table fields and - to state the obvious - this makes the switch to S/4HANA anything but simple, at least if you have a large custom code base like we do!&amp;nbsp;&lt;/P&gt;&lt;P&gt;While our development team has been working through the custom code conversion, other teams are already testing processes in sandbox systems. These were created based on productive systems which - even though the code is sourced from the same development system - differ in the data they contain. One is for example a small system for only one company code, while another one is used in Asian-Pacific countries, so is much larger than the first sandbox to be converted and also covers many more test cases. Testing processes related to webshop orders for Australia came to a stop when the logic ran into a syntax error because a table and its structure needed for e-documents in Taiwan was found missing.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Dump due to a syntax error" style="width: 605px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350212iB12F3FE73F303905/image-dimensions/605x427?v=v2" width="605" height="427" role="button" title="JourneyNW-to-S4HANA-Part4-03.jpg" alt="Dump due to a syntax error" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Dump due to a syntax error&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The table KNA1_TW_EXT contains just a handful of fields but they are legal requirements in Taiwan for invoices. A simplification item exists for the table but it's only the rather generic one mentioning objects no longer available in S/4HANA and it doesn't go into anything specific: &lt;A href="https://me.sap.com/notes/2296016/E" target="_blank" rel="noopener noreferrer"&gt;2296016 - SAP S/4HANA custom code adaptation - removal of orphaned objects&lt;/A&gt;. So, we were wondering what happens to the data stored in the productive system in ECC during system conversion?&lt;/P&gt;&lt;P&gt;Digging around a bit more, I found OSS-Note &lt;A href="https://me.sap.com/notes/3166424/E" target="_blank" rel="noopener noreferrer"&gt;3166424 - eDocument Taiwan: Migrate Extension Fields for Electronic Documents for Taiwan&lt;/A&gt; directly related to table KNA1_TW_EXT. In it, the conversion steps are explained and - guess what? - they involve manually downloading the data from table KNA1_TW_EXT while still on ECC and then - again manually - running SAP-provided program&amp;nbsp;&lt;SPAN&gt;EDOC_TW_CUST_MIGRATE&lt;/SPAN&gt; to add the fields' content to their "new" location which is funnily enough table KNA1! Unfortunately, we didn't have the upload program in our system and the OSS-Note wasn't applicable to our version of the S/4HANA-system anyway.&amp;nbsp;&lt;/P&gt;&lt;P&gt;So, the next step was to create an SAP incident to ask about the note's applicability in our system and to get some confirmation that these manual steps are actually necessary. We got both quickly and could then run through these motions in the sandbox system. And these steps will need to be added to the big check list for needed manual activities when the actual productive system gets converted sometime next year.&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1501721281"&gt;The need for and fun with Retrofit&lt;/H3&gt;&lt;P&gt;Given the long-running nature of our custom code conversion and process testing in sandbox systems, we obviously couldn't impose a freeze on the productive landscape still on Netweaver 750 EHP8 (ECC). We therefore needed a means to keep our new S/4HANA landscape up to date with new developments and applied changes in the corresponding ECC-system. With help from SAP, a Retrofit system based on Solution Manager was established and can now be used to "merge" changes applied in the ECC-system with the code in S/4HANA.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Simplified system landscape" style="width: 697px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350215iBDA85B9E5423971B/image-dimensions/697x299?v=v2" width="697" height="299" role="button" title="JourneyNW-to-S4HANA-Part4-02.jpg" alt="Simplified system landscape" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Simplified system landscape&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Once transports hit our ECC productive systems, they become relevant for Retrofit in S/4HANA. The transports are automatically checked and the ones without conflicts - new objects, changed objects for which no S/4HANA code conversion has happened and which don't have S/4HANA Readiness findings - are directly imported into the S/4HANA development system. Other transports are held back for manual inspections.&lt;/P&gt;&lt;P&gt;While the Retrofit framework handles report programs and includes just fine by displaying differences in the two code versions side by side, it has its limitations when it comes to Adobe forms and enhancements. For these objects the side by side comparison doesn't work and it would need to be done manually via version compare which can not just be tedious but also rather error prone. Because of that, we are now asking our colleagues who applied changes in these objects in ECC to re-apply the same changes - adapted to the S/4HANA needs - in the S/4HANA development system.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Generally and speaking from a Retrofit perspective, any change not applied in the ECC system is a good change.&amp;nbsp;Even with the tools available in Retrofit, the effort increases with frequent changes in ECC to objects already converted to S/4. And with each new change, the complexity and chances for errors increases.&lt;/P&gt;&lt;HR /&gt;&lt;P&gt;This concludes part 4 of our journey from SAP Netweaver to S/4HANA - I'm sure that 2026 will throw some more curve balls our way!&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Cartoon generated with Gemini" style="width: 599px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/350218iCB726C0EBB999422/image-dimensions/599x327/is-moderation-mode/true?v=v2" width="599" height="327" role="button" title="JourneyNW-to-S4HANA-Part4-01.jpg" alt="Cartoon generated with Gemini" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Cartoon generated with Gemini&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-blog-posts/a-journey-from-netweaver-7-50-to-s-4hana-part-4-custom-code-conversion/ba-p/14277883"/>
-    <published>2025-12-16T14:50:29.981000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/4-important-enhancements-related-to-object-type-in-sap-pm/ba-p/14292015</id>
-    <title>4 Important enhancements related to Object type in SAP PM</title>
-    <updated>2025-12-17T03:15:41.671000+01:00</updated>
-    <author>
-      <name>Vaibhav-Mishra</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/158120</uri>
-    </author>
-    <content>&lt;P&gt;Here are the top four important enhancements related to object type in SAP PM:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Default value of authorization group: The object type can be proposed for motors, pumps, compressors, electrical distribution lines, transmission lines, assembly lines, etc. Now for each of the object types there can be a default value of authorization group. We can maintain those values in a Z table. If any new object type is introduced, a default value can be added. The user can add the respective value of the authorization group later on.&lt;/LI&gt;&lt;LI&gt;Default value of Planner group: Planner groups generally work for a specific department or specific type of machine. In such a situation we can determine a specific planner group based on object type. This can be done by enhancing and maintaining the planner group and object type in the Z table.&lt;/LI&gt;&lt;LI&gt;Determine the catalog profile based on the type of object type: The catalog profile is very important for adding technical findings in the form of codes in a notification. The catalog profile should be specific to the technical object or technical object type. So, you can maintain a catalog profile and object type in a Z table and determine the catalog profile automatically at the time of creating a technical object. At the time of creating a notification, the catalog profile is determined automatically as a part of the standard SAP feature.&lt;/LI&gt;&lt;LI&gt;Determine the class and assign it to the equipment: You can determine the class automatically with respect to object type. For example, for object type "electrical pole," you can do an enhancement to determine its respective class automatically. You need to maintain the class and object type in a z table. It helps to assign the correct class to the technical object.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;You can use user exit IEQM0003&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;for the check at the time of saving the equipment.&lt;/P&gt;&lt;P&gt;You can use the BAPI =&amp;gt; BAPI_OBJCL_CHANGE to assign the class as per the object type in a equipment.&lt;/P&gt;&lt;P&gt;Regards,&lt;/P&gt;&lt;P&gt;Vaibhav Mishra&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/4-important-enhancements-related-to-object-type-in-sap-pm/ba-p/14292015"/>
-    <published>2025-12-17T03:15:41.671000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/alv-vs-alv-ida-in-sap-abap-simple-explanation-differences-amp-examples/ba-p/14287541</id>
     <title>ALV vs ALV IDA in SAP ABAP: Simple Explanation, Differences &amp; Examples</title>
@@ -1839,5 +1811,220 @@ ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <content>&lt;P&gt;Back from a blissful Christmas/New Year reset and sprinting to the keyboard—time to swap hot cocoa for hot commits. 2025 made the promise real: prompts → projects, minutes not weeks, and Joule as ABAP’s turbo button. Now we scale in 2026: agentic flows over widgets, VS Code first‑class, and AI‑driven Custom Code Migration as the headline act. Goodbye 2025, and happy New Year 2026—let’s ship.&lt;/P&gt;&lt;P&gt;What happened in 2025 and what are the peaks of 2026? Stay with me for a full retrospective of ABAP AI in 2025 and sneak preview into 2026:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Build fast (Joule on the keyboard)&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Real-time help that knows ABAP Cloud: context-aware suggestions, code prediction, and clean-core patterns.&lt;/LI&gt;&lt;LI&gt;Explain anything: ABAP and CDS code explained in plain language—no more reverse-engineering marathons.&lt;/LI&gt;&lt;LI&gt;Tests on tap: Instant unit tests for ABAP and CDS.&lt;/LI&gt;&lt;LI&gt;Roll your own AI: ABAP AI SDK powered by ISLM to plug governed GenAI into ABAP scenarios.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Ship whole apps (from help to “done”)&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;OData UI Service from Scratch Wizard + Joule chat: full RAP apps in minutes—entities, behavior, service binding, OData.&lt;/LI&gt;&lt;LI&gt;RAP Business Logic Prediction: validations and determinations generated in-context, following RAP best practices.&lt;/LI&gt;&lt;LI&gt;OData consumption in seconds: /consume generates tailored client proxy code and examples.&lt;/LI&gt;&lt;LI&gt;Extensibility AI Assistant (Public Cloud): add custom fields, find business contexts, enable usage, locate value helps, discover BADIs—by asking.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Migrate with confidence (legacy to S/4HANA-ready)&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;/docs for migration: chat with SAP Help, simplification items, and cookbooks—answers tied to your scenario.&lt;/LI&gt;&lt;LI&gt;Explain legacy code: purpose, flow, data dependencies—thousands-line “mystery” programs, understood in seconds.&lt;/LI&gt;&lt;LI&gt;Explain ATC findings: root cause, business impact, recommended APIs, and fix examples for S/4 readiness checks.&lt;/LI&gt;&lt;LI&gt;Custom Code Migration AI Assistant (Private 2025): bring all of the above into your S4/HANA simplification with 2025 PCE delivery&lt;/LI&gt;&lt;LI&gt;Next up: the standalone Custom Code Migration Application on BTP ABAP connects to any ERP (on-prem or cloud) for RISE and deliver code adaptation proposals with SAP S/4HANA 2025 FPS01.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Availability and how to start&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Joule for Developers is free for another year: 8019124 (customers), 8019541 (TDD partners). Available for BTP ABAP, S/4HANA Cloud Public, and S/4HANA Cloud Private Edition (2025). Read more on The AI Revolution Accelerates –&amp;nbsp;&lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/abap-ai-chapter-2/ba-p/14210568" target="_blank"&gt;Chapter 2&lt;/A&gt;&amp;nbsp;Awaits.&lt;/LI&gt;&lt;LI&gt;Use the ABAP AI SDK to build,&amp;nbsp;&lt;SPAN&gt;manage and operate your own AI scenarios in your ABAP developments.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;Adopt the Custom Code Migration AI Assistant (Private 2025) and the BTP-based Custom Code Migration Application for cross-system analysis soon to come&lt;/LI&gt;&lt;LI&gt;Explore SAP Help and Bolg community content from Sonja Lienard and Alexander Rother.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;A sneak-peek of 2026&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;2025 proved ABAP AI. 2026 scales it—fast. The shift: from features to frameworks, from capabilities to flows, from PoCs to enterprise-grade AI across the ABAP stack.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Agentic ABAP AI: workflows, not widgets&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Agent-led flows own the whole task: understand → transform → test → enforce clean core.&lt;/LI&gt;&lt;LI&gt;ABAP Agentic AI Flow and side-by-side agents become standard; existing use cases migrate into agents available also for older&amp;nbsp;SAP Cloud ERP Private&amp;nbsp;versions.&lt;/LI&gt;&lt;LI&gt;Aligned with Joule’s agentic direction and interoperable with industry patterns.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Joule everywhere: VS Code goes first class&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;VS Code support: ABAP language server, ABAP MCP server, native Joule for Developers.&lt;/LI&gt;&lt;LI&gt;One feel across Eclipse, VS Code, and future cloud IDEs—AI where devs actually work.&lt;/LI&gt;&lt;LI&gt;Next J4D wave: sharper suggestions, clearer explanations, feedback loops&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Flagship 2026: AI-driven Custom Code Migration (CCM)&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Double down on custom code adaptation proposal, follow up by clean-core recommendations, fit-to-standard analysis, clean core propose transformations, and code explain extension to more ABAP legacy objects&lt;/LI&gt;&lt;LI&gt;Deep agentic integration and customer-ready RISE scenarios—CCM is the hero use case.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Foundations level up: SDK, ABAP LLMs, benchmarking&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;AI SDK adds orchestration, structured outputs, streaming, and broader compatibility.&lt;/LI&gt;&lt;LI&gt;SAP-trained ABAP LLMs become consumable for higher-fidelity code understanding and generation.&lt;/LI&gt;&lt;LI&gt;Benchmarking and telemetry are standardized and automated for accuracy, price, and performance.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;ABAP-tuned LLMs: SAP doubles down via AI Core&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Continue doubling down on ABAP AI models that bake in ABAP/CDS knowledge, SAP semantics, and clean‑core patterns for higher‑fidelity understanding and safer code generation.&lt;/LI&gt;&lt;LI&gt;Delivered through AI Core: enterprise governed access to&amp;nbsp;&lt;SPAN&gt;manage the execution and operations of AI assets in a standardized, scalable, and hyperscaler-agnostic manner.&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;Plug-and-play integration: native hooks in Joule for Developers and the ABAP AI SDK, plus standardized benchmarking and telemetry as usage scales.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Bottom line for 2026&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;That’s the play: ship early, scale smart, keep the core clean—agentic flows doing the heavy lifting, Joule first‑class in VS Code, and AI‑driven CCM leading the migration sprint while ABAP‑tuned models via AI Core keep it governed. From prompts to production—minutes, not weeks. &amp;nbsp;&lt;/P&gt;&lt;P&gt;Happy New Year 2026— If 2025 unlocked ABAP AI’s potential, 2026 will make ABAP AI the core of ABAP development.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/2025-set-the-pace-2026-wins-the-race-abap-ai-with-joule-vs-code-and-ccm/ba-p/14302433"/>
     <published>2026-01-07T00:03:49.558000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/abap-blog-posts/a-handy-custom-report-to-scan-sap-cds-views-for-usage-of-search-strings/ba-p/14302373</id>
+    <title>A Handy Custom Report to Scan SAP CDS Views for Usage of Search Strings</title>
+    <updated>2026-01-08T14:07:03.052000+01:00</updated>
+    <author>
+      <name>shasankgupta024</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/877731</uri>
+    </author>
+    <content>&lt;P&gt;&lt;FONT color="#0000FF"&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Have you ever wished for an easier way to scan all your SAP CDS Views for particular strings, just as easily as you can do with ABAP reports via program &lt;STRONG&gt;RS_ABAP_SOURCE_SCAN&lt;/STRONG&gt;? If you work with CDS extensively—especially with custom developments—the need often arises to mass-search your repository for usage of table names, fields, function modules, or any arbitrary string within CDS source code.&lt;/P&gt;&lt;P&gt;Inspired by this requirement, I built a &lt;EM&gt;&lt;U&gt;&lt;STRONG&gt;custom utility report (ZSCAN_CDS_VIEWS)&lt;/STRONG&gt; &lt;/U&gt;&lt;/EM&gt;that you can run directly from SE38. It allows you to enter a list of search strings and instantly scans all CDS Views whose names begin with "Z," showing exactly which CDS View and which code line contains your search string. This can be particularly helpful during refactoring, code reviews, or cleanup tasks.&lt;/P&gt;&lt;P&gt;You can also modify the selection criteria and adjust other logic as needed to suit your specific requirements.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="shasankgupta024_0-1767726279932.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/358725iE26279FBDDE4E015/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="shasankgupta024_0-1767726279932.png" alt="shasankgupta024_0-1767726279932.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;You might already be aware that &lt;STRONG&gt;ABAP Development Tools (ADT) in Eclipse&lt;/STRONG&gt; offer an "&lt;STRONG&gt;ABAP Source Search&lt;/STRONG&gt;" feature, which is also capable of searching through CDS View sources. This tool can be handy for performing code searches directly within your development environment.&lt;/P&gt;&lt;P&gt;However, in my experience, the source search in ADT is not as user-friendly for some scenarios:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The UI can be a bit overwhelming, especially if you just want a quick list of where a string is used across dozens or hundreds of custom CDS Views.&lt;/LI&gt;&lt;LI&gt;It's not easy to search for multiple strings at once.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT color="#0000FF"&gt;&lt;STRONG&gt;Prerequisites&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;To make this report work, you’ll need the Function Module &lt;EM&gt;&lt;STRONG&gt;/ABEX/SEFW_MOD_CVA_HANA&lt;/STRONG&gt; &lt;/EM&gt;available and active in your SAP system. This FM is used to read HANA DDL sources for CDS views. Internally, it calls the method /abex/cl_main_hana~read_src to fetch the source code lines.&lt;/P&gt;&lt;P&gt;&lt;FONT color="#0000FF"&gt;&lt;STRONG&gt;How the Solution Works&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;The approach is simple but very effective:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Fetch All Custom CDS Views: The program selects all entries in table DDDDLSRC where DDLNAME starts with 'Z'.&lt;/LI&gt;&lt;LI&gt;Read Source for Each View: For each CDS View found, it uses /ABEX/SEFW_MOD_CVA_HANA to fetch the source code as a table of strings.&lt;/LI&gt;&lt;LI&gt;Scan for Your Search Strings: For every entry in your search list, it scans the code using the ABAP FIND ALL OCCURRENCES OF ... IN TABLE statement, efficiently identifying every match.&lt;/LI&gt;&lt;LI&gt;Show the Results in ALV: The results are shown in a flexible ALV grid, making it easy to filter, sort, or export as needed.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;ABAP Code&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;*&amp;amp;---------------------------------------------------------------------*
+*&amp;amp; Report ZSCAN_CDS_VIEWS
+*&amp;amp;---------------------------------------------------------------------*
+*&amp;amp;
+*&amp;amp;---------------------------------------------------------------------*
+REPORT zscan_cds_views.
+
+DATA: gv_sstring TYPE text255.
+SELECT-OPTIONS sstring FOR gv_sstring NO INTERVALS.
+
+TYPES: BEGIN OF ty_final,
+         objectname   TYPE objectname,
+         searchstring TYPE text255,
+         line         TYPE text255,
+       END OF ty_final.
+
+DATA: gt_final    TYPE STANDARD TABLE OF ty_final,
+      gt_src      TYPE /abex/string_tt,
+      gt_ddddlsrc TYPE TABLE OF ddddlsrc,
+      gv_name     TYPE objectname.
+
+FIELD-SYMBOLS: &amp;lt;fs_ddddlsrc&amp;gt; TYPE ddddlsrc,
+               &amp;lt;fs_src&amp;gt;      TYPE LINE OF /abex/string_tt,
+               &amp;lt;fs_result&amp;gt;   TYPE match_result.
+
+" --- Read all CDS sources into internal table, where DDL name starts with Z
+SELECT * FROM ddddlsrc
+  INTO TABLE @gt_ddddlsrc
+  WHERE ddlname LIKE 'Z%'.
+
+LOOP AT gt_ddddlsrc ASSIGNING &amp;lt;fs_ddddlsrc&amp;gt;.
+
+  gv_name = to_upper( &amp;lt;fs_ddddlsrc&amp;gt;-ddlname ).
+
+  " --- Call function to get the CDS source code
+  CALL FUNCTION '/ABEX/SEFW_MOD_CVA_HANA'
+    EXPORTING
+      lv_ddlname        = gv_name
+      iv_get_auth_check = abap_false
+    IMPORTING
+      et_src=gt_src
+    EXCEPTIONS
+      no_authority      = 1
+      OTHERS            = 2.
+
+  " --- Convert gt_src to a flat table for FIND
+  DATA(gt_source) = VALUE abaptxt255_tab( FOR src IN gt_src ( line = src ) ).
+
+  LOOP AT sstring INTO DATA(ls_sstring) ##into_ok.
+    FIND ALL OCCURRENCES OF ls_sstring-low IN TABLE gt_source
+      IN CHARACTER MODE
+      IGNORING CASE
+      RESULTS DATA(lt_results).
+
+    IF lt_results IS NOT INITIAL.
+      LOOP AT lt_results ASSIGNING &amp;lt;fs_result&amp;gt;.
+        TRY.
+            APPEND VALUE ty_final(
+              objectname   = gv_name
+              searchstring = ls_sstring-low
+              line         = gt_src[ &amp;lt;fs_result&amp;gt;-line ]
+            ) TO gt_final.
+          CATCH cx_sy_itab_line_not_found.
+        ENDTRY.
+      ENDLOOP.
+    ENDIF.
+  ENDLOOP.
+
+ENDLOOP.
+
+" --- Display with SALV
+DATA: lo_alv TYPE REF TO cl_salv_table.
+cl_salv_table=&amp;gt;factory(
+  IMPORTING
+    r_salv_table = lo_alv
+  CHANGING
+    t_table      = gt_final ).
+
+DATA(lo_columns) = lo_alv-&amp;gt;get_columns( ).
+lo_columns-&amp;gt;get_column( 'SEARCHSTRING' )-&amp;gt;set_long_text( 'Search String' ).
+lo_columns-&amp;gt;get_column( 'LINE' )-&amp;gt;set_long_text( 'Code Line' ).
+lo_columns-&amp;gt;set_optimize( abap_true ).
+lo_alv-&amp;gt;display( ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#0000FF"&gt;&lt;STRONG&gt;A Few Implementation Notes&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;U&gt;Performance:&lt;/U&gt; For large systems with lots of CDS Views, this report might take a little time to run. You can adjust the initial selection in the SELECT statement (e.g., limit to a specific namespace) if needed.&lt;/LI&gt;&lt;LI&gt;&lt;U&gt;Enhancements:&lt;/U&gt; &lt;EM&gt;&lt;FONT color="#FF6600"&gt;You could easily enhance this to include other filters, save the results, or adjust the output fields. The core scan logic is highly flexible.&lt;/FONT&gt;&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;U&gt;Authorization:&lt;/U&gt; Keep in mind that fucntion module /ABEX/SEFW_MOD_CVA_HANA must be available and properly authorized for your user.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT color="#0000FF"&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;This utility has saved me a lot of manual searching and helped me understand the impact of changes and references within CDS Views much quicker. I hope you find it just as useful.&amp;nbsp;If you try this out and find it helpful, or if you enhance it or spot improvement opportunities, please do share your experiences in the comments.&lt;/P&gt;&lt;P&gt;Happy coding.&lt;/P&gt;&lt;P&gt;&lt;FONT color="#0000FF"&gt;&lt;STRONG&gt;Execution&amp;nbsp;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;I want to check how many CDS views use TVARVC variables. I provided the variable names in the search string as input and executed the report.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="shasankgupta024_2-1767726739399.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/358727i816A3C0FDE85401E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="shasankgupta024_2-1767726739399.png" alt="shasankgupta024_2-1767726739399.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#0000FF"&gt;&lt;STRONG&gt;Output&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="shasankgupta024_3-1767726888508.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/358728i883FFB0E6242959D/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="shasankgupta024_3-1767726888508.png" alt="shasankgupta024_3-1767726888508.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/abap-blog-posts/a-handy-custom-report-to-scan-sap-cds-views-for-usage-of-search-strings/ba-p/14302373"/>
+    <published>2026-01-08T14:07:03.052000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/abap-blog-posts/how-to-consume-external-apis-in-s-4hana-private-cloud-edition-pce-2023-via/ba-p/14297278</id>
+    <title>How To Consume External APIs in S/4HANA Private Cloud Edition (PCE) 2023 via RAP Framework</title>
+    <updated>2026-01-08T14:08:04.222000+01:00</updated>
+    <author>
+      <name>shasankgupta024</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/877731</uri>
+    </author>
+    <content>&lt;P&gt;&lt;STRONG&gt;Scenario:&lt;/STRONG&gt;&lt;BR /&gt;Suppose we need to expose images related to a "PickTicket" from an external system, making them available in SAP via a custom OData service.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Steps Overview&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;1. Create a Custom Entity CDS View&lt;BR /&gt;2. Create Service Definition&lt;BR /&gt;3. Create Service Binding&lt;BR /&gt;4. Implement ABAP Class to Consume the External API&lt;BR /&gt;5. Test the OData Service&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;1. Create a Custom Entity (CDS View)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Start by defining a **custom entity** to represent the data structure for the API response:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Custom Entity for Image Data'
+@ObjectModel: {
+query: {
+implementedBy: 'ABAP:ZCL_IMAGESET'
+}
+}
+define root custom entity ZCE_IMAGESET
+{
+key pickticketid : abap.char(20);
+key urlshortlivedthumbnail : abap.char(255);
+trigger_ : abap.char(20);
+source : abap.char(40);
+imageid : abap.char(20);
+urlthumbnail : abap.char(255);
+urlshortlived : abap.char(255);
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This entity acts as a **virtual view**—data retrieval is handled by an ABAP class (see `implementedBy` above).&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;2. Create a Service Definition&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Expose the custom entity in your service definition:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'zsd_imageset'
+define service Zsd_imageset {
+expose ZCE_IMAGESET;
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;3. Create a Service Binding&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Next, create a **service binding**—for example, `ZSB_IMAGESET` for OData V4—which generates the OData endpoint for your application.&amp;nbsp;&lt;EM&gt;*Use the standard RAP tools in Eclipse or ADT to create this binding from the CDS service definition.*&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;4. Implement the ABAP Class to Handle API Call&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Define the ABAP class (`zcl_imageset`) to fetch and provide data from the external API.&lt;BR /&gt;Use the **RAP Query Provider Interface** (`if_rap_query_provider`) for custom data provisioning:&lt;/P&gt;&lt;P&gt;&lt;U&gt;Class Definition&lt;/U&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_imageset DEFINITION
+PUBLIC
+FINAL
+CREATE PUBLIC .
+
+PUBLIC SECTION.
+
+TYPES: BEGIN OF ty_imageset,
+trigger TYPE char20,
+pickticketid TYPE char20,
+source TYPE char40,
+imageid TYPE char20,
+urlthumbnail TYPE char255,
+urlshortlived TYPE char255,
+urlshortlivedthumbnail TYPE char255,
+END OF ty_imageset.
+
+TYPES: tt_imageset TYPE STANDARD TABLE OF ty_imageset WITH EMPTY KEY.
+
+INTERFACES if_rap_query_provider.
+PROTECTED SECTION.
+PRIVATE SECTION.
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;U&gt;Class Implementation&lt;/U&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS ZCL_IMAGESET IMPLEMENTATION.
+
+METHOD if_rap_query_provider~select.
+
+DATA lt_images TYPE tt_imageset.
+DATA lv_pickticketid TYPE string.
+
+" Get filter (PickTicketId)
+
+DATA(lo_filter) = io_request-&amp;gt;get_filter( )-&amp;gt;get_as_sql_string( ).
+DATA(lv_offset) = io_request-&amp;gt;get_paging( )-&amp;gt;get_offset( ).
+DATA(lv_page_size) = io_request-&amp;gt;get_paging( )-&amp;gt;get_page_size( ).
+DATA(lv_max_rows) = COND #( WHEN lv_page_size = if_rap_query_paging=&amp;gt;page_size_unlimited THEN 0
+ELSE lv_page_size ).
+DATA(lt_sort_table) = VALUE string_table( FOR ls_sort_element IN io_request-&amp;gt;get_sort_elements( )
+( ls_sort_element-element_name &amp;amp;&amp;amp; COND #( WHEN ls_sort_element-descending = abap_true THEN ` descending` ELSE ` ascending` ) ) ).
+CONCATENATE 'PICKTICKETID ' 'SOURCE'
+INTO DATA(lv_default_sort) SEPARATED BY ',' .
+DATA(lv_sort_string) = COND #( WHEN lt_sort_table IS INITIAL THEN lv_default_sort
+ELSE concat_lines_of( table = lt_sort_table sep = ',' ) ).
+
+
+IF io_request IS BOUND.
+DATA(lt_expressions) = io_request-&amp;gt;get_filter( )-&amp;gt;get_as_ranges( ).
+
+
+LOOP AT lt_expressions INTO DATA(ls_expr).
+IF ls_expr-name = 'PICKTICKETID'.
+LOOP AT ls_expr-range INTO DATA(ls_range).
+IF ls_range-option = 'EQ'.
+lv_pickticketid = ls_range-low.
+EXIT.
+ENDIF.
+ENDLOOP.
+EXIT.
+ENDIF.
+ENDLOOP.
+
+ENDIF.
+
+" Build target URL for the external request
+DATA(lv_url) = |https://&amp;lt;external domain url&amp;gt;/pickTickets/{ lv_pickticketid }/images|.
+
+" Create HTTP client and set headers
+DATA lo_http_client TYPE REF TO if_http_client.
+cl_http_client=&amp;gt;create_by_url(
+EXPORTING url = lv_url
+IMPORTING client = lo_http_client
+).
+lo_http_client-&amp;gt;request-&amp;gt;set_header_field( name = 'client_id' value = '&amp;lt;your_client_id&amp;gt;' ).
+lo_http_client-&amp;gt;request-&amp;gt;set_header_field( name = 'client_secret' value = '&amp;lt;your_client_secret&amp;gt;' ).
+lo_http_client-&amp;gt;send( ).
+lo_http_client-&amp;gt;receive( ).
+DATA(lv_response) = lo_http_client-&amp;gt;response-&amp;gt;get_cdata( ).
+lo_http_client-&amp;gt;close( ).
+
+" Parse JSON response to ABAP table
+DATA(lo_json) = NEW /ui2/cl_json( ).
+lo_json-&amp;gt;deserialize(
+EXPORTING json = lv_response
+CHANGING data = lt_images
+).
+
+" Return the data
+io_response-&amp;gt;set_total_number_of_records( lines( lt_images ) ).
+io_response-&amp;gt;set_data( lt_images ).
+
+ENDMETHOD.
+
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;U&gt;&lt;EM&gt;*Replace* `&amp;lt;external domain url&amp;gt;`, `&amp;lt;your_client_id&amp;gt;`, and `&amp;lt;your_client_secret&amp;gt;` *with real values.*&lt;/EM&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;5. Publish and Test Your OData Service&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Use `/IWFND/MAINT_SERVICE` or the service binding UI in Eclipse/ADT to publish your OData service.&lt;/LI&gt;&lt;LI&gt;Test the endpoint with a filter on `PickTicketId`:&lt;BR /&gt;Example:&amp;nbsp;&lt;SPAN&gt;/sap/opu/odata/sap/ZSB_IMAGESET/ZCE_IMAGESET?$filter= pickticketid eq '123456'&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;Key Takeaways&lt;/STRONG&gt;&lt;/U&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Custom Entities in RAP allow you to virtualize data from external sources as standard OData.&lt;/LI&gt;&lt;LI&gt;You can leverage the **HTTP client functionalities** in ABAP to fetch data from any REST API.&lt;/LI&gt;&lt;LI&gt;RAP and ABAP Cloud stack are open for API-driven architectures.&lt;/LI&gt;&lt;LI&gt;Make sure to treat secrets and API credentials securely—avoid hardcoding in productive code.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;You now have a **custom OData service** in SAP S/4HANA PCE, powered by the RAP framework, which brings in dynamic data from an **external API**. You can enhance, secure, and extend this pattern for many integration use cases—be it analytics dashboards, mobile apps, or UI5/Fiori apps!&lt;/P&gt;&lt;P&gt;Let me know your feedback, or reach out for specific questions.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/abap-blog-posts/how-to-consume-external-apis-in-s-4hana-private-cloud-edition-pce-2023-via/ba-p/14297278"/>
+    <published>2026-01-08T14:08:04.222000+01:00</published>
   </entry>
 </feed>
