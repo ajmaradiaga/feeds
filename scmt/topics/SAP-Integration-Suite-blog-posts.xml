@@ -2,97 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Integration-Suite-blog-posts.xml</id>
   <title>SAP Community - SAP Integration Suite</title>
-  <updated>2026-01-20T09:01:21.845859+00:00</updated>
+  <updated>2026-01-20T12:01:19.371328+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Integration Suite/pd-p/73554900100800003241" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Integration Suite blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/asynchronous-logging-in-sap-api-management/ba-p/14294096</id>
-    <title>Asynchronous Logging in SAP API Management</title>
-    <updated>2026-01-08T13:58:24.166000+01:00</updated>
-    <author>
-      <name>Aishwarya_Pola</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2090996</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Introduction&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;When configuring APIs in SAP API Management, it is as important aspect to configure info logging or error logging and then send it across to the downstream systems like Loggly, ServiceNow etc. which is Synchronous mode by default. Since the default logging in API Proxies takes place in Synchronous mode, the consumer of the API Proxy must wait for all backend calls to finish, which increases the total response time which is a big concern in the Request-Reply pattern.&lt;/P&gt;&lt;P&gt;This blog explains how to implement&amp;nbsp;true asynchronous logging in SAP API Management. The main objective of this blog is to showcase the approach of implementing Asynchronous logging in APIM and improve the response time which is so critical for Request-Reply Pattern.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Synchronous vs Asynchronous Logging&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Before building the necessary Artifacts for enabling Asynchronous logging, let’s understand the behavioral difference:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Synchronous Logging&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;When a request arrives, the API proxy processes it to the target backend and then directly calls logging systems like Loggly where in the result could be success or failure. If it is success ,the flow moves into the PostFlow of the proxy endpoint. Here, the proxy makes a synchronous call to the logging system. The response is sent to the consumer only after this logging call finishes, which increases the overall response time. If there is a failure, the flow triggers FaultRules where error logging happens synchronously, and the error response is sent only after the logging call completes.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Asynchronous Logging&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;When a request arrives, the API proxy processes it and immediately sends the response back to the api proxy consumer due to async mode of logging. Logging operations happen separately in the background by queuing messages to JMS for later processing. Background processes handle the actual delivery to Loggly or other logging platforms. If logging fails, it gets retried without impacting the response time.&lt;/P&gt;&lt;P&gt;Compared to synchronous logging, this approach helps APIs respond faster, keeps logging problems away and perform well even during high traffic.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Architecture Overview&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Aishwarya_Pola_0-1766124000703.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/354055i295441D008924BDA/image-size/large?v=v2&amp;amp;px=999" role="button" title="Aishwarya_Pola_0-1766124000703.png" alt="Aishwarya_Pola_0-1766124000703.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Implementation Steps:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 1:Create a proxy endpoint:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Aishwarya_Pola_3-1767592671809.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/358035iA1CA928D19798EAD/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Aishwarya_Pola_3-1767592671809.png" alt="Aishwarya_Pola_3-1767592671809.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;After creating the proxy endpoint, include the following policies:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 2: Extract the Control Header&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;First, we add a header to control when asynchronous logging should be used.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Policy: ExtractVariables-Flag.xml&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;?xml version="1.0" encoding="UTF-8" standalone="yes"?&amp;gt;
-&amp;lt;ExtractVariables async="false" continueOnError="false" enabled="true" xmlns="http://www.sap.com/apimgmt"&amp;gt;
-&amp;lt;! -- Extract AsyncFlag from incoming HTTP header --&amp;gt;
-    &amp;lt;Header name="AsyncFlag"&amp;gt;
-        &amp;lt;Pattern&amp;gt;{AsyncFlag}&amp;lt;/Pattern&amp;gt;
-    &amp;lt;/Header&amp;gt;
-&amp;lt;IgnoreUnresolvedVariables&amp;gt;false&amp;lt;/IgnoreUnresolvedVariables&amp;gt;
-    &amp;lt;Source&amp;gt;request&amp;lt;/Source&amp;gt;
-&amp;lt;/ExtractVariables&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This extracts the&amp;nbsp;&lt;STRONG&gt;AsyncFlag&lt;/STRONG&gt;&amp;nbsp;header from the request. When the value is "true", asynchronous logging will be triggered.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 3: Prepare the Log Payload&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Build the log message containing all the request details you want to capture. This structured JSON format makes it easy to search and analyze logs in Loggly.&lt;BR /&gt;&lt;STRONG&gt;Policy: AssignMessage-LogPayload.xml&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;!-- This policy assigns a log payload JSON to a variable --&amp;gt;
-&amp;lt;AssignMessage async="false" continueOnError="false" enabled="true" xmlns='http://www.sap.com/apimgmt'&amp;gt;
-  &amp;lt;AssignVariable&amp;gt;
-    &amp;lt;Name&amp;gt;LogPayload&amp;lt;/Name&amp;gt;
-    &amp;lt;Value&amp;gt;
-      {
-        "timestamp":”system.timestamp}",
-        "messageId":"{messageid}",
-        "apiProxy":"{apiproxy.name}",
-        "environment":"{environment.name}",
-        "logLevel":"INFO",
-        "description":"Request received for processing",
-        "syncFlag":"{req.AsyncFlag}",
-        "targetURL":"{target.url}"
-      }
-    &amp;lt;/Value&amp;gt;
-  &amp;lt;/AssignVariable&amp;gt;
-&amp;lt;IgnoreUnresolvedVariables&amp;gt;false&amp;lt;/IgnoreUnresolvedVariables&amp;gt;
-  &amp;lt;AssignTo createNew="false" type="request"&amp;gt;request&amp;lt;/AssignTo&amp;gt;
-&amp;lt;/AssignMessage&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This creates a variable called&amp;nbsp;&lt;STRONG&gt;LogPayload&lt;/STRONG&gt;&amp;nbsp;containing a JSON object.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 4: Configure the Async Log Request&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Prepare the request object that will be used to send logs asynchronously. This step structures how the log data will be transmitted to the logging system.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Policy: AssignMessage-AsyncLogRequest.xml&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;?xml version="1.0" encoding="UTF-8" standalone="yes"?&amp;gt;
-&amp;lt;AssignMessage async="false" continueOnError="false" enabled="true" xmlns="http://www.sap.com/apimgmt"&amp;gt;
-&amp;lt;!-- Assign payload and headers for async log request --&amp;gt;
-  &amp;lt;AssignVariable&amp;gt;
-    &amp;lt;Name&amp;gt;AsyncLogRequest.payload&amp;lt;/Name&amp;gt;
-    &amp;lt;Value&amp;gt;{logPayload}&amp;lt;/Value&amp;gt;
-  &amp;lt;/AssignVariable&amp;gt;
-&amp;lt;AssignVariable&amp;gt;
-    &amp;lt;Name&amp;gt;AsyncLogRequest.header.Content-Type&amp;lt;/Name&amp;gt;
-    &amp;lt;Value&amp;gt;application/json&amp;lt;/Value&amp;gt;
-  &amp;lt;/AssignVariable&amp;gt;
-&amp;lt;AssignVariable&amp;gt;
-    &amp;lt;Name&amp;gt;AsyncLogRequest.verb&amp;lt;/Name&amp;gt;
-    &amp;lt;Value&amp;gt;POST&amp;lt;/Value&amp;gt;
-  &amp;lt;/AssignVariable&amp;gt;
-&amp;lt;IgnoreUnresolvedVariables&amp;gt;false&amp;lt;/IgnoreUnresolvedVariables&amp;gt;
-  &amp;lt;AssignTo createNew="true" type="request"&amp;gt;AsyncLogRequest&amp;lt;/AssignTo&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Step 5: Configure Authentication Credentials&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Configure the authentication needed to securely call your SAP Cloud Integration endpoint. Store your cloud integration client credentials and encode them into the proper authorization header format that will be used when sending logs.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Aishwarya_Pola_1-1767591980108.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/358033i7DC5EAA507B08F9E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Aishwarya_Pola_1-1767591980108.png" alt="Aishwarya_Pola_1-1767591980108.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 6: Trigger Asynchronous Logging via Integration Flow and JMS&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In this step, the API proxy hands over the prepared log payload to an integration endpoint asynchronously, and from there the message is written into a JMS queue. This asynchronous approach ensures that it does&amp;nbsp;not wait for the logging response and no delay to the consumer.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Aishwarya_Pola_0-1767591623781.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/358031i51B42497EEE4D35E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Aishwarya_Pola_0-1767591623781.png" alt="Aishwarya_Pola_0-1767591623781.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;?xml version="1.0" encoding="UTF-8" standalone="yes"?&amp;gt;
-&amp;lt;ServiceCallout async="true" continueOnError="false" enabled="true" xmlns="http://www.sap.com/apimgmt"&amp;gt;
-    &amp;lt;Request clearPayload="true"&amp;gt;
-        &amp;lt;Set&amp;gt;
-            &amp;lt;Headers&amp;gt;
-                &amp;lt;Header name="Content-Type"&amp;gt;application/json&amp;lt;/Header&amp;gt;
-                &amp;lt;Header name="Authorization"&amp;gt;{sapapim.Authorization}&amp;lt;/Header&amp;gt;
-            &amp;lt;/Headers&amp;gt;
-            &amp;lt;Payload contentType="application/json"&amp;gt;{logPayload}&amp;lt;/Payload&amp;gt;
-            &amp;lt;Verb&amp;gt;POST&amp;lt;/Verb&amp;gt;
-        &amp;lt;/Set&amp;gt;
-        &amp;lt;IgnoreUnresolvedVariables&amp;gt;false&amp;lt;/IgnoreUnresolvedVariables&amp;gt;
-    &amp;lt;/Request&amp;gt;
-    &amp;lt;Response&amp;gt;cpi.logresponse&amp;lt;/Response&amp;gt;
-
-    &amp;lt;Timeout&amp;gt;30000&amp;lt;/Timeout&amp;gt;
-
-    &amp;lt;HTTPTargetConnection&amp;gt;
-        &amp;lt;URL&amp;gt;https://{cpi-tenant-url}/http/Async_toJMS&amp;lt;/URL&amp;gt;
-    &amp;lt;/HTTPTargetConnection&amp;gt;
-&amp;lt;/ServiceCallout&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Important:&lt;/STRONG&gt;&amp;nbsp;This policy is configured to be executed only when the condition&amp;nbsp;&lt;STRONG&gt;request.header.AsyncFlag = "true"&lt;/STRONG&gt;&amp;nbsp;is met. This means asynchronous logging is triggered based on the header value sent in the request.&lt;/P&gt;&lt;P&gt;Once the integration endpoint receives the log payload, it stores the message in a JMS queue instead of sending it directly to Loggly or another logging system. This is where real asynchronous behavior comes from.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Why JMS helps with asynchronous logging?&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;JMS queues let the integration flow accept a log message, drop it into a queue, and return immediately. The queue takes responsibility for the message from that point on. A separate consumer reads from the queue later and sends the log to Loggly or any other target system such as service now etc.&lt;/P&gt;&lt;P&gt;This means the logging process is completely decoupled from the original request. The API response is not tied to how fast Loggly responds or whether it is even available at that moment. The request finishes as soon as the business logic is done, while JMS guarantees that the log will be processed in the background, which is exactly the asynchronous behavior we want.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Asynchronous logging keeps logging out of the API’s critical execution path. The API finishes its business processing and sends the response back to the client right away, while logs are passed in the background to the integration layer and JMS for delivery to Loggly.&lt;/P&gt;&lt;P&gt;This way, response times stay fast, logging delays or outages don’t affect the API, and you still get all the visibility needed for monitoring and troubleshooting. It’s a practical approach that balances performance, reliability, and observability, making it a good fit for high-volume, enterprise APIs.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/asynchronous-logging-in-sap-api-management/ba-p/14294096"/>
-    <published>2026-01-08T13:58:24.166000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/the-curious-case-of-sap-community-moderation-a-study-in-arbitrary/ba-p/14303785</id>
-    <title>The Curious Case of SAP Community Moderation: A Study in Arbitrary Excellence</title>
-    <updated>2026-01-08T14:39:45.568000+01:00</updated>
-    <author>
-      <name>vinaymittal</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/187725</uri>
-    </author>
-    <content>&lt;P class=""&gt;&lt;STRONG&gt;The Curious Case of SAP Community Moderation: A Study in Arbitrary Excellence&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;There's something almost admirable about a system so perfectly calibrated to frustrate its most dedicated contributors. SAP Community's moderation team has achieved what few organisations dare to attempt: the complete democratisation of confusion.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;The Algorithm Knows Best&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;Picture this: you've spent hours crafting a technical blog post. You hit publish. Within moments, the machine learning system — trained, presumably, by a committee of caffeinated squirrels — determines your carefully researched content is indistinguishable from Nigerian prince correspondence. Welcome to spam jail.&lt;/P&gt;&lt;P class=""&gt;But fear not! The moderators check the filter "regularly." Your content will resurface within 24 business hours. Or minutes. Or perhaps never. The timeline, much like the moderation logic itself, remains charmingly mysterious.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;A Tale of Two Blogs&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;Here's where it gets genuinely fascinating.&lt;/P&gt;&lt;P class="" data-unlink="true"&gt;A blog post about shell command execution in SAP CPI&amp;nbsp; —&lt;/P&gt;&lt;P class="" data-unlink="true"&gt;https://community.sap.com/t5/integration-blog-posts/getting-unconventional-with-groovy-part-1-executing-shell-commands-reading/ba-p/14294407#M2049&lt;/P&gt;&lt;P class="" data-unlink="true"&gt;&amp;nbsp;&lt;/P&gt;&lt;P class="" data-unlink="true"&gt;one that, by the author's own assessment, "doesn't reveal 10% of what already existing articles reveal" — gets nuked from orbit.&lt;/P&gt;&lt;P class="" data-unlink="true"&gt;Meanwhile, this gem about terminal access to CPI runtime&amp;nbsp;&lt;/P&gt;&lt;P class="" data-unlink="true"&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/terminal-access-to-cpi-runtime-execution-of-shell-commands-on-cpi-runtime/ba-p/13460198" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-members/terminal-access-to-cpi-runtime-execution-of-shell-commands-on-cpi-runtime/ba-p/13460198 &lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;has been sunbathing peacefully on the platform for five years. Five. Years.&lt;/P&gt;&lt;P class="" data-unlink="true"&gt;And what about this post detailing PGP secret keyring handling&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/pgp-secret-keyring-in-cpi-the-lost-passphrase-recovery/ba-p/13491284" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-members/pgp-secret-keyring-in-cpi-the-lost-passphrase-recovery/ba-p/13491284&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;? If we're genuinely concerned about security implications, one might think exposing cryptographic key management deserves more scrutiny than reading a file via shell script. But no. That one's fine. Perfectly fine.&lt;/P&gt;&lt;P class=""&gt;The logic? There isn't any. Or if there is, it's locked in a vault somewhere, guarded by the same people who decided "Moderator 972001" was an appropriately human identifier.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;The Silence Says Everything&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;When these inconsistencies are raised — politely at first, then with understandable frustration — the response is instructive in its absence.&lt;/P&gt;&lt;P class=""&gt;No explanation. No acknowledgment. No "we'll look into it."&lt;/P&gt;&lt;P class=""&gt;Just the digital equivalent of being shown the door while someone pretends to be very busy with paperwork.&lt;/P&gt;&lt;P class=""&gt;As one contributor put it: &lt;EM&gt;"Is there no accountability left?"&lt;/EM&gt;&lt;/P&gt;&lt;P class=""&gt;The answer, delivered through elegant silence, appears to be: correct.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Transparency? Never Heard of Her&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;The moderation team operates with the transparency of a brick wall painted black and placed in a basement with no stairs. Decisions materialise from the void. Appeals dissolve into it.&lt;/P&gt;&lt;P class=""&gt;"Moderator 972001" — a designation that radiates all the warmth and humanity of a tax audit — can apparently remove two blogs in three days from the same contributor without so much as a form letter explaining why.&lt;/P&gt;&lt;P class=""&gt;One might ask: is this moderator a real person? A bot? A random number generator with delete privileges?&lt;/P&gt;&lt;P class=""&gt;The community may never know. And that, apparently, is by design.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;The God Complex, Quantified&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;There's a specific institutional pathology at play here. It's the quiet arrogance of systems that punish engagement, reward silence, and treat questions about their own behaviour as an inconvenience.&lt;/P&gt;&lt;P class=""&gt;When contributors ask &lt;EM&gt;"Are the moderators operating in good faith?"&lt;/EM&gt; — a reasonable question given the evidence — the absence of any response tells you everything.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;In Conclusion&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;The SAP Community moderation team has built something remarkable: a platform where the most knowledgeable contributors are rewarded with suspicion, inconsistency, and bureaucratic indifference.&lt;/P&gt;&lt;P class=""&gt;One needn't resort to profanity to describe them. Their work speaks eloquently enough.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/the-curious-case-of-sap-community-moderation-a-study-in-arbitrary/ba-p/14303785"/>
-    <published>2026-01-08T14:39:45.568000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/integration-blog-posts/integration-advisor-gs1-xml-messages-of-the-version-2-x-series-ean-ucc/ba-p/14295817</id>
     <title>Integration Advisor – GS1 XML Messages of the version 2.x series (EAN.UCC)</title>
@@ -245,142 +158,150 @@
       <name>vinaymittal</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/187725</uri>
     </author>
-    <content>&lt;H1 id="toc-hId-1658804897"&gt;Introduction&lt;/H1&gt;&lt;P&gt;If you are familiar with a previous blog I had written on Configurable Custom headers in SAP CI where you could just add more custom headers in SAP CI message just by configuring the iflow and without having to edit the iflow and then transport it you understand how important and useful this solution is.&lt;/P&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/sap-ci-user-defined-search-made-easy-and-automated/ba-p/13564262" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-members/sap-ci-user-defined-search-made-easy-and-automated/ba-p/13564262&lt;/A&gt;&lt;/P&gt;&lt;P&gt;This solution was however limited in the sense that it didn't allow you to log the payload in the same step, didn't work at all if the value to be logged in custom headers had to be derived from an expression, or if the value to be logged was actually a file path for instance and shouldn't be evaluated as an xpath, or the value was just a constant or if the value was the be derived from a gpath.&lt;/P&gt;&lt;P&gt;This advanced solution enables 360 degree message logging and Custom header logging for all these scenarios.&lt;/P&gt;&lt;H1 id="toc-hId-1462291392"&gt;Solution&amp;nbsp;&lt;/H1&gt;&lt;P&gt;This upgraded Script handles all such cases as we shortly see. -&lt;STRONG&gt; This script has been tested with payloads up to 10mb and has resulted in a processing time of 10-50milli seconds for the script step in my tenant.&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;import com.sap.gateway.ip.core.customdev.util.Message;
-import javax.xml.xpath.XPathFactory;
-import javax.xml.xpath.XPathExpression;
-import javax.xml.xpath.XPathConstants;
+    <content>&lt;H1 id="toc-hId-1658804897"&gt;Introduction&lt;/H1&gt;&lt;P&gt;If you are familiar with a previous blog I had written on Configurable Custom headers in SAP CI where you could just add more custom headers in SAP CI message just by configuring the iflow and without having to edit the iflow and then transport it you understand how important and useful this solution is.&lt;/P&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/sap-ci-user-defined-search-made-easy-and-automated/ba-p/13564262" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-members/sap-ci-user-defined-search-made-easy-and-automated/ba-p/13564262&lt;/A&gt;&lt;/P&gt;&lt;P&gt;This solution was however limited in the sense that it didn't allow you to log the payload in the same step, didn't work at all if the value to be logged in custom headers had to be derived from an expression, or if the value to be logged was actually a file path for instance and shouldn't be evaluated as an xpath, or the value was just a constant or if the value was the be derived from a gpath.&lt;/P&gt;&lt;P&gt;This advanced solution enables 360 degree message logging and Custom header logging for all these scenarios.&lt;/P&gt;&lt;H1 id="toc-hId-1462291392"&gt;Solution&amp;nbsp;&lt;/H1&gt;&lt;P&gt;This upgraded Script handles all such cases as we shortly see. -&lt;STRONG&gt; This script has been tested with payloads up to 10mb and has resulted in a processing time of 10-50milli seconds for the script step in my tenant.&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;import com.sap.gateway.ip.core.customdev.util.Message
+import javax.xml.xpath.XPathFactory
+import javax.xml.xpath.XPathExpression
+import javax.xml.xpath.XPathConstants
 import javax.xml.parsers.DocumentBuilderFactory
 import groovy.json.JsonSlurper
-
-
+import java.io.InputStream
+import java.io.ByteArrayInputStream
 
 def Message processData(Message message) {
-    def body = message.getBody(java.lang.String) as String;
-    def messageLog = messageLogFactory.getMessageLog(message);
-    def propertyMap = message.getProperties()
-     def headers = message.getHeaders();
-     def value = headers.get("SAPJMSRetries");
-   int SAPJMSRetries = -1;
-    if(value != null)
-    {
-    
-      SAPJMSRetries =   Integer.parseInt((String)value);
-    }      
-    //Read logger from the Message Properties
-    String logger = propertyMap.get("logger");
-    String logPayloadFileName = propertyMap.get("logPayloadFileName");
-    
-    
-    if(logger != null &amp;amp;&amp;amp; logger.equals("1") &amp;amp;&amp;amp; SAPJMSRetries == -1){//log payload only once
-        if(messageLog != null){
-           // messageLog.setStringProperty("Logging#1", "Printing Payload As Attachment")
-            if(logPayloadFileName == null)
-                logPayloadFileName = "payload";
-            messageLog.addAttachmentAsString(logPayloadFileName, body, "text/plain");
-         }
+
+    InputStream bodyIS = message.getBody(InputStream)   // &amp;lt;-- InputStream
+    def headers = message.getHeaders()
+    def properties = message.getProperties()
+    def messageLog = messageLogFactory.getMessageLog(message)
+
+    def value = headers.get("SAPJMSRetries")
+    int SAPJMSRetries = -1
+    if (value != null) {
+        SAPJMSRetries = Integer.parseInt((String) value)
     }
-    message = logKeys(message);
-  return message;
+
+    String logger = properties.get("logger")
+    String logPayloadFileName = properties.get("logPayloadFileName")
+
+    // Payload logging (still needs String)
+    if (logger == "1" &amp;amp;&amp;amp; SAPJMSRetries == -1 &amp;amp;&amp;amp; messageLog != null) {
+        if (logPayloadFileName == null) {
+            logPayloadFileName = "payload"
+        }
+        def payloadString = bodyIS.getText("UTF-8")
+        messageLog.addAttachmentAsString(logPayloadFileName, payloadString, "text/plain")
+
+        // Reset stream for further processing
+        bodyIS = new ByteArrayInputStream(payloadString.bytes)
+        message.setBody(bodyIS)
+    }
+
+    message = logKeys(message)
+    return message
 }
 
-def Message logKeys(Message message) 
-{
-    
-def xml = message.getBody(java.lang.String) as String;
+def Message logKeys(Message message) {
 
-    
-    def properties = message.getProperties();
-    
-    def search_attributes = properties.get("search_attributes");
-    def attribute_xpaths = properties.get("attribute_xpaths");
-    def json = null;
+    InputStream bodyIS = message.getBody(InputStream)   // &amp;lt;-- InputStream
+    def properties = message.getProperties()
+    def messageLog = messageLogFactory.getMessageLog(message)
 
-    if( (search_attributes != null &amp;amp;&amp;amp; attribute_xpaths != null) &amp;amp;&amp;amp; (!search_attributes.equals("") &amp;amp;&amp;amp; !attribute_xpaths.equals("")) )
-    {
-        def messageLog = messageLogFactory.getMessageLog(message);
-    
-         String[] search_attributes_array = search_attributes.split("#");
-         String[] attribute_xpaths_array = attribute_xpaths.split("#");
-     
+    def search_attributes = properties.get("search_attributes")
+    def attribute_xpaths = properties.get("attribute_xpaths")
 
+    if (!search_attributes || !attribute_xpaths) {
+        return message
+    }
 
-        if(search_attributes_array.length == attribute_xpaths_array.length )
-        {
-            String saveCustomHeadersAsAnAttachment = ""; //this is needed if the xpath occurs multiple Runtime
-            //as SAP CI monitoring truncates the values if they are too long - in display defeating the purpose
-            //of the headers
-            
-          
-        
-  
-            for(int i=0; i&amp;lt;attribute_xpaths_array.length; i++)
-            {
-             String temp_value= "";
-            
-                //check if the attributeXpaths field contains a xpath or a constant value 
-                if(( attribute_xpaths_array[i].startsWith("XPATH:") )  ) //if you want to enter a value like /folder1/folder2 enter it just dont add XPATH: in beginning and it would be treated like a constant
-                {
-                    def xpath_exp = attribute_xpaths_array[i].substring(6,attribute_xpaths_array[i].length());
-                    try{
-                          def xpath = XPathFactory.newInstance().newXPath()
-                          def builder     = DocumentBuilderFactory.newInstance().newDocumentBuilder()
-                          def inputStream = new ByteArrayInputStream( xml.bytes )
-                          def records     = builder.parse(inputStream).documentElement
-                        XPathExpression expr = xpath.compile(xpath_exp)
-                        def nodes = expr.evaluate(  records, XPathConstants.NODESET );
-            
-                        if(nodes != null)
-                        {
-                            for(int j = 0; j &amp;lt; nodes.getLength(); j++)
-                            {
-                                //messageLog.addCustomHeaderProperty(search_attributes_array[i], nodes.item(j).getTextContent());
-                                temp_value = temp_value+nodes.item(j).getTextContent()+",";
-                            }
-                            if((temp_value.length() &amp;gt; 1) &amp;amp;&amp;amp; temp_value.endsWith(","))
-                                temp_value = temp_value.substring(0,temp_value.length()-1);
-                        }
-                    }
-                    catch(Exception e)//what if its a invalid xpath and the person just really has a / in the value then add it as is
-                    {
-                          temp_value =   attribute_xpaths_array[i];//un adulterated value aded to custom header 
-                    }
-                }
-                else if(attribute_xpaths_array[i].startsWith("GPATH:"))
-                {
-                    try{
-                    if(json == null)
-                        json = new JsonSlurper().parseText(xml)//ignore the variable name its json
-                        
-                     def gpath = attribute_xpaths_array[i].substring(6,attribute_xpaths_array[i].length());
-                     
-                    temp_value =   (Eval.me('json', json, "json.${gpath}")).toString();
-                    
-                    }
-                    catch(Exception e)
-                    {
-                        //nothing to be done here. If this fails this shouldn't impact message processing in any way by design.
-                         messageLog.addAttachmentAsString("Exception Encountered in Logging", e.message, "text/plain");
-                    }
-                }
-                else//it doesnt contain any / hence it is not a xpath which tells us not to treat it as an xpath and might just be an Expression
-                {
-                  temp_value =   attribute_xpaths_array[i];//un adulterated value aded to custom header 
-                }
-                if(temp_value != null)
-                {
-                    //temp_value = temp_value;
-                    messageLog.addCustomHeaderProperty(search_attributes_array[i], temp_value);
-                    saveCustomHeadersAsAnAttachment = saveCustomHeadersAsAnAttachment + search_attributes_array[i] + " : " +temp_value+"\n";
+    String[] search_attributes_array = search_attributes.split("#")
+    String[] attribute_xpaths_array = attribute_xpaths.split("#")
+
+    if (search_attributes_array.length != attribute_xpaths_array.length) {
+        return message
+    }
+
+    String saveCustomHeadersAsAnAttachment = ""
+    def xmlDocument = null
+    def jsonObject = null
+
+    for (int i = 0; i &amp;lt; attribute_xpaths_array.length; i++) {
+
+        String temp_value = ""
+        String attr = attribute_xpaths_array[i]
+
+        // ---------- XPATH ----------
+        if (attr.startsWith("XPATH:")) {
+
+            try {
+                if (xmlDocument == null) {
+                    def builder = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                    xmlDocument = builder.parse(bodyIS)
+
+                    // reset stream for next usage
+                    bodyIS.reset()
                 }
 
+                def xpathExp = attr.substring(6)
+                def xpath = XPathFactory.newInstance().newXPath()
+                XPathExpression expr = xpath.compile(xpathExp)
+                def nodes = expr.evaluate(xmlDocument, XPathConstants.NODESET)
+
+                for (int j = 0; j &amp;lt; nodes.length; j++) {
+                    temp_value += nodes.item(j).textContent + ","
+                }
+
+                if (temp_value.endsWith(",")) {
+                    temp_value = temp_value[0..-2]
+                }
+
+            } catch (Exception e) {
+                temp_value = attr
             }
-            if(saveCustomHeadersAsAnAttachment != null &amp;amp;&amp;amp; !saveCustomHeadersAsAnAttachment.equals("") &amp;amp;&amp;amp; saveCustomHeadersAsAnAttachment.length() &amp;gt; 200)
-                 messageLog.addAttachmentAsString("FullTextOfTruncatedCustomHeaders", saveCustomHeadersAsAnAttachment, "text/plain");
-               
+        }
+
+        // ---------- GPATH ----------
+        else if (attr.startsWith("GPATH:")) {
+
+            try {
+                if (jsonObject == null) {
+                    jsonObject = new JsonSlurper().parse(bodyIS)
+
+                    // reset stream for next usage
+                    bodyIS.reset()
+                }
+
+                def gpath = attr.substring(6)
+                temp_value = Eval.me("json", jsonObject, "json.${gpath}")?.toString()
+
+            } catch (Exception e) {
+                messageLog?.addAttachmentAsString(
+                        "Exception Encountered in Logging",
+                        e.message,
+                        "text/plain"
+                )
+            }
+        }
+
+        // ---------- CONSTANT ----------
+        else {
+            temp_value = attr
+        }
+
+        if (temp_value != null) {
+            messageLog?.addCustomHeaderProperty(search_attributes_array[i], temp_value)
+            saveCustomHeadersAsAnAttachment += "${search_attributes_array[i]} : ${temp_value}\n"
         }
     }
 
-        return message;
+    if (saveCustomHeadersAsAnAttachment.length() &amp;gt; 200) {
+        messageLog?.addAttachmentAsString(
+                "FullTextOfTruncatedCustomHeaders",
+                saveCustomHeadersAsAnAttachment,
+                "text/plain"
+        )
+    }
+
+    return message
 }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Let's consider following XML sample as inbound XML payload&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;Invoice&amp;gt;
   &amp;lt;InvHeader&amp;gt;
     &amp;lt;InvNumber&amp;gt;4385689&amp;lt;/InvNumber&amp;gt;
@@ -567,5 +488,29 @@ Content-Type: application/octet-stream
     <content>&lt;P&gt;&lt;SPAN&gt;Google Pub/Sub is a reliable messaging tool that lets your systems talk to each other securely using 'topics.'&amp;nbsp;It’s&amp;nbsp;great for sharing data in real-time across different cloud platforms. With the Google Pub/Sub adapter in SAP CPI, you can easily send or receive messages, making it much simpler to connect your SAP processes with Google Cloud&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The Google Pub/Sub Adapter is available in both sender and receiver modes to streamline message-based workflows and comes in two variants — REST and&amp;nbsp;gRPC.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Key Features&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Publish&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;single messages&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;(Basic)&amp;nbsp;or&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;multiple messages&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;(Advanced)&amp;nbsp;at once.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Use&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;gRPC&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;for real-time performance or&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;REST&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;for polling at defined intervals.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Google Pub/Sub accepts only Base64-encoded data, and the adapter can handle encoding automatically.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Provides&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;multiple post-processing&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;options: Acknowledge after Successful Processing, Acknowledge Immediately, and Do not Acknowledge.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Supports Authentication via&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;OAuth2 service account&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;authentication&amp;nbsp;and&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Workload Identity Federation&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;Practical Use Case Walkthrough&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN class=""&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;In this section, we will&amp;nbsp;demonstrate&amp;nbsp;how to send&amp;nbsp;SalesOrder&amp;nbsp;data to a topic using the Google Pub/Sub Receiver adapter and then read the message again with the Google Pub/Sub Sender adapter, using the REST protocol for messaging.&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;Publish a Message using Google&amp;nbsp;PubSub&amp;nbsp;Receiver&amp;nbsp;Adapter&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN class=""&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Tejas_Amale_1-1768571896351.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362027i35D93E0D62D74488/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Tejas_Amale_1-1768571896351.png" alt="Tejas_Amale_1-1768571896351.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;Prepare&amp;nbsp;Payload in&amp;nbsp;Content Modifier &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN class=""&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;For the demonstration, we hardcode the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;SalesOrder&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;data into the message body. In real time, you can dynamically store the payload from the source system.&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Tejas_Amale_1-1768569446926.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362007i5C4C0D50A9108D85/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Tejas_Amale_1-1768569446926.png" alt="Tejas_Amale_1-1768569446926.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;Configure the Google Pub/Sub Receiver Adapter&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Tejas_Amale_3-1768569622628.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362009iCA40DD9F838670F6/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Tejas_Amale_3-1768569622628.png" alt="Tejas_Amale_3-1768569622628.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;Connection tab:&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="193.062px" height="50px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Parameter &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="736.938px" height="50px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Description &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="193.062px" height="50px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Address &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="736.938px" height="50px"&gt;&lt;P&gt;&lt;SPAN&gt;Specify the hostname to connect&amp;nbsp;Google&amp;nbsp;Pub/Sub.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="193.062px" height="176px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Authentication Type &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="736.938px" height="176px"&gt;&lt;P&gt;&lt;SPAN&gt;Select the method for authentication to Google Pub/Sub.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;OAuth2 Service Account&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;Workload Identity Federation&amp;nbsp;&amp;nbsp;&lt;/LI&gt;&lt;/UL&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="193.062px" height="77px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;OAuth2 Token URL &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="736.938px" height="77px"&gt;&lt;P&gt;&lt;SPAN&gt;Specify the OAuth2 Token URL which identifies as the authorization server for producing a JWT token internally.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="193.062px" height="50px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Client Email &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="736.938px" height="50px"&gt;&lt;P&gt;&lt;SPAN&gt;Specify Google Service Account Client Email.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="193.062px" height="50px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Private Key Alias &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="736.938px" height="50px"&gt;&lt;P&gt;&lt;SPAN&gt;Specify the Google Service Account Private Key for authentication.&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt; &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="193.062px" height="50px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Scope &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="736.938px" height="50px"&gt;&lt;P&gt;&lt;SPAN&gt;Specify the scope of the connection to Google Pub/Sub service.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="193.062px" height="77px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Reuse Connection &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="736.938px" height="77px"&gt;&lt;P&gt;&lt;SPAN&gt;Enable the reuse of connection objects from the internal connection&amp;nbsp;pool&amp;nbsp;which in turn improves the network turnaround time for multiple communications to the same end point.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="193.062px" height="77px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Connection Timeout (in&amp;nbsp;ms) &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="736.938px" height="77px"&gt;&lt;P&gt;&lt;SPAN&gt;Specify the maximum waiting time (in milliseconds) for the connection to be&amp;nbsp;established&amp;nbsp;with Google Pub/Sub service.&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt; &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="193.062px" height="77px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Response Timeout (in&amp;nbsp;ms) &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="736.938px" height="77px"&gt;&lt;P&gt;&lt;SPAN&gt;Specify the maximum waiting time (in milliseconds) for a response message to be received with Google Pub/Sub service.&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;  &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Publish Message using Google Pub/Sub Adapter&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Now&amp;nbsp;let’s&amp;nbsp;navigate&amp;nbsp;to the Processing tab, select the Entity as Topic, and select the&amp;nbsp;operation&amp;nbsp;as Publish Message&amp;nbsp;for the use case.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Also, provide the project ID and topic ID created on the Google Pub/Sub server.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Tejas_Amale_4-1768569826371.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362010i558EBD79F85727AC/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Tejas_Amale_4-1768569826371.png" alt="Tejas_Amale_4-1768569826371.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;Processing Tab:&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="164px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Parameter&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="410px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Description&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="164px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Entity&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="410px"&gt;&lt;P&gt;&lt;SPAN&gt;Select the entity for message processing: &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Topics &lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Subscriptions &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="164px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Operation &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="410px"&gt;&lt;P&gt;&lt;SPAN&gt;Select the operation to be performed. &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Publish Message&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;List &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="164px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Project ID&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="410px"&gt;&lt;P&gt;&lt;SPAN&gt;Specify the Google Pub/Sub project ID.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="164px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Topic ID&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="410px"&gt;&lt;P&gt;&lt;SPAN&gt;Specify the Topic ID created on Google Pub/Sub service&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="164px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Operation Type&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="410px"&gt;&lt;P&gt;&lt;SPAN&gt;Select the type of operation&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Basic&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Advanced&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="164px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Encode Data&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="410px"&gt;&lt;P&gt;&lt;SPAN&gt;Select the checkbox&amp;nbsp;to encode data to Base64&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="164px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Ordering key&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="410px"&gt;&lt;P&gt;&lt;SPAN&gt;Specify the ordering key for this message.&amp;nbsp;&lt;/SPAN&gt; &lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="164px"&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Message Attributes&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;STRONG&gt;&lt;SPAN&gt; &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="410px"&gt;&lt;P&gt;&lt;SPAN&gt;Specify multiple message attributes as key value pairs.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&lt;SPAN class=""&gt;Once you run the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;iflow, you can see the message processed successfully.&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Tejas_Amale_5-1768569920246.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362011i1DDB48FB11D9E4F5/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Tejas_Amale_5-1768569920246.png" alt="Tejas_Amale_5-1768569920246.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;In addition, you can see that the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;Sales Order&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;message was successfully published to the Google Pub/Sub service.&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Tejas_Amale_6-1768569963005.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362012i60699EA23A595871/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Tejas_Amale_6-1768569963005.png" alt="Tejas_Amale_6-1768569963005.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Read&amp;nbsp;a Message using Google Pub/Sub&amp;nbsp;Sender&amp;nbsp;Adapter&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The Google Pub/Sub Sender Adapter is available in&amp;nbsp;gRPC&amp;nbsp;and REST formats. For this demonstration,&amp;nbsp;we're&amp;nbsp;using the REST&amp;nbsp;variant.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Tejas_Amale_7-1768570045531.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362014iCB21DD64D76BB0DA/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Tejas_Amale_7-1768570045531.png" alt="Tejas_Amale_7-1768570045531.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;Processing Tab:&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Tejas_Amale_8-1768570074421.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362015i352C9FC20B699F52/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Tejas_Amale_8-1768570074421.png" alt="Tejas_Amale_8-1768570074421.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In the Google Pub/Sub Sender Adapter, provide the Subscription ID and Project ID from which the message will be read on the Google Pub/Sub&amp;nbsp;Server.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;You&amp;nbsp;can also select the post-processing action once the message has been polled from the Google Pub/Sub Server.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;Once the&amp;nbsp;iflow&amp;nbsp;is successfully deployed, we can check it in the monitoring page. In response, we can see the message body.&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Tejas_Amale_9-1768570108726.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362016iB5175AE851FBA33A/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Tejas_Amale_9-1768570108726.png" alt="Tejas_Amale_9-1768570108726.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Conclusion:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The Google Pub/Sub adapter in SAP CPI brings integrations to life by allowing real-time, event-driven communication between SAP and Google Cloud. It enables CPI to easily publish and receive messages at scale, making integrations faster, more responsive, and loosely linked. The adapter's cloud-native design enables the creation of modern, durable integrations that can quickly change with business&amp;nbsp;needs.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Quick Links:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;For information about&amp;nbsp;Google Pub/Sub Sender&amp;nbsp;adapter configuration, see&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/integration-suite/sap-integration-suite/configure-google-pub-sub-sender-adapter" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;SAP Help |&amp;nbsp;Google Pub/Sub Sender&amp;nbsp;Adapter. &lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;For information about&amp;nbsp;Google Pub/Sub&amp;nbsp;Receiver&amp;nbsp;adapter configuration, see&amp;nbsp;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/integration-suite/sap-integration-suite/configure-google-pub-sub-receiver-adapter" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;SAP Help | Google Pub/Sub&amp;nbsp;Receiver&amp;nbsp;Adapter. &lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;For detailed information about the&amp;nbsp;Google Pub/Sub&amp;nbsp;adapter, see&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://api.sap.com/package/GooglePubSubAdapterforSAPIntegrationSuite/overview" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Google Pub/Sub Adapter&amp;nbsp;Guide&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The next blog will take this further with an exciting new use case — so stay tuned for more insights and updates!&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/sap-cloud-integration-getting-started-with-google-pub-sub-adapter/ba-p/14308771"/>
     <published>2026-01-20T06:59:27.505000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/use-sap-integration-suite-to-connect-sap-and-aws-services/ba-p/14309752</id>
+    <title>Use SAP Integration Suite to connect SAP and AWS services</title>
+    <updated>2026-01-20T11:36:09.592000+01:00</updated>
+    <author>
+      <name>claudiacsrosalino</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/869685</uri>
+    </author>
+    <content>&lt;H2 id="toc-hId-1787888603"&gt;Bridging the gap between SAP and 3rd party systems&amp;nbsp;&lt;/H2&gt;&lt;P&gt;Everyone already knows that SAP Integration Suite is the election tool to connect your SAP services. But did you know that it is also your tool to integrate &lt;EM&gt;Everything, Everywhere, All&lt;/EM&gt; in One Place? (yes, almost like the Oscar award winning movie &lt;span class="lia-unicode-emoji" title=":trophy:"&gt;🏆&lt;/span&gt;)&lt;STRONG&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;A href="https://discovery-center.cloud.sap/missiondetail/4667/4956/" target="_self" rel="nofollow noopener noreferrer"&gt;Use SAP Integration Suite to connect SAP and AWS services&lt;/A&gt;&amp;nbsp;&lt;/STRONG&gt;is a &lt;STRONG&gt;new official SAP Discovery Center Mission&lt;/STRONG&gt; that&amp;nbsp;focus on showcasing how easy it is to integrate not only SAP systems but also &lt;STRONG&gt;non-SAP systems&lt;/STRONG&gt; using &lt;STRONG&gt;SAP Integration Suite.&lt;/STRONG&gt;&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;For this mission, we decided to use the &lt;STRONG&gt;AWS platform&lt;/STRONG&gt; as the example of third-party cloud services provider, but the same rational with this set of best practices and capabilities can be used to integrate with other cloud providers. By following the cards provided in the mission, you will see &lt;STRONG&gt;step-by-step&lt;/STRONG&gt; how you can start to integrate an application developed with SAP BTP development tools with AWS services, such as &lt;STRONG&gt;S3&lt;/STRONG&gt; for image storage and &lt;STRONG&gt;Rekognition&lt;/STRONG&gt; for image identification.&lt;BR /&gt;You can even use a &lt;STRONG&gt;SAP BTP Trial&lt;/STRONG&gt; account to perform the SAP BTP parts of the mission, even though you will always still require also an &lt;STRONG&gt;AWS account&lt;/STRONG&gt; to connect with the S3 and Rekognition services (and IAM for user and roles management on the AWS side). Either if you are a&amp;nbsp;&lt;STRONG&gt;technical&lt;/STRONG&gt;&amp;nbsp;user or more of a&amp;nbsp;&lt;STRONG&gt;business user&lt;/STRONG&gt;&amp;nbsp;interested in rapid application development, cloud integration strategies and/or AI-powered business solution, this mission is for you!&lt;BR /&gt;&lt;BR /&gt;The following architecture shows the big picture of what the final result of the mission should look like, seamlessly combining the best of both SAP BTP and AWS platforms:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="BTP x AWS - Architecture.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362734iA7AC31636E4F17BC/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="BTP x AWS - Architecture.png" alt="BTP x AWS - Architecture.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt; &lt;/P&gt;&lt;H2 id="toc-hId-1591375098"&gt;Use Case Description&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;The use case followed trough out the mission focuses in &lt;STRONG&gt;enabling a Supplier to donate surplus food ingredients&lt;/STRONG&gt; through an &lt;STRONG&gt;AI-powered mobile and web application&lt;/STRONG&gt; built using &lt;STRONG&gt;SAP Build Apps&lt;/STRONG&gt;, a low-code/no-code solution within SAP Business Technology Platform (SAP BTP), seamlessly integrated with AWS capabilities for storage and artificial intelligence–based image recognition. For the integration part, you will leverage and combine different &lt;STRONG&gt;integration capabilities&lt;/STRONG&gt; that are part of the &lt;STRONG&gt;SAP Integration Suite&lt;/STRONG&gt;. The intended outcome of the use case is to minimize food waste while simplifying the donation process and facilitating redistribution to organizations in need.&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1523944312"&gt;Solution Components:&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;SAP Build Apps&lt;/STRONG&gt;: The low-code/no-code application development service used to create the application (frontend and logic) where the Supplier can donate the surplus ingredients by taking or uploading photos&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;SAP Integration Suite&lt;/STRONG&gt;: The secure and centralized integration management service for &lt;STRONG&gt;all&lt;/STRONG&gt; your integrations,&amp;nbsp;&lt;SPAN&gt;making them easier to manage, monitor and troubleshoot&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Amazon S3&lt;/STRONG&gt;: The Amazon service for simplified and cost-effective image storage capabilities&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Amazon Rekognition&lt;/STRONG&gt;: The Amazon service for AI-powered identification and categorization, in this case used to identify the ingredients in the images taken or uploaded from the application to a S3 bucket&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1327430807"&gt;The Use Case Flow:&lt;/H3&gt;&lt;OL&gt;&lt;LI&gt;A Supplier captures or uploads an image of surplus ingredients through the mobile/web app (developed with &lt;STRONG&gt;SAP Build Apps&lt;/STRONG&gt;)&lt;/LI&gt;&lt;LI&gt;The image is securely stored in &lt;STRONG&gt;Amazon S3&lt;/STRONG&gt; via &lt;STRONG&gt;SAP Integration Suite&lt;/STRONG&gt; (using &lt;STRONG&gt;Cloud Integration&lt;/STRONG&gt;, &lt;STRONG&gt;Pre-built Open Connector&lt;/STRONG&gt; and &lt;STRONG&gt;API Management&lt;/STRONG&gt; capabilities)&lt;/LI&gt;&lt;LI&gt;Also via &lt;STRONG&gt;SAP Integration Suite&lt;/STRONG&gt;, the app then calls &lt;STRONG&gt;Amazon Rekognition&lt;/STRONG&gt; to automatically identify and categorize the ingredient present in the image (using &lt;STRONG&gt;Cloud Integration&lt;/STRONG&gt;, &lt;STRONG&gt;Custom Open Connector&lt;/STRONG&gt;&amp;nbsp;and &lt;STRONG&gt;API Management&lt;/STRONG&gt; capabilities)&lt;/LI&gt;&lt;LI&gt;The results are sent back to the app and ready for further processing&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="app-preview.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362711iEE1F86C89248AD57/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="app-preview.png" alt="app-preview.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="sap-integration-suite-open-connectors.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362707iD7BD30FB2957BF43/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="sap-integration-suite-open-connectors.png" alt="sap-integration-suite-open-connectors.png" /&gt;&lt;/span&gt;&amp;nbsp;&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="sap-is-integration-flow.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362708i83FD4E1B09A2A96E/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="sap-is-integration-flow.png" alt="sap-is-integration-flow.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1001834583"&gt;Learning Outcomes&lt;/H2&gt;&lt;P&gt;By completing this Discovery Center Mission, you'll gain practical experience in:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Building low-code applications with SAP Build Apps&lt;/LI&gt;&lt;LI&gt;Configuring SAP Integration Suite for AWS connectivity&lt;/LI&gt;&lt;LI&gt;Implementing secure cloud-to-cloud integrations&lt;/LI&gt;&lt;LI&gt;Leveraging AI services for business process automation&lt;/LI&gt;&lt;LI&gt;Managing integration flows and monitoring capabilities&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-805321078"&gt;Getting Started&lt;/H2&gt;&lt;P&gt;Once you open and start the&amp;nbsp;&lt;A href="https://discovery-center.cloud.sap/missiondetail/4667/4956/" target="_self" rel="nofollow noopener noreferrer"&gt;Mission&lt;/A&gt;, you will see in the &lt;STRONG&gt;Project Board&lt;/STRONG&gt;&amp;nbsp;the different cards that will guide you step-by-step, divided in 7 columns.&lt;BR /&gt;&lt;BR /&gt;Make sure you fullfill all the requirements indicated in the &lt;STRONG&gt;SET UP&lt;/STRONG&gt; and &lt;STRONG&gt;PREPARE&lt;/STRONG&gt; columns. After that, you can start with the &lt;STRONG&gt;EXECUTE&lt;/STRONG&gt;&amp;nbsp;columns. You will first explore the Open Connectors capability of SAP Integration Suite (in the &lt;STRONG&gt;Execute - OpenConnectors&lt;/STRONG&gt;), followed by the Cloud Integration and API Management capabilities of SAP Integration Suite (in the &lt;STRONG&gt;Execute - Security Material and Integration Flow&lt;/STRONG&gt;) and lastly you will get to visually create a simple app screen with SAP Build Apps (in &lt;STRONG&gt;Execute - Build app&lt;/STRONG&gt;) .&lt;BR /&gt;After finishing the mission, don't forget to &lt;STRONG&gt;mark all the cards as completed&lt;/STRONG&gt; and we encourage you to leave your feedback and&amp;nbsp;share your experiences with the rest of the SAP Community.&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;And now, for those who saw the movie &lt;EM&gt;Everything Everywhere All at Once&lt;/EM&gt;,&amp;nbsp;&lt;STRONG&gt;DON'T&lt;/STRONG&gt; "Just be a rock" and start the mission here!&amp;nbsp; -&amp;gt;&amp;nbsp;&amp;nbsp;&lt;EM&gt;&lt;A href="https://discovery-center.cloud.sap/missiondetail/4667/4956/" target="_self" rel="nofollow noopener noreferrer"&gt;SAP Discovery Center Missions - Use SAP Integration Suite to connect SAP and AWS services&amp;nbsp;&lt;/A&gt;&lt;BR /&gt;&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="rocks scene.jpg" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/363350i5B616CE0996574A0/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="rocks scene.jpg" alt="rocks scene.jpg" /&gt;&lt;/span&gt;&lt;EM&gt;&lt;BR /&gt;&lt;/EM&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/use-sap-integration-suite-to-connect-sap-and-aws-services/ba-p/14309752"/>
+    <published>2026-01-20T11:36:09.592000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/why-ias-is-essential-for-enterprise-div-implementations-part-1/ba-p/14302808</id>
+    <title>Why IAS Is Essential for Enterprise DIV Implementations (Part 1)</title>
+    <updated>2026-01-20T12:16:13.294000+01:00</updated>
+    <author>
+      <name>juliaSchiebelbein</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1618051</uri>
+    </author>
+    <content>&lt;P&gt;&lt;EM&gt;This is Part 1 of a three-part series on setting up SAP Cloud Identity Services – Identity Authentication (IAS) with the BTP service Decentralized Identity Verification (DIV). It lays the foundation by explaining what IAS is and why it is a core building block for enterprise-grade DIV implementations.&lt;/EM&gt;&lt;/P&gt;&lt;H1 id="toc-hId-1658598159"&gt;&amp;nbsp;&lt;/H1&gt;&lt;H1 id="toc-hId-1462084654"&gt;Introduction&lt;/H1&gt;&lt;P&gt;Consider a scenario where a global automotive manufacturer has decided to implement SAP’s &lt;STRONG&gt;Decentralized Identity Verification (DIV)&lt;/STRONG&gt; solution to enable secure, privacy-preserving digital identity management across its supply chain. The company needs to issue verifiable credentials to suppliers, partners, and employees while maintaining full control over the authentication infrastructure.&lt;/P&gt;&lt;P&gt;However, there’s a critical requirement: the organization wants to use its own corporate identity system rather than creating and managing separate user accounts in SAP. Employees and suppliers should authenticate using their existing corporate credentials, such as those from the manufacturer’s domain or a gearbox supplier’s identity provider, not additional SAP-specific identities.&lt;/P&gt;&lt;P&gt;Additionally, granular access control is essential. The manufacturer needs to define which users can access specific digital wallets and which administrators have the authority to provision and manage these wallets across different business units and partner organizations. This is where &lt;STRONG&gt;SAP Cloud Identity Services – Identity Authentication (IAS)&lt;/STRONG&gt; becomes indispensable.&lt;/P&gt;&lt;H1 id="toc-hId-1265571149"&gt;&amp;nbsp;&lt;/H1&gt;&lt;H1 id="toc-hId-1069057644"&gt;What is IAS?&lt;/H1&gt;&lt;P&gt;IAS is a cloud-based identity management solution that serves as a central authentication and single sign-on (SSO) hub for SAP and non-SAP applications.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Core Capabilities&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;EM&gt;Single Sign-On (SSO):&amp;nbsp;&lt;/EM&gt;Users authenticate once and gain access to multiple applications without repeated logins.&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Identity Federation:&lt;/EM&gt; IAS can integrate with existing corporate identity providers (like Microsoft Azure AD, Google Workspace, etc.) through standards like SAML 2.0 and OpenID Connect (OIDC). This avoids duplicate user accounts.&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Fine-Grained Access Control:&lt;/EM&gt; Users can be assigned access to specific applications or resources—critical for multi-tenant DIV wallet scenarios.&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Centralized User Lifecycle Management:&lt;/EM&gt; Manage users, groups, authentication policies, and access rights consistently across systems.&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-872544139"&gt;&amp;nbsp;&lt;/H1&gt;&lt;H1 id="toc-hId-676030634"&gt;Why Use IAS with DIV?&lt;/H1&gt;&lt;P&gt;While DIV can technically operate without IAS, enterprise deployments strongly benefit from it. IAS addresses three core challenges: identity reuse, access control, and security.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;1. Reusing Existing Corporate Identities&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Most organizations already operate mature identity systems. IAS allows DIV to integrate seamlessly by:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Federating with corporate and partner identity providers&lt;/LI&gt;&lt;LI&gt;Eliminating DIV-specific user accounts&lt;/LI&gt;&lt;LI&gt;Simplifying onboarding and offboarding: disabling a corporate account automatically revokes DIV access&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This ensures users authenticate with familiar credentials while IT retains centralized control.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;2. Granular Access Control in Multi-Tenant Environments&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In realistic enterprise scenarios, different stakeholders require different levels of access. Consider the automotive manufacturer example: The finance department needs access to a dedicated wallet tenant for financial audit credentials. The supply chain team requires access to supplier verification credentials in a separate tenant while quality assurance must access quality certification credentials without visibility into financial or HR data. Furthermore, an external gearbox supplier should only access the specific wallet tenant designated for supplier interactions.&lt;/P&gt;&lt;P&gt;IAS enables this sophisticated access model through:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Group-based access control mapped to DIV wallet tenants&lt;/LI&gt;&lt;LI&gt;Role-based administrative permissions for provisioning and management&lt;/LI&gt;&lt;LI&gt;Tenant isolation, preventing unauthorized access across departments or partners&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;3. Centralized Security and Auditability&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Without IAS, organizations would need to manage separate authentication mechanisms for DIV, adding complexity and risk. IAS provides:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Central enforcement of security policies (e.g. MFA, password rules, session timeouts)&lt;/LI&gt;&lt;LI&gt;Reduced credential sprawl and fewer attack surfaces&lt;/LI&gt;&lt;LI&gt;Improved visibility into authentication activity for security monitoring and audits&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-479517129"&gt;&amp;nbsp;&lt;/H1&gt;&lt;H1 id="toc-hId-283003624"&gt;What this Series Will Build&lt;/H1&gt;&lt;P&gt;To provide concrete context throughout this series, the following scenario is used: an automotive manufacturer implementing DIV with the following requirements:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Authentication&lt;/STRONG&gt;:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Employees from the manufacturing company authenticate using their corporate domain credentials&lt;/LI&gt;&lt;LI&gt;Partner organizations (such as a gearbox supplier) authenticate using their own identity systems, federated through IAS&lt;/LI&gt;&lt;LI&gt;Authentication is mandatory before opening any DIV wallet or accessing the DIV provisioning interface&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;Authorization&lt;/STRONG&gt;:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Define which employees can open which wallet tenants (e.g., finance employees cannot access HR credential wallets)&lt;/LI&gt;&lt;LI&gt;Define which administrators from the manufacturer can provision wallet tenants&lt;/LI&gt;&lt;LI&gt;Define which administrators from partner organizations (like gearbox supplier) can manage their own supplier wallets&lt;/LI&gt;&lt;LI&gt;Map corporate roles to predefined DIV user roles and permissions&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;Outcome:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The manufacturer maintains full control over user identities, access rights, and administrative boundaries while enabling seamless integration with partner organizations’ identity systems using IAS.&lt;/P&gt;&lt;H3 id="toc-hId-344655557"&gt;&amp;nbsp;&lt;/H3&gt;&lt;H1 id="toc-hId--110023386"&gt;Read more&lt;/H1&gt;&lt;P&gt;&lt;span class="lia-unicode-emoji" title=":right_arrow:"&gt;➡️&lt;/span&gt;&amp;nbsp; &amp;nbsp;Continue with &lt;STRONG&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/part-2-creating-and-accessing-an-ias-tenant-on-sap-btp/ba-p/14302873" target="_self"&gt;Creating and Accessing an IAS Tenant on SAP BTP (Part 2)&lt;/A&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-unicode-emoji" title=":right_arrow:"&gt;➡️&lt;/span&gt;&lt;span class="lia-unicode-emoji" title=":right_arrow:"&gt;➡️&lt;/span&gt;&amp;nbsp; &amp;nbsp;Jump to&amp;nbsp;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/connecting-ias-with-sap-decentralized-identity-verification-part-3/ba-p/14302941" target="_self"&gt;&lt;STRONG&gt;Connecting IAS with SAP Decentralized Identity Verification (Part 3)&lt;/STRONG&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/introduction-to-sap-decentralized-identity-verification-div-and-related-ssi/ba-p/14226121" target="_self"&gt;Introduction to SAP Decentralized Identity Verification (DIV) and Related SSI Blog Posts&lt;/A&gt;&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/self-sovereign-identity-ssi-a-usage-catalyst-for-data-spaces/ba-p/14054162" target="_self"&gt;Self-Sovereign Identity (SSI): A Usage Catalyst for Data Spaces&lt;/A&gt;&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/DECENTRALIZED_IDENTITY_VERIFICATION/ffd0e76d13f5453bbc3839e15a2b95f4/95924fe9ff474fdfae2f8d0611fa4c61.html?locale=en-US" target="_self" rel="noopener noreferrer"&gt;Feature Scope Description for Decentralized Identity Verification (help page)&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/cloud-identity-services/cloud-identity-services/what-is-identity-authentication?locale=en-US" target="_self" rel="noopener noreferrer"&gt;What Are Cloud Identity Services? (help page)&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/why-ias-is-essential-for-enterprise-div-implementations-part-1/ba-p/14302808"/>
+    <published>2026-01-20T12:16:13.294000+01:00</published>
   </entry>
 </feed>
