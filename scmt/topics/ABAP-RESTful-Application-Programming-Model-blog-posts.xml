@@ -2,130 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-RESTful-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2026-01-23T12:00:12.772358+00:00</updated>
+  <updated>2026-01-23T15:00:06.073372+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/abap-blog-posts/abap-rap-download-any-kind-of-file-from-rap-application-object-page/ba-p/14290667</id>
-    <title>ABAP RAP - Download any kind of file from RAP application object page</title>
-    <updated>2025-12-15T20:33:03.556000+01:00</updated>
-    <author>
-      <name>Louis-Arnaud</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/15467</uri>
-    </author>
-    <content>&lt;P&gt;To the best of my knowledge, there is no built-in solution in RAP applications to add a 'Download' action on the object page without resorting to custom UI5 JavaScript coding.&lt;/P&gt;&lt;P&gt;This can be very useful when you need to download a file that is generated dynamically (such as an Adobe form, SmartForm, or any type of flat file). The ABAP RAP framework only provides upload/download functionality for objects stored in database tables.&lt;/P&gt;&lt;P&gt;In this blog post, I aim to present a simple workaround that enables adding a download button which triggers custom code to generate the file.&lt;/P&gt;&lt;P&gt;The concept is straightforward: create a virtual element (in fact, three virtual elements) in the consumption view and apply the appropriate file management annotations. In my example, I wanted to enable downloading a JSON file (hence the naming), but as mentioned earlier, this approach works for any type of file.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_VIRTUAL_CALC'
-@Semantics.largeObject: { fileName: 'jsonFileName', mimeType: 'jsonMimeType', contentDispositionPreference: #ATTACHMENT }
-virtual jsonOutputFile: abap.rawstring(0),
-
-@Semantics.mimeType: true
-@ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_VIRTUAL_CALC'
-virtual jsonMimeType: abap.char(128),
-
-@ObjectModel.virtualElementCalculatedBy: 'ABAP:ZCL_VIRTUAL_CALC'
-virtual jsonFileName: abap.char(128),&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;In the ABAP class responsible for virtual element calculation, you simply retrieve the &lt;CODE&gt;xstring&lt;/CODE&gt; of your file and set its name and type. In my example, we chose to call a function from our behavior definition, but other approaches are possible.&lt;/P&gt;&lt;P&gt;Please note that I removed the &amp;lt;&amp;gt; of field symbols (conflict with the sap community blog post html, don't know why).&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_virtual_calc DEFINITION
-  PUBLIC
-  FINAL
-  CREATE PUBLIC .
-
-  PUBLIC SECTION.
-    INTERFACES if_sadl_exit .
-    INTERFACES if_sadl_exit_calc_element_read .
-  PROTECTED SECTION.
-  PRIVATE SECTION.
-ENDCLASS.
-
-CLASS zcl_virtual_calc IMPLEMENTATION.
-
-  METHOD if_sadl_exit_calc_element_read~calculate.
-
-    IF it_requested_calc_elements IS INITIAL.
-      "Method was called but no virtual elements have been requested -&amp;gt; skip calculation
-      RETURN.
-    ENDIF.
-
-    LOOP AT it_requested_calc_elements REFERENCE INTO DATA(requested_element).
-
-      LOOP AT it_original_data ASSIGNING FIELD-SYMBOL(original_entity).
-
-        "Get changing line for calculation result
-        READ TABLE ct_calculated_data ASSIGNING FIELD-SYMBOL(calculated_data) INDEX sy-tabix.
-        IF sy-subrc &amp;lt;&amp;gt; 0.
-          CONTINUE.
-        ENDIF.
-
-        DATA(original) = CORRESPONDING zc_myobjectconsumptionview( original_entity ).
-
-        CASE requested_element-&amp;gt;*.
-
-          WHEN 'JSONMIMETYPE'.
-            ASSIGN COMPONENT requested_element-&amp;gt;* OF STRUCTURE calculated_data TO FIELD-SYMBOL(field_value).
-            IF field_value IS ASSIGNED.
-              field_value = |application/json|.
-            ENDIF.
-
-          WHEN 'JSONFILENAME'.
-            ASSIGN COMPONENT requested_element-&amp;gt;* OF STRUCTURE calculated_data TO field_value.
-            IF field_value IS ASSIGNED.
-              field_value = |file name_{ original-period }.json|.
-            ENDIF.
-
-          WHEN 'JSONOUTPUTFILE'.
-            ASSIGN COMPONENT requested_element-&amp;gt;* OF STRUCTURE calculated_data TO field_value.
-            IF field_value IS ASSIGNED.
-
-              READ ENTITIES OF zr_myobjectbehviour
-                ENTITY Header
-                  EXECUTE exportjsonfilefunction
-                  FROM VALUE #( ( %key-uuidkey = original-uuidkey ) )
-                RESULT FINAL(result)
-                FAILED FINAL(failed)
-                REPORTED FINAL(reported).
-
-              READ TABLE result ASSIGNING FIELD-SYMBOL(field_value) INDEX 1.
-              IF sy-subrc = 0.
-                field_value = -%param-file_content. "Should be xstring !
-              ENDIF.
-            ENDIF.
-
-          WHEN OTHERS.
-            CONTINUE.
-
-        ENDCASE.
-
-      ENDLOOP.
-
-      UNASSIGN .
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-  METHOD if_sadl_exit_calc_element_read~get_calculation_info.
-
-    LOOP AT it_requested_calc_elements REFERENCE INTO DATA(requested_element).
-
-      CASE requested_element-&amp;gt;*.
-
-        WHEN 'JSONOUTPUTFILE' OR 'JSONMIMETYPE' OR 'JSONFILENAME'.
-          INSERT |PERIOD| INTO TABLE et_requested_orig_elements.
-
-        WHEN OTHERS.
-          CONTINUE.
-
-      ENDCASE.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Finally, you need to add the file field to your object page using the appropriate annotations.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;.identification: [ { position: 50 } ]
-@UI.fieldGroup: [ { qualifier: 'GeneralInformations', position: 50 } ]
-@EndUserText.label: 'JSON file'
-jsonOutputFile;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The result is a download link available directly on the object page.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="LouisArnaud_0-1765813827798.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/352209i3EF8B4EAB293665D/image-size/medium?v=v2&amp;amp;px=400" role="button" title="LouisArnaud_0-1765813827798.png" alt="LouisArnaud_0-1765813827798.png" /&gt;&lt;/span&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-blog-posts/abap-rap-download-any-kind-of-file-from-rap-application-object-page/ba-p/14290667"/>
-    <published>2025-12-15T20:33:03.556000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/abap-blog-posts/building-a-real-rap-application-step-by-step-vlog-series-introduction/ba-p/14290896</id>
     <title>Building a Real RAP Application Step by Step — Vlog Series Introduction</title>
@@ -2834,5 +2714,17 @@ determination generateAIItinerary on modify { create; }&lt;/code&gt;&lt;/pre&gt;
   ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;OL&gt;&lt;LI&gt;Save and activate the changes in&amp;nbsp;&lt;STRONG&gt;ZBP_R_RAP_TRAVEL_DATA&lt;/STRONG&gt;.&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Preview and test the enhanced Travel Itinerary App with Generative AI Capabilities.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Swathy_S_24-1765163757319.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349506iEC934CA5E9004E75/image-size/large?v=v2&amp;amp;px=999" role="button" title="Swathy_S_24-1765163757319.png" alt="Swathy_S_24-1765163757319.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Swathy_S_25-1765163757335.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349505iB8BA7F6EDA1D051A/image-size/large?v=v2&amp;amp;px=999" role="button" title="Swathy_S_25-1765163757335.png" alt="Swathy_S_25-1765163757335.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Swathy_S_26-1765163757351.png" style="width: 1004px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349504i369FC24D9F5E102C/image-dimensions/1004x545?v=v2" width="1004" height="545" role="button" title="Swathy_S_26-1765163757351.png" alt="Swathy_S_26-1765163757351.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Swathy_S_27-1765163757357.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349507iF78911A7655C1FE4/image-size/large?v=v2&amp;amp;px=999" role="button" title="Swathy_S_27-1765163757357.png" alt="Swathy_S_27-1765163757357.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;For latest updates, subscribe to the blog posts below :&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/abap-ai-chapter-2/ba-p/14210568" target="_blank"&gt;ABAP AI - Chapter 2 - SAP Community&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/introducing-the-next-era-of-abap-development/ba-p/14260522" target="_blank"&gt;Introducing the Next Era of ABAP Development - SAP Community&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/joule-speaks-abap/ba-p/14018226" target="_blank"&gt;Joule speaks ABAP! - SAP Community&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/from-legacy-to-ai-powered-rise-transformation-revolution-with-joule-for/ba-p/14267448" target="_blank"&gt;From Legacy to AI-Powered: RISE Transformation Rev... - SAP Community&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Happy Learning!&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/artificial-intelligence-blogs-posts/developing-ai-enabled-applications-with-abap-ai-sdk-powered-by-islm/ba-p/14252514"/>
     <published>2026-01-23T08:05:00.042000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/rap-draft-action-edit-contract-violation-failed-not-allowed-cl-dsp-act-comn/ba-p/14313575</id>
+    <title>RAP Draft Action EDIT  Contract Violation: Failed not allowed cl_dsp_act_comn_exec_add_impl - Solved</title>
+    <updated>2026-01-23T13:30:38.986000+01:00</updated>
+    <author>
+      <name>Timo_John1</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/15452</uri>
+    </author>
+    <content>&lt;P&gt;Scenarion:&amp;nbsp; Custom RAP unmanaged behavior implementation with draft&amp;nbsp; - strict&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt; draft action Edit with additional implementation; // additional implementation to provide virtual elements &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;In this Implementation of EDIT in the Z-behavior pool we checked if a delivery on this items exists, if so we raise a FAILED an a REPOTED Message&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;Due to changes in the RAP Framework it looks like in the method EDIT with additional behavior, no FAILED is allowed anymore ( See comment below )&lt;BR /&gt;The HTTP-Error is the result of a dump:&amp;nbsp;&amp;nbsp;&lt;STRONG&gt;“Contract Violation: Failed not allowed” &lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Timo_John1_4-1769170294015.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/364578iFA2509860EC0BC20/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Timo_John1_4-1769170294015.png" alt="Timo_John1_4-1769170294015.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV&gt;&lt;P&gt;The issue is a change in the RAP framework that is not compatible with our current implementation &lt;EM&gt;&amp;nbsp;Edit (with additional implementation)&lt;/EM&gt;.&amp;nbsp; &amp;nbsp;During the &lt;STRONG&gt;EDIT&lt;/STRONG&gt; operation, an error is detected because the tour has deliveries and the fields &lt;STRONG&gt;FAILED&lt;/STRONG&gt; and &lt;STRONG&gt;REPORTED&lt;/STRONG&gt; are filled.&lt;BR /&gt;However, RAP no longer allows this.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Cass&lt;STRONG&gt; cl_dsp_act_comn_exec_add_impl&lt;/STRONG&gt; -&amp;gt; lcl_implementation -&amp;gt; Method &lt;STRONG&gt;lif_implementation~execute&lt;/STRONG&gt;&amp;nbsp; are these new lines&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Timo_John1_1-1769170021541.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/364573i11252F8FE2C9C798/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Timo_John1_1-1769170021541.png" alt="Timo_John1_1-1769170021541.png" /&gt;&lt;/span&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;These lines raise the short dump if there are failed messages:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Timo_John1_2-1769170055719.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/364574i1B496D6B91438929/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Timo_John1_2-1769170055719.png" alt="Timo_John1_2-1769170055719.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H1 id="toc-hId-1659548802"&gt;&lt;STRONG&gt;Solution&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;Business Requirement is to do checks right before an entity will be put into edit mode, such that an draft for an active item is created.&amp;nbsp; Using the provided RAP Feature Control is not an option, as:&lt;BR /&gt;1. We do not want to check that upfront for all items of the list&amp;nbsp;&lt;BR /&gt;2. We wand to do the check in that moment a user requests the draft.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;We moved the check into the framework method LOCK, here we are allowed to raise FAILED an Reported.&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;&lt;BR /&gt;I am not 100% sure that this is the best place for "Draft Pre-Checks" but I did not find any better.&amp;nbsp;&lt;BR /&gt;Pre-Checks are not possible for EDIT actions.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Thanks go out to&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/37925"&gt;@Sschlegel&lt;/a&gt;&amp;nbsp;&amp;amp;&amp;nbsp; Björn Schulz&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/rap-draft-action-edit-contract-violation-failed-not-allowed-cl-dsp-act-comn/ba-p/14313575"/>
+    <published>2026-01-23T13:30:38.986000+01:00</published>
   </entry>
 </feed>
