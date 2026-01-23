@@ -2,433 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-BTP-ABAP-environment-blog-posts.xml</id>
   <title>SAP Community - SAP BTP, ABAP environment</title>
-  <updated>2026-01-23T03:00:30.038527+00:00</updated>
+  <updated>2026-01-23T06:00:27.637801+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP BTP, ABAP environment/pd-p/73555000100800001164" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP BTP, ABAP environment blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/implementing-unmanaged-crud-operations-in-sap-rap-a-hands-on-guide/ba-p/14281820</id>
-    <title>Implementing Unmanaged CRUD Operations in SAP RAP: A Hands-On Guide</title>
-    <updated>2025-12-03T06:15:44.874000+01:00</updated>
-    <author>
-      <name>manijangiti</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2174619</uri>
-    </author>
-    <content>&lt;P&gt;&amp;nbsp;In this blog, I’m going to walk you through how to implement unmanaged CRUD operations in &lt;STRONG&gt;SAP RAP&lt;/STRONG&gt; for an on-premise system. We’ll be using a simple &lt;STRONG&gt;employee management&lt;/STRONG&gt; example to cover the basics of creating, updating, and deleting employee records.&lt;/P&gt;&lt;P&gt;By the end of this post, you’ll understand how to work with CRUD operations in the &lt;STRONG&gt;RAP framework&lt;/STRONG&gt; and get hands-on experience with it. I’ve been working on this project recently, and I figured it would be useful to share the process with you.&lt;/P&gt;&lt;P&gt;Just a quick note: I’ve been using &lt;STRONG&gt;AI&lt;/STRONG&gt; (like GenAI) to help with writing content for this blog. It’s been super helpful for organizing thoughts and getting content down quickly while I focus on the technical stuff. AI’s a great tool for speeding up writing, and I think it’s worth mentioning how it’s making content creation a bit easier for me.&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;Visual Structure Example:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;+---------------------------------------+
-| Step 1: Create Database Table        |
-+---------------------------------------+
-                |
-                V
-+---------------------------------------+
-| Step 2: Create Root View             |
-+---------------------------------------+
-                |
-                V
-+---------------------------------------+
-| Step 3: Create Projection View       |
-+---------------------------------------+
-                |
-                V
-+---------------------------------------+
-| Step 4: Create Behavior Definition   |
-+---------------------------------------+
-                |
-                V
-+---------------------------------------+
-| Step 5: Create Behavior for Projection|
-+---------------------------------------+
-                |
-                V
-+---------------------------------------+
-| Step 6: Create Metadata Extension    |
-+---------------------------------------+
-                |
-                V
-+---------------------------------------+
-| Step 7: Implement CRUD Logic         |
-+---------------------------------------+
-                |
-                V
-+---------------------------------------+
-| Step 8: Create Service Definition    |
-+---------------------------------------+
-                |
-                V
-+---------------------------------------+
-| Step 9: Bind the Service             |
-+---------------------------------------+
-                |
-                V
-+---------------------------------------+
-| Step 10: Test CRUD Operations        |
-+---------------------------------------+&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId-2024575596"&gt;&lt;STRONG&gt;Step 1: Create a Database Table&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;Here, we create a table in the database that stores employee information like employee ID, name, email, salary, etc. We use special annotations to tell SAP how this table should be used.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Employee Table'
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #RESTRICTED
-define table zun_emp_tab {
-  key client    : abap.clnt not null;
-  key emp_id    : zempid not null;
-  first_name    : abap.char(30);
-  last_name     : abap.char(30);
-  date_of_birth : abap.dats;
-  email         : abap.sstring(60);
-  hire_date     : abap.dats;
-  @Semantics.amount.currencyCode : 'zun_emp_tab.curry'
-  salary        : abap.curr(15,2);
-  curry         : abap.cuky;
-}&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId-1828062091"&gt;&lt;STRONG&gt;Step 2: Create a Root View for the Table&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;The &lt;STRONG&gt;Root View&lt;/STRONG&gt; is like a connection between the database table and the system. It allows the data to be used for CRUD operations.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Interface view'
-@Metadata.ignorePropagatedAnnotations: true
-define root view entity zun_emp_root as select from zun_emp_tab
-{
-   key emp_id as EmpId,
-   first_name as FirstName,
-   last_name as LastName,
-   date_of_birth as DateOfBirth,
-   email as Email,
-   hire_date as HireDate,
-   @Semantics.amount.currencyCode: 'curry'
-   salary as Salary,
-   curry as Curry
-}&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId-1631548586"&gt;&lt;STRONG&gt;Step 3: Create a Projection View for the Root View&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;A &lt;STRONG&gt;Projection View&lt;/STRONG&gt; is a simplified version of the Root View, designed specifically for consumption in applications. It lets users view and edit employee information in a user-friendly format.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Consumption View'
-@Metadata.ignorePropagatedAnnotations: true
-@Metadata.allowExtensions: true
-define root view entity zun_emp_proj as projection on zun_emp_root
-{
-    key EmpId,
-    FirstName,
-    LastName,
-    DateOfBirth,
-    Email,
-    HireDate,
-    @Semantics.amount.currencyCode: 'Curry'
-    Salary,
-    Curry
-}&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId-1435035081"&gt;&lt;STRONG&gt;Step 4: Create Behavior Definition for the Root View&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;This is where we define what can happen to the data (create, update, delete). We set permissions and behaviors for each operation.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;unmanaged implementation in class zbp_un_emp_root unique;
-strict ( 2 );
-define behavior for zun_emp_root alias  EMP
-late numbering
-lock master
-authorization master ( instance )
-//etag master &amp;lt;field_name&amp;gt;
-{
-  create;
-  update;
-  delete;
-}&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId-1238521576"&gt;&lt;STRONG&gt;Step 5: Create Behavior Definition for the Projection View&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;Similar to the Root View, we define behavior for the Projection View, ensuring that data can be created, updated, and deleted in the UI.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection;
-strict ( 2 );
-
-define behavior for zun_emp_proj alias EMP
-{
-  use create;
-  use update;
-  use delete;
-}&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId-1042008071"&gt;&lt;STRONG&gt;Step 6: Create a Metadata Extension for the Projection View&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;Here, we enhance the UI by adding labels, fields, and other settings so users can easily interact with the employee data.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CUSTOMER
-
-@UI.headerInfo: {
-  typeName: 'Employee',
-  typeNamePlural: 'Employees',
-  title: {
-    type: #STANDARD,
-    label: 'Employee ID',
-    value: 'EmpId'
-  },
-  description: {
-    label: 'First Name',
-    value: 'FirstName'
-  }
-}
-
-annotate view zun_emp_proj with {
-
-  //=========================
-  // Facets (sections)
-  //=========================
-  .facet: [
-    {
-      id: 'GeneralInfo',
-      type: #IDENTIFICATION_REFERENCE,
-      label: 'General Information',
-      position: 10
-    }
-  ]
-
-  //=========================
-  // General Information Fields
-  //=========================
-  .identification: [{ position: 10, label: 'Employee ID' }]
-  .selectionField: [{ position: 10 }]
-  .lineItem:       [{ position: 10 }]
-  @EndUserText.label: 'Employee ID'
-  EmpId;
-
-  .identification: [{ position: 20, label: 'First Name' }]
-  .selectionField: [{ position: 20 }]
-  .lineItem:       [{ position: 20 }]
-  @EndUserText.label: 'First Name'
-  FirstName;
-
-  .identification: [{ position: 30, label: 'Last Name' }]
-  .selectionField: [{ position: 30 }]
-  .lineItem:       [{ position: 30 }]
-  @EndUserText.label: 'Last Name'
-  LastName;
-
-  .identification: [{ position: 40, label: 'Date of Birth' }]
-  .lineItem:       [{ position: 40 }]
-  .selectionField: [{ position: 40 }]
-  @EndUserText.label: 'Date of Birth'
-  DateOfBirth;
-
-  .identification: [{ position: 50, label: 'Email' }]
-  .lineItem:       [{ position: 50 }]
-  @EndUserText.label: 'Email'
-  Email;
-
-  .identification: [{ position: 60, label: 'Hire Date' }]
-  .selectionField: [{ position: 50 }]
-  .lineItem:       [{ position: 60 }]
-  @EndUserText.label: 'Hire Date'
-  HireDate;
-
-  .identification: [{ position: 70, label: 'Salary' }]
-  .lineItem:       [{ position: 70 }]
-  @EndUserText.label: 'Salary'
-  Salary;
-
-  .identification: [{ position: 80, label: 'Currency' }]
-  .lineItem:       [{ position: 80 }]
-  @EndUserText.label: 'Currency'
-  Curry;
-
-};&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId-845494566"&gt;&lt;STRONG&gt;Step 7: Implement the Logic for CRUD Operations&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;We write the logic that handles creating, updating, and deleting employee records. We use three key components:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Handler Class&lt;/STRONG&gt;: This is where the main logic for CRUD operations happens.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Saver Class&lt;/STRONG&gt;: This class saves the changes to the database.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Buffer Class&lt;/STRONG&gt;: This is like a temporary holding place for changes before they are saved to the database.&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;Simplified Diagram:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;+------------------+   --&amp;gt; (Create, Update, Delete)
-| User Request    | 
-+------------------+   
-        |
-        V
-+-------------------+   --&amp;gt;   (Handler Class)   --&amp;gt;   +---------------------+
-|  Handler Class   | --------------------&amp;gt; |  Buffer Class        |
-+-------------------+                       +---------------------+
-        |                                           |
-        V                                           V
-+---------------------+                        +---------------------+
-|  Data Saved in DB   |  &amp;lt;-- (Saver Class) &amp;lt;-- |  Database (Employee Data) |
-+---------------------+                        +---------------------+&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;While practicing, you shouldn't just copy-paste the code. You should write it yourself to get hands-on experience.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;" Buffer class to hold create/update/delete entries temporarily
-CLASS lcl_buffer DEFINITION CREATE PRIVATE.
-  PUBLIC SECTION.
-    TYPES: BEGIN OF ty_buffer,
-             flag TYPE c LENGTH 1,       " 'C' = Create, 'U' = Update, 'D' = Delete
-             lv_data TYPE zun_emp_tab,   " The structure that holds employee data
-           END OF ty_buffer.
-
-    CLASS-DATA mt_buffer TYPE STANDARD TABLE OF ty_buffer WITH EMPTY KEY.  " Table to store buffer entries
-
-    " Method to get an instance of the buffer class (Singleton pattern)
-    CLASS-METHODS get_instance
-      RETURNING VALUE(ro_instance) TYPE REF TO lcl_buffer.
-
-    " Method to add records to the buffer (Create, Update, or Delete)
-    METHODS add_to_buffer
-      IMPORTING
-        iv_flag TYPE c         " Flag to specify the type of operation (C/U/D)
-        is_employee TYPE zun_emp_tab.  " Employee data to be added to the buffer
-
-  PRIVATE SECTION.
-    CLASS-DATA go_instance TYPE REF TO lcl_buffer.  " Holds the single instance of the class
-ENDCLASS.
-
-CLASS lcl_buffer IMPLEMENTATION.
-
-  METHOD get_instance.
-    IF go_instance IS NOT BOUND.
-      go_instance = NEW #( ).
-    ENDIF.
-    ro_instance = go_instance.
-  ENDMETHOD.
-
-  METHOD add_to_buffer.
-    INSERT VALUE #( flag = iv_flag lv_data = is_employee ) INTO TABLE mt_buffer.
-  ENDMETHOD.
-
-ENDCLASS.
-
-" Custom Exception Class
-CLASS zcx_my_exception DEFINITION INHERITING FROM cx_static_check.
-  PUBLIC SECTION.
-    INTERFACES if_t100_message.  " This interface is used for handling messages.
-    METHODS constructor IMPORTING
-                          textid LIKE if_t100_message=&amp;gt;t100key OPTIONAL.  " Constructor to initialize exception with a message
-ENDCLASS.
-
-CLASS zcx_my_exception IMPLEMENTATION.
-  METHOD constructor.
-    CALL METHOD super-&amp;gt;constructor
-      EXPORTING
-        previous = previous.   " Calling the parent class constructor
-    me-&amp;gt;if_t100_message~t100key = textid.  " Set the error message key
-  ENDMETHOD.
-ENDCLASS.
-
-" Behavior Handler Class for EMP entity
-CLASS lhc_EMP DEFINITION INHERITING FROM cl_abap_behavior_handler.
-  PRIVATE SECTION.
-    " Method to check instance authorization for each operation
-    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-      IMPORTING keys REQUEST requested_authorizations FOR emp RESULT result.
-
-    " Methods for CRUD operations
-    METHODS create FOR MODIFY
-      IMPORTING entities FOR CREATE emp.
-
-    METHODS update FOR MODIFY
-      IMPORTING entities FOR UPDATE emp.
-
-    METHODS delete FOR MODIFY
-      IMPORTING keys FOR DELETE emp.
-
-    METHODS read FOR READ
-      IMPORTING keys FOR READ emp RESULT result.
-
-    METHODS lock FOR LOCK
-      IMPORTING keys FOR LOCK emp.
-ENDCLASS.
-
-CLASS lhc_EMP IMPLEMENTATION.
-
-  METHOD create.
-    DATA(lo_buffer) = lcl_buffer=&amp;gt;get_instance( ).
-
-    LOOP AT entities ASSIGNING FIELD-SYMBOL(&amp;lt;ls_entity&amp;gt;).
-      DATA ls_employee TYPE zun_emp_tab.
-
-      " Map entity fields to employee structure
-      ls_employee-emp_id        = &amp;lt;ls_entity&amp;gt;-EmpId.
-      ls_employee-first_name    = &amp;lt;ls_entity&amp;gt;-FirstName.
-      ls_employee-last_name     = &amp;lt;ls_entity&amp;gt;-LastName.
-      ls_employee-date_of_birth = &amp;lt;ls_entity&amp;gt;-DateOfBirth.
-      ls_employee-email         = &amp;lt;ls_entity&amp;gt;-Email.
-      ls_employee-hire_date     = &amp;lt;ls_entity&amp;gt;-HireDate.
-      ls_employee-salary        = &amp;lt;ls_entity&amp;gt;-Salary.
-      ls_employee-curry         = &amp;lt;ls_entity&amp;gt;-Curry.
-
-      " Add to buffer as create
-      lo_buffer-&amp;gt;add_to_buffer( iv_flag = 'C' is_employee = ls_employee ).
-
-      " Return mapped keys (required by RAP)
-      INSERT VALUE #( %cid = &amp;lt;ls_entity&amp;gt;-%cid empID = ls_employee-emp_id ) INTO TABLE mapped-emp.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD update.
-    DATA(lo_buffer) = lcl_buffer=&amp;gt;get_instance( ).
-
-    LOOP AT entities ASSIGNING FIELD-SYMBOL(&amp;lt;ls_entity&amp;gt;).
-      " Fetch existing employee from DB to buffer with flag U
-      DATA ls_db TYPE zun_emp_tab.
-      SELECT SINGLE * FROM zun_emp_tab WHERE emp_id = @&amp;lt;ls_entity&amp;gt;-EmpId INTO _db.
-      " Overwrite fields if updated in &amp;lt;ls_entity&amp;gt;
-      IF &amp;lt;ls_entity&amp;gt;-FirstName IS NOT INITIAL.
-        ls_db-first_name = &amp;lt;ls_entity&amp;gt;-FirstName.
-      ENDIF.
-      IF &amp;lt;ls_entity&amp;gt;-LastName IS NOT INITIAL.
-        ls_db-last_name = &amp;lt;ls_entity&amp;gt;-LastName.
-      ENDIF.
-      IF &amp;lt;ls_entity&amp;gt;-DateOfBirth IS NOT INITIAL.
-        ls_db-date_of_birth = &amp;lt;ls_entity&amp;gt;-DateOfBirth.
-      ENDIF.
-      IF &amp;lt;ls_entity&amp;gt;-email IS NOT INITIAL.
-        ls_db-email = &amp;lt;ls_entity&amp;gt;-email.
-      ENDIF.
-      IF &amp;lt;ls_entity&amp;gt;-HireDate IS NOT INITIAL.
-        ls_db-hire_date = &amp;lt;ls_entity&amp;gt;-HireDate.
-      ENDIF.
-      IF &amp;lt;ls_entity&amp;gt;-salary IS NOT INITIAL.
-        ls_db-salary = &amp;lt;ls_entity&amp;gt;-salary.
-      ENDIF.
-      IF &amp;lt;ls_entity&amp;gt;-curry IS NOT INITIAL.
-        ls_db-curry = &amp;lt;ls_entity&amp;gt;-curry.
-      ENDIF.
-
-      " Add updated employee to buffer with flag 'U'
-      lo_buffer-&amp;gt;add_to_buffer( iv_flag = 'U' is_employee = ls_db ).
-
-      " Return mapped keys
-      INSERT VALUE #( %cid = &amp;lt;ls_entity&amp;gt;-%cid_ref empID = ls_db-emp_id ) INTO TABLE mapped-emp.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD delete.
-    DATA(lo_buffer) = lcl_buffer=&amp;gt;get_instance( ).
-
-    LOOP AT keys ASSIGNING FIELD-SYMBOL(&amp;lt;ls_key&amp;gt;).
-      " Create minimal structure for deletion
-      DATA ls_employee TYPE zun_emp_tab.
-      ls_employee-emp_id = &amp;lt;ls_key&amp;gt;-EmpId.
-
-      " Add to buffer with flag 'D'
-      lo_buffer-&amp;gt;add_to_buffer( iv_flag = 'D' is_employee = ls_employee ).
-
-      " Return mapped keys
-      INSERT VALUE #( %cid = &amp;lt;ls_key&amp;gt;-%cid_ref empID = &amp;lt;ls_key&amp;gt;-EmpId ) INTO TABLE mapped-emp.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD read.
-    " Implement read logic here if required
-  ENDMETHOD.
-
-  METHOD lock.
-    " Implement lock logic if required
-  ENDMETHOD.
-
-ENDCLASS.
-
-" Saver class to persist data with validation and proper error handling
-CLASS lsc_ZUN_EMP_ROOT IMPLEMENTATION.
-
-  METHOD save.
-    DATA(lo_buffer) = lcl_buffer=&amp;gt;get_instance( ).
-    LOOP AT lo_buffer-&amp;gt;mt_buffer ASSIGNING FIELD-SYMBOL(&amp;lt;ls_buf&amp;gt;).
-      CASE &amp;lt;ls_buf&amp;gt;-flag.
-        WHEN 'C'.  " If the flag is 'C', perform Insert operation
-          INSERT zun_emp_tab FROM &amp;lt;ls_buf&amp;gt;-lv_data.
-        WHEN 'U'.  " If the flag is 'U', perform Update operation
-          UPDATE zun_emp_tab FROM &amp;lt;ls_buf&amp;gt;-lv_data.
-        WHEN 'D'.  " If the flag is 'D', perform Delete operation
-          DELETE FROM zun_emp_tab WHERE emp_id = &amp;lt;ls_buf&amp;gt;-lv_data-emp_id.
-      ENDCASE.
-    ENDLOOP.
-    CLEAR lo_buffer-&amp;gt;mt_buffer.  " Clear the buffer after saving changes
-  ENDMETHOD.
-
-  METHOD finalize.
-    " Optional post-save logic
-  ENDMETHOD.
-
-  METHOD check_before_save.
-    " Optional pre-save validations
-  ENDMETHOD.
-
-  METHOD adjust_numbers.
-  ENDMETHOD.
-
-  METHOD cleanup.
-    " Optional cleanup logic
-  ENDMETHOD.
-
-  METHOD cleanup_finalize.
-    " Optional final cleanup
-  ENDMETHOD.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId-648981061"&gt;&lt;STRONG&gt;Step 8: Create a Service Definition&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;We expose the Projection View as a service that can be used by other applications or systems.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Service defination For Projection'
-define service ZUN_SRV_DD {
-  expose zun_emp_proj as EMP;
-}&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId-452467556"&gt;&lt;STRONG&gt;Step 9: Bind the Service to Make it Available&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;Once we define the service, we create a &lt;STRONG&gt;Service Binding&lt;/STRONG&gt; to make the service available for use in the system.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 798px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347382i644BAFEFF71F8936/image-dimensions/798x289?v=v2" width="798" height="289" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H4 id="toc-hId-255954051"&gt;&lt;STRONG&gt;Step 10: Test CRUD Operations&lt;/STRONG&gt;&lt;/H4&gt;&lt;P&gt;Finally, we test the system by adding, updating, and deleting records. This shows how the system behaves when interacting with employee data.&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347384i797850E9DEB5D62C/image-size/large?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;I am testing a create operation.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347399i4635AD372AF4FD39/image-size/large?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347400i730BEA633B194E24/image-size/large?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347402iD083FEFAB3E31649/image-size/large?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Successfully created a record.&amp;nbsp;Updating a record that we created.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347403iD88800C2AC67FDB9/image-size/large?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347404i5F81A99022099A42/image-size/large?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Successfully updated the record. Now, I am going to delete the updated record.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347407iEF2FC67E3199325D/image-size/large?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/347410i3431AE05CAAE2BBB/image-size/large?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;STRONG&gt;Successfully deleted the record.&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;H3 id="toc-hId--144873542"&gt;Conclusion and Usage&lt;/H3&gt;&lt;P&gt;In this blog, we learned how to implement CRUD operations in SAP RAP using an employee management example. We created a database table, set up views, and defined behavior for creating, updating, and deleting employee records.&lt;/P&gt;&lt;H3 id="toc-hId--341387047"&gt;Why We Use Flags&lt;/H3&gt;&lt;P&gt;The flags (&lt;CODE&gt;C&lt;/CODE&gt; for Create, &lt;CODE&gt;U&lt;/CODE&gt; for Update, &lt;CODE&gt;D&lt;/CODE&gt; for Delete) help us track which operation needs to be performed on the data. These flags allow the system to know whether to insert, update, or delete a record in the database.&lt;/P&gt;&lt;H3 id="toc-hId--537900552"&gt;Using AI for Faster Content Creation&lt;/H3&gt;&lt;P&gt;While practicing and writing the code, I used &lt;STRONG&gt;AI&lt;/STRONG&gt; for faster content generation. AI helps speed up tasks like documentation and explanations, but the real learning comes from coding and understanding the process firsthand.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/implementing-unmanaged-crud-operations-in-sap-rap-a-hands-on-guide/ba-p/14281820"/>
-    <published>2025-12-03T06:15:44.874000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/sap-to-collaborate-with-aws-to-bring-the-sap-btp-abap-environment-to-arm/ba-p/14284189</id>
     <title>SAP to Collaborate with AWS to bring the SAP BTP ABAP Environment to ARM-Based AWS Graviton</title>
@@ -1604,5 +1181,182 @@ START-OF-SELECTION.
     <content>&lt;P data-unlink="true"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="ABAP_AI.png" style="width: 200px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/363821iFBD41BCBF30A65A8/image-size/small/is-moderation-mode/true?v=v2&amp;amp;px=200" role="button" title="ABAP_AI.png" alt="ABAP_AI.png" /&gt;&lt;/span&gt;The era of "Wait and See" for AI in ABAP development is officially over. With the general availability of &lt;STRONG&gt;Joule for Developers (J4D)&lt;/STRONG&gt; and the &lt;A href="https://www.linkedin.com/posts/sonjalienard_introducing-the-next-era-of-abap-development-activity-7391805653905993728-J9a-?utm_source=share&amp;amp;utm_medium=member_desktop&amp;amp;rcm=ACoAAAAwC8YBn3fP-40jJLXucycHYaj7szVogRw" target="_blank" rel="noopener nofollow noreferrer"&gt;planned availability of ABAP agentic AI frameworks in 2026&lt;/A&gt;,&amp;nbsp; the question isn't &lt;EM&gt;if&lt;/EM&gt; you should use AI, but &lt;EM&gt;where&lt;/EM&gt; you should start.&amp;nbsp;&lt;/P&gt;&lt;P data-unlink="true"&gt;&lt;STRONG&gt;The "Start Here" Recommendation:&amp;nbsp;&amp;nbsp;&lt;/STRONG&gt;For 90% of developers, the best starting point is &lt;STRONG&gt;&lt;SPAN class=""&gt;&lt;SPAN&gt;&lt;A class="" href="https://www.sap.com/products/erp/s4hana-cloud-public-edition-joule-for-developers-abap-ai-capabilities.html" target="_blank" rel="noopener noreferrer"&gt;SAP Joule for Developers&lt;/A&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt; integrated within &lt;STRONG&gt;ABAP Development Tools (ADT) for Eclipse&lt;/STRONG&gt;. In addition you can also experiment with the first versions of &lt;A href="https://help.sap.com/docs/sap-ai-core/generative-ai/sap-abap-1?locale=en-US&amp;amp;version=LATEST" target="_blank" rel="noopener noreferrer"&gt;ABAP-1 model to &lt;STRONG&gt;analyze and explain code&lt;/STRONG&gt;&lt;/A&gt; on your own - but be aware that this is &lt;STRONG&gt;currently not for code generation &lt;/STRONG&gt;and only for those which want to be independent of J4D&lt;STRONG&gt;.&lt;/STRONG&gt; Therefore starting with J4D is the fastest but also the most powerful way to start with ABAP AI.&lt;/P&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;STRONG&gt;Why should I start with Joule for Developers (J4D)?&lt;/STRONG&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;SPAN class=""&gt;&lt;STRONG&gt;Contextual Intelligence:&lt;/STRONG&gt; Unlike generic LLMs, Joule for Developers is trained on over 250 million lines of proprietary SAP code and is aware of your specific ABAP Cloud context.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN class=""&gt;&lt;STRONG&gt;It’s Free (For Now):&lt;/STRONG&gt; SAP has extended the free promotional period for Joule for Developers until &lt;STRONG&gt;September 2026&lt;/STRONG&gt;.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN class=""&gt;&lt;STRONG&gt;Native Skills:&lt;/STRONG&gt; It handles predictive code generation (e.g. RAP generation), "Explain" skills for legacy code, and unit test generation directly within your IDE. So it can do way more then ABAP-1 right now.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN class=""&gt;&lt;STRONG&gt;J4D&amp;nbsp;&lt;/STRONG&gt;is out of the box &lt;STRONG&gt;integrated in Eclipse ADT.&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;STRONG&gt;The Three Paths for ABAP AI Evolution:&lt;/STRONG&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;STRONG&gt;1. The Standard Path: Joule for Developers in ADT&lt;/STRONG&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;SPAN class=""&gt;&lt;STRONG&gt;Best for:&lt;/STRONG&gt; Daily coding, documentation, and unit testing.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN class=""&gt;&lt;STRONG&gt;Action:&lt;/STRONG&gt; Request access through your administrator (Material #8019124) and activate it in ADT.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;STRONG&gt;2. The Innovation Path: ABAP AI SDK &amp;amp; BTP Free Tier&lt;/STRONG&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;SPAN class=""&gt;&lt;STRONG&gt;Best for:&lt;/STRONG&gt; Building your own AI-powered business applications (e.g., automated invoice processing).&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN class=""&gt;&lt;STRONG&gt;Action:&lt;/STRONG&gt; Use the &lt;STRONG&gt;SAP BTP Free Tier&lt;/STRONG&gt; to access the Generative AI Hub and the &lt;STRONG&gt;ABAP AI SDK&lt;/STRONG&gt; to connect your custom ABAP code to external foundation models.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;STRONG&gt;3. The Modernization Path: VS Code with ABAP Cloud&lt;/STRONG&gt;&lt;/DIV&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;SPAN class=""&gt;&lt;STRONG&gt;Best for:&lt;/STRONG&gt; Developers looking for a lightweight, file-based experience or those migrating to S/4HANA Public Cloud.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN class=""&gt;&lt;STRONG&gt;Action:&lt;/STRONG&gt; Explore the new &lt;STRONG&gt;ABAP Cloud Extension for VS Code&lt;/STRONG&gt; (GA planned for Q2 2026) which features built-in AI assistance powered by an ABAP language server.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;DIV class=""&gt;&lt;STRONG&gt;Key Takeaway for 2026:&lt;/STRONG&gt;&lt;BR /&gt;Don't get bogged down trying to "prompt engineer" experimental models like ABAP-1 for production code generation. Instead, leverage &lt;STRONG&gt;Joule for Developers&lt;/STRONG&gt;&amp;nbsp;mature "Explain" and "Generate" skills to maintain a &lt;STRONG&gt;Clean Core&lt;/STRONG&gt; and accelerate your migration to SAP S/4HANA.&lt;/DIV&gt;&lt;P&gt;&lt;STRONG&gt;Here you can learn more:&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;A class="" href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-joule-for-developers-expands-to-private-cloud-accelerating-abap/ba-p/14237958" target="_blank"&gt;SAP Joule for Developers Expands to Private Cloud: Accelerating ABAP Innovation and Transformation &lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-joule-for-developers-abap-ai-capabilities-for-sap-s-4hana-cloud-private/ba-p/14236954" target="_blank"&gt;&lt;SPAN class=""&gt;Step-by-step guide how to activate SAP Joule for Developers, ABAP AI capabilities for your SAP S/4HANA Cloud Private Edition&lt;/SPAN&gt;&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN class=""&gt;&lt;SPAN&gt;&lt;A class="" href="https://community.sap.com/t5/technology-blog-posts-by-sap/joule-for-developers-with-sap-btp-abap-environment-setup-guide/ba-p/14207462" target="_blank"&gt;Joule for Developers (J4D) Setup Guide&lt;/A&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN class=""&gt;&lt;SPAN&gt;&lt;A class="" href="https://discovery-center.cloud.sap/search/Free-tier" target="_blank" rel="noopener nofollow noreferrer"&gt;SAP BTP Discovery Center (Free Tier Services)&lt;/A&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/abap-ai" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN class=""&gt;&lt;SPAN&gt;Joule for Developers help (J4D)&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN class=""&gt;&lt;SPAN&gt;&lt;A class="" href="https://help.sap.com/docs/abap-ai/generative-ai-in-abap-cloud/set-up-abap-ai-sdk-powered-by-intelligent-scenario-lifecycle-management" target="_blank" rel="noopener noreferrer"&gt;ABAP AI SDK Documentation&lt;/A&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/sap-ai-core/generative-ai/sap-abap-1?locale=en-US&amp;amp;version=LATEST" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN class=""&gt;ABAP-1 Help&lt;/SPAN&gt;&lt;/A&gt;&lt;/LI&gt;&lt;/OL&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/your-2026-roadmap-to-getting-started-with-abap-ai-and-abap-1/ba-p/14312060"/>
     <published>2026-01-21T18:01:36.956000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/mass-update-through-custom-action-in-rap/ba-p/14312466</id>
+    <title>Mass Update Through Custom Action In RAP</title>
+    <updated>2026-01-23T06:31:27.262000+01:00</updated>
+    <author>
+      <name>harsha_reddy24</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2263071</uri>
+    </author>
+    <content>&lt;P&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;:&lt;/P&gt;&lt;P&gt;With the increasing adoption of the RESTful ABAP Programming Model (RAP), SAP developers are encouraged to move away from classic procedural approaches and design applications that are behavior-driven, scalable, and Fiori-ready. While RAP provides powerful standard operations such as create, update, and delete, real-world business scenarios often require &lt;STRONG&gt;mass processing or bulk updates&lt;/STRONG&gt; triggered by user actions.&lt;/P&gt;&lt;P&gt;In this blog, I will walk through a &lt;STRONG&gt;practical implementation of mass update using a custom action in RAP&lt;/STRONG&gt;. This approach is especially useful when you need to update multiple records based on business logic that cannot be handled by standard CRUD operations alone.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Solution Overview:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The blog covers:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Why custom actions are required for mass updates in RAP&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;How to define a custom action in the Behavior Definition&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Implementing the action logic in the Behavior Implementation class&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Triggering the mass update from a Fiori Elements UI&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Key considerations and best practices&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;Database Table:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'travel uuid table'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #RESTRICTED
+define table zuuid_table {
+
+  key client    : abap.clnt not null;
+  key travel_id : sysuuid_x16 not null;
+  description   : /dmo/description;
+  status        : /dmo/travel_status;
+  @Semantics.amount.currencyCode : 'zuuid_table.currency_code'
+  booking_fee   : /dmo/booking_fee;
+  @Semantics.amount.currencyCode : 'zuuid_table.currency_code'
+  total_price   : /dmo/total_price;
+  currency_code : /dmo/currency_code;
+  createdby     : syuname;
+  createdat     : timestampl;
+  lastchangedby : syuname;
+  lastchangedat : abp_locinst_lastchange_tstmpl;
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Root Entity:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #MANDATORY
+@Metadata.allowExtensions: true
+@ObjectModel.sapObjectNodeType.name: 'ZUUID_TABLE'
+@EndUserText.label: '###GENERATED Core Data Service Entity'
+define root view entity ZR_UUID_TABLE
+  as select from zuuid_table as R_UUID_TABLE
+{
+  key travel_id as TravelID,
+  description as Description,
+  status as Status,
+  @Semantics.amount.currencyCode: 'CurrencyCode'
+  booking_fee as BookingFee,
+  @Semantics.amount.currencyCode: 'CurrencyCode'
+  total_price as TotalPrice,
+  currency_code as CurrencyCode,
+  createdby as Createdby,
+  createdat as Createdat,
+  lastchangedby as Lastchangedby,
+  @Semantics.systemDateTime.localInstanceLastChangedAt: true
+  lastchangedat as Lastchangedat
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;Projection View:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.allowExtensions: true
+@Metadata.ignorePropagatedAnnotations: true
+@EndUserText: {
+  label: '###GENERATED Core Data Service Entity'
+}
+@ObjectModel: {
+  sapObjectNodeType.name: 'ZUUID_TABLE'
+}
+@AccessControl.authorizationCheck: #MANDATORY
+define root view entity ZC_UUID_TABLE
+  provider contract transactional_query
+  as projection on ZR_UUID_TABLE
+  association [1..1] to ZR_UUID_TABLE as _BaseEntity on $projection.TravelID = _BaseEntity.TravelID
+{
+  key TravelID,
+  Description,
+  Status,
+  @Semantics: {
+    amount.currencyCode: 'CurrencyCode'
+  }
+  BookingFee,
+  @Semantics: {
+    amount.currencyCode: 'CurrencyCode'
+  }
+  TotalPrice,
+  CurrencyCode,
+  Createdby,
+  Createdat,
+  Lastchangedby,
+  @Semantics: {
+    systemDateTime.localInstanceLastChangedAt: true
+  }
+  Lastchangedat,
+  _BaseEntity
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Metadata Extension:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.lineItem: [ {
+    position: 10 , 
+    label: 'Modify Status', type: #FOR_ACTION, dataAction: 'UpdateStatus'
+  } ]
+  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.selectionField: [ {
+    position: 10 
+  } ]
+  &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Root Behavior Definition:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;define action in BDEF.&lt;/LI&gt;&lt;LI&gt;parameter which defines inputs for our actions.&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed implementation in class ZBP_R_UUID_TABLE unique;
+strict ( 2 );
+
+with draft;
+
+extensible;
+define behavior for ZR_UUID_TABLE alias R_UUID_TABLE
+persistent table ZUUID_TABLE
+
+extensible
+draft table ZUUID_TABLE_D
+etag master Lastchangedat
+
+lock master total etag Lastchangedat
+authorization master( global )
+{
+  field ( readonly )
+   TravelID,
+   Lastchangedat;
+
+  field ( numbering : managed )
+   TravelID;
+
+
+  create;
+  update(features : instance );
+  delete(features : global);
+  action(features : global) UpdateStatus parameter zstatus_str;
+  draft action Activate optimized;
+  draft action Discard;
+  draft action Edit;
+  draft action Resume;
+  draft determine action Prepare;
+
+  mapping for ZUUID_TABLE corresponding extensible
+  {
+    TravelID = travel_id;
+    Description = description;
+    Status = status;
+    BookingFee = booking_fee;
+    TotalPrice = total_price;
+    CurrencyCode = currency_code;
+    Createdby = createdby;
+    Createdat = createdat;
+    Lastchangedby = lastchangedby;
+    Lastchangedat = lastchangedat;
+  }
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Parameter For Action:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'staus structure'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+define structure zstatus_str {
+
+  status : /dmo/travel_status;
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;Implementation:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  METHOD UpdateStatus.
+
+
+  MODIFY ENTITIES OF zr_uuid_table IN LOCAL MODE ENTITY r_uuid_table
+  UPDATE FIELDS ( Status ) WITH VALUE #(  for key in keys
+                                            (  %key-TravelID = key-TravelID
+                                              Status = key-%param-status ) )
+                                              REPORTED data(lt_reported)
+                                              FAILED data(lt_failed).
+
+  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Explanation:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;MODIFY ENTITIES&lt;/STRONG&gt; is the RAP statement used to change data in a behavior-managed entity.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;IN LOCAL MODE&lt;/STRONG&gt; ensures the operation runs within the current LUW without immediately committing to the database.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;UPDATE FIELDS&lt;/STRONG&gt;&amp;nbsp; Status&amp;nbsp; explicitly restricts the update to the Status field only, improving clarity and performance.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;keys&lt;/STRONG&gt; contains all selected instances for which the action is triggered.&lt;/LI&gt;&lt;LI&gt;The &lt;STRONG&gt;FOR&lt;/STRONG&gt; expression loops over each selected key, enabling mass processing in a single statement.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;%key-TravelID&lt;/STRONG&gt; identifies the record to be updated.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;key-%param-status&lt;/STRONG&gt; retrieves the action parameter value passed from the UI for ex, a new status selected by the user.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;lt_reported&lt;/STRONG&gt; captures informational, warning, or success messages generated during the update.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;lt_failed&lt;/STRONG&gt; contains records that could not be updated due to validation errors, authorization issues, or business rule violations.&lt;/LI&gt;&lt;LI&gt;These tables are automatically processed by RAP and reflected back to the UI, ensuring proper user feedback.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Projection BDEF:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;expose our custom action in projection behavior definition.&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection implementation in class ZBP_C_UUID_TABLE unique;
+strict ( 2 );
+extensible;
+use draft;
+use side effects;
+define behavior for ZC_UUID_TABLE alias R_UUID_TABLE
+extensible
+use etag
+{
+  use create;
+  use update;
+  use delete;
+
+  use action Edit;
+  use action Activate;
+  use action Discard;
+  use action Resume;
+  use action Prepare;
+use action UpdateStatus;
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;BR /&gt;&lt;BR /&gt;Preview&lt;/STRONG&gt;:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="harsha_reddy24_0-1769070515390.png" style="width: 524px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/364004iD9317102B5D59FE8/image-dimensions/524x155/is-moderation-mode/true?v=v2" width="524" height="155" role="button" title="harsha_reddy24_0-1769070515390.png" alt="harsha_reddy24_0-1769070515390.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;select records and click on &lt;STRONG&gt;modify status&lt;/STRONG&gt; button.&lt;/LI&gt;&lt;LI&gt;Assign any travel status and it will be updated.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="harsha_reddy24_1-1769070896884.png" style="width: 504px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/364008i51970E15FE7EA866/image-dimensions/504x155/is-moderation-mode/true?v=v2" width="504" height="155" role="button" title="harsha_reddy24_1-1769070896884.png" alt="harsha_reddy24_1-1769070896884.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Custom actions in RAP provide a clean and scalable way to handle mass update scenarios that go beyond standard CRUD operations. By leveraging MODIFY ENTITIES, action parameters, and RAP-managed messaging, developers can implement efficient bulk updates while fully adhering to RAP principles. This approach ensures better performance, cleaner code, and seamless integration with Fiori Elements, making it a recommended pattern for real-world business requirements.&lt;BR /&gt;&lt;BR /&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Connectivity/pd-p/266264953119842772207986043063520" class="lia-product-mention" data-product="313-1"&gt;ABAP Connectivity&lt;/a&gt;&amp;nbsp; &lt;a href="https://community.sap.com/t5/c-khhcw49343/ABAP+Extensibility/pd-p/338571334339306322581424656448659" class="lia-product-mention" data-product="315-1"&gt;ABAP Extensibility&lt;/a&gt;&amp;nbsp; &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+BTP+ABAP+environment/pd-p/73555000100800001164" class="lia-product-mention" data-product="11-1"&gt;SAP BTP ABAP environment&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/mass-update-through-custom-action-in-rap/ba-p/14312466"/>
+    <published>2026-01-23T06:31:27.262000+01:00</published>
   </entry>
 </feed>
