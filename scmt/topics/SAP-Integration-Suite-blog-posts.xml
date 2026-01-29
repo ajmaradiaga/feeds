@@ -2,208 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Integration-Suite-blog-posts.xml</id>
   <title>SAP Community - SAP Integration Suite</title>
-  <updated>2026-01-29T06:01:17.984706+00:00</updated>
+  <updated>2026-01-29T09:01:24.901735+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Integration Suite/pd-p/73554900100800003241" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Integration Suite blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/integration-blog-posts/the-only-script-you-would-ever-need-for-message-logging-and-custom-headers/ba-p/14309647</id>
-    <title>The Only Script you would ever need for Message Logging and Custom Headers in SAP CI</title>
-    <updated>2026-01-19T10:28:35.485000+01:00</updated>
-    <author>
-      <name>vinaymittal</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/187725</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-1658804897"&gt;Introduction&lt;/H1&gt;&lt;P&gt;If you are familiar with a previous blog I had written on Configurable Custom headers in SAP CI where you could just add more custom headers in SAP CI message just by configuring the iflow and without having to edit the iflow and then transport it you understand how important and useful this solution is.&lt;/P&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/sap-ci-user-defined-search-made-easy-and-automated/ba-p/13564262" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-members/sap-ci-user-defined-search-made-easy-and-automated/ba-p/13564262&lt;/A&gt;&lt;/P&gt;&lt;P&gt;This solution was however limited in the sense that it didn't allow you to log the payload in the same step, didn't work at all if the value to be logged in custom headers had to be derived from an expression, or if the value to be logged was actually a file path for instance and shouldn't be evaluated as an xpath, or the value was just a constant or if the value was the be derived from a gpath.&lt;/P&gt;&lt;P&gt;This advanced solution enables 360 degree message logging and Custom header logging for all these scenarios.&lt;/P&gt;&lt;H1 id="toc-hId-1462291392"&gt;Solution&amp;nbsp;&lt;/H1&gt;&lt;P&gt;This upgraded Script handles all such cases as we shortly see. -&lt;STRONG&gt; This script has been tested with payloads up to 10mb and has resulted in a processing time of 10-50milli seconds for the script step in my tenant.&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;import com.sap.gateway.ip.core.customdev.util.Message
-import javax.xml.xpath.XPathFactory
-import javax.xml.xpath.XPathExpression
-import javax.xml.xpath.XPathConstants
-import javax.xml.parsers.DocumentBuilderFactory
-import groovy.json.JsonSlurper
-import java.io.InputStream
-import java.io.ByteArrayInputStream
-
-def Message processData(Message message) {
-
-    InputStream bodyIS = message.getBody(InputStream)   // &amp;lt;-- InputStream
-    def headers = message.getHeaders()
-    def properties = message.getProperties()
-    def messageLog = messageLogFactory.getMessageLog(message)
-
-    def value = headers.get("SAPJMSRetries")
-    int SAPJMSRetries = -1
-    if (value != null) {
-        SAPJMSRetries = Integer.parseInt((String) value)
-    }
-
-    String logger = properties.get("logger")
-    String logPayloadFileName = properties.get("logPayloadFileName")
-
-    // Payload logging (still needs String)
-    if (logger == "1" &amp;amp;&amp;amp; SAPJMSRetries == -1 &amp;amp;&amp;amp; messageLog != null) {
-        if (logPayloadFileName == null) {
-            logPayloadFileName = "payload"
-        }
-        def payloadString = bodyIS.getText("UTF-8")
-        messageLog.addAttachmentAsString(logPayloadFileName, payloadString, "text/plain")
-
-        // Reset stream for further processing
-        bodyIS = new ByteArrayInputStream(payloadString.bytes)
-        message.setBody(bodyIS)
-    }
-
-    message = logKeys(message)
-    return message
-}
-
-def Message logKeys(Message message) {
-
-    InputStream bodyIS = message.getBody(InputStream)   // &amp;lt;-- InputStream
-    def properties = message.getProperties()
-    def messageLog = messageLogFactory.getMessageLog(message)
-
-    def search_attributes = properties.get("search_attributes")
-    def attribute_xpaths = properties.get("attribute_xpaths")
-
-    if (!search_attributes || !attribute_xpaths) {
-        return message
-    }
-
-    String[] search_attributes_array = search_attributes.split("#")
-    String[] attribute_xpaths_array = attribute_xpaths.split("#")
-
-    if (search_attributes_array.length != attribute_xpaths_array.length) {
-        return message
-    }
-
-    String saveCustomHeadersAsAnAttachment = ""
-    def xmlDocument = null
-    def jsonObject = null
-
-    for (int i = 0; i &amp;lt; attribute_xpaths_array.length; i++) {
-
-        String temp_value = ""
-        String attr = attribute_xpaths_array[i]
-
-        // ---------- XPATH ----------
-        if (attr.startsWith("XPATH:")) {
-
-            try {
-                if (xmlDocument == null) {
-                    def builder = DocumentBuilderFactory.newInstance().newDocumentBuilder()
-                    xmlDocument = builder.parse(bodyIS)
-
-                    // reset stream for next usage
-                    bodyIS.reset()
-                }
-
-                def xpathExp = attr.substring(6)
-                def xpath = XPathFactory.newInstance().newXPath()
-                XPathExpression expr = xpath.compile(xpathExp)
-                def nodes = expr.evaluate(xmlDocument, XPathConstants.NODESET)
-
-                for (int j = 0; j &amp;lt; nodes.length; j++) {
-                    temp_value += nodes.item(j).textContent + ","
-                }
-
-                if (temp_value.endsWith(",")) {
-                    temp_value = temp_value[0..-2]
-                }
-
-            } catch (Exception e) {
-                temp_value = attr
-            }
-        }
-
-        // ---------- GPATH ----------
-        else if (attr.startsWith("GPATH:")) {
-
-            try {
-                if (jsonObject == null) {
-                    jsonObject = new JsonSlurper().parse(bodyIS)
-
-                    // reset stream for next usage
-                    bodyIS.reset()
-                }
-
-                def gpath = attr.substring(6)
-                temp_value = Eval.me("json", jsonObject, "json.${gpath}")?.toString()
-
-            } catch (Exception e) {
-                messageLog?.addAttachmentAsString(
-                        "Exception Encountered in Logging",
-                        e.message,
-                        "text/plain"
-                )
-            }
-        }
-
-        // ---------- CONSTANT ----------
-        else {
-            temp_value = attr
-        }
-
-        if (temp_value != null) {
-            messageLog?.addCustomHeaderProperty(search_attributes_array[i], temp_value)
-            saveCustomHeadersAsAnAttachment += "${search_attributes_array[i]} : ${temp_value}\n"
-        }
-    }
-
-    if (saveCustomHeadersAsAnAttachment.length() &amp;gt; 200) {
-        messageLog?.addAttachmentAsString(
-                "FullTextOfTruncatedCustomHeaders",
-                saveCustomHeadersAsAnAttachment,
-                "text/plain"
-        )
-    }
-
-    return message
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Let's consider following XML sample as inbound XML payload&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;Invoice&amp;gt;
-  &amp;lt;InvHeader&amp;gt;
-    &amp;lt;InvNumber&amp;gt;4385689&amp;lt;/InvNumber&amp;gt;
-    &amp;lt;CustName&amp;gt;Cust 1&amp;lt;/CustName&amp;gt;
-  &amp;lt;/InvHeader&amp;gt;
-  &amp;lt;InvLineItem&amp;gt;
-    &amp;lt;Item&amp;gt;
-      &amp;lt;ItemNum&amp;gt;100&amp;lt;/ItemNum&amp;gt;
-    &amp;lt;/Item&amp;gt;
-    &amp;lt;Item&amp;gt;
-      &amp;lt;ItemNum&amp;gt;101&amp;lt;/ItemNum&amp;gt;
-    &amp;lt;/Item&amp;gt;
-    &amp;lt;Item&amp;gt;
-      &amp;lt;ItemNum&amp;gt;102&amp;lt;/ItemNum&amp;gt;
-    &amp;lt;/Item&amp;gt;
-    &amp;lt;Item&amp;gt;
-      &amp;lt;ItemNum&amp;gt;103&amp;lt;/ItemNum&amp;gt;
-    &amp;lt;/Item&amp;gt;
-  &amp;lt;/InvLineItem&amp;gt;
-&amp;lt;/Invoice&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Iflow-&amp;nbsp;&lt;/P&gt;&lt;P&gt;You just need a content modifier with the logger parameters and the actual script after it.&lt;/P&gt;&lt;P&gt;Parameter / Properties format -&amp;nbsp;&lt;/P&gt;&lt;P&gt;logPayloadFileName - Give the file Name for the log attachment for saving the message as an attachment&lt;/P&gt;&lt;P&gt;logger - 1 : message will be logged as an attachment , 0 : Message wont be logged&lt;/P&gt;&lt;P&gt;search_attributes : Names of the search attributes / Custom headers separated by #&lt;/P&gt;&lt;P&gt;example :&amp;nbsp;HTTPStatus#InvNumber#CustName#ItemNumbers&lt;/P&gt;&lt;P&gt;attribute_xpaths : Values of the custom headers specified above in same order separated by #, Keep data type as java.lang.String&lt;/P&gt;&lt;P&gt;example :&lt;/P&gt;&lt;P&gt;${header.CamelHttpResponseCode}#XPATH://InvNumber#XPATH://CustName#XPATH://InvLineItem/Item/ItemNum&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="iflow1.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362521i6E9F2340F06CEB48/image-size/large?v=v2&amp;amp;px=999" role="button" title="iflow1.png" alt="iflow1.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;As you can see from the message log the Custom headers were created from the supplied expression, and XPATH's, if there were multiple xpath matches all those values were concatenated, separated by ",". If you only want only the first xpath matche value do specify [0] explicitly.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="result 1 - headers.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362544i961576A6E98A19D8/image-size/large?v=v2&amp;amp;px=999" role="button" title="result 1 - headers.png" alt="result 1 - headers.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;A salient feature is that the allowed character limit for a header is 100 characters, In case this limit is exceeded the script will create an attachment as well for that particular header as the SAP CI custom header would display only 100 characters.&lt;/P&gt;&lt;P&gt;And here is the MPL attachment saved with your custom name&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="payload-2.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362477iBEA7D0CAC2BE5200/image-size/large?v=v2&amp;amp;px=999" role="button" title="payload-2.png" alt="payload-2.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Let's have a look at a JSON Payload as an input example&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{
-	"Invoice": {
-		"InvHeader": {
-			"InvNumber": 4385689,
-			"CustName": "Cust 1"
-		},
-		"InvLineItem": {
-			"Item": [
-				{
-					"ItemNum": 100
-				},
-				{
-					"ItemNum": 101
-				},
-				{
-					"ItemNum": 102
-				},
-				{
-					"ItemNum": 103
-				}
-			]
-		}
-	}
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;search_attributes :&amp;nbsp;&lt;/P&gt;&lt;P&gt;HTTPStatus#InvNumber#CustName#ItemNumbers#ArchiveFilePath&lt;/P&gt;&lt;P&gt;attribute_xpaths&lt;/P&gt;&lt;P&gt;${header.CamelHttpResponseCode}#GPATH:Invoice.InvHeader.InvNumber#GPATH:Invoice.InvHeader.CustName#GPATH:Invoice.InvLineItem.Item*.ItemNum#/Folder1/Folder2/File1.txt&lt;/P&gt;&lt;P&gt;This should now add the custom headers in exactly same way as it added for the previous XML input and should also add the file path which starts with : so as to tell the script to not evaluate it as a XPATH, and should also add the expression. The GPATHS should start with "GPATH:"&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="iflow11.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362526i71AB50280BCE52BA/image-size/large?v=v2&amp;amp;px=999" role="button" title="iflow11.png" alt="iflow11.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;BR /&gt;Result:&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="result23.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362525i1F1B71DA650D98A4/image-size/large?v=v2&amp;amp;px=999" role="button" title="result23.png" alt="result23.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;One more important feature is that it checks SAPJMSRetries header and if this is used in a JMS flow this will only add MPL attachment 1 time.&amp;nbsp;&lt;/P&gt;&lt;P&gt;So use it in your iflows and do add the blog link in your script for helping operations team understand how this works.&lt;/P&gt;&lt;P&gt;don't forget to make the search_attributes and attributes_xpaths externalized parameters, that way you would never have to change the artifact and transport it if you need additional custom headers ever.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="configparams.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/362551iE9FFA327D072F691/image-size/large?v=v2&amp;amp;px=999" role="button" title="configparams.png" alt="configparams.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;The combination of the content modifier which has the parameters and the groovy script step can be used as many times as you want in the integration flow , just remember to reset the values before the script step by making the xpath_attributes and search_attributes properties blank but configurable. also if you dont want logging externalize the logger property and set it to 0. this takes 5 minutes but will save you hours in future developments.&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/integration-blog-posts/the-only-script-you-would-ever-need-for-message-logging-and-custom-headers/ba-p/14309647"/>
-    <published>2026-01-19T10:28:35.485000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/integration-blog-posts/using-migration-assessment-to-plan-your-sap-process-orchestration-to-sap/ba-p/14309843</id>
     <title>Using Migration Assessment to Plan Your SAP Process Orchestration to SAP Integration Suite Migration</title>
@@ -509,8 +311,128 @@ Content-Type: application/octet-stream
       <name>NaveenReddy_06</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2162931</uri>
     </author>
-    <content>&lt;P&gt;I am currently working on a project where a Hybrid Integration platform (SAP BTP Integration Suite and Azure Integration Services) is used as middleware between SAP and Non-SAP applications.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Business Requirement:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Transmit new and modified Business Partner (vendor) details from SAP S/4HANA Public Cloud to Azure Service Bus using the hybrid integration setup.&lt;/P&gt;&lt;P&gt;In this first part of the blog, we explain how vendor messages generated from SAP S/4HANA Public Cloud SOAP Outbound APIs flow through the integration platform and Azure services.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Introduction:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In this project, we built an integration to send new and updated vendor (Business Partner) data from SAP S/4HANA Public Cloud to Azure Service Bus using SAP Integration Suite as the middleware.&lt;/P&gt;&lt;P&gt;SAP sends the vendor data as a SOAP message, which is processed and converted into XML format in SAP Integration Suite. The message is then published to Azure Service Bus, picked up by Azure Logic Apps, routed through Azure API Management, and finally delivered to the Coupa REST API endpoint.&lt;/P&gt;&lt;P&gt;This integration enables fast, secure, and reliable data exchange between SAP, Azure, and Coupa with minimal delay.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;End to End Core Interface Design:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_0-1769506688624.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/365736iAE0A11B34EF8C96B/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_0-1769506688624.png" alt="NaveenReddy_06_0-1769506688624.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;what I worked on as an SAP BTP Integration Suite Developer&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Developed integrations between SAP S/4HANA Public Cloud SOAP Outbound APIs and Azure Service Bus using SAP Integration Suite iflows.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Implementation:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_1-1769507021674.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/365738i5384768AB8248B04/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_1-1769507021674.png" alt="NaveenReddy_06_1-1769507021674.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 1: Configure SOAP Sender Adapter&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In this step, we set up the SOAP Sender Adapter so SAP Integration Suite can receive vendor data from SAP S/4HANA. We configure the URL, connect the WSDL, and enable security so SAP can safely send messages into the flow.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_2-1769507317835.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/365739i56228BAC69FF8608/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_2-1769507317835.png" alt="NaveenReddy_06_2-1769507317835.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 2: Receive Vendor Data from SAP S/4HANA (SOAP)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;It receives the Business Partner (Vendor) SOAP message sent from SAP S/4HANA and makes the XML payload available for processing.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 3: Add Tracking Details to the message&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;We use this step to track and identify each vendor message as it moves through the integration flow by adding values like vendor Number and Correlation ID.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_3-1769507643032.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/365740i41137C6EB4722A1D/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_3-1769507643032.png" alt="NaveenReddy_06_3-1769507643032.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 4: Decode Base64 Payload&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The Base64 Decoder is used to convert the encoded SAP payload into readable XML format. This ensures the data can be mapped and processed correctly in the integration flow.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 5: Map Vendor Source Data to Target Format&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Here, we connect the SAP vendor fields to the matching fields in the target format so the data is passed correctly and can be understood by the next system.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_4-1769508065363.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/365741i7833650D4BBFC5BB/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_4-1769508065363.png" alt="NaveenReddy_06_4-1769508065363.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 6:&amp;nbsp; Add Azure Message Headers&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;We add Azure-related details like MessageId, ContentType, and Label to the message. These help Azure Service Bus identify the message, track it properly, and process it correctly.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_5-1769508320675.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/365742i2ED637FF44BC4F9C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_5-1769508320675.png" alt="NaveenReddy_06_5-1769508320675.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 7: Publish Vendor Data to Azure Service Bus Topic&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In the step, we send the vendor data from SAP Integration Suite to Azure Service Bus. We connect securely to Azure and publish the message to a topic so it can be picked up and used by other systems.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Connection Tab:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_0-1769596615664.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/366322iE526E71E13F99E4C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_0-1769596615664.png" alt="NaveenReddy_06_0-1769596615664.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Processing Tab:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_7-1769508691309.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/365749iDB91D5D41EBE690F/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_7-1769508691309.png" alt="NaveenReddy_06_7-1769508691309.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;What Happens After Data Reaches Azure Service Bus&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Once the vendor data is sent to the Azure Service Bus Topic, it is stored safely and made available for other systems to use. The topic&amp;nbsp; works like a message hub, where one message can be shared with multiple consumers if needed.&lt;/P&gt;&lt;P&gt;Azure Service Bus ensures reliable processing by handing message retries and moving failed messages to a dead-letter queue instead of losing them. This improves the reliability of integration and reduces rick data loss.&lt;/P&gt;&lt;P&gt;Another key benefit is system decoupling. SAP sends the message once, and downstream systems can process it independently. this improves performance and makes it easier to add new consumers in the future without changing the SAP integration flow.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In case error happen in the middle of the flow and from SAP, it is better a add a global retry mechanism so the message can be automatically retried. This is a recommended approach, but it is not part of the current blog.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In this hybrid integration, my role is to send the vendor data from SAP Integration Suite to Azure Service Bus, making sure the message is delivered safely so other system can pick it up process it further.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This setup shows how SAP and Azure work together using SAP Integration Suite to send vendor data smoothly. By checking and converting the data before sending it to Azure Service Bus, the flow stays clean and avoids errors. Overall, this approach makes the integration easier to manage, more flexible, and able to handle growing business data needs.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <content>&lt;P&gt;I am currently working on a project where a Hybrid Integration platform (SAP BTP Integration Suite and Azure Integration Services) is used as middleware between SAP and Non-SAP applications.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Business Requirement:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Transmit new and modified Business Partner (vendor) details from SAP S/4HANA Public Cloud to Azure Service Bus using the hybrid integration setup.&lt;/P&gt;&lt;P&gt;In this first part of the blog, we explain how vendor messages generated from SAP S/4HANA Public Cloud SOAP Outbound APIs flow through the integration platform and Azure services.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Introduction:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In this project, we built an integration to send new and updated vendor (Business Partner) data from SAP S/4HANA Public Cloud to Azure Service Bus using SAP Integration Suite as the middleware.&lt;/P&gt;&lt;P&gt;SAP sends the vendor data as a SOAP message, which is processed and converted into XML format in SAP Integration Suite. The message is then published to Azure Service Bus, picked up by Azure Logic Apps, routed through Azure API Management, and finally delivered to the Coupa REST API endpoint.&lt;/P&gt;&lt;P&gt;This integration enables fast, secure, and reliable data exchange between SAP, Azure, and Coupa with minimal delay.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;End to End Core Interface Design:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_0-1769506688624.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/365736iAE0A11B34EF8C96B/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_0-1769506688624.png" alt="NaveenReddy_06_0-1769506688624.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;what I worked on as an SAP BTP Integration Suite Developer&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Developed integrations between SAP S/4HANA Public Cloud SOAP Outbound APIs and Azure Service Bus using SAP Integration Suite iflows.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Implementation:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_1-1769507021674.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/365738i5384768AB8248B04/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_1-1769507021674.png" alt="NaveenReddy_06_1-1769507021674.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 1: Configure SOAP Sender Adapter&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In this step, we set up the SOAP Sender Adapter so SAP Integration Suite can receive vendor data from SAP S/4HANA. We configure the URL, connect the WSDL, and enable security so SAP can safely send messages into the flow.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_2-1769507317835.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/365739i56228BAC69FF8608/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_2-1769507317835.png" alt="NaveenReddy_06_2-1769507317835.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 2: Receive Vendor Data from SAP S/4HANA (SOAP)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;It receives the Business Partner (Vendor) SOAP message sent from SAP S/4HANA and makes the XML payload available for processing.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 3: Add Tracking Details to the message&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;We use this step to track and identify each vendor message as it moves through the integration flow by adding values like vendor Number and Correlation ID.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_3-1769507643032.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/365740i41137C6EB4722A1D/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_3-1769507643032.png" alt="NaveenReddy_06_3-1769507643032.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 4: Decode Base64 Payload&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The Base64 Decoder is used to convert the encoded SAP payload into readable XML format. This ensures the data can be mapped and processed correctly in the integration flow.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 5: Map Vendor Source Data to Target Format&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Here, we connect the SAP vendor fields to the matching fields in the target format so the data is passed correctly and can be understood by the next system.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_4-1769508065363.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/365741i7833650D4BBFC5BB/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_4-1769508065363.png" alt="NaveenReddy_06_4-1769508065363.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 6:&amp;nbsp; Add Azure Message Headers&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;We add Azure-related details like MessageId, ContentType, and Label to the message. These help Azure Service Bus identify the message, track it properly, and process it correctly.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_5-1769508320675.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/365742i2ED637FF44BC4F9C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_5-1769508320675.png" alt="NaveenReddy_06_5-1769508320675.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 7: Publish Vendor Data to Azure Service Bus Topic&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In the step, we send the vendor data from SAP Integration Suite to Azure Service Bus. We connect securely to Azure and publish the message to a topic so it can be picked up and used by other systems.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Connection Tab:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_0-1769596615664.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/366322iE526E71E13F99E4C/image-size/large?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_0-1769596615664.png" alt="NaveenReddy_06_0-1769596615664.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Processing Tab:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NaveenReddy_06_7-1769508691309.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/365749iDB91D5D41EBE690F/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="NaveenReddy_06_7-1769508691309.png" alt="NaveenReddy_06_7-1769508691309.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;What Happens After Data Reaches Azure Service Bus&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Once the vendor data is sent to the Azure Service Bus Topic, it is stored safely and made available for other systems to use. The topic&amp;nbsp; works like a message hub, where one message can be shared with multiple consumers if needed.&lt;/P&gt;&lt;P&gt;Azure Service Bus ensures reliable processing by handing message retries and moving failed messages to a dead-letter queue instead of losing them. This improves the reliability of integration and reduces rick data loss.&lt;/P&gt;&lt;P&gt;Another key benefit is system decoupling. SAP sends the message once, and downstream systems can process it independently. this improves performance and makes it easier to add new consumers in the future without changing the SAP integration flow.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In case error happen in the middle of the flow and from SAP, it is better a add a global retry mechanism so the message can be automatically retried. This is a recommended approach, but it is not part of the current blog.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In this hybrid integration, my role is to send the vendor data from SAP Integration Suite to Azure Service Bus, making sure the message is delivered safely so other system can pick it up process it further.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This setup shows how SAP and Azure work together using SAP Integration Suite to send vendor data smoothly. By checking and converting the data before sending it to Azure Service Bus, the flow stays clean and avoids errors. Overall, this approach makes the integration easier to manage, more flexible, and able to handle growing business data needs.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/hybrid-integration-pattern-sap-s-4hana-vendor-data-to-azure-service-bus/ba-p/14312523"/>
     <published>2026-01-29T05:44:17.712000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/real-time-xml-to-edi-conversion-a-step-by-step-cpi-integration-scenario/ba-p/14284748</id>
+    <title>Real-Time XML to EDI Conversion: A Step-by-Step CPI Integration Scenario 2025</title>
+    <updated>2026-01-29T07:07:12.973000+01:00</updated>
+    <author>
+      <name>shiva9803</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2255757</uri>
+    </author>
+    <content>&lt;P&gt;Hello all, welcome to this blog on SAP Cloud Integration and EDI. Business partners in many B2B projects still exchange data in classic EDI formats, while modern applications speak XML or JSON. Bridging these formats reliably is one of the common challenges for integration developers working with SAP CPI.&lt;/P&gt;&lt;P&gt;In this article, we will go through a full, hands-on example of receiving an XML message over HTTPS, converting it to EDI, enriching it with a Groovy script, and finally delivering it to the receiver via email. The aim is to provide you with a clear, end‑to‑end view of how to design this flow, which components to use, and what configuration details matter in real projects.&lt;/P&gt;&lt;P&gt;The Scenario we are working is shown below.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="FULL SCENARIO IMAGE" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348827i41B7083C4F03ED5A/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-05 122212.png" alt="FULL SCENARIO IMAGE" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;FULL SCENARIO IMAGE&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;Before Going Into the Scenario we need to understand about the EDI ,where it is used and all that .&lt;/P&gt;&lt;P&gt;So,EDI is the automated, system‑to‑system exchange of business documents in a standard electronic format, as opposed to paper or email and manual data entry. It is also widely used in B2B processes like orders, invoices, shipping notices, and inventory updates across retail, manufacturing, logistics, automotive, and healthcare. The main standards are UN/EDIFACT (global), ANSI X12 (North America), plus others like TRADACOMS and healthcare‑focused HL7, each with defined message types such as ORDERS/INVOIC (EDIFACT) or 850/810 (X12).&lt;/P&gt;&lt;P&gt;&amp;gt;For the Trail Account We have only option to use Orders(EDIFACT) Standard only.&lt;/P&gt;&lt;P&gt;Now we will go step by step process : -&lt;/P&gt;&lt;P&gt;1)Create an iflow first and from the sender connect to the start event as show in the figure and select the HTTPS adater to send the XML data from the Postman. Here I'm using postman to send the data , we can also use the timer Event with content modifier to start the iflow.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Screenshot 2025-12-05 153243.png" style="width: 811px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348895i39D3455D01E694F6/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-05 153243.png" alt="Screenshot 2025-12-05 153243.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;2)After connecting with the HTTPS adapter, Deply the iflow so we need can get the HTTPS endpoint as shown below, so we can use that endpoint in postman to post the data to cpi.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="POstman page" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348916iA03131BA025336AA/image-size/large?v=v2&amp;amp;px=999" role="button" title="edited poatman .png" alt="POstman page" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;POstman page&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ENDPOINTS" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/358047i5774E2D99EB242BD/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-05 154408.png" alt="ENDPOINTS" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;ENDPOINTS&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;3)Now Before going to use XML to EDI converter we need to use EDI xsd's to use for this conversion.So now we need to go to the Settings--&amp;gt;MIGs and MAGs --&amp;gt; click on the trails as shown in the image below to activate the three standards.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Activate these three standards" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348962iEAC2699D5ADB65FC/image-size/large?v=v2&amp;amp;px=999" role="button" title="settings MIGS.png" alt="Activate these three standards" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Activate these three standards&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Accept the each standard like this" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348965i28C59177DCCDB3F4/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-05 174551.png" alt="Accept the each standard like this" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Accept the each standard like this&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="After Activating looks like this" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348966i0019F0E95A457D99/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-05 174630.png" alt="After Activating looks like this" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;After Activating looks like this&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;4)After that we need to go to the Design--&amp;gt;MIGs--&amp;gt;click on Create option as shown in the image below.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="MIGS.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/348927i6E94F869B1345053/image-size/large?v=v2&amp;amp;px=999" role="button" title="MIGS.png" alt="MIGS.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;5)After that we need to select the type system that we are using in xml to EDI converter , select the sysstem shown in the image below.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="CLICK ON UN/EDIFACT" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349519i4D16FEEFA587501F/image-size/large?v=v2&amp;amp;px=999" role="button" title="fact.png" alt="CLICK ON UN/EDIFACT" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;CLICK ON UN/EDIFACT&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;6)After that we need to select the ORDERS standard because for the trail accounts we can only&amp;nbsp; select the ORDERS standard froom the list ,so search for it until you find it .&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="SEARCH FOR ORDER" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349521iE96D94F67310EF03/image-size/large?v=v2&amp;amp;px=999" role="button" title="6.png" alt="SEARCH FOR ORDER" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;SEARCH FOR ORDER&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;7)After Finding it click on ORDERS to&amp;nbsp; proceed to the next steps&amp;nbsp; as shown below.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Click on the ORDERS to proceed" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349523i2711DBA5F407DCA0/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-08 103047.png" alt="Click on the ORDERS to proceed" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Click on the ORDERS to proceed&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;8)Select version "D.96A s3" as shown below. This is best version for trail accounts.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Select this version" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349524i83CD2D31E9EAC440/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-08 103228.png" alt="Select this version" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Select this version&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;9)After the version selection we need to select the Envelope we need have in our system. Use the 3rd Envelope as shown in the image to proceed to the next steps.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Select the Envelopes" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349525i7121C4989B7E42BD/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-08 103250.png" alt="Select the Envelopes" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Select the Envelopes&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;10)After the above step we&amp;nbsp; need to SKIP the sample payload step and proceed to the MIG creation step.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="SKIP the sample payload step" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349526i32EB9BD83036E906/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-08 103306.png" alt="SKIP the sample payload step" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;SKIP the sample payload step&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;11)Here we need to Enter the Name of the MIG and Direction its work , we are selecting it as BOTH , so it will work as IN and OUT Directions.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Enter the MIG name and Direction" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349527i201E5503182E80DF/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-08 103349.png" alt="Enter the MIG name and Direction" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Enter the MIG name and Direction&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;12) After that , Click on the plus icon and select the 'Bussiness Process' and after that we have access the select the list of business processess we have ,so from the drop down select all 250 processess and click on CREATE to create the MIG.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Select all process" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349528iB178784E96DC99E8/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-08 103426.png" alt="Select all process" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Select all process&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;13) After creation , created MIG will be appear here , in my case i have created and exported so it is not showing here. For you guys it shown here and when we have that MIG , click on and open that MIG , on the top right side we have three dots icon click on it and EXPORT the MIG as 'SAP cloud integration runtime artifacts' , so that one ZIP file will be downloaded and we can seen it our laptop downloads folder . Extract it to get the both xsd files one is normal EDI xsd and another is EDI xsd for runtime. Most of the times we use only one file i.e "UN-EDIFACT_ORDERS_D96A.xsd" .&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="CREATED MIG SHOWN HERE" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349529iBECA6344E737ADB9/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-08 105059.png" alt="CREATED MIG SHOWN HERE" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;CREATED MIG SHOWN HERE&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="EDI xsds in exported folder" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349530i98C34DDA8145492D/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-08 120102.png" alt="EDI xsds in exported folder" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;EDI xsds in exported folder&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;14) Drag a XML to EDI converter step from the pallate and add to the iflow as shown in the first image of full iflow starting of the Blog. Click on the EDIFACT and inside that change connections as shown in image and remaining all default and also add the EDI xsd file by clicking on the add button as shown in the image from your laptop import it here. we dont have to change any thing for X12 and Tradacoms.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="EDIFACT connection page" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349536i4042E05558506FA0/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-08 121139.png" alt="EDIFACT connection page" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;EDIFACT connection page&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;15) After that I'm using&amp;nbsp; Groovy script to Log the payload and see the output . Also we can see the output via MAIL also. so, Drag a groovy script and attach it after xml to edi converter .&lt;/P&gt;&lt;P&gt;GROOVY SCRIPT IM USING&amp;nbsp; :-&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;import com.sap.gateway.ip.core.customdev.util.Message
+
+def Message processData(Message message) {
+def body = message.getBody(String)
+
+// Log to Message Processing Log (MPL)
+def messageLog = messageLogFactory.getMessageLog(message)
+if (messageLog != null) {
+messageLog.addAttachmentAsString("EDI_OUTPUT", body, "application/xml")
+}
+
+// Ensure Content-Type is XML
+def headers = message.getHeaders()
+headers.put("Content-Type", "application/xml")
+message.setHeaders(headers)
+
+// Return the mapped XML
+message.setBody(body)
+return message
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;16) After this from the End message connect mail adapter to the receiver and give the details as shown in the images . And also we need to create "Security material" for the mail we are using for sending mails . I think you guys known how to create it so that Im not including it .&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="PROCESSING PAGE" style="width: 845px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349539i1A085C4B93F3A192/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-08 122549.png" alt="PROCESSING PAGE" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;PROCESSING PAGE&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="CONNECTION PAGE" style="width: 828px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349540i7763ECDB044466AC/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-08 122535.png" alt="CONNECTION PAGE" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;CONNECTION PAGE&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="SECURITY MATERIAL OVERVIEW" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349541i102DE6B74FD11A43/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-08 123559.png" alt="SECURITY MATERIAL OVERVIEW" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;SECURITY MATERIAL OVERVIEW&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;17) After all these steps we need to deploy the iflow and send the input payload from the postman and we get the output in groovy and MAIL . Select the option in poastman as shown image below and send it.&lt;/P&gt;&lt;P&gt;INPUT payload&amp;nbsp; for postman :-&lt;/P&gt;&lt;P&gt;--&amp;gt;For payload see below data.xml file uploaded or here is the code :-&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;?xml version="1.0" encoding="UTF-8"?&amp;gt;
+&amp;lt;Interchange&amp;gt;
+	&amp;lt;S_UNA&amp;gt;:+.? '&amp;lt;/S_UNA&amp;gt;
+	&amp;lt;S_UNB&amp;gt;
+		&amp;lt;C_S001&amp;gt;
+			&amp;lt;D_0001&amp;gt;UNOC&amp;lt;/D_0001&amp;gt;
+			&amp;lt;D_0002&amp;gt;3&amp;lt;/D_0002&amp;gt;
+		&amp;lt;/C_S001&amp;gt;
+		&amp;lt;C_S002&amp;gt;
+			&amp;lt;D_0004&amp;gt;SENDERABC&amp;lt;/D_0004&amp;gt;
+			&amp;lt;D_0007&amp;gt;14&amp;lt;/D_0007&amp;gt;
+			&amp;lt;D_0008&amp;gt;XXXX&amp;lt;/D_0008&amp;gt;
+		&amp;lt;/C_S002&amp;gt;
+		&amp;lt;C_S003&amp;gt;
+			&amp;lt;D_0010&amp;gt;ReceiverXYZ&amp;lt;/D_0010&amp;gt;
+			&amp;lt;D_0007&amp;gt;14&amp;lt;/D_0007&amp;gt;
+			&amp;lt;D_0014&amp;gt;YYYYY&amp;lt;/D_0014&amp;gt;
+		&amp;lt;/C_S003&amp;gt;
+		&amp;lt;C_S004&amp;gt;
+			&amp;lt;D_0017&amp;gt;150831&amp;lt;/D_0017&amp;gt;
+			&amp;lt;D_0019&amp;gt;1530&amp;lt;/D_0019&amp;gt;
+		&amp;lt;/C_S004&amp;gt;
+		&amp;lt;D_0020&amp;gt;1&amp;lt;/D_0020&amp;gt;
+		&amp;lt;C_S005&amp;gt;
+			&amp;lt;D_0022&amp;gt;HELLO WORLD&amp;lt;/D_0022&amp;gt;
+		&amp;lt;/C_S005&amp;gt;
+		&amp;lt;D_0029&amp;gt;A&amp;lt;/D_0029&amp;gt;
+		&amp;lt;D_0035&amp;gt;1&amp;lt;/D_0035&amp;gt;
+	&amp;lt;/S_UNB&amp;gt;
+	&amp;lt;!-- First ORDERS message --&amp;gt;
+	&amp;lt;M_ORDERS&amp;gt;
+		&amp;lt;S_UNH&amp;gt;
+			&amp;lt;D_0062&amp;gt;1&amp;lt;/D_0062&amp;gt;
+			&amp;lt;C_S009&amp;gt;
+				&amp;lt;D_0065&amp;gt;ORDERS&amp;lt;/D_0065&amp;gt;
+				&amp;lt;D_0052&amp;gt;D&amp;lt;/D_0052&amp;gt;
+				&amp;lt;D_0054&amp;gt;96A&amp;lt;/D_0054&amp;gt;
+				&amp;lt;D_0051&amp;gt;UN&amp;lt;/D_0051&amp;gt;
+			&amp;lt;/C_S009&amp;gt;
+			&amp;lt;C_S010&amp;gt;
+				&amp;lt;D_0070&amp;gt;2&amp;lt;/D_0070&amp;gt;
+			&amp;lt;/C_S010&amp;gt;
+		&amp;lt;/S_UNH&amp;gt;
+		&amp;lt;S_BGM&amp;gt;
+			&amp;lt;C_C002&amp;gt;
+				&amp;lt;D_1001&amp;gt;220&amp;lt;/D_1001&amp;gt;
+			&amp;lt;/C_C002&amp;gt;
+			&amp;lt;D_1004&amp;gt;ORDER1&amp;lt;/D_1004&amp;gt;
+			&amp;lt;D_1225&amp;gt;9&amp;lt;/D_1225&amp;gt;
+			&amp;lt;D_4343&amp;gt;NA&amp;lt;/D_4343&amp;gt;
+		&amp;lt;/S_BGM&amp;gt;
+		&amp;lt;!-- Further order details here --&amp;gt;
+		&amp;lt;S_UNT&amp;gt;
+			&amp;lt;D_0074&amp;gt;5&amp;lt;/D_0074&amp;gt;
+			&amp;lt;D_0062&amp;gt;1&amp;lt;/D_0062&amp;gt;
+		&amp;lt;/S_UNT&amp;gt;
+	&amp;lt;/M_ORDERS&amp;gt;
+	&amp;lt;!-- Second ORDERS message --&amp;gt;
+	&amp;lt;M_ORDERS&amp;gt;
+		&amp;lt;S_UNH&amp;gt;
+			&amp;lt;D_0062&amp;gt;2&amp;lt;/D_0062&amp;gt;
+			&amp;lt;C_S009&amp;gt;
+				&amp;lt;D_0065&amp;gt;ORDERS&amp;lt;/D_0065&amp;gt;
+				&amp;lt;D_0052&amp;gt;D&amp;lt;/D_0052&amp;gt;
+				&amp;lt;D_0054&amp;gt;96A&amp;lt;/D_0054&amp;gt;
+				&amp;lt;D_0051&amp;gt;UN&amp;lt;/D_0051&amp;gt;
+			&amp;lt;/C_S009&amp;gt;
+			&amp;lt;C_S010&amp;gt;
+				&amp;lt;D_0070&amp;gt;2&amp;lt;/D_0070&amp;gt;
+			&amp;lt;/C_S010&amp;gt;
+		&amp;lt;/S_UNH&amp;gt;
+		&amp;lt;S_BGM&amp;gt;
+			&amp;lt;C_C002&amp;gt;
+				&amp;lt;D_1001&amp;gt;220&amp;lt;/D_1001&amp;gt;
+			&amp;lt;/C_C002&amp;gt;
+			&amp;lt;D_1004&amp;gt;ORDER2&amp;lt;/D_1004&amp;gt;
+			&amp;lt;D_1225&amp;gt;9&amp;lt;/D_1225&amp;gt;
+			&amp;lt;D_4343&amp;gt;NA&amp;lt;/D_4343&amp;gt;
+		&amp;lt;/S_BGM&amp;gt;
+		&amp;lt;!-- Further order details here --&amp;gt;
+		&amp;lt;S_UNT&amp;gt;
+			&amp;lt;D_0074&amp;gt;6&amp;lt;/D_0074&amp;gt;
+			&amp;lt;D_0062&amp;gt;2&amp;lt;/D_0062&amp;gt;
+		&amp;lt;/S_UNT&amp;gt;
+	&amp;lt;/M_ORDERS&amp;gt;
+	&amp;lt;S_UNZ&amp;gt;
+		&amp;lt;D_0036&amp;gt;2&amp;lt;/D_0036&amp;gt;
+		&amp;lt;D_0020&amp;gt;1&amp;lt;/D_0020&amp;gt;
+	&amp;lt;/S_UNZ&amp;gt;
+&amp;lt;/Interchange&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="POSTMAN PAGE" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349542iAB11F6E08E9AAB7D/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-08 124539.png" alt="POSTMAN PAGE" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;POSTMAN PAGE&lt;/span&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;OUTPUT IMAGES :-&lt;/DIV&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="GROOVY OUTPUT" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/349543iFD270FDA34BD2694/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-12-08 125027.png" alt="GROOVY OUTPUT" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;GROOVY OUTPUT&lt;/span&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="MAIL OUTPUT" style="width: 786px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/357201i2764C65C030816DB/image-size/large?v=v2&amp;amp;px=999" role="button" title="Media (1).jpg" alt="MAIL OUTPUT" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;MAIL OUTPUT&lt;/span&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thank you very much for taking the time to read this blog and walk with me through the XML-to-EDI scenario. Interest from people like you in topics like SAP Cloud Integration and EDI drives content like this, and I hope it helps in your real projects.&lt;/P&gt;&lt;P&gt;If you try out this flow, improve it, or run into interesting challenges, please share your experience and questions in the comments so others in the community can learn as well.&lt;/P&gt;&lt;P&gt;Happy integrating, and see you in the next blog!&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/real-time-xml-to-edi-conversion-a-step-by-step-cpi-integration-scenario/ba-p/14284748"/>
+    <published>2026-01-29T07:07:12.973000+01:00</published>
   </entry>
 </feed>
