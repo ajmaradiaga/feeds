@@ -2,183 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2026-02-12T01:14:01.292361+00:00</updated>
+  <updated>2026-02-12T01:29:01.409923+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/a-sap-btp-kyma-encryption-decryption-microservice-for-all-contexts-e-g-sap/ba-p/14326277</id>
-    <title>A SAP BTP Kyma Encryption/Decryption Microservice for ALL Contexts (e.g. SAP Datasphere/BDC/ABAP)</title>
-    <updated>2026-02-11T16:12:01.099000+01:00</updated>
-    <author>
-      <name>stefan_geiselhart2</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/200897</uri>
-    </author>
-    <content>&lt;P&gt;G’day!&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Warning&lt;/STRONG&gt;: This is only for readers who are really interested in this subject&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":smiling_face_with_heart_eyes:"&gt;😍&lt;/span&gt; The article is quite comprehensive and has got some cross-article links inside, that also need to be considered. Therefore: A lot of reading and a lot of hands-on + thinking if you want to rebuild the thing.​&lt;/P&gt;&lt;P&gt;&lt;U&gt;Below is the structure of this article:&lt;/U&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="3"&gt;1 Status Quo on En-/Decryption in BTP&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;2 Motivation&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;3 Fundamentals&amp;nbsp;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;4 Architecture​&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;5 HDLFS Configuration&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;6 Insights into Python&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;7 Containerization &amp;amp; Deployment in Kyma&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;8 Achievements&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;9 More Scope&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;10 References&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Let's begin:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;1 Status Quo on En-/Decryption in BTP&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="3"&gt;When it comes to&amp;nbsp;En-/Decryption on SAP BTP, there are a couple of pitfalls to be considered.&amp;nbsp;&lt;/FONT&gt;The following roughly outlines the situation, platform and application-wise:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Individual applications (e.g. SAP Successfactors) got proprietary encryption/decryption mechanisms available. They are typically &lt;STRONG&gt;not reusable&lt;/STRONG&gt;.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;SAP Integration Suite has got PGP En-/Decryptor nodes&lt;/STRONG&gt; available. However, it is &lt;STRONG&gt;&lt;U&gt;not&lt;/U&gt; advisable to run&lt;/STRONG&gt; large volume scenarios using this approach. It has been built for data sizes on the levels represented within message handling scenarios (I‘m not an expert therein, but I guess thats typically not in the area of GBs).&lt;/LI&gt;&lt;LI&gt;A policy/rule for data to remain encrypted until its landing into BTP: You face challenges to &lt;STRONG&gt;securely onboard large volume files&lt;/STRONG&gt; containing sensitive data &lt;STRONG&gt;into BTP&lt;/STRONG&gt;, because there is no out-of-the-box solution to keep them encrypted in motion and decrypt them at rest once available in BTP (and vice versa for an outbound flow).&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="The Challenge" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/371589i1ED7B676DB32AA4F/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image.png" alt="The Challenge" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;The Challenge&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;2 Motivation&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;​Due to the above limitations, we were eager to find an appropriate solution approach that first of all satifies our specific scenario, but can also be augmented to other contexts. This is why the following motivation arose:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Especially En-/Decryption for larger files on BTP side seems to be a missing piece in the puzzle.&lt;/LI&gt;&lt;LI&gt;Our ambition is to encapsulate such kind of mechanism centrally as a reusable service. &lt;STRONG&gt;Multiple kinds of contexts can be served&lt;/STRONG&gt;, exposing this service: Applications, data flows &amp;amp; transformations etc. – in our context the consumer will be SAP Datasphere.&lt;/LI&gt;&lt;LI&gt;There is another consequence of finally being able to load decrypted large data sets into BTP. To be more precise: To onboard this data into SAP Datasphere to further process and transform, the fact that Base64 encoded data must be handled in our context too, why not also expose or &lt;STRONG&gt;incorporate columnar Base64 En-/Decoding&lt;/STRONG&gt; into the microservice?&lt;/LI&gt;&lt;LI&gt;The intended solution is &lt;STRONG&gt;custom-built&lt;/STRONG&gt; and must be managed individually. However, the baseline that will be set &lt;STRONG&gt;can be reused and adapted&lt;/STRONG&gt; to various customer needs and application contexts.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;3 Fundamentals&lt;/FONT&gt;&lt;/STRONG&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;​The following represent some fundamentals and success criteria we‘ve established for our solution:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Use HANA Data Lake Files (&lt;STRONG&gt;HDLFS&lt;/STRONG&gt;) as a file store for inbound/outbound persistency&lt;/LI&gt;&lt;LI&gt;Implement the service as &lt;STRONG&gt;containerized Python&lt;/STRONG&gt; code logic&lt;/LI&gt;&lt;LI&gt;Service capabilities must be &lt;STRONG&gt;controllable and schedulable within Kyma&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;Service can handle &lt;STRONG&gt;PGP encrypted&lt;/STRONG&gt; files, but can also decrypt for outbound delivery&lt;/LI&gt;&lt;LI&gt;Service can decode &lt;STRONG&gt;Base64&lt;/STRONG&gt; columns for inbound source files&lt;/LI&gt;&lt;LI&gt;Service &lt;STRONG&gt;manages and cleans up&lt;/STRONG&gt; directories and file in-/output on HDLFS&lt;/LI&gt;&lt;LI&gt;Service can handle &lt;STRONG&gt;files with sizes in GB range&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;Deploy service into a &lt;STRONG&gt;Kyma Cluster&lt;/STRONG&gt; (Cloud Foundry? -&amp;gt; no, Memory/Sizing limitations)&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Security&lt;/STRONG&gt;: Facilitate simple and secure handling of all required secrets and certificates&lt;/LI&gt;&lt;LI&gt;Service &lt;STRONG&gt;not exposed via HTTP endpoints&lt;/STRONG&gt; (this is kind of a contradiction to a true microservice, however this requirement applies in our context. Under "More Scope" you will find guidelines/directions how to enable HTTP based microservices)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;4 Architecture&lt;/FONT&gt;&lt;/STRONG&gt;​&lt;/P&gt;&lt;P&gt;The following architectural components represent what we‘ve picked out for our solution:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Usage of HANA Data Lake Files (&lt;STRONG&gt;HDLFS&lt;/STRONG&gt;) as a file store for &lt;STRONG&gt;inbound/outbound persistency&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;Use &lt;STRONG&gt;BTP Kyma for service runtime&lt;/STRONG&gt; (Kyma deployed in the 2nd smallest T-Shirt size)&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;SAP Datasphere&lt;/STRONG&gt; represents the &lt;STRONG&gt;persistency layer&lt;/STRONG&gt; (DSP as a consumer is exchangeable but in our case relevant for the business scenario)&lt;/LI&gt;&lt;LI&gt;The other more general blue box "other BTP Solutions" indicates, that the service implementation on Kyma isn't necessary limited to SAP Datasphere only, but should be rather considered as something agnostic. This of course heavily depends how it is built and finally implemented.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="BTP Solution Architecture Kyma Microservice" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/371516i29EF2B1C74333CEB/image-size/large?v=v2&amp;amp;px=999" role="button" title="image.png" alt="BTP Solution Architecture Kyma Microservice" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;BTP Solution Architecture Kyma Microservice&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;5 HDLFS Configuration&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;I strongly recommend to read the &lt;A href="https://developers.sap.com/tutorials/data-lake-file-containers-hdlfscli.html" target="_self" rel="noopener noreferrer"&gt;tutorial by Jason Hinsperger&lt;/A&gt; to familiarize yourself with the HDLFS REST API dependencies and the essential steps to spin up the instance. You must follow all the steps described therein.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;Its important to note that the &lt;STRONG&gt;generated client key and client certificate&lt;/STRONG&gt; is what you are about to use from python level. Moreover &lt;STRONG&gt;you should take note of the REST API endpoint&lt;/STRONG&gt;. This is the endpoint you run all your requests against (you find it in HANA Cloud Central -&amp;gt; Instances -&amp;gt; HDLFS Instance -&amp;gt; "Files REST API Endpoint".).&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;To familiarize yourself in general with the HDLFS REST API documentation, you can use this &lt;A href="https://help.sap.com/doc/9d084a41830f46d6904fd4c23cd4bbfa/2025_3_QRC/en-US/index.html#tag/WebHDFS" target="_self" rel="noopener noreferrer"&gt;link&lt;/A&gt;.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="HDLFS REST API Endpoint" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/371618i735BEFA7C02FCA36/image-size/large?v=v2&amp;amp;px=999" role="button" title="image.png" alt="HDLFS REST API Endpoint" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;HDLFS REST API Endpoint&lt;/span&gt;&lt;/span&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;One essential detail I don't want to hide, is the IP whitelisting of the Kyma environment. In order to do that, navigate to the start page of your cluster dashboard. There is a section called "Cluster Overview --&amp;gt; Metadata". Copy the (typically three) IP listed there: "NAT Gateway IP Addresses".&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;Go to your HANA Cloud Central and navigate to your HDLFS instance. Click "Manage Configuration" and go to the section "Connections": If you have enabled the setting to only allow specific IP addresses, likewise maintain the ones of the Kyma Cluster that you previously copied:&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="HDLFS Configuration Connections" style="width: 706px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/371638i636055B083947539/image-dimensions/706x435?v=v2" width="706" height="435" role="button" title="image.png" alt="HDLFS Configuration Connections" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;HDLFS Configuration Connections&lt;/span&gt;&lt;/span&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;6 Insights into Python&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="3"&gt;The python coding part is split into several modules, which are all described in a detailed way further below:&lt;/FONT&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;FONT size="3"&gt;Inbound processing&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;Outbound processing&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;Common functions&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;Crypto function for encryption/decryption&lt;/FONT&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;FONT size="3"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Python Modules Sketch" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/371586i15DBFF5CC94401F9/image-size/large?v=v2&amp;amp;px=999" role="button" title="image.png" alt="Python Modules Sketch" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Python Modules Sketch&lt;/span&gt;&lt;/span&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;Inbound Module (1)&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;The inbound part scans a given datalake path for &lt;CODE&gt;.gpg&lt;/CODE&gt; files, then decrypts each file locally in parallel using a configurable worker count. After decryption, it samples the CSV (semicolon-delimited), detects which columns contain base64-encoded data, and runs a transformation step to produce a cleaned output file. The transformed result is uploaded to a decrypted output path, and the original encrypted input is moved to an archive folder. It logs success or errors with timing details on file level and exits with a failure code if any file fails.&lt;/P&gt;&lt;P&gt;This code snippet describes the parallel processing of files:&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;    with ThreadPoolExecutor(max_workers=MAX_PARALLEL_JOBS) as exe:
-        futs = {exe.submit(processFile, f): f for f in files}
-        for fut in as_completed(futs):
-            f = futs[fut]
-            try:
-                res = fut.result()
-                ok += 1
-                print(f"[OK] {res['input']} -&amp;gt; {res['output']} sec={res['sec']:.2f} base64_cols={res['base64_cols']}")
-            except Exception as ex:
-                err.append((f, str(ex)))
-                print(f"[ERR] {f}: {ex}")&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Sampel code of processing an individual file:&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def processFile(file_name: str):
-    t0 = timer()
-    out_name = normalize_output_name(file_name)
-
-    with tempfile.TemporaryDirectory() as td:
-        enc_path = os.path.join(td, file_name)
-        dec_path = os.path.join(td, out_name + ".decrypted.csv")
-        out_path = os.path.join(td, out_name)
-
-        download_to_file(f"{PATH_IN_DATALAKE}/{file_name}", enc_path)
-        decrypt_symmetric(enc_path, dec_path)
-
-        header, sample = sample_csv(dec_path, delimiter=";")
-        base64_cols = detect_base64_columns(out_name, header, sample)
-
-        transform_csv(dec_path, out_path, base64_cols, delimiter=";")
-
-        mkdirs(PATH_OUT_DATALAKE)
-        upload_file_chunked(f"{PATH_OUT_DATALAKE}/{out_name}", out_path)
-
-    mkdirs(PATH_ARCHIVE)
-    rename(f"{PATH_IN_DATALAKE}/{file_name}", f"{PATH_ARCHIVE}/{file_name}")
-
-    return {"input": file_name, "output": out_name, "base64_cols": base64_cols, "sec": timer() - t0}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;Outbound module (2)&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="3"&gt;It scans the HDLFS outbound folder for .csv files and subdirectories containing Parquet parts, then processes them in parallel using a configurable worker count. CSV files are downloaded locally, then encrypted and uploaded back again to an encrypted outbound path. The originals are moved to an archive folder. Parquet file based directories on HDLFS (when enabled) are downloaded, consolidated into a single CSV using PyArrow, encrypted and uploaded similarly. As a last step, they are marked with an _SUCCESS file to prevent reprocessing and moved to the archive.&amp;nbsp;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;Crypto Module (3)&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;It provides helper functions for symmetric file encryption and decryption using the &lt;CODE&gt;gpg&lt;/CODE&gt; command-line tool with an AES-256 cipher. It requires a passphrase supplied via the &lt;CODE&gt;PASSPHRASE&lt;/CODE&gt; environment variable (from a Kyma Secret). Both &lt;CODE&gt;encrypt_symmetric&lt;/CODE&gt; and &lt;CODE&gt;decrypt_symmetric&lt;/CODE&gt; execute GPG in batch mode through &lt;CODE&gt;subprocess&lt;/CODE&gt;, capturing stdout/stderr and validating the return code.&lt;/P&gt;&lt;P&gt;The&amp;nbsp;&lt;CODE&gt;decrypt_symmetric&lt;/CODE&gt; function is implemented as follows:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def decrypt_symmetric(enc_path: str, dec_path: str):
-    _require_passphrase()
-    cmd = [
-        "gpg", "--batch", "--yes",
-        "--pinentry-mode", "loopback",
-        "--passphrase", PASSPHRASE,
-        "--output", dec_path,
-        "--decrypt", enc_path
-    ]
-    r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if r.returncode != 0:
-        raise RuntimeError(f"GPG decrypt failed: {r.stderr.decode('utf-8', 'replace')}")&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;Common Functions Module (4)&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;P&gt;All major control variables are built using environment variables (defined as secrets in Kyma) for endpoint/container, TLS certificates, verification behavior, timeouts, retries, and chunk size.&lt;/P&gt;&lt;P&gt;In one function it builds a reusable SSL context. API requests are wrapped with exponential-backoff retries for transient HTTP statuses (e.g., 429/5xx) and network errors. It provides HDLFS related helpers to list files/directories, check existence, create directories, rename paths, download remote content to disk in chunks, and upload files.&lt;/P&gt;&lt;P&gt;The below part builds the SSL context to connect to HDLFS via its REST API:&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def buildSSLContext() -&amp;gt; ssl.SSLContext:
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    if os.path.exists(CRT_PATH) and os.path.exists(KEY_PATH):
-        ctx.load_cert_chain(certfile=CRT_PATH, keyfile=KEY_PATH)
-
-    if TLS_VERIFY:
-        if CA_CERT_PATH:
-            ctx.load_verify_locations(CA_CERT_PATH)
-        else:
-            ctx.load_default_certs()
-        ctx.verify_mode = ssl.CERT_REQUIRED
-        ctx.check_hostname = True
-    else:
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-
-    return ctx&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT size="4"&gt;This part establishes a connection to the HDLFS REST API endpoint as defined in the environment variable FILES_REST_API:&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;def _conn():
-    if not FILES_REST_API:
-        raise RuntimeError("FILES_REST_API is empty (set env FILES_REST_API).")
-    return http.client.HTTPSConnection(FILES_REST_API, timeout=HTTP_TIMEOUT, context=_SSL_CTX)&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT size="4"&gt;The below function represents the upload (HDLFS REST API PUT) of a file in streaming mode to an HDLFS directory:&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;def _put_to_location(location: str):
-        url = urlparse(location)
-        if u.scheme and u.netloc:
-            host = url.netloc
-            path = (url.path or "/") + (("?" + url.query) if url.query else "")
-            conn = http.client.HTTPSConnection(host, timeout=HTTP_TIMEOUT, context=_SSL_CTX)
-        else:
-            path = location
-            conn = _conn()
-
-        try:
-            conn.putrequest("PUT", path)
-            conn.putheader("x-sap-filecontainer", CONTAINER)
-            conn.putheader("Content-Type", "application/octet-stream")
-            conn.putheader("Content-Length", str(size))
-            conn.putheader("Connection", "close")
-            conn.endheaders()
-
-            with open(file_path, "rb") as f:
-                while True:
-                    chunk = f.read(CHUNK_SIZE)
-                    if not chunk:
-                        break
-                    conn.send(chunk)
-
-            r = conn.getresponse()
-            data = r.read()
-            status = r.status
-            r.close()
-
-            if status in _RETRYABLE_STATUSES:
-                raise RetryableHttpError(f"PUT retryable: {status} {data[:200]!r}")
-            if status not in (200, 201):
-                raise RuntimeError(f"PUT failed {remote_path_no_leading_slash}: {status} {data[:200]!r}")
-        finally:
-            conn.close()&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;7 Containerization &amp;amp; Deployment in Kyma&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;​I won't describe in detail, how the creation of a docker container is made step by step. I just provide some essentials + hints to guarantee that you succeed and don't stumble upon the same issues I had faced. The following prerequisites must be met in order to create a runnable docker container based on your Dockerfile + python code:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;​Local installation of docker (Docker Desktop)&lt;/LI&gt;&lt;LI&gt;Docker registry (e.g. GitHub Docker Registry) – this is from where the Pod pulls the docker image&lt;/LI&gt;&lt;LI&gt;kubectl cli&lt;/LI&gt;&lt;LI&gt;IDE such as Visual Studio code&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;​For an overall procedure, including the part in Kyma, you can refer to this &lt;A href="http://​https://community.sap.com/t5/technology-blog-posts-by-members/develop-and-deploy-python-rest-api-with-kubernetes-docker-in-sap-btp-kyma/ba-p/13533279" target="_blank" rel="noopener nofollow noreferrer"&gt;blog entry on SCN&lt;/A&gt;. I strongly recommend that you try to rebuild the example the author walks through first, BEFORE you tackle your actual project.&lt;/P&gt;&lt;P&gt;Recommendations out of my personal learnings:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Try to not create any Kyma artifacts via the UI, but rather define those within descriptor yaml files of the corresponding kinds (e.g. kind: Deployment or Service or APIRule).&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;​!!!&lt;/STRONG&gt; A minor but very important thing to consider when running the docker build command, run it as follows:&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;docker build . --tag ghcr.io/&amp;lt;github_user&amp;gt;/&amp;lt;git_repo_name&amp;gt;:latest --platform linux/amd64&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;The deployment.yaml in the blog specified above is based on three Kyma/K8S artifacts that are created: &lt;STRONG&gt;Deployment, Service + APIRule&lt;/STRONG&gt;. Which kind of artifacts you actually require strongly depends on your python implementation and how your service/logic runs. In the event of a purely job schedule based execution of your processing logic, &lt;STRONG&gt;you don't need a service or APIRule&lt;/STRONG&gt; artifact, of course. Instead, you'd only need a &lt;STRONG&gt;deployment of kind: CronJob&lt;/STRONG&gt;. This will spin up all dependent artifacts implicitely. In a CronJob based deployment you will have to specify the following details in the yaml file: scheduling details (time, frequency, time zone), required volumes, container spec including secrets to pull image, container level: mounts &amp;amp; env variables, resource allocation.&lt;/LI&gt;&lt;LI&gt;A template for a CronJob based deployment can look like this:&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: &amp;lt;job_name&amp;gt;
-  namespace: &amp;lt;kyma_namespace&amp;gt;
-spec:
-  suspend: false
-  schedule: "* * * * *" 
-  timeZone: "Europe/Berlin"
-
-  jobTemplate:
-    spec:
-      backoffLimit: 3
-      template:
-        spec:
-          restartPolicy: Never
-          imagePullSecrets:
-            - name: ghcr-pull-secret
-
-          volumes:
-            - name: gnupg-home
-              emptyDir: {}
-
-          initContainers:
-            - name: init-gnupg
-              image: busybox:1.36
-              command: ["sh","-c","mkdir -p /tmp/gnupg &amp;amp;&amp;amp; chmod 700 /tmp/gnupg"]
-              volumeMounts:
-                - name: gnupg-home
-                  mountPath: /tmp/gnupg
-
-              resources:
-                requests:
-                  cpu: "10m"
-                  memory: "32Mi"
-                limits:
-                  cpu: "50m"
-                  memory: "64Mi"
-
-          containers:
-            - name: inbound
-              image: &amp;lt;container_registry_path&amp;gt;
-              imagePullPolicy: Always
-              command: [&amp;lt;custom_os_level_command_if_required&amp;gt;]
-              volumeMounts:
-                - name: gnupg-home
-                  mountPath: /tmp/gnupg
-
-              env:
-                - name: KEY_PATH
-                  value: "/keys/keyfile.key"
-                - name: PASSPHRASE
-                  valueFrom:
-                    secretKeyRef:
-                      name: kyma-secret
-                      key: PASSPHRASE
-
-              resources:
-                requests:
-                  cpu: "100m"
-                  memory: "1Gi"
-                limits:
-                  cpu: "200m"
-                  memory: "2Gi"&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;8 Achievements&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;​The following functionality and service details were delivered:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The Python code was improved multiple times: Handling approx. 30 files in one go with a total of 10 GB in encrypted state could be accelerated to &amp;lt; 30 minutes of processing time&lt;/LI&gt;&lt;LI&gt;Cron Jobs in the Kyma cluster can be used to schedule individual services, e.g. inbound processing of files that reside in a specific folder on HDLFS&lt;/LI&gt;&lt;LI&gt;SAP Datasphere writes local tables via Replication Flows back into HDLFS, on which the outbound service performs encryption and marks the files to „collectible“&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;9 More Scope&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;...up to come soon. I will cover aspects how to further mature the microservice/python logic and moreover exemplify on HTTP based encryption/decryption service endpoints, exposed on the Kyma Cluster.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;10 References&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/develop-and-deploy-python-rest-api-with-kubernetes-docker-in-sap-btp-kyma/ba-p/13533279" target="_self"&gt;​K8S/Kyma + Python SCN Blog&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="http://​https://developers.sap.com/tutorials/data-lake-file-containers-hdlfscli.html" target="_self" rel="nofollow noopener noreferrer"&gt;​Getting Started with Data Lake Files HDLFSCLI&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="http://​&amp;nbsp;https://help.sap.com/doc/9d084a41830f46d6904fd4c23cd4bbfa/2025_3_QRC/en-US/index.html#tag/WebHDFS" target="_self" rel="nofollow noopener noreferrer"&gt;​HDLFS REST API Guide&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;Thx...&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;...to my fellow colleagues at SAP who provides meaningful input and discussed about solution options. Furthermore I am especially grateful to our implementation partner who also supported, implemented and showed strong endurance in building up this scenario.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="4"&gt;I hope you enjoyed reading this article and could have gained some deeper insights into what we did. If you have comments or suggestions of any kind, don't hesitate to comment and start-off a discussions with me and hopefully other SMEs.&lt;/FONT&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/a-sap-btp-kyma-encryption-decryption-microservice-for-all-contexts-e-g-sap/ba-p/14326277"/>
-    <published>2026-02-11T16:12:01.099000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/sap-community-leaders-finder/sap-champions/bc-p/14326577#M232</id>
     <title>Re: SAP Champions</title>
@@ -1370,5 +1197,17 @@ spec:
     <content>&lt;P&gt;View in dark mode for better visuals.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="tamitdassharma_0-1770856465252.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/371725iCBCD26FDC109DC37/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="tamitdassharma_0-1770856465252.png" alt="tamitdassharma_0-1770856465252.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/unlock-s-4hana-cloud-secrets-hybrid-events-apis-strategy-for-seamless-btp/bc-p/14326761#M177515"/>
     <published>2026-02-12T01:34:33.040000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/sap-drc-cloud-ecc/qaa-p/14326765#M4936859</id>
+    <title>Re: SAP DRC Cloud (ECC)</title>
+    <updated>2026-02-12T02:18:26.193000+01:00</updated>
+    <author>
+      <name>amontella96</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/39523</uri>
+    </author>
+    <content>hi &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1700537"&gt;@SoniaFletcher&lt;/a&gt; there is literally no trace of an IFLOW_HTTP_COMMAND error so i must ask where did you get that ? can you post some details like how did you configure in soamanager /default/sap.s4.gco.edoc/gpeclnt500</content>
+    <link href="https://community.sap.com/t5/technology-q-a/sap-drc-cloud-ecc/qaa-p/14326765#M4936859"/>
+    <published>2026-02-12T02:18:26.193000+01:00</published>
   </entry>
 </feed>
