@@ -2,153 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2026-02-20T18:00:02.889132+00:00</updated>
+  <updated>2026-02-20T21:00:08.881989+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/ci-based-script-tester-amp-abap-groovy-ide/ba-p/14317804</id>
-    <title>CI based script tester &amp; ABAP groovy IDE</title>
-    <updated>2026-02-03T17:20:00.015000+01:00</updated>
-    <author>
-      <name>DamianKolasa</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/667350</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-1659670631"&gt;Background&lt;/H1&gt;&lt;P&gt;This blog aims to recreate &lt;A href="https://groovyide.com/cpi" target="_self" rel="nofollow noopener noreferrer"&gt;groovyIDE&lt;/A&gt; using tools and platforms that every SAP developer should have access to.&lt;BR /&gt;My goal was to avoid local development (using IntelliJ or Eclipse), as setting up such an environment is often difficult due to employer restrictions.&lt;/P&gt;&lt;H1 id="toc-hId-1463157126"&gt;What do you need?&lt;/H1&gt;&lt;P&gt;To pull this off, you need:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Developer access to any Cloud Integration (CI) tenant&lt;BR /&gt;(I recommend a separate tenant, ideally DEMO or TRIAL)&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Developer access to an ABAP system that can connect to CI&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Nice to have:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;abapGit – as there is a &lt;A href="https://github.com/devstylator/abapGroovyEditor" target="_self" rel="nofollow noopener noreferrer"&gt;repository&lt;/A&gt; with the backend report&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-1266643621"&gt;Setup&lt;/H1&gt;&lt;H2 id="toc-hId-1199212835"&gt;Cloud integration&lt;/H2&gt;&lt;P&gt;Cloud Integration is used as the execution engine. In practice, this is a CI-based IDE exposed as a REST service. I would like to thank &lt;A href="https://community.sap.com/t5/user/viewprofilepage/user-id/38272" target="_self"&gt;Vadim Klimov&lt;/A&gt; for &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/rapid-groovy-scripting-in-cpi-dynamic-loading-and-execution-of-script-code/ba-p/13409607" target="_self"&gt;exploring this idea&lt;/A&gt;. His blog (and the unavailability of groovyIDE) inspired me to create this solution. At its core, this is a single iFlow with a few steps. It uses GroovyShell to execute a script passed in the request payload.&lt;/P&gt;&lt;H4 id="toc-hId-1260864768"&gt;Integration flow&lt;/H4&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="DamianKolasa_0-1769781434648.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/367389iC18BB337E09FA3FB/image-size/large?v=v2&amp;amp;px=999" role="button" title="DamianKolasa_0-1769781434648.png" alt="DamianKolasa_0-1769781434648.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;As you can see, the iFlow is simple and straightforward. It performs the following steps:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Decodes the payload, script, headers, and properties from the request&lt;/LI&gt;&lt;LI&gt;Dynamically executes the Groovy script&lt;/LI&gt;&lt;LI&gt;Creates a well-formatted JSON response, encoding all data using Base64&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;There is also an exception subprocess used to catch Groovy execution errors and return them in a structured JSON format.&lt;/P&gt;&lt;H5 id="toc-hId-1193433982"&gt;Request&lt;/H5&gt;&lt;P&gt;The interface accepts a JSON payload with four parameters, all Base64-encoded:&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{
-  "inputScript": "&amp;lt;base64encoded&amp;gt;",
-  "inputPayload": "&amp;lt;base64encoded&amp;gt;",
-  "inputParams": "&amp;lt;base64encoded&amp;gt;",
-  "inputHdrs": "&amp;lt;base64encoded&amp;gt;"
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;After decoding, parameters (properties) and headers follow this format:&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;STRONG&gt;Name=Value;Name2=Value2;...&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Cloud Integration encodes them in the same way in the final response (both in success and error cases).&lt;/P&gt;&lt;H5 id="toc-hId-996920477"&gt;Decoder&lt;/H5&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;import com.sap.gateway.ip.core.customdev.util.Message;
-import groovy.json.JsonSlurper;
-
-Message processData(Message message) {
-    def body = message.getBody(java.io.Reader)
-    def inputJSON = new JsonSlurper().parse(body)
-    String inputHdrs = inputJSON.inputHdrs
-    if(inputHdrs ){
-        byte[] decodedHdrs = inputHdrs.decodeBase64()
-        inputHdrs = new String(decodedHdrs)
-        inputHdrs.split(';').each{ 
-            def param_val_pair = it.split('=')
-            message.setHeader(param_val_pair[0],param_val_pair[1])
-        }
-    }
-
-    String inputParams = inputJSON.inputParams
-    if(inputParams){
-        byte[] decodedParams = inputParams.decodeBase64()
-        inputParams = new String(decodedParams)
-        inputParams.split(';').each{ 
-            def param_val_pair = it.split('=')
-            message.setProperty(param_val_pair[0],param_val_pair[1])
-        }
-    }
-
-    String inputScript = inputJSON.inputScript
-    if(inputScript){
-        message.setProperty("inputScript",inputScript)
-    }
-
-    String inputPayload = inputJSON.inputPayload
-    if(inputPayload){
-        byte[] decodedPayload = inputPayload.decodeBase64()
-        inputPayload = new String(decodedPayload)
-        message.setBody(inputPayload)
-    }
-
-    return message
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The decoder script processes headers and properties and sets them for the current message processing. The payload is decoded and set as plain text (String) in the message body. The actual Groovy script is stored as a separate property named "inputScript" and is later used in the execution step.&lt;/P&gt;&lt;H5 id="toc-hId-800406972"&gt;Script execution&lt;/H5&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;import com.sap.gateway.ip.core.customdev.util.Message
-import java.io.StringWriter
-import java.io.PrintWriter
-
-Message processData(Message message) {
-    //Get script
-    String inputPayload = message.getProperty("inputScript")
-    byte[] decodedPayload = inputPayload.decodeBase64()
-    String scriptCode = new String(decodedPayload, "UTF-8")
-    //Setup output capture
-    StringWriter logWriter = new StringWriter()
-    PrintWriter printWriter = new PrintWriter(logWriter)    
-    //Create Binding and inject 'out' for println support
-    Binding binding = new Binding()
-    binding.setVariable("out", printWriter)     
-    //Initialize shell
-    GroovyShell shell = new GroovyShell(binding)
-    Script script = shell.parse(scriptCode)
-    //call script
-    message = script.processData(message)    
-    //Save logs to property 
-    printWriter.flush()
-    message.setProperty("consoleLog", logWriter.toString())
-    
-    return message
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The main difference between this script and the one provided in Vadim’s blog is the use of an additional binding with a PrintWriter object. This allows capturing console output (println statements) and returning it to the caller as part of the response.&lt;/P&gt;&lt;H5 id="toc-hId-603893467"&gt;Wrapper&lt;/H5&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;import com.sap.gateway.ip.core.customdev.util.Message
-
-Message processData(Message message) {
-    def consoleLog = message.getProperties().get("consoleLog") as String
-    message.setProperty("consoleLog", null)
-    def mapProperties = message.getProperties();
-    def mapHeaders = message.getHeaders();
-    def body = message.getBody(java.lang.String) as String;
-    String Pbody = ""
-    String Hbody = ""
-    //encode props and hdrs to name=value; format
-    mapProperties.each { it -&amp;gt; Pbody += "$it.key = $it.value;" }
-    mapHeaders.each { it -&amp;gt; Hbody += "$it.key = $it.value;" }
-    def builderJSON = new groovy.json.JsonBuilder()
-    builderJSON{
-        properties(Pbody.bytes.encodeBase64().toString())
-        headers(Hbody.bytes.encodeBase64().toString())
-        payload(body.bytes.encodeBase64().toString())
-        console(consoleLog.bytes.encodeBase64().toString())
-    }
-    message.setBody(builderJSON.toPrettyString())
-    return message
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The wrapper executes the decoded Groovy script and captures console output. After execution, all logs are stored in a message property and later included in the JSON response.&lt;/P&gt;&lt;H5 id="toc-hId-407379962"&gt;Error Handler&lt;/H5&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;import com.sap.gateway.ip.core.customdev.util.Message;
-def Message processData(Message message) {
-    def mapProperties = message.getProperties();
-    def body = message.getBody(java.lang.String) as String;
-    String Pbody = ""
-    String Hbody = ""
-    mapProperties.each { it -&amp;gt; Pbody += "$it.key = $it.value; \n" }
-    def ex = mapProperties.get("CamelExceptionCaught");
-    def mapHeaders = message.getHeaders();
-    mapHeaders.each { it -&amp;gt; Hbody += "$it.key = $it.value; \n" }
-    def builderJSON = new groovy.json.JsonBuilder()
-    builderJSON{
-        properties(Pbody.bytes.encodeBase64().toString())
-        headers(Hbody.bytes.encodeBase64().toString())
-        payload(body.bytes.encodeBase64().toString())
-        error(ex.message.bytes.encodeBase64().toString())
-    }
-    message.setHeader("CamelHttpResponseCode", "400");
-    message.setBody(builderJSON.toPrettyString());
-    return message;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The error handler is very similar to the wrapper but additionally captures execution exceptions and includes them in the response. This is important during testing, as errors such as missing variables or null references are common. The main idea of this tool is that any Groovy-related error is returned to the caller. To distinguish between script errors and unexpected system failures (HTTP 500), the service returns HTTP 400 for Groovy execution errors. This makes sense, as the script itself is part of the request.&lt;/P&gt;&lt;H2 id="toc-hId-170872657"&gt;ABAP&lt;/H2&gt;&lt;P&gt;There is not much logic on the ABAP side: a table, a data element, and a report.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="DamianKolasa_1-1769781876826.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/367394i591EE27C9FFB60C1/image-size/medium?v=v2&amp;amp;px=400" role="button" title="DamianKolasa_1-1769781876826.png" alt="DamianKolasa_1-1769781876826.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The table ZSAPERGROOVYTST serves as a test case repository. In the current version, it stores only a cache – the last modified script, payload, and input properties.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="DamianKolasa_2-1769782115545.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/367395i33F0EEEA89675744/image-size/large?v=v2&amp;amp;px=999" role="button" title="DamianKolasa_2-1769782115545.png" alt="DamianKolasa_2-1769782115545.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;All text inputs are stored as Base64-encoded strings. Headers and properties are stored as name=value pairs, following the same format used by Cloud Integration.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="DamianKolasa_3-1769782245582.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/367397i9AFDE14DE75D8562/image-size/large?v=v2&amp;amp;px=999" role="button" title="DamianKolasa_3-1769782245582.png" alt="DamianKolasa_3-1769782245582.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;When the program is cancelled, it closes without updating the cache table. When exited normally, the current editor and ALV content is stored as a TMP record for the current user and loaded the next time the IDE is opened.&lt;/P&gt;&lt;P&gt;I will not go into ABAP-specific details here. You can check the Git repository or import the objects into your system and test the solution yourself.&lt;/P&gt;&lt;H2 id="toc-hId--25640848"&gt;Connection&lt;/H2&gt;&lt;P&gt;Connectivity is based on an RFC destination (type G) configured in transaction SM59. The destination name is stored in lcl_groovy=&amp;gt;cv_destination and defaults to "CPI_GROOVY".&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="DamianKolasa_0-1769782673129.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/367400i6A609C2684E10777/image-size/medium?v=v2&amp;amp;px=400" role="button" title="DamianKolasa_0-1769782673129.png" alt="DamianKolasa_0-1769782673129.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;You can adjust it to your needs in method "call_script".&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  METHOD call_script.
-    cl_http_client=&amp;gt;create_by_destination( EXPORTING destination = cv_destination
-                                           IMPORTING client      = DATA(lo_http) ).
-    DATA(ls_current_screen_data) = me-&amp;gt;get_screen_data( ).
-    DATA(lv_payload) =
-    |\{| &amp;amp;&amp;amp;
-      |"inputScript":"{ ls_current_screen_data-script  }",| &amp;amp;&amp;amp;
-      |"inputPayload":"{ ls_current_screen_data-payload  }",| &amp;amp;&amp;amp;
-      |"inputParams":"{ ls_current_screen_data-props  }",| &amp;amp;&amp;amp;
-      |"inputHdrs":"{ ls_current_screen_data-hdrs  }"| &amp;amp;&amp;amp;
-    |\}|.
-    lo_http-&amp;gt;request-&amp;gt;set_cdata( lv_payload ).
-    lo_http-&amp;gt;send( ).
-    lo_http-&amp;gt;receive( ).
-    lo_http-&amp;gt;response-&amp;gt;get_status( IMPORTING code = DATA(lv_status_code) ).
-    IF lv_status_code EQ 500.
-      MESSAGE 'Internal server error occured' TYPE 'I' DISPLAY LIKE 'E'.
-    ELSE.
-      me-&amp;gt;parse_service_call_response( iv_response = lo_http-&amp;gt;response-&amp;gt;get_cdata( ) iv_code = lv_status_code ).
-    ENDIF.
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;H1 id="toc-hId-71248654"&gt;Testing&lt;/H1&gt;&lt;P&gt;Let’s start with the default script. It simply rewrites the input to the output and adds a console log line: "test1".&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="test_groovy_1.gif" style="width: 800px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/367404iE4E5FE69FA38383E/image-size/large?v=v2&amp;amp;px=999" role="button" title="test_groovy_1.gif" alt="test_groovy_1.gif" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Now let’s break something – for example, by dividing by zero.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="test_groovy_2.gif" style="width: 800px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/367405i7D33254FEB5B88A8/image-size/large?v=v2&amp;amp;px=999" role="button" title="test_groovy_2.gif" alt="test_groovy_2.gif" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;As expected, the error is visible in the console output:&lt;/P&gt;&lt;P&gt;&lt;EM&gt;"java.lang.Exception: java.lang.ArithmeticException: Division by zero @ line 7 in ExecuteScript.groovy".&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;This demonstrates the usage of JsonSlurper and JsonBuilder, as well as property and header handling.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="test_groovy_3.gif" style="width: 800px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/367408i0604D5DC116DC289/image-size/large?v=v2&amp;amp;px=999" role="button" title="test_groovy_3.gif" alt="test_groovy_3.gif" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;H1 id="toc-hId--125264851"&gt;Security&lt;/H1&gt;&lt;P&gt;This solution executes dynamic Groovy code using GroovyShell and therefore must be treated as a development and testing tool only. Access to the integration flow should be restricted, and the endpoint must not be connected to productive systems. The script executes with the runtime permissions of Cloud Integration and is not sandboxed.&amp;nbsp;For this reason, the tool should be deployed only in isolated CI tenants (for example TRIAL tenant).&amp;nbsp;&lt;STRONG&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;H1 id="toc-hId--321778356"&gt;External links&lt;/H1&gt;&lt;UL&gt;&lt;LI&gt;ABAP repo:&amp;nbsp;&lt;A href="https://github.com/devstylator/abapGroovyEditor" target="_blank" rel="nofollow noopener noreferrer"&gt;https://github.com/devstylator/abapGroovyEditor&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;groovyIDE:&amp;nbsp;&lt;A href="https://groovyide.com/cpi" target="_blank" rel="nofollow noopener noreferrer"&gt;https://groovyide.com/cpi&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;Vadim's blog post:&amp;nbsp;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/rapid-groovy-scripting-in-cpi-dynamic-loading-and-execution-of-script-code/ba-p/13409607" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-members/rapid-groovy-scripting-in-cpi-dynamic-loading-and-execution-of-script-code/ba-p/13409607&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/ci-based-script-tester-amp-abap-groovy-ide/ba-p/14317804"/>
-    <published>2026-02-03T17:20:00.015000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/abap-blog-posts/how-to-extend-the-program-sapf124-of-f-13-to-retrieve-its-results/ba-p/14321018</id>
     <title>How to extend the program SAPF124 of F.13 to retrieve its results</title>
@@ -1022,5 +879,17 @@ define view entity ZI_IBP_Key_Figure_Date
     <content>&lt;DIV&gt;&lt;H2 id="toc-hId-1789729972"&gt;SAP BTP ABAP Environment - Release 2602&lt;/H2&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;On February 14, the new 2602 release was delivered as the successor to the 2511 release.&amp;nbsp;&lt;SPAN&gt;In this blog post, we provide a detailed overview of the new features and enhancements included in this release, highlighting the key improvements and innovations introduced with 2602. Some highlights in the new release include the&amp;nbsp;&lt;STRONG&gt;My Home&lt;/STRONG&gt; as your new personalized entry page in SAP Fiori Launchpad, the &lt;STRONG&gt;CDS Embedded Analytics Star Schema Generator&lt;/STRONG&gt; and the&amp;nbsp;&lt;STRONG&gt;RAP recommendations for input assistance&lt;/STRONG&gt; based on the user input and interaction history.&amp;nbsp;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;&lt;SPAN&gt;The list of all new features including more information can be found on the What's New for &lt;A href="https://help.sap.com/whats-new/7a822d3bcaa74f31b98fa315601e9c96?Software_Lifecycle=General+Availability&amp;amp;Version=ABAP+Environment+2602" target="_blank" rel="noopener noreferrer"&gt;SAP BTP ABAP environment page&lt;/A&gt;. The new AI-related features are listed separately on the What's New for &lt;A href="https://help.sap.com/whats-new/4d359a7f8e8248e18f98e85ea0b9d83e?Version=SAP+BTP+ABAP+environment+2602" target="_self" rel="noopener noreferrer"&gt;ABAP Generative AI in ABAP Cloud&lt;/A&gt;.&lt;/SPAN&gt;&lt;/P&gt;&lt;H4 id="toc-hId-1851381905"&gt;&lt;SPAN&gt;ABAP Development Tools (ADT)&lt;/SPAN&gt;&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;New Grouping Option&lt;/STRONG&gt; Effect on transports in ATC Problems View&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;ABAP Testability: &lt;STRONG&gt;Enhancements to Test Double Frameworks&lt;/STRONG&gt; (&lt;A href="https://help.sap.com/docs/abap-cloud/abap-development-tools-user-guide/abap-cds-test-double-framework?version=sap_btp" target="_blank" rel="noopener noreferrer"&gt;details&lt;/A&gt;)&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Global User ID&lt;/STRONG&gt; for ATC Exemptions&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Displaying the Used Objects&lt;/STRONG&gt; of CDS Service Definitions in the Relation Explorer&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId-1406433835" id="toc-hId-1654868400"&gt;ABAP RESTful Application Programming Model (RAP)&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Collaborative Draft&lt;/STRONG&gt;,&amp;nbsp;&amp;nbsp;now also works in cross-business object scenarios if both business objects are collaborative draft-enabled, and if the cross-business object scenario is fully draft scope-enabled (&lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/collaborative-draft" target="_blank" rel="noopener noreferrer"&gt;details&lt;/A&gt;)&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;STRONG&gt;Recommendations&lt;/STRONG&gt;, p&lt;/SPAN&gt;&lt;/SPAN&gt;reviously, business users had to fill out input fields manually and choose the right values. The new RAP recommendations standardize and ease this process: In RAP applications on an SAP Fiori user interface, RAP recommendations provide input assistance by proposing field values for input fields based on the user input and interaction history. RAP recommendations can be implemented using deterministic rules or using generative AI, which predicts the most likely values for each input field based on the context of the data. By integrating the ABAP AI SDK powered by Intelligent Scenario Lifecycle Management, you can embed AI capabilities into the application, enriching traditional value help with context-aware suggestions (&lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/recommendations" target="_blank" rel="noopener noreferrer"&gt;details&lt;/A&gt;)&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;STRONG&gt;Embedded Analytics Star Schema Generator&lt;/STRONG&gt;, the&amp;nbsp;&lt;SPAN class=""&gt;Star Schema Generator Wizard&lt;/SPAN&gt;&amp;nbsp;streamlines the creation of star schema models using ABAP Core Data Services. It empowers you to build comprehensive analytical models with ease. This tool guides you through the entire generation process, ensuring a consistent and efficient workflow. The wizard supports the following key components:&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;Transactional Scenario, Analytical Cube and Dimension Views (&lt;A href="https://help.sap.com/docs/abap-cloud/abap-development-tools-user-guide/star-schema-generator" target="_blank" rel="noopener noreferrer"&gt;details&lt;/A&gt;)&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId-1458354895"&gt;&lt;SPAN&gt;Identity and Access Management&lt;/SPAN&gt;&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;IAM App Assignment:&lt;/STRONG&gt;&amp;nbsp;So far, it was only possible to assign access to Fiori apps to business users indirectly via business catalogs. Now, it's also possible to directly create business roles based on IAM apps for SAP-delivered business catalogs&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Maintain Business Roles&lt;/STRONG&gt;, you can now directly assign IAM apps in the&amp;nbsp;&lt;SPAN class=""&gt;Maintain Business Roles&lt;/SPAN&gt;&amp;nbsp;app. This supports you in handling authorizations more flexibly. You can also use the&amp;nbsp;&lt;SPAN class=""&gt;Mass Change Wizard&lt;/SPAN&gt;&amp;nbsp;if you need to add or remove multiple IAM apps at once (&lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/abap-environment/maintain-business-roles?version=Cloud" target="_blank" rel="noopener noreferrer"&gt;details&lt;/A&gt;)&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;App References, the &lt;STRONG&gt;following apps now contain references to IAM apps&lt;/STRONG&gt;:&amp;nbsp;&lt;/SPAN&gt;Maintain Business Roles, Manage Business Role, Changes After Upgrade, Display Restriction Types, Business Catalogs, Business Role Templates, IAM Information System (&lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/abap-environment/apps-identity-and-access-management?version=Cloud" target="_blank" rel="noopener noreferrer"&gt;details&lt;/A&gt;)&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Information System, the main entity&amp;nbsp;&lt;SPAN class=""&gt;Application&lt;/SPAN&gt;&amp;nbsp;is now deprecated&lt;/STRONG&gt;. The successor will be the IAM app, which is now contained in the&amp;nbsp;&lt;SPAN class=""&gt;Main Entity&lt;/SPAN&gt;&amp;nbsp;dropdown list (&lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/abap-environment/iam-information-system?version=Cloud" target="_blank" rel="noopener noreferrer"&gt;details&lt;/A&gt;)&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;App Authorization Variant,&lt;/STRONG&gt; you can now use the IAM app of the&lt;SPAN class=""&gt;&amp;nbsp;App Authorization Variant&lt;/SPAN&gt;&amp;nbsp;type. This gives you more flexibility in managing restrictions because it allows you to activate or deactivate app authorization variants to define different access rights per business role (&lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/abap-environment/work-with-iam-apps-app-authorization-variants?version=Cloud#loioe2b39fb01689420393931a9eb3f627ec" target="_blank" rel="noopener noreferrer"&gt;details&lt;/A&gt;)&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId-1261841390"&gt;&lt;SPAN&gt;Manage API Snapshots&lt;/SPAN&gt;&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;As a &lt;STRONG&gt;provider for released APIs&lt;/STRONG&gt;, you can now &lt;STRONG&gt;download and upload API snapshots using the&amp;nbsp;&lt;SPAN class=""&gt;Manage API Snapshots&lt;/SPAN&gt;&amp;nbsp;app&lt;/STRONG&gt;. This way, you can download API snapshots from the test system and upload them in the development system, thus preventing incompatible changes to your released objects early in the development process (&lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/abap-environment/manage-api-snapshots?version=Cloud" target="_blank" rel="noopener noreferrer"&gt;details&lt;/A&gt;)&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId-1065327885"&gt;&lt;SPAN&gt;SAP Fiori Launchpad&lt;/SPAN&gt;&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;My Home&lt;/SPAN&gt;&lt;/STRONG&gt;&amp;nbsp;in SAP BTP ABAP environment&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Launching an App with a Transaction Code&lt;/STRONG&gt; (&lt;A href="https://help.sap.com/docs/btp/sap-fiori-launchpad-for-sap-btp-abap-environment/searching-for-business-objects-and-apps?version=Cloud" target="_blank" rel="noopener noreferrer"&gt;details&lt;/A&gt;)&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Download and Upload of Spaces&lt;/STRONG&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Removal of Business Groups&lt;/STRONG&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId-868814380"&gt;&lt;SPAN&gt;Landscape Portal&lt;/SPAN&gt;&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Publish Product&lt;/STRONG&gt;: Publish up to Two Product Versions (&lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/landscape-portal/publish-product" target="_blank" rel="noopener noreferrer"&gt;details&lt;/A&gt;)&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Deploy Product&lt;/STRONG&gt;: System multi-select supported and performance improved (&lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/landscape-portal/deploy-product" target="_blank" rel="noopener noreferrer"&gt;details&lt;/A&gt;)&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId-672300875"&gt;&lt;SPAN&gt;Infrastructure&lt;/SPAN&gt;&lt;/H4&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Optional Integration with SAP Key Management Service&lt;/STRONG&gt;,&amp;nbsp;SAP BTP ABAP environment provides an optional integration with the SAP Key Management Service (KMS). With this integration, it's possible to manage the SAP HANA Cloud database of an ABAP environment instance via SAP KMS (&lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/abap-environment/integration-with-sap-key-management-service?version=Cloud" target="_blank" rel="noopener noreferrer"&gt;details&lt;/A&gt;)&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-btp-abap-environment-release-2602/ba-p/14329182"/>
     <published>2026-02-19T10:47:10.350000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/abap-blog-posts/from-business-objects-to-business-flows-the-missing-layer-of-rap/ba-p/14333137</id>
+    <title>From Business Objects to Business Flows: The Missing Layer of RAP Documentation</title>
+    <updated>2026-02-20T21:50:30.017000+01:00</updated>
+    <author>
+      <name>Mattias</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/11415</uri>
+    </author>
+    <content>&lt;H2 id="part-2-in-a-series-on-modern-sap-documentation" id="toc-hId-1790474597"&gt;Part 2 in a series on modern SAP documentation.&lt;/H2&gt;&lt;P&gt;Part 1 covered Business Object Canvases, ADRs, and dependency matrices. This post tackles what happens when you need to understand how it all fits together.&lt;/P&gt;&lt;P&gt;In my last post, I argued that RICEFW documentation doesn't fit how we build with RAP. Business Object Canvases, ADRs, and dependency matrices give us a better way to document individual capabilities and the decisions behind them.&lt;/P&gt;&lt;P&gt;But I ended with an open question: what happens when someone asks “Walk me through what happens when a customer creates an order”? You point them to four BO Canvases. They read all four. They still don't understand the sequence — what triggers what, in which order, and what happens when something fails.&lt;/P&gt;&lt;H2 id="functional-specs-describe-pieces-not-flows" id="toc-hId-1593961092"&gt;Functional Specs Describe Pieces, Not Flows&lt;/H2&gt;&lt;P&gt;Our team documents in Confluence today. Functional specifications per RICEFW object — one for the report, another for the interface, another for the enhancement, another for the form. They're organized around technical artifacts, not business capabilities.&lt;/P&gt;&lt;P&gt;So if you want to understand the Sales Order, you're reading across half a dozen specs. The enhancement spec for validation, the interface spec for pricing, the form spec for order confirmation. Each makes sense on its own. But piecing together what actually happens when a customer creates an order means jumping between documents that were never designed to tell that story.&lt;/P&gt;&lt;P&gt;Questions like these are hard to answer:&lt;/P&gt;&lt;P&gt;What happens after the sales order is saved? What events fire, and in what order? If credit check fails, does the order stay blocked, or does it roll back? Which steps are synchronous and which are async? Where does pricing fit — before, during, or after save?&lt;/P&gt;&lt;P&gt;The answers live in people's heads, scattered across specs, or buried in code.&lt;/P&gt;&lt;H2 id="why-rap-makes-this-worse-and-better" id="toc-hId-1397447587"&gt;Why RAP Makes This Worse — and Better&lt;/H2&gt;&lt;P&gt;In classic ABAP, process orchestration was often implicit. User exits, BAdIs, and function modules wired through transaction codes. You could trace the flow by reading the code.&lt;/P&gt;&lt;P&gt;RAP changes this. Business objects are decoupled. They communicate through events, EML calls, and service projections. Good architecture — but the process flow is no longer visible in any single place. The good news: because RAP forces you to think in events and clear BO boundaries, the sequence can be documented cleanly. You just need to actually do it.&lt;/P&gt;&lt;H2 id="an-idea-sequence-maps" id="toc-hId-1200934082"&gt;An Idea: Sequence Maps&lt;/H2&gt;&lt;P&gt;What I think we need is something simple — a visual flow that shows the chain of BOs in a business process, the trigger between each step, and whether it's synchronous or asynchronous. Nothing fancy. A diagram in Confluence: Customer creates order → Sales Order BO (SAVE) → [sync] Pricing determination → [sync] Credit check → [event] OrderCreated → [async] Inventory reservation → [async] Shipping notification&lt;/P&gt;&lt;P&gt;Even something this basic should be valuable. New developers could see the flow in thirty seconds. Architects could spot the sync/async boundaries. Application experts could validate whether the sequence matches what they expect.&lt;/P&gt;&lt;H2 id="the-full-picture" id="toc-hId-1004420577"&gt;The Full Picture&lt;/H2&gt;&lt;P&gt;Each documentation layer answers a different question:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;BO Canvas: What does this business object do?&lt;/LI&gt;&lt;LI&gt;ADR: Why did we build it this way?&lt;/LI&gt;&lt;LI&gt;Dependency matrix: What's connected to what?&lt;/LI&gt;&lt;LI&gt;Sequence map: What happens when a business process runs?&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The sequence mapping is the part I haven't started yet — but it's the gap I feel most in daily work. Too many “go ask Henrik, he knows” conversations. If you're on a similar journey — moving from RICEFW specs to something that fits RAP — I'd like to hear what you've tried.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/abap-blog-posts/from-business-objects-to-business-flows-the-missing-layer-of-rap/ba-p/14333137"/>
+    <published>2026-02-20T21:50:30.017000+01:00</published>
   </entry>
 </feed>
