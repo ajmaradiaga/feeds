@@ -2,362 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-S4HANA-Cloud-ABAP-Environment-blog-posts.xml</id>
   <title>SAP Community - SAP S/4HANA Cloud ABAP Environment</title>
-  <updated>2026-02-25T09:01:28.407041+00:00</updated>
+  <updated>2026-02-25T12:01:27.150896+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP S/4HANA Cloud ABAP Environment/pd-p/60907aa9-99e9-4d5d-9103-8b970e9bc0a4" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP S/4HANA Cloud ABAP Environment blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/automatic-retry-of-application-jobs-in-abap-in-cloud/ba-p/14249591</id>
-    <title>Automatic retry of Application Jobs in ABAP in Cloud</title>
-    <updated>2025-10-22T08:12:39.185000+02:00</updated>
-    <author>
-      <name>natanael1</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1557162</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-1633869018"&gt;Introduction&lt;/H1&gt;&lt;P&gt;When moving from classic ABAP to ABAP in Cloud, one of the most common painpoints of the developers is the fact that they lose many familiar tools and options they had in the non-cloud systems. One of these tools are classical Batch Jobs, they have been replaced with Application Jobs in ABAP in Cloud, about this and some other issue&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/404361"&gt;@octavian_savu&lt;/a&gt;&amp;nbsp;has a very good &lt;A href="https://community.sap.com/t5/application-development-and-automation-blog-posts/abap-cloud-application-jobs-overcoming-key-challenges/ba-p/13929058" target="_self"&gt;blog post&lt;/A&gt;&amp;nbsp;where he explains some common challenges with Application Jobs in ABAP in Cloud.&lt;/P&gt;&lt;P&gt;In my case, we had multiple nightly Application Jobs that were occasionally failing &lt;STRONG&gt;due to network stability&lt;/STRONG&gt; or &lt;STRONG&gt;downtime&lt;/STRONG&gt;, and many of these failures were&lt;STRONG&gt; "fixable" with a simple retry&lt;/STRONG&gt;, however without a 24/7 support we could not make sure that these jobs were retried when they failed. And this is a common fallacy of the &lt;STRONG&gt;&lt;A href="https://en.wikipedia.org/wiki/Fallacies_of_distributed_computing" target="_self" rel="nofollow noopener noreferrer"&gt;"The Eight Fallacies of Distributed Computing"&lt;/A&gt;, &lt;/STRONG&gt;specifically "&lt;STRONG&gt;The network is reliable"&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;My plan was to build a robust retry framework for Application Jobs that will overcome these type of transient issues. I was very much inspired by the Phoenix bird who's rising from the ashes, so my goal was to make sure that the Application Jobs can rise from the ashes as well. The full source code of this framework can be found in &lt;A href="https://github.com/legonmarian/abap-btp-phoenix-framework" target="_self" rel="nofollow noopener noreferrer"&gt;here&lt;/A&gt;.&lt;/P&gt;&lt;H1 id="toc-hId-1437355513"&gt;Problem Statement&lt;/H1&gt;&lt;P&gt;In classical process chains(TCODE: RSPC), you are given the opportunity of configuring an automatic retry for a certain Job step in case of failure.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-10-21 at 14.18.54.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/330232iAE354CF85EF15A3A/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Screenshot 2025-10-21 at 14.18.54.png" alt="Screenshot 2025-10-21 at 14.18.54.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;However in ABAP in Cloud you don't have such options unfortunately. So there's a gap in functionality that we'l need to address somehow. Why do we need to address it?&amp;nbsp;&lt;BR /&gt;That's simple, and I will give you an &lt;STRONG&gt;example&lt;/STRONG&gt; for that:&lt;/P&gt;&lt;H2 id="toc-hId-1369924727"&gt;Example&lt;/H2&gt;&lt;P&gt;Let's assume you somehow decided to implement the &lt;STRONG&gt;MRP&lt;/STRONG&gt;(or any other process, it doesn't matter)&amp;nbsp;runs in Cloud, you have your development / support teams that sits in Berlin, the working day is from 07:00 - 15:00 UTC. And you also have 2 factories, one in Warsaw(work day 07:00 - 15:00 UTC) and one in Shanghai(work day 01:00 - 09:00 UTC).&lt;BR /&gt;At both factories you also have some production planners that need the data from the MRP run in order to be able to work, if the data is not there, their time is wasted.&amp;nbsp;&lt;BR /&gt;Let's say you have one MRP run per each factory and it takes 1 hour to complete, and you must run it not sooner than 2 hours before the factory opens, otherwise you will miss some important orders.&lt;BR /&gt;Therefore you will have the next schedule:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Warsaw MRP -&amp;gt; 05:00 - 06:00&lt;/LI&gt;&lt;LI&gt;Shanghai MRP -&amp;gt; 23:00 - 00:00&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;And let's assume a theoretical scenario when both of these Jobs have failed.&amp;nbsp;The support team starts their work at ~07:00, this is when they restart the job, and at ~08:00 the job is completed.&amp;nbsp;How much time did the production planners lose?&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Warsaw - ~1-2 hours which is not that much, but still unpleasant&lt;/LI&gt;&lt;LI&gt;Shanghai - ~7-8 hours which is almost a full working day, completely unacceptable&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-1044328503"&gt;Design goal&lt;/H1&gt;&lt;P&gt;The ultimate goal is making sure that the system is able to "heal" itself and try again in case of failure. In order to translate this into ABAP code we will need a framework with the next requirements:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Automatically retries in case of failure&lt;/LI&gt;&lt;LI&gt;Has a configurable timeout between the retries to allow external systems to recover&lt;/LI&gt;&lt;LI&gt;Follows SOLID principles&lt;/LI&gt;&lt;LI&gt;Can be fitted into existing jobs with minimal refactoring&lt;/LI&gt;&lt;LI&gt;The class should be able to control the flow of the framework if needed.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;In order to achieve this behavior I will introduce the Phoenix Framework. The idea behind of the phoenix framework is to introduce a thin architectural layer on top of the standard ABAP APJ(Application Jobs) runtime. The goal of this layer is to separate the technical orchestration of retires from the actual business logic of the Application Job, this way each job stays focused on what it needs to do, while the framework handles how it should react when something goes wrong.&amp;nbsp;&lt;/P&gt;&lt;P&gt;This behavior will be achieved by introducing a two-tier class structure, a pretty common OOP design.&amp;nbsp;In general in most of the code we prefer composition over inheritance, but in this specific use case inheritance will be more suitable technique.&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Base Class&lt;/STRONG&gt; (&lt;CODE&gt;zcl_phoenix_base&lt;/CODE&gt;) - Handles job lifecycle, and implements APJ contracts, plus it provides the retry engine. It will implement&amp;nbsp;&lt;CODE&gt;zif_phoenix&lt;/CODE&gt;&amp;nbsp;and the encapsulated interfaces inside it.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Child Class&lt;/STRONG&gt; (f.ex.&amp;nbsp;&lt;CODE&gt;zcl_phoenix_job_mrp&lt;/CODE&gt;) - Inherits from&amp;nbsp;&lt;CODE&gt;zcl_phoenix_base&lt;/CODE&gt;, and will implement the business logic through hooks enforced by the interface.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;besides that we will create a facade for this framework&amp;nbsp;&lt;CODE&gt;zif_phoenix&lt;/CODE&gt;, this interface will be serving multiple purposes:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Central point of keeping generic types specific for application jobs&lt;/LI&gt;&lt;LI&gt;Bundles multiple interfaces together&lt;/LI&gt;&lt;LI&gt;Defines an implementation contract for the child class.&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-847814998"&gt;Implementation&lt;/H1&gt;&lt;H3 id="toc-hId-909466931"&gt;Interface&lt;/H3&gt;&lt;P&gt;I will first provide the source code, and below will be the explanation&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;"! Phoenix framework interface
-INTERFACE zif_phoenix PUBLIC.
-
-  TYPES:
-    BEGIN OF ty_job_params_range,
-      sign   TYPE c LENGTH 1,
-      option TYPE c LENGTH 2,
-      low    TYPE c LENGTH 50,
-      high   TYPE c LENGTH 50,
-    END OF ty_job_params_range.
-
-  TYPES: tt_job_params_range TYPE STANDARD TABLE OF ty_job_params_range WITH EMPTY KEY.
-
-  INTERFACES if_apj_dt_defaults.
-  INTERFACES if_apj_rt_run.
-  INTERFACES if_oo_adt_classrun.
-
-  "! Run business logic &amp;lt;br&amp;gt;
-  "! Implements the job-specific business logic. The framework invokes this
-  "! once per attempt. If an exception derived from cx_root is raised, the
-  "! framework logs it and may retry according to the configured retry settings.
-  "! Keep this method idempotent or self-compensating so it remains safe under retries.
-  "! @raising cx_root | Propagate any business error to signal failure to the framework.
-  METHODS process RAISING cx_root.
-
-  "! Set default attributes &amp;lt;br&amp;gt;
-  "! Populate instance attributes that serve as defaults for scheduling and
-  "! execution
-  "! The base class calls this from if_apj_dt_defaults~fill_attribute_defaults
-  "! so implementations do not depend on APJ types.
-  METHODS fill_attribute_defaults.
-
-
-  "! Get the delay before the next run &amp;lt;br/&amp;gt;
-  "! @parameter retry_count | The retry count
-  "! @parameter delay | How many seconds to wait before retrying the job
-  METHODS get_next_delay IMPORTING retry_count TYPE i
-                         RETURNING VALUE(delay) TYPE i.
-
-ENDINTERFACE.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;SPAN&gt;So why do we implement the&amp;nbsp;&lt;CODE&gt;zif_phoenix&lt;/CODE&gt; interface? Simply it is just encapsulating the structure of our future Application Jobs.&lt;/SPAN&gt;&lt;/P&gt;&lt;DIV&gt;&lt;BR /&gt;&lt;DIV&gt;&lt;SPAN&gt;The type &lt;/SPAN&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;CODE&gt;ty_job_params_range&lt;/CODE&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN&gt;is just made available in here for job parameters, as they will follow this shape if we want to be able to select multiple options, for more on this check &lt;/SPAN&gt;&lt;SPAN&gt;&lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/example-implementation-using-interfaces-if-apj-dt-exec-object-and-if-apj-rt-exec-object?locale=en-US" target="_self" rel="noopener noreferrer"&gt;SAP Docs&lt;/A&gt;.&lt;/SPAN&gt;&lt;/DIV&gt;&lt;BR /&gt;&lt;DIV&gt;&lt;SPAN&gt;And then we implement these 3 interfaces: &lt;/SPAN&gt;&lt;SPAN&gt;&lt;CODE&gt;if_apj_rt_run&lt;/CODE&gt;&lt;/SPAN&gt;&lt;SPAN&gt;,&amp;nbsp;&lt;CODE&gt;if_apj_dt_defaults&lt;/CODE&gt;,&amp;nbsp;&lt;CODE&gt;if_oo_adt_classrun&lt;/CODE&gt;&lt;/SPAN&gt;&lt;SPAN&gt;, but why do we need them?&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;So let's take them one by one:&lt;/SPAN&gt;&lt;/DIV&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;CODE&gt;if_apj_rt_run&lt;/CODE&gt;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;- this is the default interface an application job should implement, without this interface a catalog cannot be created therefore we wouldn't be able to execute it as an application job, inside the &lt;/SPAN&gt;&lt;SPAN&gt;&lt;CODE&gt;if_apj_rt_run~main&lt;/CODE&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;you should encapsulate your business logic. By having it inside&amp;nbsp;&amp;nbsp;&lt;CODE&gt;zif_phoenix&lt;/CODE&gt;&lt;/SPAN&gt;&lt;SPAN&gt; we are basically saying that all the classes that implement &lt;/SPAN&gt;&lt;SPAN&gt;&lt;CODE&gt;zif_phoenix&lt;/CODE&gt;&lt;/SPAN&gt;&lt;SPAN&gt;(or spoiler alert inherits from a class that implements it) will be "schedulable" as a batch job.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;CODE&gt;if_apj_dt_defaults&lt;/CODE&gt;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;- this is the interface where you define default values for the parameters passed ot the application job, you can either provide them in here, in the class constructor or as default values of the public attributes of the class.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;CODE&gt;if_oo_adt_classrun&lt;/CODE&gt;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;- a scheduled application job cannot be debugged, therefore we will introduce this interface for easier debugging of the business logic&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-712953426"&gt;&lt;SPAN&gt;Base Class Definition&lt;/SPAN&gt;&lt;/H3&gt;&lt;/DIV&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_phoenix_base DEFINITION
-  PUBLIC
-  ABSTRACT
-  CREATE PUBLIC .
-
-  PUBLIC SECTION.
-    INTERFACES zif_phoenix.
-
-    "! &amp;lt;p class="shorttext synchronized" lang="en"&amp;gt;Retry Enabled&amp;lt;/p&amp;gt;
-    DATA retry_enabled TYPE zde_phoenix_retry_enabled VALUE 'X'.
-
-    "! &amp;lt;p class="shorttext synchronized" lang="en"&amp;gt;Number of retries&amp;lt;/p&amp;gt;
-    DATA retry_count TYPE zde_phoenix_retries VALUE 2.
-
-    "! &amp;lt;p class="shorttext synchronized" lang="en"&amp;gt;Cooldown time(s)&amp;lt;/p&amp;gt;
-    DATA sleep_value_s TYPE zde_phoenix_sleep VALUE 120.
-
-  PROTECTED SECTION.
-    DATA logger            TYPE REF TO zif_logger.
-
-    "! Log informational message &amp;lt;br&amp;gt;
-    "! Writes an informational entry to the application log (BALI) for the current attempt.
-    "! Uses severity if_bali_constants=&amp;gt;c_severity_information.
-    "! @parameter message | Text to persist in the application log.
-    "! @raising   cx_bali_runtime | Thrown if the logger is not available or the log write fails.
-    METHODS log_info
-      IMPORTING !message TYPE cl_bali_free_text_setter=&amp;gt;ty_text
-      RAISING   cx_bali_runtime.
-
-    "! Log error message &amp;lt;br&amp;gt;
-    "! Writes an error entry to the application log (BALI) for the current attempt.
-    "! Uses severity if_bali_constants=&amp;gt;c_severity_error.
-    "! @parameter message | Text to persist in the application log.
-    "! @raising   cx_bali_runtime | Thrown if the logger is not available or the log write fails.
-    METHODS log_error
-      IMPORTING !message TYPE cl_bali_free_text_setter=&amp;gt;ty_text
-      RAISING   cx_bali_runtime.
-
-    "! Log warning message &amp;lt;br&amp;gt;
-    "! Writes a warning entry to the application log (BALI) for the current attempt.
-    "! Uses severity if_bali_constants=&amp;gt;c_severity_warning.
-    "! Requires an initialized logger (created via create_logger( )).
-    "! @parameter message | Text to persist in the application log.
-    "! @raising   cx_bali_runtime | Thrown if the logger is not available or the log write fails.
-    METHODS log_warning
-      IMPORTING !message TYPE cl_bali_free_text_setter=&amp;gt;ty_text
-      RAISING   cx_bali_runtime.
-
-    "! Log success/status message &amp;lt;br&amp;gt;
-    "! Writes a success entry to the application log (BALI) for the current attempt.
-    "! Uses severity if_bali_constants=&amp;gt;c_severity_status.
-    "! @parameter message | Text to persist in the application log.
-    "! @raising   cx_bali_runtime | Thrown if the logger is not available or the log write fails.
-    METHODS log_success
-      IMPORTING !message TYPE cl_bali_free_text_setter=&amp;gt;ty_text
-      RAISING   cx_bali_runtime.
-
-
-  PRIVATE SECTION.
-    CONSTANTS log_object_id            TYPE cl_bali_header_setter=&amp;gt;ty_object    VALUE 'ZLOG_PHOENIX'.
-    CONSTANTS sublog_id_submission_job TYPE cl_bali_header_setter=&amp;gt;ty_subobject VALUE 'PHOENIX_LOG'.
-
-    METHODS notify_about_failure.
-    METHODS notify_teams.
-    METHODS create_logger RAISING cx_bali_runtime
-                                  cx_uuid_error.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId-645522640"&gt;PUBLIC SECTION&lt;/H4&gt;&lt;P&gt;&lt;SPAN&gt;We will of course implement the&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;zif_phoenix&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;interface that we defined before.&lt;/SPAN&gt;&lt;BR /&gt;&lt;SPAN&gt;And we will also define 3 public attributes&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;retry_enabled&lt;/CODE&gt;&lt;SPAN&gt;,&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;retry_count&lt;/CODE&gt;&lt;SPAN&gt;,&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;sleep_value_s&lt;/CODE&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;BR /&gt;&lt;SPAN&gt;These public attributes will be visible in the Job Scheduling screen so the person who schedules the job can control if he wants to have the retry functionality enabled, how many time the framework will retry the job, and how much time to wait between the retries.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-10-21 at 16.48.53.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/330306i5C61E0F2B2D53A89/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Screenshot 2025-10-21 at 16.48.53.png" alt="Screenshot 2025-10-21 at 16.48.53.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H4 id="toc-hId-449009135"&gt;PROTECTED SECTION&lt;/H4&gt;&lt;P&gt;In here we define the PROTECTED area of the class, and if you don't remember what it is, it's the method / types that's not available to other classes but it's available to the children classes(that implement this base class)&lt;BR /&gt;As protected we have one global object called&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;logger&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and I left it as protected on purpose, if any of the child classes would like to define some custom logging methods, they can access the logger object and define their own methods if the provided methods are not meeting the needs.&lt;/P&gt;&lt;P&gt;And we have 4 more logging methods that will log a message with a specific importance(info, success, warning, error), the consumer is encoruanegd to use these methods, and use the logger obejct itself only when these are not sufficient.&lt;/P&gt;&lt;P&gt;Using this logger and logging methods the consumer will be able to log to the Application Job Log that we see afterwards in the Fiori launchpad&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="natanael1_0-1761058386212.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/330307iDBA940A45666AF9C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="natanael1_0-1761058386212.png" alt="natanael1_0-1761058386212.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H4 id="toc-hId-252495630"&gt;PRIVATE SECTION&lt;/H4&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;In the private section we defined some constants that we will use for logging into the application job log and also 2 methods for sending external notifications on a job failure, in our case we have a generic method that notifies about a failure, and this method just calls another method that will send a teams notification in case of failure.&lt;/SPAN&gt;&lt;/DIV&gt;&lt;H3 id="toc-hId--148331963"&gt;Implementation&lt;/H3&gt;&lt;P&gt;Now we have this base class, and the purpose of it, is that multiple child classes will implement this base class, and each child class will be a "schedulable" job, but we need a mechanism of how we can make this connection between the child class and base class, and how the child class will indicate to the base class what business logic to run.&lt;BR /&gt;We will do that via the same interface that we created:&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;zif_phoenix&lt;/CODE&gt;, therefore we define 3 more methods&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;CODE&gt;get_next_delay&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;method will take as a parameter the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;retry_count&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and will return back the cooldown time the framework will need to wait before the next retry, this method will have a default implementation that simply returns the static input parameter of the job&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;sleep_value_s&lt;/CODE&gt;, this method shall not be redefined by the child class unless they want some custom cooldown functionality like exponential backoff&lt;/LI&gt;&lt;LI&gt;&lt;CODE&gt;fill_attribute_defaults&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;method, this is just a wrapper for the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;if_apj_dt_defaults~fill_attribute_defaults&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;method, and one could argue why do we need a wrapper why can't we just implement&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;if_apj_dt_defaults~fill_attribute_defaults&lt;/CODE&gt;, we could, but we want to put an abstraction layer on top of it, and keep this concern into the base class, so the child class implements only the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;zif_phoenix&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and not any other interfaces like&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;if_apj_dt_defaults&lt;/CODE&gt;&lt;/LI&gt;&lt;LI&gt;&lt;CODE&gt;process&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;method, probably the most important method, so the child class must redefine the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;process&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;method, and implement it's business logic inside it, so assuming that you're refactoring a class that used before&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;if_apj_rt_run&lt;/CODE&gt;, you'd rename&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;if_apj_rt_run~main&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;into&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;zif_phoenix~process&lt;/CODE&gt;, the base class will afterwards call the process method again and again in case of retries&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Therefore we already have a default implementation for some methods:&lt;/P&gt;&lt;/DIV&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD if_apj_dt_defaults~fill_attribute_defaults.
-  " ------------------------------------------------------------------------
-  " STANDARD IMPLEMENTATION
-  " MUST NOT BE REDEFINED, INSTEAD USE EXTENSION POINT:
-  "   zif_phoenix~fill_attribute_defaults( ).
-  "
-  " This is just calling the wrapper class zif_phoenix~fill_attribute_defaults( ).
-  " ------------------------------------------------------------------------
-  zif_phoenix~fill_attribute_defaults( ).
-ENDMETHOD.
-
-METHOD zif_phoenix~get_next_delay.
-  " ------------------------------------------------------------------------
-  " STANDARD IMPLEMENTATION
-  " CAN BE REDEFINED BY CHILD CLASS IF NEEDED(OPTIONAL)
-  "
-  " By default it will return the configured sleep_value_s
-  " This is an extension point if the job needs a custom backoff f.ex. exponential backoff
-  " the class could implement it something like this:
-  "   RETURN sleep_value_s * ( 2 ** ( retry_count - 1 ) ).
-  " ------------------------------------------------------------------------
-  RETURN sleep_value_s.
-ENDMETHOD.
-
-METHOD zif_phoenix~fill_attribute_defaults.
-  " ------------------------------------------------------------------------
-  " CUSTOM BUSINESS IMPLEMENTATION
-  " CAN BE REDEFINED BY CHILD CLASS IF NEEDED(OPTIONAL)
-  " WRAPPER FUNCTION FOR if_apj_dt_defaults~fill_attribute_defaults
-  " Q: Why do we need zif_phoenix~fill_attribute_defaults if the
-  "    child class can implement if_apj_dt_defaults~fill_attribute_defaults
-  " A: We don't want the child class to implement other interfaces other
-  "    than zif_phoenix, this way we abstractize the child class from
-  "    knowing the inside implementation of the framework
-  " ------------------------------------------------------------------------
-ENDMETHOD.
-
-
-METHOD zif_phoenix~process.
-  " ------------------------------------------------------------------------
-  " CUSTOM BUSINESS IMPLEMENTATION
-  " MUST BE REDEFINED BY CHILD CLASS
-  " ------------------------------------------------------------------------
-ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;I will skip over the implementation of the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;create_logger&lt;/CODE&gt;,&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;log_info&lt;/CODE&gt;,&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;log_error&lt;/CODE&gt;,&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;log_success&lt;/CODE&gt;,&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;log_warning&lt;/CODE&gt;,&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;notify_about_failure&lt;/CODE&gt;,&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;notify_teams&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;methods because they're less relevant for this example.&lt;/P&gt;&lt;P&gt;Given that we'd like to run everything inside the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;if_apj_rt_run~execute&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;when we are running the class inside ADT, this will be the implementation of the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;if_oo_adt_classrun~main&lt;/CODE&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD if_oo_adt_classrun~main.
-  " ------------------------------------------------------------------------
-  " STANDARD IMPLEMENTATION
-  " NO NEED FOR REDEFENITION, BUT IT IS OKAY TO
-  " if_oo_adt_classrun~main MUST NOT BE USED IN PRODUCTIVE SCENARIOS
-  " ------------------------------------------------------------------------
-  TRY.
-      if_apj_rt_run~execute( ).
-      out-&amp;gt;write( |Finished executing at { cl_abap_context_info=&amp;gt;get_system_time( ) }| ).
-    CATCH cx_root INTO FINAL(exception).
-      out-&amp;gt;write( |Exception raised during execution: { exception-&amp;gt;get_text( ) }| ).
-  ENDTRY.
-ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Now we got to the most interesting part, what do we put inside&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;if_apj_rt_run~execute&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;in order to retry the job on failure&lt;BR /&gt;We will start simple, first thing first, we'll try to calculate the total_attempts of the run that we can do, if the retry is disabled it will be 1, so it will run once, and won't retry, if it's enabled it will be the passed retry_count parameter + 1(the first run)&lt;/P&gt;&lt;P&gt;Next via a simple&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;DO&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;loop we will execute the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;zif_phoenix~process&lt;/CODE&gt;(which contains the job business logic inside), and if the execution is successful, we'll return, therefore we don't get to the next iteration of the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;DO&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;loop, it will stop there and exit prematurely.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD if_apj_rt_run~execute.
-  FINAL(max_retries)    = COND i( WHEN retry_enabled = abap_true THEN retry_count ELSE 0 ).
-  FINAL(total_attempts) = max_retries + 1.
-
-  DO total_attempts TIMES.
-    zif_phoenix~process( ).
-    RETURN.
-  ENDDO.
-ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;But will this be fault tolerant? No, as soon as&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;zif_phoenix~process( )&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;raises an exception&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;if_apj_rt_run~execute&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;will be propagating the exception and prematurely terminate, so we don't get to the next&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;DO&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;iteration.&lt;/P&gt;&lt;P&gt;So we will just wrap it with a&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;TRY CATCH&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;block:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD if_apj_rt_run~execute.
-  FINAL(max_retries)    = COND i( WHEN retry_enabled = abap_true THEN retry_count ELSE 0 ).
-  FINAL(total_attempts) = max_retries + 1.
-
-  DO total_attempts TIMES.
-    TRY.
-        zif_phoenix~process( ).
-        RETURN.
-      CATCH cx_root INTO FINAL(ex).
-    ENDTRY.
-  ENDDO.
-ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Congratulations, you have now a very simple fault tolerant application job framework, as soon as the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;zif_phoenix~process( )&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;raises an exception, the catch block catches it, and goes to the next iteration of the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;DO&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;loop, as soon as the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;zif_phoenix~process( )&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;is successfull it will return so we don't run it too many times.&lt;/P&gt;&lt;P&gt;But we don't have any sleep functionality, so let's add it&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD if_apj_rt_run~execute.
-  FINAL(max_retries)    = COND i( WHEN retry_enabled = abap_true THEN retry_count ELSE 0 ).
-  FINAL(total_attempts) = max_retries + 1.
-
-  DO total_attempts TIMES.
-    TRY.
-        zif_phoenix~process( ).
-        RETURN.
-      CATCH cx_root INTO FINAL(ex).
-        IF sy-index &amp;lt;= max_retries.
-          DATA(sleep_time_s) = zif_phoenix~get_next_delay( sy-index ).
-          IF sleep_time_s &amp;gt; 0.
-            WAIT UP TO sleep_time_s SECONDS.
-          ENDIF.
-          CONTINUE.
-        ENDIF.
-    ENDTRY.
-  ENDDO.
-ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Now on an exception we will get the next expected delay, will wait that amount of seconds and then continue with the next try.&lt;/P&gt;&lt;P&gt;But can you see the problem in this code?&lt;BR /&gt;The problem is that even if all the attempts of running the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;zif_phoenix~process&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;are failing, the code will continue its normal flow after all failures, and will result in a succesfull job, which is false, so we'll raise an exception when we've exhausted all our attempts:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD if_apj_rt_run~execute.
-  FINAL(max_retries)    = COND i( WHEN retry_enabled = abap_true THEN retry_count ELSE 0 ).
-  FINAL(total_attempts) = max_retries + 1.
-
-  DO total_attempts TIMES.
-    TRY.
-        zif_phoenix~process( ).
-        RETURN.
-      CATCH cx_root INTO FINAL(ex).
-        IF sy-index &amp;lt;= max_retries.
-          DATA(sleep_time_s) = zif_phoenix~get_next_delay( sy-index ).
-          IF sleep_time_s &amp;gt; 0.
-            WAIT UP TO sleep_time_s SECONDS.
-          ENDIF.
-          CONTINUE.
-        ENDIF.
-        RAISE EXCEPTION NEW cx_apj_rt_content( previous = ex ).
-    ENDTRY.
-  ENDDO.
-ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Now we'll add a bit of logging:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD if_apj_rt_run~execute.
-  " ------------------------------------------------------------------------
-  " STANDARD IMPLEMENTATION DO NOT REDEFINE
-  " FOLLOW STANDARD FLOW
-  " Enhancement Points:
-  "   - process() must be redefined
-  " ------------------------------------------------------------------------
-  TRY.
-      FINAL(max_retries)    = COND i( WHEN retry_enabled = abap_true THEN retry_count ELSE 0 ).
-      FINAL(total_attempts) = max_retries + 1.
-
-      DO total_attempts TIMES.
-
-        " new logger for each attempt, to have separation of logs in APJ
-        create_logger( ).
-        log_info( |Attempt { sy-index } of { total_attempts } started| ).
-
-        TRY.
-            zif_phoenix~process( ).
-            log_success( |Processed successfully on attempt { sy-index }| ).
-            RETURN.
-          CATCH cx_root INTO FINAL(ex).
-            IF sy-index &amp;lt;= max_retries.
-              log_warning( |Attempt { sy-index } failed: { ex-&amp;gt;get_text( ) }| ).
-              notify_about_failure( ).
-              DATA(sleep_time_s) = zif_phoenix~get_next_delay( sy-index ).
-              IF sleep_time_s &amp;gt; 0.
-                log_info( |Retrying in { sleep_value_s } seconds| ).
-                WAIT UP TO sleep_time_s SECONDS.
-              ENDIF.
-              CONTINUE.
-            ENDIF.
-
-            log_error( |Exhausted { total_attempts } attempts: { ex-&amp;gt;get_text( ) }| ).
-            RAISE EXCEPTION NEW cx_apj_rt_content( previous = ex ).
-        ENDTRY.
-
-      ENDDO.
-
-    CATCH cx_bali_runtime cx_uuid_error INTO FINAL(log_ex).
-      RAISE EXCEPTION NEW cx_apj_rt_content( previous = log_ex ).
-  ENDTRY.
-
-ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Cool but what if the child class doesn't want to retry a specific exception, for example it knows for sure that this exception is not transient like some missing configuration, expired credentials, wrong data, etc?&lt;/P&gt;&lt;P&gt;In this case we will define a new exception class called&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;zcx_phoenix_stop_retry&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and as soon as the child class raises this exception we don't retry, but just fail the job:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD if_apj_rt_run~execute.
-  " ------------------------------------------------------------------------
-  " STANDARD IMPLEMENTATION DO NOT REDEFINE
-  " FOLLOW STANDARD FLOW
-  " Enhancement Points:
-  "   - process() must be redefined
-  " ------------------------------------------------------------------------
-  TRY.
-      FINAL(max_retries)    = COND i( WHEN retry_enabled = abap_true THEN retry_count ELSE 0 ).
-      FINAL(total_attempts) = max_retries + 1.
-
-      DO total_attempts TIMES.
-
-        " new logger for each attempt, to have separation of logs in APJ
-        create_logger( ).
-        log_info( |Attempt { sy-index } of { total_attempts } started| ).
-
-        TRY.
-            zif_phoenix~process( ).
-            log_success( |Processed successfully on attempt { sy-index }| ).
-            RETURN.
-          CATCH zcx_phoenix_stop_retry INTO FINAL(stop_retry_ex).
-            log_error( |The retrial was intentionally canceled: { stop_retry_ex-&amp;gt;get_text( ) }| ).
-            RAISE EXCEPTION NEW cx_apj_rt_content( previous = stop_retry_ex ).
-          CATCH cx_root INTO FINAL(ex).
-            IF sy-index &amp;lt;= max_retries.
-              log_warning( |Attempt { sy-index } failed: { ex-&amp;gt;get_text( ) }| ).
-              notify_about_failure( ).
-              DATA(sleep_time_s) = zif_phoenix~get_next_delay( sy-index ).
-              IF sleep_time_s &amp;gt; 0.
-                log_info( |Retrying in { sleep_value_s } seconds| ).
-                WAIT UP TO sleep_time_s SECONDS.
-              ENDIF.
-              CONTINUE.
-            ENDIF.
-
-            log_error( |Exhausted { total_attempts } attempts: { ex-&amp;gt;get_text( ) }| ).
-            RAISE EXCEPTION NEW cx_apj_rt_content( previous = ex ).
-        ENDTRY.
-
-      ENDDO.
-
-    CATCH cx_bali_runtime cx_uuid_error INTO FINAL(log_ex).
-      RAISE EXCEPTION NEW cx_apj_rt_content( previous = log_ex ).
-  ENDTRY.
-
-ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;If you'd like to see the full class implementation you can check out &lt;A href="https://github.com/legonmarian/abap-btp-phoenix-framework" target="_blank" rel="noopener nofollow noreferrer"&gt;this link for the full source code.&lt;/A&gt;&lt;/P&gt;&lt;P&gt;So how to try it? Simply just inherit from the base class, so we will&lt;SPAN&gt;&amp;nbsp;create a&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;zcl_phoenix_demo&lt;/CODE&gt;&lt;SPAN&gt;:&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_phoenix_job_demo DEFINITION
-  PUBLIC
-  INHERITING FROM /lego/cl_phoenix_base
-  FINAL
-  CREATE PUBLIC .
-  PUBLIC SECTION.
-    METHODS /lego/if_phoenix~process REDEFINITION.
-  PRIVATE SECTION.
-    DATA: x TYPE i value -1. "anti-pattern, not recommended
-ENDCLASS.
-CLASS zcl_phoenix_job_demo IMPLEMENTATION.
-  METHOD /lego/if_phoenix~process.
-    x = x + 1.
-    DATA(a) = 1 / x.
-  ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;What does this class do? Simply it will fail on the first run, and will be successful on the second run, because it will no longer be dividing by 0, but by 1. However I must warn you that the &lt;STRONG&gt;global variables should be avoided&lt;/STRONG&gt; in productive scenarios, I will explain why in the &lt;STRONG&gt;Limitations&lt;/STRONG&gt; section.&lt;/P&gt;&lt;P&gt;We'll create a Job Catalog Entry and Job Template in order to schedule the job:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="natanael1_0-1761067786183.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/330406iCB8D1137A72B1341/image-size/medium?v=v2&amp;amp;px=400" role="button" title="natanael1_0-1761067786183.png" alt="natanael1_0-1761067786183.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="natanael1_2-1761067809210.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/330408iD9ABA935221745C0/image-size/medium?v=v2&amp;amp;px=400" role="button" title="natanael1_2-1761067809210.png" alt="natanael1_2-1761067809210.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Now we can schedule it:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="natanael1_3-1761067909656.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/330409i6174664CC9B27EBF/image-size/medium?v=v2&amp;amp;px=400" role="button" title="natanael1_3-1761067909656.png" alt="natanael1_3-1761067909656.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;And this is the Job Result:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2025-10-21 at 19.49.38.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/330418iD54FEC62067DE9AC/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Screenshot 2025-10-21 at 19.49.38.png" alt="Screenshot 2025-10-21 at 19.49.38.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId--51442461"&gt;Improvement points&lt;/H2&gt;&lt;P&gt;This code of course is not perfect, and there're various improvement points that could be done in order to make it better, however the goal of this blog post is not to showcase perfect code, but to explain conceptually how we can implement such a framework. Some of the improvements points could be:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;make the code less nested by using checks and guard clauses&lt;/LI&gt;&lt;LI&gt;add a method to the facade interface to allow external classes to schedule the job(not executing, but scheduling in a different session) by calling that method&lt;/LI&gt;&lt;LI&gt;add a cleanup hook to run before each new trial&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId--247955966"&gt;Limitations, considerations, gotchas, and side cases&lt;/H2&gt;&lt;P&gt;And of course there're certain limitations to take into consideration and gotchas to avoid:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Biggest limitation is that you must design your classes to be stateless, because on a failure your class won't be reinstantiated instead the process method will run again, therefore you should try to avoid global variables as much as possible, because the state will be kept between runs&lt;BR /&gt;It is of course fine to have global variables objects from dependency injection that were just instantiated in the constructor, this is perfectly fine. But you should avoid as much as possible having business data in global variables, as the stale data might introduce unnecessary side effects on the re-run.&lt;/LI&gt;&lt;LI&gt;Another gotcha is that there're certain &lt;A href="https://help.sap.com/doc/abapdocu_cp_index_htm/CLOUD/en-US/ABENUNCATCHABLE_EXCEPTION_GLOSRY.html" target="_self" rel="noopener noreferrer"&gt;uncatchable exceptions&lt;/A&gt;&amp;nbsp;and the framework will unfortunately dump on these, because as the name suggests these are uncatchable and they will be propagated to a short dump, bypassing the try catch block.&lt;/LI&gt;&lt;LI&gt;One of the considerations is that you need to design your code in a manner where it will raise exceptions, instead of raising uncatchable exceptions, it might sound a bit confusing, but let me give you an example.&lt;BR /&gt;So let's assume that you make an RFC call to an on-prem system this way:&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;"don't do this
-call function 'some_rfc_fm'
-  destination rfc_key
-  exporting param       = 'value'
-  importing return_data = return_data
-  tables table_data     = table_data.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;If the RFC call fails, it will raise an uncatchable exception and the program will dump, however we can modify it slightly in order to make it raise a catchable exception instead:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;"do this instead
-call function 'some_rfc_fm'
-  destination rfc_key
-  exporting param       = 'value'
-  importing return_data = return_data
-  tables table_data     = table_data.
-  exceptions others = 1.
-
-if sy-subrc &amp;lt;&amp;gt; 0.
-  raise exception type cx_rfc_dest_provider_error "or any other exception that you want
-  exporting textid = cx_rfc_dest_provider_error=&amp;gt;connection_failed.
-endif.​&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;And a little caveat, it's not the best idea to put all the exception codes into 1 "bucket" with&amp;nbsp;&lt;CODE&gt;others = 1&lt;/CODE&gt;, and it's also probably not the best idea to raise just 1 type of exception, and specifically this type, but the goal of this example is to show how to convert an uncatchable exception into a catchable one.&lt;/P&gt;&lt;H2 id="toc-hId--444469471"&gt;Alternatives&lt;/H2&gt;&lt;P&gt;Now at this stage an obvious question is are there any alternatives or flavors of this implementation? Yes there're, and I will explain some now:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Instead of retry &lt;STRONG&gt;on all except&lt;/STRONG&gt; &lt;CODE&gt;zcx_phoenix&lt;/CODE&gt;, retry &lt;STRONG&gt;only on&lt;/STRONG&gt; &lt;CODE&gt;zcx_phoenix&lt;/CODE&gt;. In case that you have a very good exception handling, and you're controlling each exception you're raising, you can refactor the framework so it will retry only on a specific custom exception, instead of retrying on all exceptions. This way you have a bit more granular control over your execution flow. Similarly how it's done in the &lt;A href="https://help.sap.com/docs/abap-cloud/abap-concepts/implementing-automatic-retry-of-failed-operations?locale=en-US" target="_self" rel="noopener noreferrer"&gt;bgPF framework&lt;/A&gt;.&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;RAISE EXCEPTION NEW cx_bgmc_operation( 
-	retry_settings = VALUE #( 
-		delay_time = 2
-		do_retry   = abap_true ) ).​&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;Another flavor of a fault-tolerant job framework would include a bit of a paradigm change, and we will need to give up the base class - child class relationship with a single job architecture in favor of a &lt;STRONG&gt;driver&amp;nbsp;&lt;/STRONG&gt;-&amp;nbsp;&lt;STRONG&gt;worker&amp;nbsp;&lt;/STRONG&gt;relationship. You will have a 2 job architecture, the 1st job will be the&amp;nbsp;&lt;STRONG&gt;driver&lt;/STRONG&gt; job, which will take as a parameter the name of the job with the business logic and it will schedule that job as the&amp;nbsp;&lt;STRONG&gt;worker&lt;/STRONG&gt; job, it will wait until that one has finished successfully, if it has failed then it will just &lt;STRONG&gt;spin up anothe&lt;/STRONG&gt;r worker job, until one finishes successfully. You should use this pattern in case the limitations listed in the limitations section are a&amp;nbsp;showstopper for you, f.ex. you need a stateful job class with state isolation between runs. In my opinion this is a good approach but for certain usecases only, in general I prefer the current approach being more lightweight and flexible&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId--347579969"&gt;Closing notes&lt;/H1&gt;&lt;P&gt;The Phoenix Framework demonstrate that robust doesn't necessary mean complex, reliability can be achieved with a relatively simple and lightweight setup. With a structured retry mechanism we managed to achieve fault-tolerant jobs, and reduce manual recovery efforts.&lt;/P&gt;&lt;P&gt;This framework is not perfect, nor it should be, it's main goal is to ensure that people's time is respected and not wasted because of preventable issues.&lt;/P&gt;&lt;P&gt;Thanks for reading until here, and as a closing remark I must say that it's often through our failures that we find opportunities to improve, just like the Phoenix, this framework was born from the ashes of failed jobs, rising stronger each time.&lt;/P&gt;&lt;P&gt;If you're curious please check the &lt;A href="https://github.com/legonmarian/abap-btp-phoenix-framework" target="_self" rel="nofollow noopener noreferrer"&gt;full source code here&lt;/A&gt;.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/automatic-retry-of-application-jobs-in-abap-in-cloud/ba-p/14249591"/>
-    <published>2025-10-22T08:12:39.185000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/creating-custom-scalar-functions-in-abap-cds/ba-p/14263349</id>
     <title>Creating custom Scalar functions in ABAP CDS</title>
@@ -3853,5 +3501,313 @@ CONSTANTS: lc_objtype    TYPE sibftypeid VALUE 'ZCL_FI_9000_RECURRING_WF',
    ENDIF.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;STEP – 5: &lt;/STRONG&gt;Now we need to create tasks in PFTC, for the methods that were created in STEP-3. This is a very normal procedure of creating the tasks that are to be consumed by the activity in the Workflow Template.&lt;/P&gt;&lt;P&gt;NOTE: For the User Decision Step, take a copy of the standard decision step (TS00008267) and do the necessary modifications and perform agent assignment. Once done, capture the Agent Assignment in a &lt;STRONG&gt;Customizing TR&lt;/STRONG&gt; by running the report&amp;nbsp;&lt;STRONG&gt;RHMOVE30 &lt;/STRONG&gt;in&lt;STRONG&gt; SE38.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;STRONG&gt;STEP – 6: &lt;/STRONG&gt;I had created Flexible Workflow for this requirement. Open the transaction “SWDD_SCENARIO”. Create the Workflow containers with reference to all the event and the method parameters in the Custom Class created in STEP-3.&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;In the &lt;STRONG&gt;Process Data&lt;/STRONG&gt; Tab, provide the class name and the associated event. Do the necessary event binding and activate the event as shown below.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_13-1771764974653.png" style="width: 553px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375129i02665620830D9D2A/image-dimensions/553x123?v=v2" width="553" height="123" role="button" title="ShravanBalaji16897_13-1771764974653.png" alt="ShravanBalaji16897_13-1771764974653.png" /&gt;&lt;/span&gt;&lt;BR /&gt;NOTE: Caputre the Event Activation in the same customizing TR as mentioned in STEP - 5.&lt;/LI&gt;&lt;LI&gt;In the &lt;STRONG&gt;Activities&lt;/STRONG&gt; Tab, create the activities for the tasks that were created in STEP-5. Include the User Decision Activity, in the list of activities.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_14-1771765100311.png" style="width: 548px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375130i23CD7AC9A8C4A849/image-dimensions/548x84?v=v2" width="548" height="84" role="button" title="ShravanBalaji16897_14-1771765100311.png" alt="ShravanBalaji16897_14-1771765100311.png" /&gt;&lt;/span&gt;&lt;BR /&gt;NOTE: &lt;STRONG&gt;“DISPLAY_TCODE”&lt;/STRONG&gt;&lt;SPAN&gt; is an activity which we have created for accessing the T-Code “FBD1”.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;SPAN&gt;In the &lt;STRONG&gt;Conditions&lt;/STRONG&gt; Tab, we have created one condition. This condition is for stopping the Workflow upon completion of all the agents.&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_15-1771765225148.png" style="width: 565px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375131iE1E9745255004318/image-dimensions/565x98?v=v2" width="565" height="98" role="button" title="ShravanBalaji16897_15-1771765225148.png" alt="ShravanBalaji16897_15-1771765225148.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;When we create Flexible Workflow, we must create a customized Runtime Class. This Runtime Class helps us to utilize &lt;STRONG&gt;“Instance Methods” &lt;/STRONG&gt;upon available events. We need to create a Subclass of the standard Runtime Class “CL_SWF_FLEX_IFS_RUN_APPL_BASE”. Then we can redefine the methods necessary for our purpose. There would be several standard methods which would be useful for several scenarios.&lt;BR /&gt;&lt;STRONG&gt;NOTE: For our process, we can redefine below methods, as shown below.&lt;/STRONG&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_16-1771765657479.png" style="width: 561px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375132iC185E849560D1162/image-dimensions/561x31?v=v2" width="561" height="31" role="button" title="ShravanBalaji16897_16-1771765657479.png" alt="ShravanBalaji16897_16-1771765657479.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;STRONG&gt;NOTE: First method would get triggered just before the Workflow is about to complete. Second method would trigger upon completion of each activity. Use TaskId as filter, such that procedure only for suitable tasks would run.&lt;/STRONG&gt;&lt;BR /&gt;&lt;P&gt;&lt;STRONG&gt;Inside the Result Callback method, utilize the mail notification methods created in STEP-3.&lt;/STRONG&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Activate the Workflow. Since we are implementing Flexible Workflow, we need to activate the scenario. Follow the path mentioned below.&lt;BR /&gt;&lt;STRONG&gt;SPRO -&amp;gt; ABAP Platform -&amp;gt; Application Server -&amp;gt; Business Management -&amp;gt; SAP Business Workflow -&amp;gt; Flexible Workflow -&amp;gt; Scenario Activation.&amp;nbsp;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_20-1771766124016.png" style="width: 572px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375137iAAFEB1B5DA48DBBD/image-dimensions/572x156?v=v2" width="572" height="156" role="button" title="ShravanBalaji16897_20-1771766124016.png" alt="ShravanBalaji16897_20-1771766124016.png" /&gt;&lt;/span&gt;&lt;P&gt;&lt;STRONG&gt;NOTE: Provide the Custom Workflow Number and activate the scenario. You can capture this in TR &amp;amp; transport to further landscape.&lt;/STRONG&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Now we need to Login to the FIORI launchpad. As Pre-requisites implement &lt;STRONG&gt;“Manage Workflows”&lt;/STRONG&gt; &amp;amp; &lt;STRONG&gt;“Manage Workflow Scenarios”&lt;/STRONG&gt; applications.&lt;BR /&gt;&lt;STRONG&gt;NOTE: In the &lt;STRONG&gt;“Manage Workflows”&lt;/STRONG&gt; application create the Workflow, along with the sequence of the steps in which the workflow must be executed.&lt;BR /&gt;&lt;/STRONG&gt;&lt;STRONG&gt;Manage Workflow Header:&lt;/STRONG&gt;&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_17-1771765885024.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375134i2D0C34AAB67AAD5A/image-size/medium?v=v2&amp;amp;px=400" role="button" title="ShravanBalaji16897_17-1771765885024.png" alt="ShravanBalaji16897_17-1771765885024.png" /&gt;&lt;/span&gt;&lt;P&gt;&lt;STRONG&gt;Execution Steps:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_18-1771765927203.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375135iE24283FA6449BA2A/image-size/medium?v=v2&amp;amp;px=400" role="button" title="ShravanBalaji16897_18-1771765927203.png" alt="ShravanBalaji16897_18-1771765927203.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;P&gt;Here the maximum level is 4. However, if we keep the maximum approver level less than 4 also, the Workflow will stop at the designated maximum level.&amp;nbsp;This is based the Step-Condition indicated as &lt;STRONG&gt;Final Level&lt;/STRONG&gt; in the above screenshot.&lt;/P&gt;&lt;P&gt;Once created, open the &lt;STRONG&gt;“Manage Workflow Scenarios”&lt;/STRONG&gt; application and export the scenario. This will get downloaded as a XML file in the system.&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_19-1771765966849.png" style="width: 584px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375136i00B211BF14634CCB/image-dimensions/584x130?v=v2" width="584" height="130" role="button" title="ShravanBalaji16897_19-1771765966849.png" alt="ShravanBalaji16897_19-1771765966849.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;Move the Customizing TR and import the downloaded XML file into the testing landscape and to further landscapes.&lt;/LI&gt;&lt;LI&gt;Upon Complete approval of the workflow, the&amp;nbsp;&lt;STRONG&gt;“BLOCKED_FOR_POSTING” &amp;amp; “XDELT (Deletion_Indicator) &lt;/STRONG&gt;fields would be reset. This makes the document eligible for further posting through Perioidic Job Scheduling in &lt;STRONG&gt;F.14&lt;/STRONG&gt; Transaction.&lt;/LI&gt;&lt;LI&gt;Incase if the approver rejects the document, he can provide the &lt;STRONG&gt;Reason for Rejection.&lt;/STRONG&gt;&amp;nbsp;This will be sent along with the &lt;STRONG&gt;Rejection Notification&lt;/STRONG&gt; to the &lt;STRONG&gt;Initiator of the Workflow&lt;/STRONG&gt; (i.e &lt;STRONG&gt;Recurring Entry Document Creator&lt;/STRONG&gt;).&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;The Document Creator can modify according to the Rejection Comments and save the document. The Workflow would get triggered again for another approval cycle.&lt;BR /&gt;&lt;STRONG&gt;NOTE: &lt;/STRONG&gt;&lt;STRONG&gt;I had designed the solution such that the document cannot be edited, unless it is fully approved / rejected. This is an optional solution to be incorporated.&amp;nbsp;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&amp;nbsp;&lt;STRONG&gt;Conclusion:&lt;BR /&gt;&lt;/STRONG&gt;Recurring entries simplify financial operations, but without governance, they can introduce compliance risks. By integrating FBD1 with an approval workflow, organizations can achieve the right balance between automation and financial control, ensuring accuracy, transparency, and audit readiness.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/abap-blog-posts/recurring-entry-approval-workflow-in-sap-s-4hana-fbd1-fbd2-fbd9/ba-p/14333536"/>
     <published>2026-02-24T08:51:32.650000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/abap-blog-posts/dynamic-field-manipulation-in-rap-action-popup-a-step-by-step-guide/ba-p/14306555</id>
+    <title>“Dynamic Field Manipulation in RAP Action Popup – A Step-by-Step Guide”</title>
+    <updated>2026-02-25T11:21:35.588000+01:00</updated>
+    <author>
+      <name>Bikash_R</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1527809</uri>
+    </author>
+    <content>&lt;P&gt;&lt;FONT size="4" color="#000000"&gt;&lt;U&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;Introduction-&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/U&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;FONT color="#000000"&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;In SAP RAP, actions play a crucial role in triggering business logic from the UI. One powerful feature is the ability to open a parameter dialog (popup) when an action is executed.&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;In this blog, we will explore how to dynamically control fields inside a RAP action popup, including implementing dropdown value help and runtime field manipulation. This step-by-step guide&lt;SPAN&gt;&amp;nbsp;&lt;SPAN class=""&gt;demonstrates&lt;SPAN class=""&gt;&lt;SPAN&gt;&amp;nbsp;how to design, implement, and test a parameterized RAP action that enhances user interaction in SAP Fiori Elements.&lt;SPAN class=""&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;FONT face="times new roman,times" size="4"&gt;&lt;STRONG&gt;&lt;I&gt;Let's&amp;nbsp;create the tables-&lt;/I&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;Header table-&lt;I&gt;&lt;SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/I&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Contact Table' 
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE 
+@AbapCatalog.tableCategory : #TRANSPARENT 
+@AbapCatalog.deliveryClass : #A 
+@AbapCatalog.dataMaintenance : #RESTRICTED 
+define table zbrt_t_contact { 
+
+key client         : abap.clnt not null; 
+key contact_id     : sysuuid_x16 not null; 
+@EndUserText.label : 'First Name' 
+first_name         : abap.char(30) not null; 
+@EndUserText.label : 'Middle Name' 
+middle_name        : abap.char(30); 
+@EndUserText.label : 'Last Name' 
+last_name          : abap.char(30); 
+gender             : zbrt_de_gender; 
+@EndUserText.label : 'Date of Birth' 
+dob                : abap.dats; 
+@EndUserText.label : 'Age' 
+age                : abap.numc(3); 
+@EndUserText.label : 'Telephone' 
+telephone          : abap.numc(10); 
+@EndUserText.label : 'Email' 
+email              : abap.char(80); 
+active             : abap_boolean; 
+created_by         : abp_creation_user; 
+created_at         : abp_creation_tstmpl; 
+last_changed_by    : abp_lastchange_user; 
+last_changed_at    : abp_lastchange_tstmpl; 
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;I&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Item&amp;nbsp;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;table&amp;nbsp;with foreign key relationship-&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/I&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Contact address table' 
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE 
+@AbapCatalog.tableCategory : #TRANSPARENT 
+@AbapCatalog.deliveryClass : #A 
+@AbapCatalog.dataMaintenance : #RESTRICTED 
+define table zbrt_t_contaddr { 
+
+key client      : abap.clnt not null; 
+@AbapCatalog.foreignKey.screenCheck : false 
+key contact_id  : sysuuid_x16 not null 
+with foreign key [1..*,1] zbrt_t_contact 
+where client = zbrt_t_contaddr.client 
+and contact_id = zbrt_t_contaddr.contact_id; 
+key address_id  : sysuuid_x16 not null; 
+key address_sr  : abap.numc(2) not null; 
+addr1           : abap.char(30); 
+addr2           : abap.char(30); 
+city            : abap.char(20); 
+state           : abap.char(30); 
+pincode         : abap.numc(6); 
+created_by      : abp_creation_user; 
+created_at      : abp_creation_tstmpl; 
+last_changed_by : abp_lastchange_user; 
+last_changed_at : abp_lastchange_tstmpl; 
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;I&gt;&lt;SPAN&gt;Then create the interface view along with association and composition--&lt;/SPAN&gt;&lt;/I&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;I&gt;&lt;SPAN&gt;Header interface view--&lt;/SPAN&gt;&lt;/I&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Contact View'
+@Metadata.ignorePropagatedAnnotations: true
+define root view entity Zi_Brt_Contact
+as select from zbrt_t_contact
+composition[0..*] of ZI_BRT_CONTADDR as _Address
+association[1..*] to ZI_BRT_GENDER as _Gender
+on $projection.Gender = _Gender.GenderCode
+{
+key contact_id as ContactId,
+first_name as FirstName,
+middle_name as MiddleName,
+last_name as LastName,
+gender as Gender,
+dob as Dob,
+age as Age,
+telephone as Telephone,
+email as Email,
+active as Active,
+created_by as CreatedBy,
+created_at as CreatedAt, 
+last_changed_by as LastChangedBy, 
+last_changed_at as LastChangedAt, 
+_Gender, 
+_Address 
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;I&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Item interface view--&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/I&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Address view'
+@Metadata.ignorePropagatedAnnotations: true
+define view entity ZI_BRT_CONTADDR
+as select from zbrt_t_contaddr
+association to parent Zi_Brt_Contact as _Contact
+on $projection.ContactId = _Contact.ContactId
+{
+key contact_id as ContactId,
+key address_id as AddressId,
+key address_sr as AddressSr,
+addr1 as Addr1,
+addr2 as Addr2,
+city as City,
+state as State,
+pincode as Pincode,
+created_by as CreatedBy,
+created_at as CreatedAt,
+last_changed_by as LastChangedBy,
+last_changed_at as LastChangedAt,
+_Contact 
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;I&gt;&lt;SPAN&gt;Then create the projection view for both header and item--&lt;/SPAN&gt;&lt;/I&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;I&gt;&lt;SPAN&gt;Header projection view--&lt;/SPAN&gt;&lt;/I&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Projection view for contact'
+@Metadata.ignorePropagatedAnnotations: true
+@Metadata.allowExtensions: true
+define root view entity zc_brt_contact
+provider contract transactional_query
+as projection on Zi_Brt_Contact
+{
+key ContactId,
+FirstName,
+MiddleName,
+LastName,
+// @ObjectModel.text.association: '_Gender'
+Gender,
+Dob,
+Age,
+Telephone,
+Email,
+Active,
+CreatedBy,
+CreatedAt,
+LastChangedBy,
+LastChangedAt,
+/* Associations */
+_Gender,
+_Address : redirected to composition child zc_brt_contaddr
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;I&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Item projection view--&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/I&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Address projection view'
+@Metadata.ignorePropagatedAnnotations: true
+@Metadata.allowExtensions: true
+define view entity zc_brt_contaddr
+as projection on ZI_BRT_CONTADDR
+{
+key ContactId,
+key AddressId,
+key AddressSr,
+Addr1,
+Addr2,
+City,
+State,
+Pincode,
+CreatedBy,
+CreatedAt,
+LastChangedBy,
+LastChangedAt,
+/* Associations */
+_Contact : redirected to parent zc_brt_contact
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;I&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Then create Behavior definition on interface view--&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/I&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;unmanaged implementation in class zbrt_cl_contact_saver unique;
+strict ( 2 );
+with draft;
+
+define behavior for Zi_Brt_Contact alias u_contact
+implementation in class zbrt_cl_bp_contact_u unique
+draft table zbrt_t_contact_d
+late numbering
+lock master total etag LastChangedAt
+authorization master ( instance )
+//etag master &amp;lt;field_name&amp;gt;
+{
+create;
+update ( features : instance );
+delete ( features : instance );
+field ( readonly ) ContactId, Age;
+
+association _Address { create (features : instance); with draft; }
+
+determination calculate_age on modify { field Dob; }
+action ( features : instance ) setstatus result[1] $self;
+action change_field_value parameter ZI_BRT_STATUS_PARAM result[1] $self;
+
+draft action Edit;
+draft action Activate optimized;
+draft action Resume;
+draft action Discard;
+draft determine action Prepare; 
+mapping for zbrt_t_contact control zbrt_s_contact
+{
+    ContactId     = contact_id;
+    FirstName     = first_name;
+    MiddleName    = middle_name;
+    LastName      = last_name;
+    Gender        = gender;
+    Dob           = dob;
+    Age           = age;
+    Telephone     = telephone;
+    Email         = email;
+    Active        = active;
+    CreatedBy     = created_by;
+    CreatedAt     = created_at;
+    LastChangedBy = last_changed_by;
+    LastChangedAt = last_changed_at;
+  }
+}
+define behavior for ZI_BRT_CONTADDR alias u_contadd
+implementation in class zbrt_cl_bp_contadd_u unique
+draft table zbrt_t_contadd_d
+late numbering
+lock dependent by _Contact
+authorization dependent by _Contact
+{
+update (features : instance);
+delete (features : instance);
+field ( readonly ) ContactId, AddressId, AddressSr;
+association _Contact{with draft;}
+mapping for zbrt_t_contaddr control zbrt_s_contaddr
+{
+    ContactId     = contact_id;
+    AddressId     = address_id;
+    AddressSr     = address_sr;
+    Addr1         = addr1;
+    Addr2         = addr2;
+    City          = city;
+    State         = state;
+    Pincode       = pincode;
+    CreatedBy     = created_by;
+    CreatedAt     = created_at;
+    LastChangedBy = last_changed_by;
+    LastChangedAt = last_changed_at;
+  }
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;I&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Behavior definition on projection view--&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/I&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection;
+strict ( 2 );
+use draft;
+
+define behavior for zc_brt_contact //alias u_contact
+use etag
+{
+use create;
+use update;
+use delete;
+use action setstatus;
+use action change_field_value;
+
+use action Edit;
+use action Activate;
+use action Resume;
+use action Discard;
+use action Prepare;
+
+use association _Address { create; with draft; }
+}
+define behavior for zc_brt_contaddr //alias u_contaddr
+{
+use update;
+use delete;
+use association _Contact { with draft; }
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;I&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Service definition--&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/I&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Bikash_R_0-1771930805561.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/376308i443F6B7435990502/image-size/large?v=v2&amp;amp;px=999" role="button" title="Bikash_R_0-1771930805561.png" alt="Bikash_R_0-1771930805561.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;EM&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Service binding--&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/EM&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Bikash_R_1-1771930862637.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/376309i0C05A399315A3C69/image-size/large?v=v2&amp;amp;px=999" role="button" title="Bikash_R_1-1771930862637.png" alt="Bikash_R_1-1771930862637.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Actions buttons in UI-&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Bikash_R_0-1771936749696.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/376365iBC27DF91F742104E/image-size/large?v=v2&amp;amp;px=999" role="button" title="Bikash_R_0-1771936749696.png" alt="Bikash_R_0-1771936749696.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;This is the action button declared in the&amp;nbsp;behavior&amp;nbsp;definition--&amp;gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Bikash_R_3-1771930968187.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/376312i989697525219884F/image-size/large?v=v2&amp;amp;px=999" role="button" title="Bikash_R_3-1771930968187.png" alt="Bikash_R_3-1771930968187.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;This method&amp;nbsp;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;setstatus&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;is&amp;nbsp;&lt;SPAN class=""&gt;a&amp;nbsp;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;RAP&lt;SPAN class=""&gt;&amp;nbsp;Action implementation&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;.&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;It&amp;nbsp;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;toggles the status&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;(&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;ACTIVE ↔ INACTIVE&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;) of a&amp;nbsp;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Contact&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;entity.&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Bikash_R_4-1771931040324.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/376313iE48E54E56138C5B2/image-size/large?v=v2&amp;amp;px=999" role="button" title="Bikash_R_4-1771931040324.png" alt="Bikash_R_4-1771931040324.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;%tky-&amp;nbsp;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;FONT face="times new roman,times"&gt;Technical key&amp;nbsp;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;Required to update the&amp;nbsp;&lt;STRONG&gt;same instance&amp;nbsp;that was read&amp;nbsp;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;Mandatory in&amp;nbsp;MODIFY ENTITIES&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;UPDATE&amp;nbsp;FIELDS&amp;nbsp;( active&amp;nbsp;)--&amp;gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;FONT face="times new roman,times"&gt;Only updates the&amp;nbsp;active&amp;nbsp;field&amp;nbsp;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;FONT face="times new roman,times"&gt;Prevents accidental changes to other fields&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;After declaring action name in the&amp;nbsp;behavior&amp;nbsp;definition, we need to declare it in the metadata extension also--&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Bikash_R_5-1771931176287.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/376314iCEAEC9C01CDCBCFF/image-size/large?v=v2&amp;amp;px=999" role="button" title="Bikash_R_5-1771931176287.png" alt="Bikash_R_5-1771931176287.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Bikash_R_6-1771931235725.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/376315iB853799C233AF1A7/image-size/large?v=v2&amp;amp;px=999" role="button" title="Bikash_R_6-1771931235725.png" alt="Bikash_R_6-1771931235725.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;In above we can see the action button name&amp;nbsp;&lt;STRONG&gt;&lt;I&gt;&lt;SPAN&gt;Change Status&lt;SPAN&gt;&amp;nbsp;in the UI&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/I&gt;&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;Based on the Active&amp;nbsp;status&amp;nbsp;it is going to change.&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;Let's&amp;nbsp;see--&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;Now the field&amp;nbsp;abc&amp;nbsp;-&amp;gt; Active status is Yes -&amp;gt; click on the Change Status button -&amp;gt; now it will become No.&amp;nbsp;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Bikash_R_7-1771931249530.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/376316iF2F8F6723B81B7A5/image-size/large?v=v2&amp;amp;px=999" role="button" title="Bikash_R_7-1771931249530.png" alt="Bikash_R_7-1771931249530.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;EM&gt;&lt;U&gt;&lt;FONT color="#000000"&gt;&lt;STRONG&gt;IMP&amp;nbsp;- &lt;/STRONG&gt;&lt;/FONT&gt;&lt;/U&gt;&lt;/EM&gt;&lt;FONT color="#000000"&gt;Now here we have another action button which is a parameterized action button which is declared &lt;/FONT&gt;&lt;FONT color="#000000"&gt;using&lt;STRONG&gt;&amp;nbsp;abstract&amp;nbsp;entity.&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;Change-Field-Value.&lt;SPAN&gt;&lt;FONT face="times new roman,times"&gt;&lt;BR /&gt;&lt;/FONT&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Bikash_R_8-1771931458286.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/376317i5D3F030FF7E3B3FF/image-size/large?v=v2&amp;amp;px=999" role="button" title="Bikash_R_8-1771931458286.png" alt="Bikash_R_8-1771931458286.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN class=""&gt;For that we have already created one&amp;nbsp;&lt;SPAN class=""&gt;Abstract entity --&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Status parameter'
+@Metadata.allowExtensions: true
+define abstract entity zi_brt_status_param
+{
+ .defaultValue  : 'X' 
+ @EndUserText.label: 'Active'
+ active            : abap_boolean;
+ .defaultValue: #( 'ELEMENT_OF_REFERENCE_ENTITY : Telephone' )
+ @EndUserText.label: 'Telephone'
+ telephone         : abap.numc(10);
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Then declared the same action name in the metadata also-&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Bikash_R_9-1771931629300.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/376318iF10FD686452548BA/image-size/large?v=v2&amp;amp;px=999" role="button" title="Bikash_R_9-1771931629300.png" alt="Bikash_R_9-1771931629300.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;See the logic--&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD change_field_value.
+
+DATA(ls_param) = VALUE #( keys[ 1 ]-%param ).
+
+READ ENTITIES OF zi_brt_contact IN LOCAL MODE
+ENTITY u_contact
+ALL FIELDS WITH CORRESPONDING #( keys )
+RESULT DATA(lt_contact).
+
+MODIFY ENTITIES OF zi_brt_contact IN LOCAL MODE
+ENTITY u_contact
+UPDATE FIELDS ( active telephone )
+WITH VALUE #(
+   FOR lwa_contact IN lt_contact (
+   %tky = lwa_contact-%tky
+   %data-active = ls_param-active
+   %data-telephone = ls_param-telephone
+  ) ).
+
+result = VALUE #( FOR lwa_contact IN lt_contact (
+                  %key = lwa_contact-%key
+                  %param = CORRESPONDING #( lwa_contact )
+               ) ). 
+ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;This is an&amp;nbsp;&lt;STRONG&gt;&lt;SPAN&gt;action implementation method&lt;SPAN&gt;&amp;nbsp;inside the Behavior Implementation Class.&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;It updates:&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;SPAN&gt;active&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;SPAN&gt;telephone&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="3"&gt;&lt;FONT face="times new roman,times"&gt;based on the values entered in the&amp;nbsp;RAP action popup parameter dialog.&amp;nbsp;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Fetch Action Parameters from Popup&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA(ls_param) = VALUE #( keys[ 1 ]-%param ).&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;keys&amp;nbsp;→&amp;nbsp;contains&amp;nbsp;selected instances + action parameters&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;%param&amp;nbsp;→ holds popup field values entered by user&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;keys[&amp;nbsp;1 ]&amp;nbsp;→ since action usually triggered on selected row(s)&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Meaning:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;We are extracting the&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;parameter values entered in the popup&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;into structure&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;&amp;nbsp;ls_param.&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;If popup had:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;Active = ‘X’&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;Telephone = ‘9876543210’&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;Those values now sit in&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;ls_param.&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Read Current Entity Data--&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;READ ENTITIES OF zi_brt_contact IN LOCAL MODE
+  ENTITY u_contact
+  ALL FIELDS WITH CORRESPONDING #( keys )
+  RESULT DATA(lt_contact).&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;Reading selected records from BO&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;IN LOCAL MODE&amp;nbsp;→ no DB commit, transactional buffer&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;WITH CORRESPONDING&amp;nbsp;#( keys&amp;nbsp;)&amp;nbsp;→ read only selected instances&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;Result stored in&amp;nbsp;lt_contact&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Why&amp;nbsp;required?&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;Because:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;We need technical key&amp;nbsp;%tky&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;We need current data before updating&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;EML update requires&amp;nbsp;%tky&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Update Fields Using MODIFY ENTITIES-&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;MODIFY ENTITIES OF zi_brt_contact IN LOCAL MODE
+  ENTITY u_contact
+  UPDATE FIELDS ( active telephone )
+  WITH VALUE #(
+    FOR lwa_contact IN lt_contact (
+      %tky = lwa_contact-%tky
+      %data-active = ls_param-active
+      %data-telephone = ls_param-telephone
+    ) 
+  ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;&lt;STRONG&gt;We are updating:&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;active&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;telephone&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;for each selected instance.&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Important Points:&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;✔ %tky&amp;nbsp;→ technical key&amp;nbsp;required&amp;nbsp;to&amp;nbsp;identify&amp;nbsp;instance&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN&gt;✔ %data-fieldname → actual field update&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN&gt;✔ UPDATE FIELDS → performance optimized (only those 2 fields updated)&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;SPAN&gt;&lt;U&gt;Note -&lt;/U&gt;&lt;STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;SPAN&gt;Even though popup opened per selected row, internally RAP still processes in&amp;nbsp;&lt;STRONG&gt;&lt;SPAN&gt;mass-enabled mode&lt;SPAN&gt;.&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;That’s&amp;nbsp;why:&lt;BR /&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;FOR lwa_contact IN lt_contact&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;This allows:&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;Single&amp;nbsp;selection&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;Multiple&amp;nbsp;selection&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;Bulk update&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Return Result to UI&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;result = VALUE #(
+  FOR lwa_contact IN lt_contact (
+    %key = lwa_contact-%key
+    %param = CORRESPONDING #( lwa_contact )
+  )
+).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;After update:&amp;nbsp;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;Returning updated instance(s)&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;%key&amp;nbsp;→&amp;nbsp;identifies&amp;nbsp;updated instance&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;%param&amp;nbsp;→ sends data back to UI&lt;BR /&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;TABLE border="1" width="65.12399106571549%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="100%"&gt;&lt;FONT size="2"&gt;&lt;FONT size="2"&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;User clicks Action&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;↓&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Popup opens&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;↓&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;User enters Active + Telephone&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;↓&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;%param&lt;SPAN class=""&gt;&amp;nbsp;receives values&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;↓&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;READ ENTITIES → fetch selected records&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;↓&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;MODIFY ENTITIES → update selected instances&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;↓&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;BR /&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Return result → UI refresh&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN class=""&gt;Let's&amp;nbsp;see how it works--&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Bikash_R_1-1771932726068.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/376323iCAD4E0E05D1E2575/image-size/large?v=v2&amp;amp;px=999" role="button" title="Bikash_R_1-1771932726068.png" alt="Bikash_R_1-1771932726068.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN class=""&gt;Now&amp;nbsp;I&amp;nbsp;have selected one record -&amp;gt; Bikash -&amp;gt; which&amp;nbsp;telephone Num&amp;nbsp;is&amp;nbsp;there,&amp;nbsp;and Active status is Yes -&amp;gt; click on Change-field-value -&amp;gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Bikash_R_2-1771932765787.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/376324i65D1DAC0B1451C3A/image-size/large?v=v2&amp;amp;px=999" role="button" title="Bikash_R_2-1771932765787.png" alt="Bikash_R_2-1771932765787.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN class=""&gt;-&amp;gt; we can see the&amp;nbsp;pop-up&amp;nbsp;where we can change the Active status&amp;nbsp;drop down&amp;nbsp;and Telephone number as well -&amp;gt;&amp;nbsp;let’s&amp;nbsp;do&amp;nbsp;the changes&amp;nbsp;and see -&amp;gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Bikash_R_3-1771932901745.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/376325i2272966A69A38649/image-size/large?v=v2&amp;amp;px=999" role="button" title="Bikash_R_3-1771932901745.png" alt="Bikash_R_3-1771932901745.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Bikash_R_4-1771932912741.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/376326iD6E93E3586DDFAA3/image-size/large?v=v2&amp;amp;px=999" role="button" title="Bikash_R_4-1771932912741.png" alt="Bikash_R_4-1771932912741.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;STRONG&gt;&lt;I&gt;&lt;SPAN&gt;In the&amp;nbsp;above,&amp;nbsp;we can see the changes.&amp;nbsp;&lt;BR /&gt;&lt;FONT size="4"&gt;&lt;BR /&gt;Conclusion--&lt;/FONT&gt;&lt;/SPAN&gt;&lt;/I&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN&gt;In this blog, we explored how to implement dynamic field manipulation inside a RAP action popup using a parameterized action. We walked through extracting popup parameters using&amp;nbsp;%param, reading selected instances via&amp;nbsp;READ ENTITIES, and performing controlled updates using&amp;nbsp;MODIFY ENTITIES&amp;nbsp;in local mode. Finally, we ensured proper UI synchronization by returning the updated result set back to the Fiori Elements application.&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT face="times new roman,times"&gt;&lt;SPAN class=""&gt;Thanks--&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/abap-blog-posts/dynamic-field-manipulation-in-rap-action-popup-a-step-by-step-guide/ba-p/14306555"/>
+    <published>2026-02-25T11:21:35.588000+01:00</published>
   </entry>
 </feed>
