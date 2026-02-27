@@ -2,241 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2026-02-27T12:00:02.885385+00:00</updated>
+  <updated>2026-02-27T15:00:02.718819+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/abap-blog-posts/automating-purchase-requisition-rejection-me54n-and-fiori-my-inbox/ba-p/14323108</id>
-    <title>Automating Purchase Requisition Rejection - ME54N and Fiori My Inbox</title>
-    <updated>2026-02-09T07:54:42.078000+01:00</updated>
-    <author>
-      <name>CenkayArkan</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/322501</uri>
-    </author>
-    <content>&lt;H3 id="toc-hId-1918633703"&gt;Background&lt;/H3&gt;&lt;P&gt;SAP Note 2012650 – “BAPI_REQUISITION_RELEASE is not possible to reject PR” clearly states that Purchase Requisitions cannot be rejected using BAPI_REQUISITION_RELEASE and that rejection must be performed manually via transaction ME54N.&lt;/P&gt;&lt;P&gt;There are scenarios where manual rejection is not feasible or creates significant operational overhead. In my case, I needed a way to trigger Purchase Requisition rejection programmatically while staying as close as possible to standard behavior.&lt;/P&gt;&lt;P&gt;This requirement led me to search for an alternative approach.&lt;/P&gt;&lt;P&gt;While ME54N is the classic transaction for rejecting PRs, many users also perform approval and rejection activities through Fiori My Inbox. These two entry points do not rely on BAPI_REQUISITION_RELEASE for rejection.&lt;/P&gt;&lt;P&gt;During my analysis, I noticed that the class CL_MM_PUR_PR_APPR_ACTION_BADI plays a central role in handling approval and rejection actions triggered from Fiori. This class became the starting point for my solution.&lt;/P&gt;&lt;P&gt;During my research, I came across a well-written &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/reject-purchase-requisition-item-just-like-fiori-does/ba-p/13426582" target="_self"&gt;blog&lt;/A&gt; describing another approach for Purchase Requisition rejection. Unfortunately, I could not make that solution work in my system, so I explored a different path which resulted in the approach presented here.&lt;/P&gt;&lt;H3 id="toc-hId-1722120198"&gt;Approach&lt;/H3&gt;&lt;P&gt;The solution consists of two main steps:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;Trigger rejection logic using CL_MM_PUR_PR_APPR_ACTION_BADI&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;This ensures that the approval work item is removed from Fiori My Inbox.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;The PR is treated consistently with the standard workflow behavior.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Call ME_UPDATE_REQUISITION using classic techniques&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;After the inbox item is cleared, the Purchase Requisition is updated using standard update logic.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;This mimics the behavior executed when rejection is performed via ME54N.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;H3 id="toc-hId-1525606693"&gt;Important Notes&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;This is not necessarily the best or only approach, but rather one possible alternative when no standard BAPI exists.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;The provided development is intended as a template only. You can revise and adapt the example class according to your own requirements.&lt;/LI&gt;&lt;LI&gt;It represents a custom automation workaround.&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1329093188"&gt;Example Implementation&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zmm_cl_utils_pr DEFINITION
-  PUBLIC
-  FINAL
-  CREATE PUBLIC .
-
-  PUBLIC SECTION.
-    METHODS : pr_reject
-      IMPORTING iv_banfn            TYPE banfn OPTIONAL
-      RETURNING VALUE(RV_completed) TYPE abap_bool
-      RAISING   cx_mm_pur_requisition.
-  PROTECTED SECTION.
-  PRIVATE SECTION.
-    METHODS get_release_code
-      IMPORTING
-        iv_banfn              TYPE banfn
-      RETURNING
-        VALUE(rv_releasecode) TYPE frgab.
-    METHODS set_my_inbox_status_rejected
-      IMPORTING iv_banfn TYPE banfn
-      RAISING   cx_mm_pur_requisition.
-    METHODS set_pr_status_rejected
-      IMPORTING iv_banfn            TYPE banfn
-      RETURNING VALUE(RV_completed) TYPE abap_bool
-      RAISING   cx_mm_pur_requisition.
-ENDCLASS.
-
-
-CLASS zmm_cl_utils_pr IMPLEMENTATION.
-  METHOD pr_reject.
-    set_my_inbox_status_rejected( iv_banfn = iv_banfn ).
-    rv_completed = set_pr_status_rejected( iv_banfn = iv_banfn ).
-  ENDMETHOD.
-
-  METHOD get_release_code.
-    DATA lv_fname TYPE fieldname.
-
-    SELECT SINGLE frgzu, frgst, frggr
-      FROM eban
-      WHERE banfn = _banfn
-      INTO (ls_eban).
-    IF sy-subrc &amp;lt;&amp;gt; 0.
-      RETURN.
-    ENDIF.
-    lv_fname = |T16FS~FRGC{ strlen( ls_eban-frgzu ) + 1 }|.
-    SELECT SINGLE (lv_fname) FROM t16fs
-      WHERE frggr = _eban-frggr
-        AND frgsx = _eban-frgst
-      INTO @rv_releasecode.
-  ENDMETHOD.
-
-  METHOD set_my_inbox_status_rejected.
-    CONSTANTS lc_gname_eban TYPE eqegraname VALUE 'EBAN'.
-    DATA lv_wiid          TYPE sww_wiid.
-    DATA lv_note          TYPE string.
-    DATA lv_save_note     TYPE boolean.
-    DATA lv_source_appl   TYPE swc_elem.
-    DATA lv_garg          TYPE eqegraarg.
-    DATA ls_object        TYPE swr_obj_2.
-    DATA lt_enq           TYPE STANDARD TABLE OF seqg3.
-    DATA lr_pur_wf_object TYPE REF TO cl_mm_pur_wf_object.
-
-    DATA(lv_like) = |%{ iv_banfn }%|.
-
-    SELECT wi_id, wi_stat FROM swwwihead
-      WHERE wi_text LIKE _like
-        AND wi_stat    = 'READY'
-      ORDER BY wi_cd DESCENDING,
-               wi_ct DESCENDING
-      INTO TABLE (lt_tab)
-      UP TO 1 ROWS.
-    IF sy-subrc &amp;lt;&amp;gt; 0.
-      RAISE EXCEPTION NEW cx_mm_pur_requisition( textid = VALUE #( msgid = 'SWF_RUN'
-                                                                   msgno = '003' ) ).
-    ENDIF.
-
-    lv_wiid = lt_tab[ 1 ]-wi_id.
-    " --&amp;gt;Get the Purchase Requisition Number, Item from the WorkItem
-    CALL FUNCTION 'SAP_WAPI_GET_OBJECTS'
-      EXPORTING workitem_id      = lv_wiid
-      IMPORTING leading_object_2 = ls_object.
-    DATA(lv_pr_num)  = ls_object-instid+0(10).
-    DATA(lv_pr_item) = ls_object-instid+10(5).
-    IF lv_pr_item IS NOT INITIAL.
-      lr_pur_wf_object ?= NEW cl_mm_pur_wf_object_pr_item( iv_object_id = CONV #( ls_object-instid ) ).
-    ELSE.
-      IF lv_pr_num IS NOT INITIAL.
-        lr_pur_wf_object ?= NEW cl_mm_pur_wf_object_pr( iv_object_id = CONV #( ls_object-instid ) ).
-      ENDIF.
-    ENDIF.
-
-    IF lv_pr_item IS NOT INITIAL.
-      " Item Level Release
-      SELECT SINGLE PurReqnOrigin,CreatedByUser
-        FROM I_PurchaseRequisitionItemAPI01
-        INTO (ls_origin)
-        WHERE PurchaseRequisition     = _pr_num
-          AND PurchaseRequisitionItem = _pr_item.
-    ELSE.
-      " Overall Release
-      SELECT PurReqnOrigin,CreatedByUser
-        UP TO 1 ROWS
-        FROM I_PurchaseRequisitionItemAPI01
-        INTO _origin
-        WHERE PurchaseRequisition = _pr_num
-        " In case if different users have created different items of PR
-        " then the Requester would be the First item user.
-        ORDER BY PurchaseRequisitionItem.
-      ENDSELECT.
-    ENDIF.
-    " --&amp;gt;Get Decision
-    DATA(lv_decision) = CONV swc_elem( if_mm_pur_workflow_c=&amp;gt;gc_decision_0002 ). " REJECTED
-    " --&amp;gt;Check if there is a lock on the PR.only in case of overall release.
-    IF lv_pr_item IS INITIAL.
-      lv_garg = |{ sy-mandt }{ lv_pr_num }*|.
-      CALL FUNCTION 'ENQUEUE_READ'
-        EXPORTING  gname                 = lc_gname_eban
-                   garg                  = lv_garg
-                   guname                = ''
-        TABLES     enq                   = lt_enq
-        EXCEPTIONS communication_failure = 1
-                   system_failure        = 2
-                   OTHERS                = 3.
-      IF sy-subrc = 0.
-        IF lt_enq IS NOT INITIAL.
-          RAISE EXCEPTION NEW cx_mm_pur_requisition( textid = VALUE #( msgid = 'MMPUR_PR_WFL_COMMON'
-                                                                       msgno = '010' ) ).
-        ENDIF.
-      ELSE.
-        RAISE EXCEPTION NEW cx_mm_pur_requisition( textid = VALUE #( msgid = sy-msgid
-                                                                     msgno = sy-msgno
-                                                                     attr1 = sy-msgv1
-                                                                     attr2 = sy-msgv2
-                                                                     attr3 = sy-msgv3
-                                                                     attr4 = sy-msgv4 ) ).
-      ENDIF.
-    ENDIF.
-
-    IF lr_pur_wf_object IS BOUND.
-      lr_pur_wf_object-&amp;gt;set_workitem_executed( EXPORTING iv_wiid        = lv_wiid
-                                                         iv_decision    = lv_decision
-                                                         iv_note        = lv_note
-                                                         iv_save_note   = lv_save_note
-                                                         iv_source_appl = lv_source_appl
-                                               IMPORTING es_return      = DATA(ls_return) ).
-      IF ls_return IS NOT INITIAL.
-        RAISE EXCEPTION NEW cx_mm_pur_requisition( textid = VALUE #( msgid = ls_return-id
-                                                                     msgno = ls_return-number
-                                                                     attr1 = ls_return-message_v1
-                                                                     attr2 = ls_return-message_v2
-                                                                     attr3 = ls_return-message_v3
-                                                                     attr4 = ls_return-message_v4 ) ).
-      ENDIF.
-      DATA(lo_pr_approval) = cl_mm_pur_approval=&amp;gt;get_instance( ).
-      lo_pr_approval-&amp;gt;gs_exe_src-execution_source = if_mm_pur_workflow_c=&amp;gt;gc_execution_source_inb.
-      lo_pr_approval-&amp;gt;gs_exe_src-scenario_type    = ls_object-catid.
-    ENDIF.
-    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'.
-    WAIT UP TO '0.1' SECONDS.
-  ENDMETHOD.
-
-  METHOD set_pr_status_rejected.
-    DATA t_xeban     TYPE mereq_t_ueban.
-    DATA s_xeban     TYPE ueban.
-    DATA t_xebkn     TYPE mereq_t_uebkn.
-    " TODO: variable is assigned but never used (ABAP cleaner)
-    DATA t_container TYPE swrtcont.
-
-    SELECT * FROM eban
-      INTO CORRESPONDING FIELDS OF TABLE @t_xeban
-      WHERE banfn = _banfn
-      ORDER BY PRIMARY KEY.
-    CHECK t_xeban IS NOT INITIAL.
-
-    SELECT * FROM ebkn
-      INTO CORRESPONDING FIELDS OF TABLE @t_xebkn
-      WHERE banfn = _banfn.
-
-    DATA(t_yeban) = t_xeban.
-    DATA(t_yebkn) = t_xebkn.
-
-    READ TABLE t_xeban INTO s_xeban INDEX 1.
-    s_xeban-kz    = 'U'.
-    s_xeban-banpr = '08'.
-    MODIFY t_xeban FROM s_xeban INDEX 1.
-    CALL FUNCTION 'ME_UPDATE_REQUISITION'
-      TABLES xeban = t_xeban
-             xebkn = t_xebkn
-             yeban = t_yeban
-             yebkn = t_yebkn.
-
-    CALL FUNCTION 'ME_UPDATE_REQUISITION_CHNGDOC'
-      TABLES xeban = t_xeban
-             xebkn = t_xebkn
-             yeban = t_yeban
-             yebkn = t_yebkn.
-
-    t_container = VALUE #( LET relcode = get_release_code( iv_banfn ) IN
-                            FOR wa IN t_xeban
-                            ( element = 'PURCHASINGDOCUMENT' value = wa-bnfpo )
-                            ( element = 'PURCHASINGITEM'     value = '00010' )
-                            ( element = 'RELEASEGROUP'       value = get_release_code( iv_banfn ) ) ).
-    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'.
-
-    DO 100 TIMES.
-      WAIT UP TO '0.1' SECONDS.
-      SELECT SINGLE  FROM eban
-        WHERE banfn = _banfn
-          AND banpr = '08' " rejected
-        INTO (lv_check).
-      IF sy-subrc = 0.
-        rv_completed = abap_true.
-      ENDIF.
-    ENDDO.
-    IF lv_check = abap_false.
-      RAISE EXCEPTION NEW cx_mm_pur_requisition( textid = VALUE #( msgid = '00'
-                                                                   msgno = '001'
-                                                                   attr1 = 'Reject could not completed' ) ).
-    ENDIF.
-  ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-1132579683"&gt;Conclusion&lt;/H3&gt;&lt;P&gt;Although SAP requires manual rejection of Purchase Requisitions, practical project needs sometimes demand automation.&lt;/P&gt;&lt;P&gt;By leveraging the same building blocks used by Fiori My Inbox and ME54N, it is possible to implement a controlled and consistent workaround for programmatic PR rejection.&lt;/P&gt;&lt;P&gt;This approach does not replace SAP standard behavior, but it provides a pragmatic option when no standard API exists.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-blog-posts/automating-purchase-requisition-rejection-me54n-and-fiori-my-inbox/ba-p/14323108"/>
-    <published>2026-02-09T07:54:42.078000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/the-2025-developer-insights-survey-the-report/ba-p/14323198</id>
     <title>The 2025  Developer Insights Survey: The Report</title>
@@ -1148,14 +917,14 @@ INTO TABLE (lt_cds_mseg).&lt;/code&gt;&lt;/pre&gt;&lt;DIV class=""&gt;&lt;SPAN&g
 key ebeln, 
 key ebelp, 
 max(concat(coalesce(erdat,'00000000'), coalesce(ezeit,'000000'))) as max_date } 
-group by ebeln, ebelp &lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;This will get the latest record.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NikitaCandolkar_1-1772090300109.png" style="width: 645px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/377215iD1C59C608AD3A44D/image-dimensions/645x241/is-moderation-mode/true?v=v2" width="645" height="241" role="button" title="NikitaCandolkar_1-1772090300109.png" alt="NikitaCandolkar_1-1772090300109.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Coalesce function should be used here to make sure that if any field is empty then the length is maintained to 8+6 = 14 digits, so that we do not get the wrong result.&lt;/LI&gt;&lt;LI&gt;Now we want to fetch the EINDT and MENGE value for this record.&lt;/LI&gt;&lt;LI&gt;If we directly fetch these fields in the view, then it will not return correct data as we will have to add them in the group by clause.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NikitaCandolkar_2-1772090300111.png" style="width: 682px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/377214i3F0353C1E6AC4D04/image-dimensions/682x310/is-moderation-mode/true?v=v2" width="682" height="310" role="button" title="NikitaCandolkar_2-1772090300111.png" alt="NikitaCandolkar_2-1772090300111.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Below will be the result if we group by ebeln, ebelp, eindt and menge.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NikitaCandolkar_3-1772090300116.png" style="width: 662px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/377218i75B16B0A6C352192/image-dimensions/662x182/is-moderation-mode/true?v=v2" width="662" height="182" role="button" title="NikitaCandolkar_3-1772090300116.png" alt="NikitaCandolkar_3-1772090300116.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Instead, we can concatenate these required fields in the max_date field of the view to avoid the fields in group by clause&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;define view entity ZCDS_TEST as select from EKES 
+group by ebeln, ebelp &lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;This will get the latest record.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NikitaCandolkar_1-1772090300109.png" style="width: 645px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/377215iD1C59C608AD3A44D/image-dimensions/645x241?v=v2" width="645" height="241" role="button" title="NikitaCandolkar_1-1772090300109.png" alt="NikitaCandolkar_1-1772090300109.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Coalesce function should be used here to make sure that if any field is empty then the length is maintained to 8+6 = 14 digits, so that we do not get the wrong result.&lt;/LI&gt;&lt;LI&gt;Now we want to fetch the EINDT and MENGE value for this record.&lt;/LI&gt;&lt;LI&gt;If we directly fetch these fields in the view, then it will not return correct data as we will have to add them in the group by clause.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NikitaCandolkar_2-1772090300111.png" style="width: 682px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/377214i3F0353C1E6AC4D04/image-dimensions/682x310?v=v2" width="682" height="310" role="button" title="NikitaCandolkar_2-1772090300111.png" alt="NikitaCandolkar_2-1772090300111.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Below will be the result if we group by ebeln, ebelp, eindt and menge.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NikitaCandolkar_3-1772090300116.png" style="width: 662px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/377218i75B16B0A6C352192/image-dimensions/662x182?v=v2" width="662" height="182" role="button" title="NikitaCandolkar_3-1772090300116.png" alt="NikitaCandolkar_3-1772090300116.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Instead, we can concatenate these required fields in the max_date field of the view to avoid the fields in group by clause&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;define view entity ZCDS_TEST as select from EKES 
 { key ebeln, 
 key ebelp, 
 max(concat(coalesce(erdat,'00000000'), 
 concat(coalesce(ezeit,'000000'), 
 concat(coalesce(eindt, '00000000'), 
 coalesce(menge, 0.000) as abap.char(16))))) as max_date 
-} group by ebeln, ebelp&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;The marking in green is the EINDT value and the one in yellow is for MENGE.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NikitaCandolkar_5-1772090300125.png" style="width: 657px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/377217i0DFDD191C5F1AC4C/image-dimensions/657x171/is-moderation-mode/true?v=v2" width="657" height="171" role="button" title="NikitaCandolkar_5-1772090300125.png" alt="NikitaCandolkar_5-1772090300125.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;In the main cds view, join this view with EKKO and EKPO. Get the substring of max_date from position 15 till the next 8 digits. This will be the EINDT value. For MENGE value, get the substring of max_date from the position 23 till the next 16 characters, as menge is 16 digits.&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;define view entity ZCDS_TEST_JOIN as select from EKKO as a 
+} group by ebeln, ebelp&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;The marking in green is the EINDT value and the one in yellow is for MENGE.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NikitaCandolkar_5-1772090300125.png" style="width: 657px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/377217i0DFDD191C5F1AC4C/image-dimensions/657x171?v=v2" width="657" height="171" role="button" title="NikitaCandolkar_5-1772090300125.png" alt="NikitaCandolkar_5-1772090300125.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;In the main cds view, join this view with EKKO and EKPO. Get the substring of max_date from position 15 till the next 8 digits. This will be the EINDT value. For MENGE value, get the substring of max_date from the position 23 till the next 16 characters, as menge is 16 digits.&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;define view entity ZCDS_TEST_JOIN as select from EKKO as a 
 left outer join ekpo as b on a.ebeln = b.ebeln 
 inner join zcds_test as c on b.ebeln = c.ebeln 
 and b.ebelp = c.ebelp 
@@ -1170,7 +939,7 @@ case when coalesce(c.max_date, '') = '' or substring(c.max_date, 15, 8) like '%0
 then '0.000' 
 else cast(substring(c.max_date, 23, 16) as abap.dats) 
 end as menge 
-}&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;You can see the eindt and Menge in the below for key combination of ebeln and ebelp.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NikitaCandolkar_7-1772090300135.png" style="width: 625px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/377220i5A6B8A755D498114/image-dimensions/625x163/is-moderation-mode/true?v=v2" width="625" height="163" role="button" title="NikitaCandolkar_7-1772090300135.png" alt="NikitaCandolkar_7-1772090300135.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Conclusion:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;We do not have to join the table multiple times for fetching the max date and then for fetching max time for the max date.&lt;/LI&gt;&lt;LI&gt;All logic fits in a single view with a single join on the required tables.&lt;/LI&gt;&lt;LI&gt;Simplifies the query.&lt;/LI&gt;&lt;LI&gt;Helps with performance.&lt;/LI&gt;&lt;/UL&gt;</content>
+}&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;You can see the eindt and Menge in the below for key combination of ebeln and ebelp.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="NikitaCandolkar_7-1772090300135.png" style="width: 625px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/377220i5A6B8A755D498114/image-dimensions/625x163?v=v2" width="625" height="163" role="button" title="NikitaCandolkar_7-1772090300135.png" alt="NikitaCandolkar_7-1772090300135.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Conclusion:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;We do not have to join the table multiple times for fetching the max date and then for fetching max time for the max date.&lt;/LI&gt;&lt;LI&gt;All logic fits in a single view with a single join on the required tables.&lt;/LI&gt;&lt;LI&gt;Simplifies the query.&lt;/LI&gt;&lt;LI&gt;Helps with performance.&lt;/LI&gt;&lt;/UL&gt;</content>
     <link href="https://community.sap.com/t5/abap-blog-posts/how-to-fetch-data-for-the-latest-record-from-sap-table-using-cds-view/ba-p/14334558"/>
     <published>2026-02-27T11:41:09.955000+01:00</published>
   </entry>
@@ -1185,5 +954,17 @@ end as menge
     <content>&lt;P&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;I’m an SAP functional consultant by role, but I’ve always had the soul of a developer. This is the story of how that instinct — along with a lot of late nights, AI assistance, and a fair share of dead ends — led me to build something I never thought I could.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;Where It All Started&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;I started building ABAP FS v2 (we call it ABAP Copilot internally) sometime around May 2025. Can’t even remember the exact date anymore. Probably should have written it down.&lt;BR /&gt;I realized our developers were not entirely happy with Eclipse ADT and I wanted to build something better (jury is still out on that) but I had no idea where to even begin. Then a friend of mine - Ketan Shenoy introduced me to Marcello Urbani’s &lt;A href="https://marketplace.visualstudio.com/items?itemName=murbani.vscode-abap-remote-fs" target="_self" rel="nofollow noopener noreferrer"&gt;ABAP Remote Filesystem&lt;/A&gt; extension, and something clicked.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;One Tool Became Thirty&lt;/STRONG&gt;&lt;BR /&gt;It started as a single Language Model Tool - object search (took me a while and a lot of research to learn what LM Tools API is). It let Copilot find ABAP objects in SAP directly from the chat. That’s it.&lt;BR /&gt;Then I kept getting ideas. One tool became two - then ten - then thirty. All using VS Code’s Language Model Tools API, talking to SAP via ADT.&lt;BR /&gt;The whole thing lived in one massive 6000-lines file for a while - classic rapid prototyping. No architecture, no plan. Just kept adding without even thinking about maintenance. I just wanted it to “work”.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;The Dark Nights&lt;/STRONG&gt;&lt;BR /&gt;Then I realized several features that were available in Eclipse ADT (at least the ones people actually used and wanted in VS Code) were missing - embedded GUI, ADT feeds, etc., and I spent a lot of nights adding them one by one. Dark nights indeed.&lt;BR /&gt;I also tried a few things that didn’t work out. At one point I tried embedding custom ABAP objects (including code) into a local ChromaDB and querying it with natural language. My laptop (like most) could only run the basic all-MiniLM-L2-v2 embedding model which has a 8K context limit (learnt it the hard way). ABAP objects are generally much bigger than that. Didn’t work. Scrapped it. Not every idea makes it, and that’s fine (I guess?)&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;The MCP Problem&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;When I decided to add MCP support, I assumed I’d have to extract the core logic of each tool into separate files and then build two parallel paths — one for the Language Model Tools, and another for MCP. That meant touching every single tool - tools that were already “working”. Forget implementing MCP - even the thought of refactoring the 6000-line monolith was exhausting.&lt;BR /&gt;Then I thought - what if I could just wrap the existing Language Model Tools as MCP tools, without duplicating anything? I didn’t even think it was technically possible. Threw it at Copilot. Turns out it was. One path, two interfaces. I still had to refactor, but the scope was nothing like what I originally imagined. If you think my V2 PR was too big and complicated, you should have seen the pre-refactored version!&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;What Came Together&lt;/STRONG&gt;&lt;BR /&gt;After months of iteration, here’s what ABAP Copilot became:&lt;BR /&gt;• Code search with regex, across the entire SAP system&lt;BR /&gt;• Read, edit, create ABAP objects without leaving VS Code&lt;BR /&gt;• SQL runner, Mermaid diagrams for code flow&lt;BR /&gt;• Dump analysis, transport comparison, cross-system comparison&lt;BR /&gt;• Embedded SAP GUI via WebView — still not sure how many people actually use this one&lt;BR /&gt;• ABAP Cleaner with one click formatting&lt;BR /&gt;• MCP support so non-Copilot users could connect too&lt;BR /&gt;• Subagents, heartbeats, and the orchestrator&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;Conclusion - The Merge, and What It Means&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Finally got the code merged into Marcello Urbani’s ABAP Remote Filesystem. It’s on the &lt;A href="https://marketplace.visualstudio.com/items?itemName=murbani.vscode-abap-remote-fs" target="_self" rel="nofollow noopener noreferrer"&gt;VS Code Marketplace&lt;/A&gt; now. Thanks again Marcello - for ABAP FS and for accepting my mess of a PR!!&lt;BR /&gt;Something that started as a personal experiment is out there, being used (hopefully). Not bad for a functional consultant, I guess. Lots of late nights. Lots of AI-assisted coding sessions. Lots of learnings — about tool calling, about what models are actually good (and bad) at, about when to scrap an idea and when to push through.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Now I spend my time staring at the install count on the VS Code Marketplace and the issues page on the repo.&lt;BR /&gt;Still evolving.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/artificial-intelligence-blogs-posts/thirty-tools-later/ba-p/14336494"/>
     <published>2026-02-27T11:47:04.750000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/abap-cloud-learning-map/ba-p/14338279</id>
+    <title>ABAP Cloud Learning Map</title>
+    <updated>2026-02-27T15:38:25.525000+01:00</updated>
+    <author>
+      <name>CarineTchoutouo</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1462</uri>
+    </author>
+    <content>&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="CarineTchoutouo_0-1772202904727.png" style="width: 79px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/377863i7870595E79A5B7A2/image-dimensions/79x35?v=v2" width="79" height="35" role="button" title="CarineTchoutouo_0-1772202904727.png" alt="CarineTchoutouo_0-1772202904727.png" /&gt;&lt;/span&gt;&amp;nbsp;The &lt;STRONG&gt;ABAP Cloud development model (ABAP Cloud)&lt;/STRONG&gt; is the foundation of ABAP-based development at SAP, its partners, and customers,&lt;SPAN&gt;&amp;nbsp;designed from the ground up to adhere to&lt;/SPAN&gt;&amp;nbsp;clean core&amp;nbsp;&lt;SPAN&gt;principles&lt;/SPAN&gt;. It brings together evolving technologies and methodologies into a sustainable, long-lasting programming model.&amp;nbsp;&lt;/P&gt;&lt;P&gt;The ABAP Cloud development model encompasses all aspects of modern cloud-ready software development, resulting in a wide range of topics that need to be understood. Therefore, clear guidance is helpful for getting started with and navigating ABAP Cloud.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Discover the&lt;/SPAN&gt;&amp;nbsp;&lt;STRONG&gt;ABAP Cloud&amp;nbsp;&lt;/STRONG&gt;&lt;SPAN&gt;&lt;STRONG&gt;Learning Map&lt;span class="lia-unicode-emoji" title=":world_map:"&gt;🗺&lt;/span&gt;️&lt;/STRONG&gt; – your guide to mastering the ABAP Cloud development model. It provides an overview of essential topics and skills, along with a curated collection of links to key resources covering the technologies, tools, approaches, and practices that drive cloud-ready, upgrade-stable ABAP development.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":books:"&gt;📚&lt;/span&gt;Whether you’re starting out or filling knowledge gaps, the learning map helps you navigate modern ABAP Cloud development at your own pace.&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":link:"&gt;🔗&lt;/span&gt;Access it here:&lt;/SPAN&gt;&amp;nbsp;&lt;STRONG&gt;&lt;A href="https://dam.sap.com/mac/app/p/pdf/asset/preview/7YM5vMP?ltr=a&amp;amp;rc=10&amp;amp;doi=SAP1280868" target="_self" rel="noopener noreferrer"&gt;ABAP Cloud Learning Map&lt;/A&gt;&lt;/STRONG&gt;↗&lt;/P&gt;&lt;P&gt;&lt;A href="https://dam.sap.com/mac/embed/public/pdf/a/7YM5vMP?rc=10&amp;amp;doi=SAP1280868&amp;amp;includeSapBrandedWraper=true" target="_blank" rel="noopener noreferrer"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="CarineTchoutouo_0-1772201668283.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/377830i66C7BB84AB9612A9/image-size/large?v=v2&amp;amp;px=999" role="button" title="CarineTchoutouo_0-1772201668283.png" alt="CarineTchoutouo_0-1772201668283.png" /&gt;&lt;/span&gt;&lt;/A&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/abap-cloud-learning-map/ba-p/14338279"/>
+    <published>2026-02-27T15:38:25.525000+01:00</published>
   </entry>
 </feed>
