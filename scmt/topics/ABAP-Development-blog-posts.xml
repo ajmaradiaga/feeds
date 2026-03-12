@@ -2,658 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2026-03-12T06:00:10.923275+00:00</updated>
+  <updated>2026-03-12T09:00:09.108649+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/abap-blog-posts/recurring-entry-approval-workflow-in-sap-s-4hana-fbd1-fbd2-fbd9/ba-p/14333536</id>
-    <title>Recurring Entry Approval Workflow in SAP S/4HANA - FBD1/FBD2/FBD9 Transactions</title>
-    <updated>2026-02-24T08:51:32.650000+01:00</updated>
-    <author>
-      <name>ShravanBalaji16897</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2283030</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Introduction:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In many organizations, finance teams handle repetitive postings such as rent, subscriptions, insurance, lease payments, and service charges. Manually posting these entries every period increases operational effort and the risk of errors.&lt;/P&gt;&lt;P&gt;SAP provides the &lt;STRONG&gt;Recurring Entry Program (Transaction FBD1)&lt;/STRONG&gt; to automate such postings. However, in controlled environments, organizations often require &lt;STRONG&gt;approval workflows&lt;/STRONG&gt; before recurring documents are posted.&lt;/P&gt;&lt;P&gt;This blog explains how to implement and control a &lt;STRONG&gt;Recurring Entry Workflow using FBD1&lt;/STRONG&gt;, ensuring automation with proper financial governance.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Requirement:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In SAP Standard, through &lt;STRONG&gt;FBD1 &lt;/STRONG&gt;users can create recurring document templates. But these templates cannot be posted automatically. The created recurring document templates must be posted via &lt;STRONG&gt;F.14&lt;/STRONG&gt; transaction. It happens periodically through Job Scheduling.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;FBD1 &lt;/STRONG&gt;does not include any approval mechanism by standard. This leads to&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Unauthorized financial commitments.&lt;/LI&gt;&lt;LI&gt;Incorrect Recurring Postings.&lt;/LI&gt;&lt;LI&gt;Audit, Compliance &amp;amp; Seggregation of Duties (SoD) violations.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;To mitigate these risks, business requires an approval mechanism, so that&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Authorized user only creates Recurring Document Templates (FBD1).&lt;/LI&gt;&lt;LI&gt;Delegation of Authority (DoA) ensures proper screening before approval.&lt;/LI&gt;&lt;LI&gt;Approved entries alone will be considered for Posting Runs.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Solution Architecture:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The proposed solution will work on triggering an approval workflow when the user &lt;STRONG&gt;creates a Recurring Document Entry through FBD1 &lt;/STRONG&gt;and when he &lt;STRONG&gt;modifies the&lt;/STRONG&gt; &lt;STRONG&gt;rejected Recurring Document Entry through FBD2. &lt;/STRONG&gt;Modifications of the Recurring Document Template when it is in Approval is prevented through Custom Control Error Mechanism.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Process Flow:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_0-1771764079437.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375116iCC04AF1BD543880E/image-size/medium?v=v2&amp;amp;px=400" role="button" title="ShravanBalaji16897_0-1771764079437.png" alt="ShravanBalaji16897_0-1771764079437.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Development Process:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step – 1: &lt;/STRONG&gt;Create a Recurring Document Entry Template in FBD1 T-Code. The Entry must be blocked, so that only upon complete approval of workflow block shall be removed and would process for posting.&lt;/P&gt;&lt;P&gt;For this purpose, we must enhance the standard procedure through Business Transaction Events. To identify the suitable BTE’s that can be used for our purpose, we can use SE37 transaction with the FM “&lt;STRONG&gt;PC_FUNCTION_FIND”. &lt;/STRONG&gt;Keep a Session Breakpoint in the FM and run the process. The Parameter “&lt;STRONG&gt;I_EVENT” &lt;/STRONG&gt;will provide the BTE numbers from which we can choose the suitable one for our purpose.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;NOTE: For Blocking the Document while creation, through the above-mentioned process we came to the BTE as “SAMPLE_INTERFACE_00001025”.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step – 2:&lt;/STRONG&gt; Take a copy of the FM “SAMPLE_INTERFACE_00001025” in SE37. I have kept the name as “ZFI_BKDF_DOC_BLOCK_FM”.&lt;/P&gt;&lt;P&gt;Copy and paste the below code inside the FM.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA:
-     lv_memory_bkdf TYPE char30 VALUE '(SAPMF05A)BKDF',
-     lv_memory_bkdf1 TYPE char30 VALUE '(SAPMF05L)BKDF',
-     wa_bkpf TYPE bkpf.
-FIELD-SYMBOLS: &amp;lt;lfs_bkdf&amp;gt; TYPE bkdf.
-READ TABLE t_bkpf into wa_bkpf index 1.
-    If sy-tcode = 'FBD1' or sy-tcode = 'FBD9'.
-      ASSIGN (lv_memory_bkdf) TO &amp;lt;lfs_bkdf&amp;gt;.
-    elseif sy-tcode = 'FBD2'.
-      ASSIGN (lv_memory_bkdf1) TO &amp;lt;lfs_bkdf&amp;gt;.
-    endif.
-   IF &amp;lt;lfs_bkdf&amp;gt; IS ASSIGNED AND t_bkpf-bukrs EQ '9000'.
-    &amp;lt;lfs_bkdf&amp;gt;-blocked_for_posting = abap_true.
-    &amp;lt;lfs_bkdf&amp;gt;-XDELT = abap_true.
-  ENDIF.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;NOTE: &lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Here “BLOCKED_FOR_POSTING” &amp;amp; “XDELT (Deletion_Indicator) are the fields for which value has been to “X” for blocking the document. &lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;The runtime values of these fields are fetched from previous procedures through Memory Assignment. &lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;For FBD1 &amp;amp; FBD2, the standard procedural program varies (See Data Declaration).&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step – 3: &lt;/STRONG&gt;Once the Recurring Entry Document is blocked and saved, our custom workflow must get triggered. Before proceeding to Workflow, we must create a custom class where the Event, Methods necessary for the workflow operation would reside.&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Go to the T-code SE24 and create a custom class. I had created in the name “ZCL_FI_RECURRING_WF”. &lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;In the &lt;STRONG&gt;Interfaces&lt;/STRONG&gt; tab, provide the interfaces as shown in the below image. These interfaces are necessary for Object instantiation &amp;amp; Workflow Operations.&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_1-1771764158227.png" style="width: 595px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375117i3C89B658F7429318/image-dimensions/595x128?v=v2" width="595" height="128" role="button" title="ShravanBalaji16897_1-1771764158227.png" alt="ShravanBalaji16897_1-1771764158227.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;In the &lt;STRONG&gt;Events&lt;/STRONG&gt; Tab, I have given the event name as &lt;STRONG&gt;“CREATED” &lt;/STRONG&gt;as shown below.&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_2-1771764196254.png" style="width: 584px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375118i38EA160993DF5D9C/image-dimensions/584x98?v=v2" width="584" height="98" role="button" title="ShravanBalaji16897_2-1771764196254.png" alt="ShravanBalaji16897_2-1771764196254.png" /&gt;&lt;/span&gt;&lt;STRONG&gt;&lt;BR /&gt;The event parameter is “ZST_WF_REC_JOUR”. It is a custom table type referring a custom structure "&lt;/STRONG&gt; &lt;STRONG&gt;ZFI_ST_RECJOUR_ENTRY”.&lt;/STRONG&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_3-1771764228387.png" style="width: 585px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375119iAE31777700BC375E/image-dimensions/585x66?v=v2" width="585" height="66" role="button" title="ShravanBalaji16897_3-1771764228387.png" alt="ShravanBalaji16897_3-1771764228387.png" /&gt;&lt;/span&gt;&lt;STRONG&gt;&lt;STRONG&gt;&lt;BR /&gt;Structure:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_4-1771764298827.png" style="width: 570px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375120iBF7079611774C05F/image-dimensions/570x193?v=v2" width="570" height="193" role="button" title="ShravanBalaji16897_4-1771764298827.png" alt="ShravanBalaji16897_4-1771764298827.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;In the&lt;STRONG&gt; Attributes &lt;/STRONG&gt;tab, Object Key is specified as “LV_OBJKEY” as shown below.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_5-1771764330729.png" style="width: 566px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375121iBD6F802DC9A58A09/image-dimensions/566x53?v=v2" width="566" height="53" role="button" title="ShravanBalaji16897_5-1771764330729.png" alt="ShravanBalaji16897_5-1771764330729.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;The standard methods corresponding to the added interfaces, would reflect in the &lt;STRONG&gt;Methods&lt;/STRONG&gt; tab as shown below.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_6-1771764365495.png" style="width: 565px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375122i77AB3FAF2E62F1C0/image-dimensions/565x120?v=v2" width="565" height="120" role="button" title="ShravanBalaji16897_6-1771764365495.png" alt="ShravanBalaji16897_6-1771764365495.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;Now we can add our custom methods. The following are the methods that I created for my requirement as shown below.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_7-1771764399519.png" style="width: 569px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375123i539100101E5A7568/image-dimensions/569x37?v=v2" width="569" height="37" role="button" title="ShravanBalaji16897_7-1771764399519.png" alt="ShravanBalaji16897_7-1771764399519.png" /&gt;&lt;/span&gt;&lt;STRONG&gt;M_FETCH_APPROVER – Fetching Approvers and Sending Approval Notifications.&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;M_UNBLOCK_POSTING – Unblocking the Recurring Entry Document after Complete Approval.&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;M_COMPLETE_MAIL – Notification Mail to Initiator after Complete Approval / Rejection in any level.&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;The individual method procedures and its parameters are below.&lt;BR /&gt;&lt;STRONG&gt;M_FETCH_APPROVER:&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;Parameters:&lt;/STRONG&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_8-1771764476179.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375124i20740161E6D6161B/image-size/medium?v=v2&amp;amp;px=400" role="button" title="ShravanBalaji16897_8-1771764476179.png" alt="ShravanBalaji16897_8-1771764476179.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;STRONG&gt;&lt;STRONG&gt;Here, “ZTT_FI_WF_AGENT” table type is a single field for storing the agents (Image represents structure of the Table Type).&lt;BR /&gt;&lt;/STRONG&gt;&lt;/STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_9-1771764508727.png" style="width: 559px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375125i00804A41FFB90DBE/image-dimensions/559x151?v=v2" width="559" height="151" role="button" title="ShravanBalaji16897_9-1771764508727.png" alt="ShravanBalaji16897_9-1771764508727.png" /&gt;&lt;/span&gt;&lt;STRONG&gt;&amp;nbsp;“ZFI_RECUR_MAT_APP_TT” table type is for storing agent information (Image represents structure of the Table Type).&lt;/STRONG&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_10-1771764553919.png" style="width: 551px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375126i56C24316059FC932/image-dimensions/551x197?v=v2" width="551" height="197" role="button" title="ShravanBalaji16897_10-1771764553919.png" alt="ShravanBalaji16897_10-1771764553919.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA:
-  gc_subject     TYPE so_obj_des, " Email subject
-  gc_email_to    TYPE adr6-smtp_addr, " Valid email
-  gs_text        TYPE soli, " Text used into the email body
-  gc_type_raw    TYPE so_obj_tp, " Email type
-  gc_att_type    TYPE soodk-objtp, " Attachment type
-  gc_att_subject TYPE sood-objdes. " Attachment title
-
-  DATA:
-  gt_text           TYPE soli_tab, " Table which contains email body text
-  gt_attachment_hex TYPE solix_tab, " Table which contains the attached file
-  gv_sent_to_all    TYPE os_boolean, " Receive the information if email was sent
-  gv_error_message  TYPE string, " Used to get the error message
-  go_send_request   TYPE REF TO cl_bcs, " Email object
-  go_recipient      TYPE REF TO if_recipient_bcs, " Who will receive the email
-  go_sender         TYPE REF TO cl_sapuser_bcs, " Who is sending the email
-  go_document       TYPE REF TO cl_document_bcs, " Email body
-  gx_bcs_exception  TYPE REF TO cx_bcs,
-  wa_agents type ZST_FI_APPWF_AGENT.
-  wa_rec_wf_sts type ZFI_REC_WF_ST_DT.
-
-    lv_initiator = lv_initiator_us+2(12).
-    lv_counter = lv_counter + 1.
-
-     CALL METHOD zcl_amdp_fi_recurring_wf=&amp;gt;get_initial_approvers
-      EXPORTING
-        p_mandt      = sy-mandt
-        p_compcode   = lv_comp_code
-        p_init       = lv_initiator
-      IMPORTING
-        it_approvers = data(it_approvers).
-
-    sort it_approvers by zlevel .
-    delete ADJACENT DUPLICATES FROM it_approvers comparing zlevel.
-    DESCRIBE TABLE it_approvers LINES lv_counter_max.
-    read table it_approvers into data(wa_approver) index 1.
-    if sy-subrc = 0.
-      lv_init_name = wa_approver-name_text1.
-      lv_init_mid = wa_approver-smtp_addr1.
-    endif.
-    read table it_approvers into wa_approver with key zlevel = lv_counter.
-    if sy-subrc = 0.
-      concatenate 'US' wa_approver-zuser into wa_agents-agent.
-      lv_appr_mid = wa_approver-smtp_addr.
-      lv_appr_name = wa_approver-name_text.
-      append wa_agents to it_agents.
-    endif.
-
-   TRY.
-    go_send_request = cl_bcs=&amp;gt;create_persistent( ).
-    go_sender = cl_sapuser_bcs=&amp;gt;create( 'SAP_WFRT' ).
-    go_send_request-&amp;gt;set_sender( i_sender = go_sender ).
-
-  DATA(lv_belnr1) = lv_belnr.
-  SHIFT lv_belnr1 LEFT DELETING LEADING '0'.
-
-  CONCATENATE 'Approve Jounral Entry' lv_comp_code '-' lv_belnr1 '-' lv_gjahr INTO gc_subject SEPARATED BY space.
-
-  gs_text-line = '&amp;lt;HTML&amp;gt;&amp;lt;BODY&amp;gt;'.
-  APPEND gs_text to gt_text[].
-  CLEAR: gs_text.
-
-  concatenate 'Dear' lv_appr_name into gs_text-line SEPARATED BY SPACE.
-  APPEND gs_text TO gt_text[].
-  CLEAR : gs_text.
-
-  gs_text-line = '&amp;lt;br&amp;gt;&amp;lt;/br&amp;gt;'.
-  APPEND gs_text TO gt_text.
-  CLEAR: gs_text.
-
-  concatenate 'Recurring Journal Entry' lv_belnr1 '-'  lv_comp_code '-' lv_gjahr 'is waiting for your approval.' into gs_text-line separated by space .
-  APPEND gs_text TO gt_text[].
-  CLEAR : gs_text.
-
-  gs_text-line = '&amp;lt;br&amp;gt;&amp;lt;/br&amp;gt;'.
-  APPEND gs_text TO gt_text.
-  CLEAR: gs_text.
-
-  gs_text-line = 'Please review the details using the provided link.'.
-  APPEND gs_text TO gt_text[].
-  CLEAR : gs_text.
-
-  gs_text-line = '&amp;lt;br&amp;gt;&amp;lt;/br&amp;gt;'.
-  APPEND gs_text TO gt_text.
-  CLEAR: gs_text.
-
-  gs_text-line = 'This is a system generated mail. Please do not reply to this.'.
-  APPEND gs_text TO gt_text[].
-  CLEAR: gs_text.
-
-  gs_text-line = '&amp;lt;br&amp;gt;&amp;lt;/br&amp;gt;'.
-  APPEND gs_text TO gt_text.
-  CLEAR: gs_text.
-
-  gs_text-line = 'Thanks and Regards,'.
-  APPEND gs_text TO gt_text[].
-  CLEAR: gs_text.
-
-  gs_text-line = '&amp;lt;br&amp;gt;&amp;lt;/br&amp;gt;'.
-  APPEND gs_text TO gt_text.
-  CLEAR: gs_text.
-
-  gs_text-line = lv_init_name.
-  APPEND gs_text TO gt_text[].
-  CLEAR: gs_text.
-
-  gs_text-line = '&amp;lt;/HTML&amp;gt;&amp;lt;/BODY&amp;gt;'.
-  APPEND gs_text to gt_text[].
-  CLEAR: gs_text.
-
-  go_document = cl_document_bcs=&amp;gt;create_document(
-                    i_type    = 'HTM'
-                    i_text    = gt_text
-                    i_subject = gc_subject ).
-
-  go_send_request-&amp;gt;set_document( go_document ).
-
-*  loop at it_approvers into wa_approver.
-    go_recipient = cl_cam_address_bcs=&amp;gt;create_internet_address( lv_appr_mid ).
-    go_send_request-&amp;gt;add_recipient(
-          EXPORTING
-            i_recipient = go_recipient
-            i_express   = abap_true
-        ).
-*  endloop.
-
-  gv_sent_to_all = go_send_request-&amp;gt;send( i_with_error_screen = abap_true ).
-  COMMIT WORK.
-  CATCH cx_bcs INTO gx_bcs_exception.
-    gv_error_message = gx_bcs_exception-&amp;gt;get_text( ).
-    WRITE gv_error_message.
-
-ENDTRY.
-
-IF LV_COUNTER &amp;gt; LV_COUNTER_MAX.
-  LV_EXIT = 'X'.
-ELSE.
-  LV_EXIT = 'Y'.
-ENDIF.
-
-wa_rec_wf_sts-doc_no = lv_belnr1.
-wa_rec_wf_sts-comp_code = lv_comp_code.
-wa_rec_wf_sts-fis_year = lv_gjahr.
-wa_rec_wf_sts-status = 'In-process'.
-
-MODIFY ZFI_REC_WF_ST_DT from wa_rec_wf_sts.
-COMMIT WORK.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;M_UNBLOCK_POSTING:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Parameters:&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_11-1771764615838.png" style="width: 531px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375127iB6A0610FBF39855B/image-dimensions/531x39?v=v2" width="531" height="39" role="button" title="ShravanBalaji16897_11-1771764615838.png" alt="ShravanBalaji16897_11-1771764615838.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;    DATA:
-      lt_bkdf       TYPE TABLE OF bkdf,
-      lt_bkpf       TYPE TABLE OF bkpf,
-      lt_dummy_bseg TYPE TABLE OF bseg,
-      lt_dummy_bsec TYPE TABLE OF bsec,
-      lt_dummy_bsed TYPE TABLE OF bsed,
-      lt_dummy_bset TYPE TABLE OF bset.
-
-    SELECT SINGLE *
-    FROM bkpf
-    INTO (ls_bkpf)
-    WHERE bukrs = _bkdf-bukrs
-    AND   belnr = _bkdf-belnr
-    AND   gjahr = _bkdf-gjahr.
-
-    IF sy-subrc = 0.
-      " Read blocked recurring entry data
-      SELECT SINGLE *
-        FROM bkdf
-        INTO (ls_bkdf)
-        WHERE bukrs = _bkdf-bukrs
-        AND   belnr = _bkdf-belnr
-        AND   gjahr = _bkdf-gjahr.
-
-      IF sy-subrc = 0.
-        " Remove Block
-        ls_bkdf-blocked_for_posting = abap_false.
-        ls_bkdf-xdelt = abap_false.
-        " Add records
-        APPEND ls_bkpf TO lt_bkpf.
-        APPEND ls_bkdf TO lt_bkdf.
-        " Update document
-        CALL FUNCTION 'CHANGE_DOCUMENT'
-          TABLES
-            t_bkdf = lt_bkdf
-            t_bkpf = lt_bkpf
-            t_bsec = lt_dummy_bsec
-            t_bsed = lt_dummy_bsed
-            t_bseg = lt_dummy_bseg
-            t_bset = lt_dummy_bset.
-        IF sy-subrc = 0.
-          COMMIT WORK.
-        ENDIF.
-      ENDIF.
-    ENDIF.
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;M_COMPLETE_MAIL:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Parameters:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_12-1771764682095.png" style="width: 584px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375128i3AC86537D1A5B41B/image-dimensions/584x120?v=v2" width="584" height="120" role="button" title="ShravanBalaji16897_12-1771764682095.png" alt="ShravanBalaji16897_12-1771764682095.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;        DATA: gc_subject     TYPE so_obj_des, " Email subject
-          gc_email_to    TYPE adr6-smtp_addr, " Valid email
-          gs_text        TYPE soli, " Text used into the email body
-          gc_type_raw    TYPE so_obj_tp, " Email type
-          gc_att_type    TYPE soodk-objtp, " Attachment type
-          gc_att_subject TYPE sood-objdes. " Attachment title
-    DATA:
-          gt_text           TYPE soli_tab, " Table which contains email body text
-          gt_attachment_hex TYPE solix_tab, " Table which contains the attached file
-          gv_sent_to_all    TYPE os_boolean, " Receive the information if email was sent
-          gv_error_message  TYPE string, " Used to get the error message
-          go_send_request   TYPE REF TO cl_bcs, " Email object
-          go_recipient      TYPE REF TO if_recipient_bcs, " Who will receive the email
-          go_sender         TYPE REF TO cl_sapuser_bcs, " Who is sending the email
-          go_document       TYPE REF TO cl_document_bcs, " Email body
-          gx_bcs_exception  TYPE REF TO cx_bcs.
-
-    DATA: e_reason                 TYPE swcont-value,
-          reason_txt               TYPE swcont-value,
-          l_lines                  TYPE i,
-          object_content           TYPE TABLE OF solisti1,
-          subcontainer_all_objects TYPE TABLE OF swr_cont,
-          lv_wa_reason             LIKE LINE OF subcontainer_all_objects,
-          lv_no_att                TYPE  sy-index,
-          document_id              TYPE sofolenti1-doc_id,
-          return_code              TYPE  sy-subrc,
-          ifs_xml_container        TYPE  xstring,
-          ifs_xml_container_schema TYPE  xstring,
-          simple_container         TYPE TABLE OF swr_cont,
-          message_lines            TYPE TABLE OF swr_messag,
-          message_struct           TYPE TABLE OF swr_mstruc,
-          subcontainer_bor_objects TYPE TABLE OF swr_cont.
-
-    if lv_flag ne 'R'.
-       TRY.
-
-          go_send_request = cl_bcs=&amp;gt;create_persistent( ).
-          go_sender = cl_sapuser_bcs=&amp;gt;create( 'SAP_WFRT' ).
-          go_send_request-&amp;gt;set_sender( i_sender = go_sender ).
-
-CONCATENATE 'Recurring Entry Approved:' lv_comp_code lv_belnr lv_gjahr INTO gc_subject SEPARATED BY space.
-
-          gs_text-line = '&amp;lt;HTML&amp;gt;&amp;lt;BODY&amp;gt;'.
-          APPEND gs_text TO gt_text[].
-          CLEAR: gs_text.
-
-          CONCATENATE 'Dear' lv_init_name ',' INTO gs_text-line SEPARATED BY space.
-          APPEND gs_text TO gt_text.
-          CLEAR: gs_text.
-
-          gs_text-line = '&amp;lt;br&amp;gt;&amp;lt;/br&amp;gt;'.
-          APPEND gs_text TO gt_text.
-          CLEAR: gs_text.
-
-          CONCATENATE 'Recurring Journal Entry' lv_belnr lv_comp_code lv_gjahr 'has been completely approved.' INTO gs_text-line SEPARATED BY space.
-          APPEND gs_text TO gt_text[].
-          CLEAR: gs_text.
-
-          gs_text-line = '&amp;lt;br&amp;gt;&amp;lt;/br&amp;gt;'.
-          APPEND gs_text TO gt_text.
-          CLEAR: gs_text.
-
-          CONCATENATE 'This is a system generated mail.' 'Please do not reply to this.' INTO gs_text-line SEPARATED BY space.
-          APPEND gs_text TO gt_text[].
-          CLEAR: gs_text.
-
-          gs_text-line = '&amp;lt;br&amp;gt;&amp;lt;/br&amp;gt;'.
-          APPEND gs_text TO gt_text.
-          CLEAR: gs_text.
-
-          gs_text-line = '&amp;lt;/BODY&amp;gt;&amp;lt;/HTML&amp;gt;'.
-          APPEND gs_text TO gt_text[].
-          CLEAR: gs_text.
-
-          go_document = cl_document_bcs=&amp;gt;create_document(
-                            i_type    = 'HTM'
-                            i_text    = gt_text
-                            i_subject = gc_subject ).
-
-          go_send_request-&amp;gt;set_document( go_document ).
-
-
-          go_recipient = cl_cam_address_bcs=&amp;gt;create_internet_address( lv_init_mid ).
-          "Add recipient to send request
-          go_send_request-&amp;gt;add_recipient(
-            EXPORTING
-              i_recipient = go_recipient
-              i_express   = abap_true
-          ).
-
-          "Send email and get the result
-          gv_sent_to_all = go_send_request-&amp;gt;send( i_with_error_screen = abap_true ).
-          COMMIT WORK.
-        CATCH cx_bcs INTO gx_bcs_exception.
-          gv_error_message = gx_bcs_exception-&amp;gt;get_text( ).
-          WRITE gv_error_message.
-      ENDTRY.
-
-    else.
-      DATA: lv_user TYPE bapibname-bapibname.
-      DATA: ls_address TYPE bapiaddr3.
-      DATA: lt_return TYPE TABLE OF bapiret2.
-
-      lv_user = lv_actual_agent+2(12).
-
-            CALL FUNCTION 'BAPI_USER_GET_DETAIL'
-              EXPORTING
-                username = lv_user
-              IMPORTING
-                address  = ls_address
-              TABLES
-                return   = lt_return[].
-
-           CALL FUNCTION 'SAP_WAPI_READ_CONTAINER'
-            EXPORTING
-              workitem_id              = lv_workitem_id
-              language                 = sy-langu
-              user                     = sy-uname
-            IMPORTING
-              return_code              = return_code
-              ifs_xml_container        = ifs_xml_container
-              ifs_xml_container_schema = ifs_xml_container_schema
-            TABLES
-              simple_container         = simple_container
-              message_lines            = message_lines
-              message_struct           = message_struct
-              subcontainer_bor_objects = subcontainer_bor_objects
-              subcontainer_all_objects = subcontainer_all_objects.
-*      &amp;amp;-----------------------------------------------------------------------------*
-*       Initialize
-*      &amp;amp;-----------------------------------------------------------------------------*
-          lv_no_att = 0.
-*      &amp;amp;-----------------------------------------------------------------------------*
-*       Read the _ATTACH_OBJECTS element
-*      &amp;amp;-----------------------------------------------------------------------------*
-          LOOP AT subcontainer_all_objects INTO lv_wa_reason
-                                           WHERE element = 'DECISION_NOTE'."'_ATTACH_OBJECTS'.
-            lv_no_att = lv_no_att + 1.
-            document_id = lv_wa_reason-value.
-          ENDLOOP.
-*      &amp;amp;-----------------------------------------------------------------------------*
-*       Read the SOFM Document
-*      &amp;amp;-----------------------------------------------------------------------------*
-          IF document_id IS NOT INITIAL.
-            REFRESH : object_content.
-            CALL FUNCTION 'SO_DOCUMENT_READ_API1'
-              EXPORTING
-                document_id                = document_id
-*               FILTER                     = 'X '
-*       IMPORTING
-*               DOCUMENT_DATA              =
-              TABLES
-*               OBJECT_HEADER              =
-                object_content             = object_content
-*               OBJECT_PARA                =
-*               OBJECT_PARB                =
-*               ATTACHMENT_LIST            =
-*               RECEIVER_LIST              =
-*               CONTENTS_HEX               =
-              EXCEPTIONS
-                document_id_not_exist      = 1
-                operation_no_authorization = 2
-                x_error                    = 3
-                OTHERS                     = 4.
-            IF sy-subrc EQ 0.
-              CLEAR : l_lines.
-              DESCRIBE TABLE object_content LINES l_lines.
-              IF l_lines LT 5.
-                READ TABLE object_content INTO reason_txt INDEX 1.
-                IF sy-subrc EQ 0.
-                  e_reason =  reason_txt.
-                ENDIF.
-              ENDIF.
-            ENDIF.
-          ENDIF.
-
-            TRY.
-                "Create send request
-                go_send_request = cl_bcs=&amp;gt;create_persistent( ).
-                "Email FROM...
-                go_sender = cl_sapuser_bcs=&amp;gt;create( 'SAP_WFRT' ).
-                "Add sender to send request
-                go_send_request-&amp;gt;set_sender( i_sender = go_sender ).
-
-                CONCATENATE 'Recurring Entry Rejected:' lv_comp_code lv_belnr lv_gjahr INTO gc_subject SEPARATED BY space.
-
-                gs_text-line = '&amp;lt;HTML&amp;gt;&amp;lt;BODY&amp;gt;'.
-                APPEND gs_text TO gt_text[].
-                CLEAR: gs_text.
-
-                CONCATENATE 'Dear' lv_init_name ',' INTO gs_text-ine SEPARATED BY space.
-                APPEND gs_text TO gt_text.
-                CLEAR: gs_text.
-
-                gs_text-line = '&amp;lt;br&amp;gt;&amp;lt;/br&amp;gt;'.
-                APPEND gs_text TO gt_text.
-                CLEAR: gs_text.
-
-                CONCATENATE 'Journal Entry' lv_belnr lv_comp_code lv_gjahr 'has been rejeted by.' ls_address-fullname INTO gs_text-line SEPARATED BY space.
-                APPEND gs_text TO gt_text[].
-                CLEAR: gs_text.
-
-                gs_text-line = '&amp;lt;br&amp;gt;&amp;lt;/br&amp;gt;'.
-                APPEND gs_text TO gt_text.
-                CLEAR: gs_text.
-
-                CONCATENATE 'Rejection Reason:' e_reason INTO gs_text-line SEPARATED BY space.
-                APPEND gs_text TO gt_text[].
-                CLEAR: gs_text.
-
-                gs_text-line = '&amp;lt;br&amp;gt;&amp;lt;/br&amp;gt;'.
-                APPEND gs_text TO gt_text.
-                CLEAR: gs_text.
-
-                CONCATENATE 'This is a system generated mail.' 'Please do not reply to this.' INTO gs_text-line SEPARATED BY space.
-                APPEND gs_text TO gt_text[].
-                CLEAR: gs_text.
-
-                gs_text-line = '&amp;lt;br&amp;gt;&amp;lt;/br&amp;gt;'.
-                APPEND gs_text TO gt_text.
-                CLEAR: gs_text.
-
-                gs_text-line = '&amp;lt;/BODY&amp;gt;&amp;lt;/HTML&amp;gt;'.
-                APPEND gs_text TO gt_text[].
-                CLEAR: gs_text.
-
-                go_document = cl_document_bcs=&amp;gt;create_document(
-                                  i_type    = 'HTM'
-                                  i_text    = gt_text
-*                          i_length  = '12'
-                                  i_subject = gc_subject ).
-
-                go_send_request-&amp;gt;set_document( go_document ).
-                go_recipient = cl_cam_address_bcs=&amp;gt;create_internet_address( lv_init_mid ).
-                "Add recipient to send request
-                go_send_request-&amp;gt;add_recipient(
-                  EXPORTING
-                    i_recipient = go_recipient
-                    i_express   = abap_true
-                ).
-                "Send email and get the result
-                gv_sent_to_all = go_send_request-&amp;gt;send( i_with_error_screen = abap_true ).
-                COMMIT WORK.
-              CATCH cx_bcs INTO gx_bcs_exception.
-                gv_error_message = gx_bcs_exception-&amp;gt;get_text( ).
-                WRITE gv_error_message.
-            ENDTRY.
-    endif.
-  endmethod.​&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;NOTE: Notification sent upon Complete Approval or upon Rejection in any one level is incorporated in the same method.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Thus, the class and methods required for the workflow operation has been completed successfully.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step – 4: &lt;/STRONG&gt;Now we need to trigger the Workflow once the Recurring Document is created in FBD1. For which we need to find the suitable BTE (For finding the BTE, refer the process mentioned in Step-2). The BTE for this requirement is &lt;STRONG&gt;“SAMPLE_INTERFACE_00001030”.&lt;BR /&gt;Copy this FM in SE37 to a custom one and write the below code.&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;IF sy-tcode = 'FBD1' OR sy-tcode = 'FBD9' .                 "Recurring Journal Entry Workflow Event Trigger
-
-DATA: lv_objtype          TYPE sibftypeid,
-      lv_event            TYPE sibfevent,
-      lv_objkey           TYPE sibfinstid,
-      lr_event_parameters TYPE REF TO if_swf_ifs_parameter_container,
-      lv_param_name       TYPE swfdname,
-      ls_recjour_input    TYPE zfi_st_recjour_entry.
-
-CONSTANTS: lc_objtype    TYPE sibftypeid VALUE 'ZCL_FI_9000_RECURRING_WF',
-           lc_event      TYPE sibfevent VALUE 'CREATED',
-           lc_param_name TYPE swfdname VALUE 'ZST_WF_REC_JOUR'.
-
-      lv_objtype = lc_objtype.
-      lv_event   = lc_event.
-      lv_param_name = lc_param_name.
-
-      ls_recjour_input-wa_bkdf = i_bkdf.
-      ls_recjour_input-wa_bkpf = t_bkpf.
-      ls_recjour_input-wa_bsec = t_bsec.
-      ls_recjour_input-wa_bsed = t_bsed.
-      ls_recjour_input-wa_bseg = t_bseg.
-      ls_recjour_input-wa_bset = t_bset.
-      ls_recjour_input-tcode =  sy-tcode .
-
-      concatenate ls_recjour_input-wa_bkpf-belnr ls_recjour_input-wa_bkpf-bukrs ls_recjour_input-wa_bkpf-gjahr into lv_objkey.
-
-      CALL METHOD cl_swf_evt_event=&amp;gt;get_event_container
-        EXPORTING
-          im_objcateg  = cl_swf_evt_event=&amp;gt;mc_objcateg_cl
-          im_objtype   = lv_objtype
-          im_event     = lv_event
-        RECEIVING
-          re_reference = lr_event_parameters.
-
-      TRY.
-          CALL METHOD lr_event_parameters-&amp;gt;set
-            EXPORTING
-              name  = lv_param_name
-              value = ls_recjour_input.
-
-        CATCH cx_swf_cnt_cont_access_denied .
-        CATCH cx_swf_cnt_elem_access_denied .
-        CATCH cx_swf_cnt_elem_not_found .
-        CATCH cx_swf_cnt_elem_type_conflict .
-        CATCH cx_swf_cnt_unit_type_conflict .
-        CATCH cx_swf_cnt_elem_def_invalid .
-        CATCH cx_swf_cnt_container .
-     ENDTRY.
-
-       TRY.
-          CALL METHOD cl_swf_evt_event=&amp;gt;raise
-            EXPORTING
-              im_objcateg        = cl_swf_evt_event=&amp;gt;mc_objcateg_cl
-              im_objtype         = lv_objtype
-              im_event           = lv_event
-              im_objkey          = lv_objkey
-              im_event_container = lr_event_parameters.
-          COMMIT WORK.
-        CATCH cx_swf_evt_invalid_objtype .
-        CATCH cx_swf_evt_invalid_event .
-      ENDTRY.
-
-      IF sy-subrc &amp;lt;&amp;gt; 0.
-*        WRITE: 'Error occurred while triggering workflow event.' ##NO_TEXT.
-      ENDIF.
-   ENDIF.
-   ENDIF.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;STEP – 5: &lt;/STRONG&gt;Now we need to create tasks in PFTC, for the methods that were created in STEP-3. This is a very normal procedure of creating the tasks that are to be consumed by the activity in the Workflow Template.&lt;/P&gt;&lt;P&gt;NOTE: For the User Decision Step, take a copy of the standard decision step (TS00008267) and do the necessary modifications and perform agent assignment. Once done, capture the Agent Assignment in a &lt;STRONG&gt;Customizing TR&lt;/STRONG&gt; by running the report&amp;nbsp;&lt;STRONG&gt;RHMOVE30 &lt;/STRONG&gt;in&lt;STRONG&gt; SE38.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;STRONG&gt;STEP – 6: &lt;/STRONG&gt;I had created Flexible Workflow for this requirement. Open the transaction “SWDD_SCENARIO”. Create the Workflow containers with reference to all the event and the method parameters in the Custom Class created in STEP-3.&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;In the &lt;STRONG&gt;Process Data&lt;/STRONG&gt; Tab, provide the class name and the associated event. Do the necessary event binding and activate the event as shown below.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_13-1771764974653.png" style="width: 553px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375129i02665620830D9D2A/image-dimensions/553x123?v=v2" width="553" height="123" role="button" title="ShravanBalaji16897_13-1771764974653.png" alt="ShravanBalaji16897_13-1771764974653.png" /&gt;&lt;/span&gt;&lt;BR /&gt;NOTE: Caputre the Event Activation in the same customizing TR as mentioned in STEP - 5.&lt;/LI&gt;&lt;LI&gt;In the &lt;STRONG&gt;Activities&lt;/STRONG&gt; Tab, create the activities for the tasks that were created in STEP-5. Include the User Decision Activity, in the list of activities.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_14-1771765100311.png" style="width: 548px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375130i23CD7AC9A8C4A849/image-dimensions/548x84?v=v2" width="548" height="84" role="button" title="ShravanBalaji16897_14-1771765100311.png" alt="ShravanBalaji16897_14-1771765100311.png" /&gt;&lt;/span&gt;&lt;BR /&gt;NOTE: &lt;STRONG&gt;“DISPLAY_TCODE”&lt;/STRONG&gt;&lt;SPAN&gt; is an activity which we have created for accessing the T-Code “FBD1”.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;SPAN&gt;In the &lt;STRONG&gt;Conditions&lt;/STRONG&gt; Tab, we have created one condition. This condition is for stopping the Workflow upon completion of all the agents.&lt;BR /&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_15-1771765225148.png" style="width: 565px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375131iE1E9745255004318/image-dimensions/565x98?v=v2" width="565" height="98" role="button" title="ShravanBalaji16897_15-1771765225148.png" alt="ShravanBalaji16897_15-1771765225148.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;When we create Flexible Workflow, we must create a customized Runtime Class. This Runtime Class helps us to utilize &lt;STRONG&gt;“Instance Methods” &lt;/STRONG&gt;upon available events. We need to create a Subclass of the standard Runtime Class “CL_SWF_FLEX_IFS_RUN_APPL_BASE”. Then we can redefine the methods necessary for our purpose. There would be several standard methods which would be useful for several scenarios.&lt;BR /&gt;&lt;STRONG&gt;NOTE: For our process, we can redefine below methods, as shown below.&lt;/STRONG&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_16-1771765657479.png" style="width: 561px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375132iC185E849560D1162/image-dimensions/561x31?v=v2" width="561" height="31" role="button" title="ShravanBalaji16897_16-1771765657479.png" alt="ShravanBalaji16897_16-1771765657479.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;STRONG&gt;NOTE: First method would get triggered just before the Workflow is about to complete. Second method would trigger upon completion of each activity. Use TaskId as filter, such that procedure only for suitable tasks would run.&lt;/STRONG&gt;&lt;BR /&gt;&lt;P&gt;&lt;STRONG&gt;Inside the Result Callback method, utilize the mail notification methods created in STEP-3.&lt;/STRONG&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Activate the Workflow. Since we are implementing Flexible Workflow, we need to activate the scenario. Follow the path mentioned below.&lt;BR /&gt;&lt;STRONG&gt;SPRO -&amp;gt; ABAP Platform -&amp;gt; Application Server -&amp;gt; Business Management -&amp;gt; SAP Business Workflow -&amp;gt; Flexible Workflow -&amp;gt; Scenario Activation.&amp;nbsp;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_20-1771766124016.png" style="width: 572px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375137iAAFEB1B5DA48DBBD/image-dimensions/572x156?v=v2" width="572" height="156" role="button" title="ShravanBalaji16897_20-1771766124016.png" alt="ShravanBalaji16897_20-1771766124016.png" /&gt;&lt;/span&gt;&lt;P&gt;&lt;STRONG&gt;NOTE: Provide the Custom Workflow Number and activate the scenario. You can capture this in TR &amp;amp; transport to further landscape.&lt;/STRONG&gt;&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Now we need to Login to the FIORI launchpad. As Pre-requisites implement &lt;STRONG&gt;“Manage Workflows”&lt;/STRONG&gt; &amp;amp; &lt;STRONG&gt;“Manage Workflow Scenarios”&lt;/STRONG&gt; applications.&lt;BR /&gt;&lt;STRONG&gt;NOTE: In the &lt;STRONG&gt;“Manage Workflows”&lt;/STRONG&gt; application create the Workflow, along with the sequence of the steps in which the workflow must be executed.&lt;BR /&gt;&lt;/STRONG&gt;&lt;STRONG&gt;Manage Workflow Header:&lt;/STRONG&gt;&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_17-1771765885024.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375134i2D0C34AAB67AAD5A/image-size/medium?v=v2&amp;amp;px=400" role="button" title="ShravanBalaji16897_17-1771765885024.png" alt="ShravanBalaji16897_17-1771765885024.png" /&gt;&lt;/span&gt;&lt;P&gt;&lt;STRONG&gt;Execution Steps:&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_18-1771765927203.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375135iE24283FA6449BA2A/image-size/medium?v=v2&amp;amp;px=400" role="button" title="ShravanBalaji16897_18-1771765927203.png" alt="ShravanBalaji16897_18-1771765927203.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;P&gt;Here the maximum level is 4. However, if we keep the maximum approver level less than 4 also, the Workflow will stop at the designated maximum level.&amp;nbsp;This is based the Step-Condition indicated as &lt;STRONG&gt;Final Level&lt;/STRONG&gt; in the above screenshot.&lt;/P&gt;&lt;P&gt;Once created, open the &lt;STRONG&gt;“Manage Workflow Scenarios”&lt;/STRONG&gt; application and export the scenario. This will get downloaded as a XML file in the system.&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ShravanBalaji16897_19-1771765966849.png" style="width: 584px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375136i00B211BF14634CCB/image-dimensions/584x130?v=v2" width="584" height="130" role="button" title="ShravanBalaji16897_19-1771765966849.png" alt="ShravanBalaji16897_19-1771765966849.png" /&gt;&lt;/span&gt;&lt;/LI&gt;&lt;LI&gt;Move the Customizing TR and import the downloaded XML file into the testing landscape and to further landscapes.&lt;/LI&gt;&lt;LI&gt;Upon Complete approval of the workflow, the&amp;nbsp;&lt;STRONG&gt;“BLOCKED_FOR_POSTING” &amp;amp; “XDELT (Deletion_Indicator) &lt;/STRONG&gt;fields would be reset. This makes the document eligible for further posting through Perioidic Job Scheduling in &lt;STRONG&gt;F.14&lt;/STRONG&gt; Transaction.&lt;/LI&gt;&lt;LI&gt;Incase if the approver rejects the document, he can provide the &lt;STRONG&gt;Reason for Rejection.&lt;/STRONG&gt;&amp;nbsp;This will be sent along with the &lt;STRONG&gt;Rejection Notification&lt;/STRONG&gt; to the &lt;STRONG&gt;Initiator of the Workflow&lt;/STRONG&gt; (i.e &lt;STRONG&gt;Recurring Entry Document Creator&lt;/STRONG&gt;).&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;The Document Creator can modify according to the Rejection Comments and save the document. The Workflow would get triggered again for another approval cycle.&lt;BR /&gt;&lt;STRONG&gt;NOTE: &lt;/STRONG&gt;&lt;STRONG&gt;I had designed the solution such that the document cannot be edited, unless it is fully approved / rejected. This is an optional solution to be incorporated.&amp;nbsp;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&amp;nbsp;&lt;STRONG&gt;Conclusion:&lt;BR /&gt;&lt;/STRONG&gt;Recurring entries simplify financial operations, but without governance, they can introduce compliance risks. By integrating FBD1 with an approval workflow, organizations can achieve the right balance between automation and financial control, ensuring accuracy, transparency, and audit readiness.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-blog-posts/recurring-entry-approval-workflow-in-sap-s-4hana-fbd1-fbd2-fbd9/ba-p/14333536"/>
-    <published>2026-02-24T08:51:32.650000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/integration-blog-posts/sap-ci-to-abap-integration-seamless-xml-to-internal-table-mapping/ba-p/14334691</id>
-    <title>SAP CI to ABAP Integration: Seamless XML to Internal Table Mapping</title>
-    <updated>2026-02-26T08:33:51.852000+01:00</updated>
-    <author>
-      <name>Ravi_Bharti08</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/791742</uri>
-    </author>
-    <content>&lt;P&gt;In many SAP CI integrations, XML responses are received from external systems and passed to the ABAP layer. A common requirement is to convert this XML data into an internal table in ABAP.&lt;/P&gt;&lt;P&gt;There are two common approaches:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Use XSLT mapping in SAP Backend (SAP ECC/S4HANA) to transform the XML into the required structure. ( You can follow blog &lt;A href="https://community.sap.com/t5/application-development-and-automation-blog-posts/xslt-transformations-xml-2-abap-a-working-example-with-deep-structures/ba-p/13370654" target="_blank"&gt;https://community.sap.com/t5/application-development-and-automation-blog-posts/xslt-transformations-xml-2-abap-a-working-example-with-deep-structures/ba-p/13370654&lt;/A&gt; )&lt;/LI&gt;&lt;LI&gt;Prepare the XML in SAP CI in ABAP XML format so that it can be directly converted into an internal table using ABAP transformation.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;This blog explains the second and simpler approach.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Why Use ABAP XML Format?&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;If the XML follows the ABAP XML structure with the required tags:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&amp;lt;abap version="1.0"&amp;gt;&lt;/LI&gt;&lt;LI&gt;&amp;lt;values&amp;gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Then ABAP can directly deserialize the XML into an internal table using:&lt;/P&gt;&lt;P&gt;CALL TRANSFORMATION id&lt;/P&gt;&lt;P&gt;This avoids complex XSLT mappings and simplifies the integration.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Sample XML That Can Be Directly Converted&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Below is a sample XML payload prepared in SAP CI that can be directly converted into an internal table in ABAP:&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;?xml version="1.0" encoding="UTF-8"?&amp;gt;
-&amp;lt;abap version="1.0"&amp;gt;
-    &amp;lt;values&amp;gt;
-        &amp;lt;OUTPUT&amp;gt;
-            &amp;lt;ZCON_PAC_LOCATION&amp;gt;
-                &amp;lt;LOCATIONCODE&amp;gt;US&amp;lt;/LOCATIONCODE&amp;gt;
-                &amp;lt;PXCREATEDATETIME&amp;gt;2010-01-29 15:44:01&amp;lt;/PXCREATEDATETIME&amp;gt;
-                &amp;lt;PXCREATEOPNAME&amp;gt;Fname Lname&amp;lt;/PXCREATEOPNAME&amp;gt;
-                &amp;lt;PXCREATEOPERATOR&amp;gt;test@mail.com&amp;lt;/PXCREATEOPERATOR&amp;gt;
-            &amp;lt;/ZCON_PAC_LOCATION&amp;gt;
-        &amp;lt;/OUTPUT&amp;gt;
-    &amp;lt;/values&amp;gt;
-&amp;lt;/abap&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Important: The tags &amp;lt;abap version="1.0"&amp;gt; and &amp;lt;values&amp;gt; are mandatory for ABAP deserialization using the ID transformation.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Generating the XSD&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The simplest way to generate the XSD is:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Create an RFC-enabled function module with the required ABAP structure.&lt;/LI&gt;&lt;LI&gt;Access the WSDL using: &lt;A target="_blank" rel="noopener"&gt;http://&amp;lt;host&amp;gt;:&amp;lt;port&amp;gt;/sap/bc/soap/wsdl11?services=&amp;lt;RFC_Name&amp;gt;&amp;amp;sap-client=&amp;lt;client&amp;gt;&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;Copy the relevant schema portion from the WSDL.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;Sample XSD&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;?xml version="1.0" encoding="UTF-8"?&amp;gt;
-&amp;lt;xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
-           xmlns:asx="http://www.sap.com/abapxml"
-           xmlns:sap="http://www.sap.com/sapxsl"
-           elementFormDefault="qualified"
-           attributeFormDefault="unqualified"&amp;gt;
-
-    &amp;lt;xs:element name="abap" type="AbapType"/&amp;gt;
-
-    &amp;lt;xs:complexType name="AbapType"&amp;gt;
-        &amp;lt;xs:sequence&amp;gt;
-            &amp;lt;xs:element name="values" type="ValuesType"/&amp;gt;
-        &amp;lt;/xs:sequence&amp;gt;
-        &amp;lt;xs:attribute name="version" type="xs:string" use="required"/&amp;gt;
-    &amp;lt;/xs:complexType&amp;gt;
-
-    &amp;lt;xs:complexType name="ValuesType"&amp;gt;
-        &amp;lt;xs:sequence&amp;gt;
-            &amp;lt;xs:element name="OUTPUT" type="OutputType"/&amp;gt;
-        &amp;lt;/xs:sequence&amp;gt;
-    &amp;lt;/xs:complexType&amp;gt;
-
-    &amp;lt;xs:complexType name="OutputType"&amp;gt;
-        &amp;lt;xs:sequence&amp;gt;
-            &amp;lt;xs:element name="ZCN_PAC_LOCATION"
-                        type="PacLocation"
-                        minOccurs="0"
-                        maxOccurs="unbounded"/&amp;gt;
-        &amp;lt;/xs:sequence&amp;gt;
-    &amp;lt;/xs:complexType&amp;gt;
-
-    &amp;lt;xs:complexType name="PacLocation"&amp;gt;
-        &amp;lt;xs:sequence&amp;gt;
-            &amp;lt;xs:element name="LOCATIONCODE" type="xs:string" minOccurs="0"/&amp;gt;
-            &amp;lt;xs:element name="PXCREATEDATETIME" type="xs:string" minOccurs="0"/&amp;gt;
-            &amp;lt;xs:element name="PXCREATEOPNAME" type="xs:string" minOccurs="0"/&amp;gt;
-            &amp;lt;xs:element name="PXCREATEOPERATOR" type="xs:string" minOccurs="0"/&amp;gt;
-        &amp;lt;/xs:sequence&amp;gt;
-    &amp;lt;/xs:complexType&amp;gt;
-&amp;lt;/xs:schema&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;SAP CI Mapping:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="CPIMapping.png" style="width: 624px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/375851i80843CF42EF4D972/image-size/large?v=v2&amp;amp;px=999" role="button" title="CPIMapping.png" alt="CPIMapping.png" /&gt;&lt;/span&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In SAP CI, map the response so that:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The root node is abap with attribute version="1.0".&lt;/LI&gt;&lt;LI&gt;Under it, include values.&lt;/LI&gt;&lt;LI&gt;Under values, include your wrapper node such as OUTPUT.&lt;/LI&gt;&lt;LI&gt;Inside the wrapper, repeat the structure node for each record.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Once structured correctly, no additional transformation is required in ABAP.&lt;/P&gt;&lt;P&gt;ABAP code :&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;"Data Declarations
-DATA: lo_http_client TYPE REF TO if_http_client,
-      lv_request     TYPE xstring,
-      lv_response    TYPE xstring.
-"Convert Internal Table to XML (Request to CPI)
-CALL TRANSFORMATION id
-  SOURCE pac_project_department_request = lt_request[]
-  RESULT XML lv_request.
-
-"Create HTTP Client
-cl_http_client=&amp;gt;create_by_destination(
-    EXPORTING
-        destination              = 'DestinationName'
-    IMPORTING
-        client                   = lo_http_client
-    EXCEPTIONS
-        argument_not_found       = 1
-        destination_not_found    = 2
-        destination_no_authority = 3
-        plugin_not_active        = 4
-        internal_error           = 5
-        OTHERS                   = 6 ).
-
-IF sy-subrc &amp;lt;&amp;gt; 0.
-"Suitable error handling
-ENDIF.
-"Disable logon popup:
-lo_http_client-&amp;gt;propertytype_logon_popup = lo_http_client-&amp;gt;co_disabled.
-"Send HTTP Request
-lo_http_client-&amp;gt;request-&amp;gt;set_method( 'POST' ).
-"Set xml request body
-lo_http_client-&amp;gt;request-&amp;gt;set_data( data = lv_request ).
-lo_http_client-&amp;gt;send(
-    EXCEPTIONS
-        http_communication_failure = 1
-        http_invalid_state         = 2
-        http_processing_failed     = 3
-        http_invalid_timeout       = 4
-        OTHERS                     = 5 ).
-
-IF sy-subrc = 0.
-    lo_http_client-&amp;gt;receive(
-        EXCEPTIONS
-            http_communication_failure = 1
-            http_invalid_state         = 2
-            http_processing_failed     = 3
-            OTHERS                     = 5 ).
-ENDIF.
-lo_http_client-&amp;gt;close( ).
-lv_response = lo_http_client-&amp;gt;response-&amp;gt;get_data( ).
-"Convert XML Response to Internal Table
-CALL TRANSFORMATION id
-  SOURCE XML lv_response
-  RESULT output = et_pac_departments.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;ABAP Dictionary Objects&lt;/STRONG&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;Internal table: ET_PAC_DEPARTMENTS&lt;/LI&gt;&lt;LI&gt;Table type: ZCON_PAC_DEPARTMENT_TY&lt;/LI&gt;&lt;LI&gt;Line type: ZCON_PAC_DEPARTMENT&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The internal table ET_PAC_DEPARTMENTS is defined with table type ZCON_PAC_DEPARTMENT_TY.&lt;/P&gt;&lt;P&gt;The table type ZCON_PAC_DEPARTMENT_TY refers to the line structure ZCON_PAC_DEPARTMENT.&lt;/P&gt;&lt;P&gt;The structure ZCON_PAC_DEPARTMENT contains the following fields:&lt;/P&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;LOCATIONCODE (TYPE string)&lt;/LI&gt;&lt;LI&gt;PXCREATEDATETIME (TYPE string)&lt;/LI&gt;&lt;LI&gt;PXCREATEOPNAME (TYPE string)&lt;/LI&gt;&lt;LI&gt;PXCREATEOPERATOR (TYPE string)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Since the XML structure matches the ABAP structure exactly, the CALL TRANSFORMATION id statement automatically deserializes the XML and populates the internal table.&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;By preparing the XML payload in SAP CI using ABAP XML format with the correct structure and mandatory tags, we can directly convert the XML into an internal table in ABAP using CALL TRANSFORMATION id.&lt;/P&gt;&lt;P&gt;This approach simplifies SAP CI integration scenarios and reduces transformation complexity significantly.&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;</content>
-    <link href="https://community.sap.com/t5/integration-blog-posts/sap-ci-to-abap-integration-seamless-xml-to-internal-table-mapping/ba-p/14334691"/>
-    <published>2026-02-26T08:33:51.852000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/abap-blog-posts/why-select-returns-different-rows-when-querying-a-cds-view-on-mseg-versus/ba-p/14337664</id>
     <title>Why SELECT returns different rows when querying a CDS View on MSEG versus MSEG directly</title>
@@ -1257,5 +609,109 @@ ENDTRY.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Note :&amp;nbsp; In S4 HANA 2022 FPS01&
     <content>&lt;H2 id="toc-hId-1788748731"&gt;Introduction&lt;/H2&gt;&lt;P&gt;SAP consultants can no longer focus on one tool. Projects now demand broader technical ownership. Clients expect speed, clarity, and stable systems. This requires strong core skills and smart choices.&lt;/P&gt;&lt;H2 id="toc-hId-1592235226"&gt;1. Strong S/4HANA Technical Foundation&lt;/H2&gt;&lt;P&gt;Deep S/4HANA knowledge is mandatory. This includes data model changes and CDS views. Understand embedded analytics and Fiori architecture. Know where custom code still makes sense.&lt;/P&gt;&lt;H2 id="toc-hId-1395721721"&gt;2. Clean Core Understanding&lt;/H2&gt;&lt;P&gt;Clean core is no longer optional. Custom code must be reduced and controlled. Know what belongs in S/4HANA. Know what belongs outside the core. Follow SAP guidance, not shortcuts. Shortcuts always create future issues.&lt;/P&gt;&lt;H2 id="toc-hId-1199208216"&gt;3. SAP BTP Hands-on Experience&lt;/H2&gt;&lt;P&gt;SAP BTP skills are critical in 2026. Extensions move away from the core system. Know CAP, RAP, and side-by-side patterns. Understand event-driven and API-based designs. You must build, not just explain.&lt;/P&gt;&lt;H2 id="toc-hId-1002694711"&gt;4. Integration Knowledge&lt;/H2&gt;&lt;P&gt;Most SAP systems do not work alone. Integration skills are now core skills. Understand SAP Integration Suite basics. Know IDocs, APIs, and event messaging. Debugging integration issues is a daily task.&lt;/P&gt;&lt;H2 id="toc-hId-806181206"&gt;5. ABAP Skills That Still Matter&lt;/H2&gt;&lt;P&gt;ABAP is not dead. Bad ABAP is. Know modern ABAP syntax. Avoid outdated patterns and heavy reports. Write clean, readable, testable code.&lt;/P&gt;&lt;H2 id="toc-hId-609667701"&gt;6. Fiori and UX Awareness&lt;/H2&gt;&lt;P&gt;Users judge systems by screens. Fiori is no longer optional. Understand standard apps before custom ones. Avoid rebuilding what SAP already provides. Simple UX reduces training and errors.&lt;/P&gt;&lt;H2 id="toc-hId-413154196"&gt;7. Security and Authorizations&lt;/H2&gt;&lt;P&gt;Security issues stop projects instantly. Technical consultants must understand roles. Know basic authorization objects. Understand transport and access risks. Never treat security as an afterthought.&lt;/P&gt;&lt;H2 id="toc-hId-216640691"&gt;8. Automation and Tools&lt;/H2&gt;&lt;P&gt;Manual work does not scale. Automation saves time and reduces errors. Use ATC, code inspector, and test tools. Learn basic scripting where useful. Tools make good consultants faster.&lt;/P&gt;&lt;H2 id="toc-hId-20127186"&gt;9. Communication with Non-Technical Teams&lt;/H2&gt;&lt;P&gt;Technical skill alone is not enough. You must explain problems clearly. Use simple words with business users. Avoid technical terms unless required. Clear communication builds trust quickly.&lt;/P&gt;&lt;H2 id="toc-hId-170868038"&gt;10. Learning Discipline&lt;/H2&gt;&lt;P&gt;SAP changes every year. Skills expire faster than before. Read SAP notes and blogs often. Practice in real systems, not slides.&lt;/P&gt;&lt;P&gt;Learning must be continuous and active.&lt;/P&gt;&lt;H2 id="toc-hId--25645467"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;SAP consultants in 2026 must be builders. They must also be careful decision-makers. Strong basics, clean design, and clear thinking matter most.&lt;/P&gt;&lt;P&gt;Trends change. Core skills stay.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/curitiba-blog-posts/key-skills-every-sap-consultant-needs-in-2026/ba-p/14317364"/>
     <published>2026-03-12T00:51:34.587000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/abap-blog-posts/connect-sap-bas-to-on-premise-abap-system/ba-p/14340482</id>
+    <title>Connect SAP  BAS to On-Premise ABAP System</title>
+    <updated>2026-03-12T08:26:26.716000+01:00</updated>
+    <author>
+      <name>Naayak</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/176658</uri>
+    </author>
+    <content>&lt;P&gt;&lt;STRONG&gt;Step 3:&amp;nbsp;Connect SAP Business Application Studio (BAS)to On-Premise ABAP System:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;After completing:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Cloud Connection.&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Destination creation in SAP BTP.&lt;/STRONG&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Please&amp;nbsp; Click on this Link&amp;nbsp; and Login with Your BTP Account Userid(Email) and Passward.&lt;/P&gt;&lt;P&gt;&lt;A href="https://ce40fd83trial.us10cf.trial.applicationstudio.cloud.sap/index.html" target="_blank" rel="noopener nofollow noreferrer"&gt;https://ce40fd83trial.us10cf.trial.applicationstudio.cloud.sap/index.html&lt;/A&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Nayak_B_1-1772534098248.png" style="width: 681px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/379158i74FD7D5A6CE78A8A/image-dimensions/681x344/is-moderation-mode/true?v=v2" width="681" height="344" role="button" title="Nayak_B_1-1772534098248.png" alt="Nayak_B_1-1772534098248.png" /&gt;&lt;/span&gt;Othewise go to&amp;nbsp; this link also.&lt;A href="https://cockpit.hanatrial.ondemand.com/trial/#/home/trial" target="_blank" rel="noopener nofollow noreferrer"&gt;https://cockpit.hanatrial.ondemand.com/trial/#/home/trial&lt;/A&gt;&amp;nbsp; and Click On BAS&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Nayak_B_2-1772534128751.png" style="width: 693px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/379159i6DE4C823DB78DE1D/image-dimensions/693x331?v=v2" width="693" height="331" role="button" title="Nayak_B_2-1772534128751.png" alt="Nayak_B_2-1772534128751.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Once's login BAS&amp;nbsp; We can see&amp;nbsp; &lt;STRONG&gt;Create Dev Space&lt;/STRONG&gt;&amp;nbsp; Button&amp;nbsp; and Click on&amp;nbsp; This&amp;nbsp; button and Create First Dev space.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Nayak_B_3-1772534160081.png" style="width: 687px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/379160i6E30EAB975437905/image-dimensions/687x347?v=v2" width="687" height="347" role="button" title="Nayak_B_3-1772534160081.png" alt="Nayak_B_3-1772534160081.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;You&amp;nbsp; can&amp;nbsp; give any name of Dev Space and Select&amp;nbsp; &lt;STRONG&gt;SAP Fiori&amp;nbsp; &lt;/STRONG&gt;and click &lt;STRONG&gt;Create Dev Space.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Nayak_B_4-1772534195592.png" style="width: 671px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/379161iB564E19139ED5093/image-dimensions/671x364?v=v2" width="671" height="364" role="button" title="Nayak_B_4-1772534195592.png" alt="Nayak_B_4-1772534195592.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;After That&amp;nbsp; you can&amp;nbsp; see your Dev Space.&amp;nbsp; &lt;STRONG&gt;Nayak_333&lt;/STRONG&gt; is my Dev Space Name.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Nayak_B_5-1772534236073.png" style="width: 656px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/379163i8EAAB34D00A1C9F9/image-dimensions/656x246/is-moderation-mode/true?v=v2" width="656" height="246" role="button" title="Nayak_B_5-1772534236073.png" alt="Nayak_B_5-1772534236073.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp; Once's&amp;nbsp; comes of your Dev Space&amp;nbsp; to Running Stage Please click on Your Dev Space. then we can&amp;nbsp; see BAS Tool.&lt;BR /&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Nayak_B_6-1772534273589.png" style="width: 652px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/379164i248F130BA864E3ED/image-dimensions/652x199/is-moderation-mode/true?v=v2" width="652" height="199" role="button" title="Nayak_B_6-1772534273589.png" alt="Nayak_B_6-1772534273589.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;If everything is configured correctly, you will be able to&amp;nbsp;see this above&amp;nbsp; BAS Screen.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Nayak_B_7-1772534306027.png" style="width: 635px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/379166i5302F0EAF562F27E/image-dimensions/635x335?v=v2" width="635" height="335" role="button" title="Nayak_B_7-1772534306027.png" alt="Nayak_B_7-1772534306027.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Nayak_B_8-1772534327054.png" style="width: 669px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/379167i41084BC711F1463B/image-dimensions/669x336?v=v2" width="669" height="336" role="button" title="Nayak_B_8-1772534327054.png" alt="Nayak_B_8-1772534327054.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Go to File--&amp;gt; &lt;STRONG&gt;New Project From Template&lt;/STRONG&gt;. Click On this&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Nayak_B_9-1772534355489.jpeg" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/379168iCC46CB0EA6166FFB/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Nayak_B_9-1772534355489.jpeg" alt="Nayak_B_9-1772534355489.jpeg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Select&amp;nbsp; To &lt;STRONG&gt;SAP Fiori&amp;nbsp; generator&lt;/STRONG&gt; Template.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Nayak_B_10-1772534394390.png" style="width: 609px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/379169i7804C02ACF9DC55E/image-dimensions/609x306/is-moderation-mode/true?v=v2" width="609" height="306" role="button" title="Nayak_B_10-1772534394390.png" alt="Nayak_B_10-1772534394390.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;For Testing Purpose Please&amp;nbsp; Select &lt;STRONG&gt;List Report Page&lt;/STRONG&gt;. Click On Next&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Nayak_B_11-1772534455909.png" style="width: 650px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/379170iA55749D269665B32/image-dimensions/650x325?v=v2" width="650" height="325" role="button" title="Nayak_B_11-1772534455909.png" alt="Nayak_B_11-1772534455909.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Nayak_B_12-1772534506424.png" style="width: 636px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/379171i3BE1361D7F9930AE/image-dimensions/636x315?v=v2" width="636" height="315" role="button" title="Nayak_B_12-1772534506424.png" alt="Nayak_B_12-1772534506424.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In SAP Business Application Studio (BAS), the &lt;STRONG&gt;System Name is automatically populated&lt;/STRONG&gt; from the Destination configured in SAP BTP.&lt;/P&gt;&lt;P&gt;There is &lt;STRONG&gt;no need to manually enter any system name&lt;/STRONG&gt; inside BAS.&lt;/P&gt;&lt;P&gt;For example:&lt;/P&gt;&lt;P&gt;If your Destination Name in SAP BTP is:&amp;nbsp;&lt;SPAN&gt;Nayak_Hana_System&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Then the same name:&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Nayak_Hana_System&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;will automatically appear in BAS when you select &lt;STRONG&gt;Use a Destination&lt;/STRONG&gt; during project creation.Please below Screenshot For Your Refrence.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Nayak_B_14-1772534696327.png" style="width: 608px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/379173iFED4C9448F7C3255/image-dimensions/608x251?v=v2" width="608" height="251" role="button" title="Nayak_B_14-1772534696327.png" alt="Nayak_B_14-1772534696327.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;When the same name appears automatically in BAS, it means the entire connectivity setup has been completed successfully.&lt;/P&gt;&lt;P&gt;At this stage, your:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SAP BTP ↔ Cloud Connector ↔ On-Premise ABAP System&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;integration is fully established, and you can proceed with application development.&lt;BR /&gt;&lt;BR /&gt;&amp;nbsp;Stpep 3--&amp;gt; Connect SAP BAS to On-Premise ABAP System Successfully Completed.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Please Refer below Link also:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Part 1&lt;/STRONG&gt; : &lt;STRONG&gt;How to Connect On-Premise ABAP System to SAP BTP -BAS:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;A href="https://community.sap.com/t5/abap-blog-posts/how-to-connect-on-premise-abap-system-to-sap-btp-business-application/ba-p/14340330" target="_self"&gt;https://community.sap.com/t5/abap-blog-posts/how-to-connect-on-premise-abap-system-to-sap-btp-business-application/ba-p/14340330&lt;/A&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Part 2&lt;/STRONG&gt;: &lt;STRONG&gt;SAP Cloud Connector:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;A href="https://community.sap.com/t5/abap-blog-posts/how-to-connect-sap-cloud-connector-to-sap-btp/ba-p/14340453" target="_self"&gt;https://community.sap.com/t5/abap-blog-posts/how-to-connect-sap-cloud-connector-to-sap-btp/ba-p/14340453&lt;/A&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;BR /&gt;&lt;BR /&gt;Thank You,&lt;/P&gt;&lt;P&gt;B Naresh Kumar Nayak&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/abap-blog-posts/connect-sap-bas-to-on-premise-abap-system/ba-p/14340482"/>
+    <published>2026-03-12T08:26:26.716000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/build-partner-add-on-with-ide-action/ba-p/14346989</id>
+    <title>Build Partner Add-on with IDE Action</title>
+    <updated>2026-03-12T09:36:28.552000+01:00</updated>
+    <author>
+      <name>birupakshya_sahu</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/347289</uri>
+    </author>
+    <content>&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;Disclaimer:&lt;/STRONG&gt; The namespace&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;/ITAPC3/&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;is used throughout this document as an example namespace only. Replace it with your own namespace in real implementations.&amp;nbsp;The coding style/naming conventions used in this blog are not recommendations on&amp;nbsp;naming/design&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN&gt;This blog post covers a step-by-step guide to how partners implement IDE Actions as Partner Add-ons in the&amp;nbsp;SAP BTP ABAP Environment.&amp;nbsp;This&amp;nbsp;enables SAP partners to deliver customized tools in the form of custom action in ABAP Development Tools that increase developer&amp;nbsp;productivity. By combining IDE Actions with the installable add-on&amp;nbsp;option&amp;nbsp;of the BTP ABAP Environment, partners have a potentially monetizable&amp;nbsp;option&amp;nbsp;to extend the ABAP Developer tools. It covers the key concepts and technologies –&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;how to extend ABAP Development Tools with IDE Actions and how to&amp;nbsp;leverage&amp;nbsp;the SAP Business Technology Platform ABAP Environment alongside the Landscape Portal to deliver installable add-on products.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Here we will look into a partner persona, where they&amp;nbsp;can&amp;nbsp;provide the business solution to their consumer with an&amp;nbsp;installable&amp;nbsp;add-on&amp;nbsp;by providing certain action in the&amp;nbsp;ABAP development tools, and also look into the consumer side of how they can consume the solution which caters to the needs of&amp;nbsp;their&amp;nbsp;developer using ABAP development tools (ADT).&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;H1 id="toc-hId-1662412617"&gt;&lt;STRONG&gt;Why&amp;nbsp;IDE actions and Installable add-ons?&amp;nbsp;&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;&lt;SPAN&gt;By combining IDE actions and installable add-ons, partners who have been extending software can now also extend the ABAP Development Tools (ADT).&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;The &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;IDE action&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; framework&amp;nbsp;allows&amp;nbsp;extending the ABAP development tools (ADT) with custom server-driven context-aware actions.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;IDE Actions allow partners to automate repetitive tasks, such as creating specialized development objects, enhancing code analysis, or&amp;nbsp;automating some code generation&amp;nbsp;within ABAP Development Tools (ADT) for Eclipse.&amp;nbsp;The implementation is&amp;nbsp;completely server-driven using ABAP only.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;You can also use these custom functionalities&amp;nbsp;with&amp;nbsp;AI integration&amp;nbsp;and&amp;nbsp;XCO libraries.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Installable add-ons&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;are a set of software components bundled together as an add-on by a partner with the intent&amp;nbsp;of providing&amp;nbsp;a solution&amp;nbsp;to their customers.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;The &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Landscape Portal&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; acts as a central tool to allow service providers to perform administration tasks such as hibernating systems, creating test tenants and support users, selecting systems for a pre-upgrade, but also lifecycle management operations such as building, deploying and updating product versions, and even guides you through the configuration and deployment of multitenant SaaS solutions.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-1594981831"&gt;&lt;STRONG&gt;&amp;nbsp;Business scenario:&amp;nbsp;&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;The developer can document&amp;nbsp;development objects in the Knowledge Transfer Document Editor using Markdown syntax. Here partner is offering a translation&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;action with&amp;nbsp;the help of IDE Action as Add-on for the Knowledge Transfer Document and can use the ABAP AI SDK powered by Intelligent Scenario Lifecycle Management (ISLM) to translate the Markdown syntax and display the output of translated Knowledge Transfer Document.&amp;nbsp;Consume&lt;/SPAN&gt;&lt;SPAN&gt;r&amp;nbsp;(The partner's customer)&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;can consume this solution from the partner through&amp;nbsp;landscape portal as&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;Installable&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;add-on and can use customized action in&amp;nbsp;ABAP Development Tools&amp;nbsp;for their&amp;nbsp;development scenario.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="birupakshya_sahu_0-1773301718243.png" style="width: 736px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/382432i22D199275484BF07/image-dimensions/736x351/is-moderation-mode/true?v=v2" width="736" height="351" role="button" title="birupakshya_sahu_0-1773301718243.png" alt="birupakshya_sahu_0-1773301718243.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1398468326"&gt;&lt;STRONG&gt;Prerequisites:&amp;nbsp;(Partner)&amp;nbsp;&lt;/STRONG&gt;&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;You’ve&amp;nbsp;purchased&amp;nbsp;entitlements that are necessary for the account setup. See &lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/BTP/65de2977205c403bbc107264b8eccf4b/3bf575a3dc5043f895f8bd411d2a86a1.html?locale=en-US&amp;amp;version=Cloud#loio4338854e3133407abb47d3a281dbd1e1" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Prepare&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;You’ve&amp;nbsp;registered a namespace at SAP, for example /NAMESPC/. See &lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/landscape-portal/maintain-namespaces" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Register a Namespace&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;You’ve&amp;nbsp;registered your add-on at SAP, for example /NAMESPC/PRODUCTX. See &lt;/SPAN&gt;&lt;SPAN&gt;Register a Product&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;You are subscribed to the Landscape Portal&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;You have a user with the Landscape Portal Admin role collection assigned&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Install ABAP development tools for Eclipse (ADT) on your computer. If you already have ADT, make sure&amp;nbsp;it's&amp;nbsp;updated to the latest version. For more information, see &lt;/SPAN&gt;&lt;A href="https://developers.sap.com/tutorials/abap-install-adt..html" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;ABAP Development Tools&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;You need to have access to an&amp;nbsp;SAP BTP ABAP&amp;nbsp;Environment&amp;nbsp;Instance&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Business&amp;nbsp;Catalog&amp;nbsp;SAP_A4C_BC_DEV_AIA_PC&amp;nbsp;required&amp;nbsp;for creating and editing IDE actions&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-1201954821"&gt;&lt;STRONG&gt;&amp;nbsp;Prerequisites:&amp;nbsp;(Consumer)&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;The Landscape Portal Application has been subscribed&amp;nbsp;to&amp;nbsp;and your user has the landscape portal admin role collection assigned&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Install ABAP development tools for Eclipse (ADT) on your computer. If you already have ADT, make sure&amp;nbsp;it's&amp;nbsp;updated to the latest version. For more information,&amp;nbsp;see &lt;/SPAN&gt;&lt;A href="https://developers.sap.com/tutorials/abap-install-adt..html" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;ABAP Development Tools&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-876358597"&gt;&lt;STRONG&gt;&amp;nbsp;Steps to Implement as a Partner&amp;nbsp;&lt;/STRONG&gt;&lt;/H1&gt;&lt;H2 id="toc-hId-808927811"&gt;&lt;STRONG&gt;1. Create Software Components&amp;nbsp;&lt;/STRONG&gt;&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;To open the&amp;nbsp;"Manage Software Components"&amp;nbsp;application, log in to your SAP BTP ABAP Environment Fiori Launchpad&amp;nbsp;as an administrator and Search for "Manage Software Components" in the search bar.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;use the “Create” button in the “Manage Software Components” app to open the dialog and fill in the information. We enter the name of the software&amp;nbsp;component&amp;nbsp;and a description.&amp;nbsp;In the namespace dropdown you can use your reserved&amp;nbsp;namespace. (Disclaimer: /ITAPC3/ being an example namespace used in this blog)&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="birupakshya_sahu_1-1773301769790.png" style="width: 597px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/382433i7351B472F441A4D2/image-dimensions/597x315/is-moderation-mode/true?v=v2" width="597" height="315" role="button" title="birupakshya_sahu_1-1773301769790.png" alt="birupakshya_sahu_1-1773301769790.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;You&amp;nbsp;clone&amp;nbsp;the software&amp;nbsp;component&amp;nbsp;into the development system. When cloning, the main branch is checked out for the system, a package is created in the system that has the same name as the software&amp;nbsp;component&amp;nbsp;and is also assigned to it. At the same time, you can also set&amp;nbsp;how the clone of the repository behaves&amp;nbsp;in the system (push/pull or just pull).&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;The software&amp;nbsp;component&amp;nbsp;with the selected branch is now imported into your current system instance. The&amp;nbsp;Clone&amp;nbsp;button turns into a&amp;nbsp;Pull&amp;nbsp;button. From now on, you can use it to pull (remotely available) changes of your software&amp;nbsp;component&amp;nbsp;to your system. Now you can see package under the selected&amp;nbsp;software&amp;nbsp;component&amp;nbsp;in your system.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-612414306"&gt;&lt;STRONG&gt;2.&amp;nbsp; Development (Intelligent Scenario)&amp;nbsp;&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Here in this scenario, we would be&amp;nbsp;using&amp;nbsp;ABAP AI Capabilities is&amp;nbsp;our IDE Action implementation class to translate the markdown content into the target language with the help of ABAP AI SDK powered by ISLM.&amp;nbsp;To learn more about Developing AI Enabled Applications with ABAP AI SDK powered by ISLM, refer to the&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://community.sap.com/t5/artificial-intelligence-blogs-posts/developing-ai-enabled-applications-with-abap-ai-sdk-powered-by-islm/ba-p/14252514" target="_blank"&gt;&lt;SPAN&gt;blog post&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-544983520"&gt;&lt;STRONG&gt;2.1&amp;nbsp;Create ISLM Scenario:&amp;nbsp;&lt;/STRONG&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Select your package, right-click, &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;New → Other → Intelligent Scenario →&amp;nbsp;/ITAPC3/ADT_INT_SCE&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="birupakshya_sahu_2-1773301823207.png" style="width: 650px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/382435i298353F3A70F91DB/image-dimensions/650x455/is-moderation-mode/true?v=v2" width="650" height="455" role="button" title="birupakshya_sahu_2-1773301823207.png" alt="birupakshya_sahu_2-1773301823207.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Enter a name and description. Select &lt;/SPAN&gt;&lt;I&gt;&lt;SPAN&gt;SIDEBYSIDE &lt;/SPAN&gt;&lt;/I&gt;&lt;SPAN&gt;for &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Scenario Technology&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; field. Choose &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Next&amp;nbsp;and&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;then&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;click&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;&amp;nbsp;Finish.&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-348470015"&gt;&lt;STRONG&gt;2.2&amp;nbsp;Create ISLM Model:&amp;nbsp;&lt;/STRONG&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Select your package, right-click, New → Other → Intelligent Scenario Model&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Fill the &lt;/SPAN&gt;&lt;I&gt;&lt;SPAN&gt;Description &lt;/SPAN&gt;&lt;/I&gt;&lt;SPAN&gt;and &lt;/SPAN&gt;&lt;I&gt;&lt;SPAN&gt;Model Name &lt;/SPAN&gt;&lt;/I&gt;&lt;SPAN&gt;fields. Assign the previously created scenario in &lt;/SPAN&gt;&lt;I&gt;&lt;SPAN&gt;Intelligent Scenario Name.&lt;/SPAN&gt;&lt;/I&gt;&lt;SPAN&gt; Choose Next. &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="birupakshya_sahu_3-1773301823208.png" style="width: 655px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/382434i2C6F60DBC627630A/image-dimensions/655x412/is-moderation-mode/true?v=v2" width="655" height="412" role="button" title="birupakshya_sahu_3-1773301823208.png" alt="birupakshya_sahu_3-1773301823208.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Enter the &lt;/SPAN&gt;&lt;I&gt;&lt;SPAN&gt;ExecutableID &lt;/SPAN&gt;&lt;/I&gt;&lt;SPAN&gt;and &lt;/SPAN&gt;&lt;I&gt;&lt;SPAN&gt;Large Language Model Name &lt;/SPAN&gt;&lt;/I&gt;&lt;SPAN&gt;and &lt;/SPAN&gt;&lt;I&gt;&lt;SPAN&gt;Large Language Model Version&amp;nbsp;and&amp;nbsp;Activate the object.&lt;/SPAN&gt;&lt;/I&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="birupakshya_sahu_4-1773301823209.png" style="width: 656px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/382436iAD11B9D6416C9E85/image-dimensions/656x425/is-moderation-mode/true?v=v2" width="656" height="425" role="button" title="birupakshya_sahu_4-1773301823209.png" alt="birupakshya_sahu_4-1773301823209.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-22873791"&gt;&lt;STRONG&gt;3.&amp;nbsp; Development&amp;nbsp;(IDE Action)&amp;nbsp;&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;In this&amp;nbsp;section&amp;nbsp;we will look at the IDE action&amp;nbsp;which translates the markdown content into the&amp;nbsp;selected&amp;nbsp;language with the help of&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;intelligent&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;scenario created in the&amp;nbsp;previous&amp;nbsp;step.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Partners can&amp;nbsp;utilize&amp;nbsp;the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;ABAP AI SDK&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; powered by ISLM to embed Generative AI features in&amp;nbsp;IDE action implementation class.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;From ABAP Development Tools,&amp;nbsp;locate&amp;nbsp;and add to the&amp;nbsp;favorite&amp;nbsp;package “/ITAPC3/IDE_ACTION_EXTENSIONS“ that&amp;nbsp;was created during Create Software Components process.&amp;nbsp;The package has the same name as the software&amp;nbsp;component.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Create a new IDE action either from the main menu, project explorer, or toolbar.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;In the main menu, choose&amp;nbsp;File-&amp;gt;New-&amp;gt;Other... and select IDE Action. The creation wizard opens.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;In the creation wizard, enter the project and package details if they are not already filled. Also, provide a name and description for the IDE action.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Choose Next, assign a transport request if needed&amp;nbsp;and&amp;nbsp;Choose Finish.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="birupakshya_sahu_5-1773301823211.png" style="width: 625px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/382438i4E8CCEC91894B0CE/image-dimensions/625x318/is-moderation-mode/true?v=v2" width="625" height="318" role="button" title="birupakshya_sahu_5-1773301823211.png" alt="birupakshya_sahu_5-1773301823211.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;After we have created the action in the system, we then fill the form with the relevant information to create the action and the&amp;nbsp;Input UI Configuration Class.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;In the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Filter: Cardinality&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; section, decide the number of focused resources that can be selected when running an IDE action.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;If you want to use your IDE action for any object type, add &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;*ALL&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; as value for the object type.&amp;nbsp;Save and activate your IDE action.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="birupakshya_sahu_6-1773301823212.png" style="width: 659px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/382437i56D6164914893AAC/image-dimensions/659x506/is-moderation-mode/true?v=v2" width="659" height="506" role="button" title="birupakshya_sahu_6-1773301823212.png" alt="birupakshya_sahu_6-1773301823212.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId--119788364"&gt;&lt;STRONG&gt;3.1&amp;nbsp;Defining&amp;nbsp;UI&amp;nbsp;&lt;/STRONG&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;In the first step we need an action dialog to enable the user to enter data. To do this we can create a new class using the link in the IDE Action. This implements the interface IF_AIA_SD_ACTION_INPUT, but only the method CREATE_INPUT_CONFIG is defined here; the other three methods can be implemented optionally. We define a public type in the class as the structure for the input; we can give the fields certain properties using the ABAP Docs. A list of properties&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;can be found in the documentation, with certain properties being set via configuration.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS /itapc3/cl_trans_ui_info DEFINITION 
+  PUBLIC 
+  FINAL 
+  CREATE PUBLIC . 
+  PUBLIC SECTION. 
+  INTERFACES if_aia_sd_action_input. 
+     "! &amp;lt;p class="shorttext"&amp;gt;Simple Controls&amp;lt;/p&amp;gt; 
+      BEGIN OF ty_input, 
+      "! &amp;lt;p class="shorttext"&amp;gt;Select the language&amp;lt;/p&amp;gt; 
+      custom_value_help_text_field TYPE string, 
+      "! &amp;lt;p class="shorttext"&amp;gt;Enter the markdown source for the translation&amp;lt;/p&amp;gt; 
+        multiline_text_field         TYPE string, 
+      END OF ty_input. 
+  PROTECTED SECTION. 
+  PRIVATE SECTION. 
+ENDCLASS. 
+
+CLASS /ITAPC3/CL_TRANS_UI_INFO IMPLEMENTATION. 
+  METHOD if_aia_sd_action_input~create_input_config. 
+  " Create the input data with default values 
+  DATA(input_data) = VALUE ty_input( ) ##NO_TEXT. 
+  " Create the configuration via the factory 
+  DATA(configuration) = ui_information_factory&amp;gt;get_configuration_factory( 
+                                       )-&amp;gt;create_for_data( input_data ). 
+  " Set the layout 
+  configuration-&amp;gt;set_layout( if_sd_config_element=&amp;gt;layout-grid ). 
+  " Set configuration for elements 
+  “To enable a custom value help for an element, the corresponding configuration must be set via the API: 
+   configuration-&amp;gt;get_element( 'custom_value_help_text_field' )-&amp;gt;set_values( if_sd_config_element=&amp;gt;values_kind-domain_specific_named_items ). 
+    configuration-&amp;gt;get_element( 'multiline_text_field' )-&amp;gt;set_multiline( if_sd_config_element=&amp;gt;height-large ). 
+  " Create and return the UI information 
+ result = ui_information_factory-&amp;gt;for_abap_type( abap_type     = input_data 
+             configuration = configuration ). 
+ ENDMETHOD. 
+ METHOD if_aia_sd_action_input~get_value_help_provider. 
+  " Return a reference to your value help handler via the value help provider 
+   result = cl_sd_value_help_provider=&amp;gt;create( NEW /ITAPC3/CL_TRAN_VALUE_HELP( ) ). 
+  ENDMETHOD. 
+ENDCLASS. &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--316301869"&gt;&lt;STRONG&gt;3.2&amp;nbsp;Implement a Custom Value Help:&amp;nbsp;&lt;/STRONG&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;To implement a custom value help that returns domain-specific named items, a handler class must be provided that implements the if_sd_value_help_dsni interface. The get_value_help_items method returns the values for the value help. The values to be returned are of type if_sd_value_help_dsni=&amp;gt;ty_named_item_list.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS /itapc3/cl_trans_ide_action DEFINITION 
+  PUBLIC 
+  FINAL 
+  CREATE PUBLIC. 
+  PUBLIC SECTION. 
+  INTERFACES if_aia_action. 
+  PROTECTED SECTION. 
+  PRIVATE SECTION. 
+  METHODS get_input_as_html 
+      IMPORTING ui_input      TYPE /itapc3/cl_trans_ui_info=&amp;gt;ty_input 
+      RETURNING VALUE(result) TYPE string. 
+ENDCLASS. 
+
+CLASS /ITAPC3/CL_TRANS_IDE_ACTION IMPLEMENTATION. 
+ METHOD get_input_as_html. 
+    FINAL(nl) = cl_abap_char_utilities=&amp;gt;newline. 
+    TRY. 
+        DATA(completion_api) = cl_aic_islm_compl_api_factory=&amp;gt;get( )-&amp;gt;create_instance( '/ITAPC3/ADT_INT_SCE' ). 
+        DATA(prompt) = |You are a translator. Reject Hate Speech. Translate the given text into { ui_input-custom_value_help_text_field }:{ nl }{ ui_input-multiline_text_field }| ##NO_TEXT. 
+        DATA(translation) = completion_api-&amp;gt;execute_for_string( prompt )-&amp;gt;get_completion( ). 
+      CATCH cx_aic_api_factory INTO DATA(aic_api_factory_ex). 
+      RETURN. 
+      CATCH cx_aic_completion_api INTO DATA(aic_completion_api_ex). 
+      RETURN. 
+    ENDTRY. 
+    result =  '&amp;lt;h3 style="color:gray"&amp;gt;Translate to (' &amp;amp;&amp;amp; ui_input-custom_value_help_text_field &amp;amp;&amp;amp; ')&amp;lt;/h3&amp;gt;' &amp;amp;&amp;amp; nl  &amp;amp;&amp;amp; '&amp;lt;pre&amp;gt;' &amp;amp;&amp;amp; translation &amp;amp;&amp;amp; '&amp;lt;/pre&amp;gt;'. 
+  ENDMETHOD. 
+
+  METHOD if_aia_action~run. 
+  DATA(focused_resource) = context-&amp;gt;get_focused_resource( ). 
+    TRY. 
+        DATA ui_input TYPE /itapc3/cl_trans_ui_info=&amp;gt;ty_input. 
+        context-&amp;gt;get_input_config_content( )-&amp;gt;get_as_structure( IMPORTING result = ui_input ). 
+      CATCH cx_sd_invalid_data INTO DATA(exception). 
+        CLEAR ui_input. 
+    ENDTRY. 
+    DATA(popup_result) = cl_aia_result_factory=&amp;gt;create_html_popup_result( ). 
+    popup_result-&amp;gt;set_content( get_input_as_html( ui_input ) ). 
+    result = popup_result. 
+  ENDMETHOD. 
+ENDCLASS. 
+
+ &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;To start the action in Eclipse,&amp;nbsp;we can&amp;nbsp;copy the markdown source from any KTD Editor&amp;nbsp;and use &amp;nbsp;use&amp;nbsp;the shortcut&amp;nbsp;Ctrl&amp;nbsp;+&amp;nbsp;Alt&amp;nbsp;+&amp;nbsp;R&amp;nbsp;for Windows or&amp;nbsp;CMD&amp;nbsp;+&amp;nbsp;OPT&amp;nbsp;+&amp;nbsp;R&amp;nbsp;for Mac or choose&amp;nbsp;Run-&amp;gt;ABAP IDE Action...&amp;nbsp;from the main menu to start the Action Dialog, where our IDE Action should now be available.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Once all the required objects are created&amp;nbsp;and the action is working as per our expectation, we&amp;nbsp;have to&amp;nbsp;release the Transport Request.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId--219412367"&gt;&lt;STRONG&gt;4.&amp;nbsp; Create&amp;nbsp;Add-on Product using Landscape Portal&amp;nbsp;&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;The &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Landscape Portal&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; acts as a central tool to allow service providers to perform administration tasks such as hibernating systems, creating test tenants and support users, selecting systems for a pre-upgrade, but also lifecycle management operations such as building, deploying and updating product versions, and even guides you through the configuration and deployment of multitenant SaaS solutions.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Here partner can create a&amp;nbsp;new&amp;nbsp;Add-on&amp;nbsp;product,&amp;nbsp;register your product,&amp;nbsp;build a product version via&amp;nbsp;pipelines&amp;nbsp;and&amp;nbsp;deploy a product version.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId--709328879"&gt;&lt;STRONG&gt;4.1&amp;nbsp;Register Product&amp;nbsp;&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;A product refers to an ABAP add-on that can be installed on SAP BTP, ABAP environment.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Log into the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Landscape Portal&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;For more information, see&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/landscape-portal/accessing-landscape-portal" target="_blank" rel="noopener noreferrer"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Landscape Portal&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Click on the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Register Product&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; tile to open the app.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;A list of all your created products, including their product ID, namespace and registration status, is displayed. The registration status&amp;nbsp;indicates&amp;nbsp;whether a product has already been registered to the global account you are currently logged in to.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Click the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Create&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; button in the top right corner.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Enter the name of the product you want to create and confirm with &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Create&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;. Your request for creation has been sent and the registration status of the product changes to “Pending…”.&amp;nbsp;The namespace is automatically&amp;nbsp;determined&amp;nbsp;from the product name you entered, and the product ID is generated as part of the creation process.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="birupakshya_sahu_7-1773302190960.png" style="width: 673px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/382439iBB3E8BB1AC1CA9DB/image-dimensions/673x259/is-moderation-mode/true?v=v2" width="673" height="259" role="button" title="birupakshya_sahu_7-1773302190960.png" alt="birupakshya_sahu_7-1773302190960.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId--905842384"&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;4.2&amp;nbsp;Build Product Version&amp;nbsp;&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;You can use the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Build Product Version&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; app to easily trigger the build of new product versions via pipelines based on templates that you can configure for different use cases such as new (test or production) release deliveries, (test or production) support packages or (test or production) hotfixes/patch deliveries.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Log in to the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Landscape Portal&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; and click on the tile &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Build Product Version&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;For more information, see&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/landscape-portal/create-new-product-version" target="_blank" rel="noopener noreferrer"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Build Product Version&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Select one of your products from the list. You will be&amp;nbsp;forwarded&amp;nbsp;to the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Product Versions&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; tab. Here, you can see a table listing all the existing versions of this product, their type, when they were created, as well as their delivery status.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;You also need to Configure a Pipeline Template&amp;nbsp;for release build.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;For more information, see&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/landscape-portal/configure-pipeline-template" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Configure a Pipeline Template&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;and&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://developers.sap.com/tutorials/abap-environment-saas-addon-build..html#2d3f1efd-4231-4f6e-a418-e3015d8a9d95" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Create a template for release build.&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;To create a new product version, click the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Create&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; button, choose &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Release&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Delivery&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; and select the desired type. The resulting product version will be calculated automatically.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Select software components to be included in your new product version. To add&amp;nbsp;additional&amp;nbsp;software components, click the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Add&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; button on the right. For each software&amp;nbsp;component, define a&amp;nbsp;component&amp;nbsp;version, enter the desired&amp;nbsp;branch&amp;nbsp;and commit ID as seen in the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Manage Software Components&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; app, and select in which languages your product version should be built. To get relevant&amp;nbsp;commit ID&amp;nbsp;for the software&amp;nbsp;component&amp;nbsp;involved in the build, you can refer&amp;nbsp;the&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/how-to-display-commits-and-commit-objects?version=Cloud" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;help page&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;to get more details on this.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;Identify&amp;nbsp;the commit based on which you wish to build your add-on product.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="birupakshya_sahu_8-1773302190961.png" style="width: 674px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/382441iFC50C68FF5C2E575/image-dimensions/674x301/is-moderation-mode/true?v=v2" width="674" height="301" role="button" title="birupakshya_sahu_8-1773302190961.png" alt="birupakshya_sahu_8-1773302190961.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Click the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Build Product Version&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; button to trigger the build of the pipeline for your new product version.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;You will be redirected to the Pipeline Status screen, where you can track the progress of your build.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="birupakshya_sahu_9-1773302190962.png" style="width: 670px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/382440iE484999CFC8DC66E/image-dimensions/670x241/is-moderation-mode/true?v=v2" width="670" height="241" role="button" title="birupakshya_sahu_9-1773302190962.png" alt="birupakshya_sahu_9-1773302190962.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId--1102355889"&gt;&lt;STRONG&gt;4.3&amp;nbsp;Check Product Version&amp;nbsp;&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;The &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Check Product Version&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; app lets you view the results of product version delivery infrastructure checks to see if your product version is ready for delivery. &lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Click on the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Check Product Version&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; tile to open the&amp;nbsp;app.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;For&amp;nbsp;more information, see&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/LANDSCAPEPORTAL_S4ABAP/bbef3473740144d38c8485d26871a1f0/4de24e56f52d4ca4ae8971aae6861f8e.html" target="_blank" rel="noopener noreferrer"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Check Product Version&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;A list of all your products is displayed. Select one of the products from the list.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Ready for production (P): The product version is ready for production use.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="birupakshya_sahu_10-1773302190963.png" style="width: 686px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/382442i9815655FCE98E34F/image-dimensions/686x343/is-moderation-mode/true?v=v2" width="686" height="343" role="button" title="birupakshya_sahu_10-1773302190963.png" alt="birupakshya_sahu_10-1773302190963.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId--1298869394"&gt;&lt;STRONG&gt;4.4&amp;nbsp;Publish Product&amp;nbsp;&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;You, as a partner, have developed a product that you want to make available to your customers as an add-on that they can install into their system. You can use the Publish Product app to publish your product in a specific version for use&amp;nbsp;by customers. Your customer can then use the &lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/sap-btp-abap-environment/landscape-portal/discover-product?locale=en-US&amp;amp;state=PRODUCTION&amp;amp;version=Cloud" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Discover Product&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt; app to view all product versions that were published,&amp;nbsp;i.e.&amp;nbsp;made available, for them and can register a product, thus adding a product to their pool of product versions available for deployment.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;SPAN&gt;Log into the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Landscape Portal&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;OL&gt;&lt;LI&gt;&lt;SPAN&gt;Click the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Publish Product&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; tile to open the app.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;For more information, see&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/LANDSCAPEPORTAL_S4ABAP/bbef3473740144d38c8485d26871a1f0/900f8604d3ab41e38abfa990c68e429b.html" target="_blank" rel="noopener noreferrer"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Publish Product&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;OL&gt;&lt;LI&gt;&lt;SPAN&gt;Select the product from the list. You are&amp;nbsp;forwarded&amp;nbsp;to the configuration page. Click the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Edit&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; button.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;OL&gt;&lt;LI&gt;&lt;SPAN&gt;In the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Product Configuration&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; section, select the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Product Version&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; that you want to publish and choose &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;SAP Store&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; as the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Distribution Channel&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;OL&gt;&lt;LI&gt;&lt;SPAN&gt;Click the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Publish&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; button to publish your product version&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="birupakshya_sahu_11-1773302190963.png" style="width: 673px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/382443iBEFCFE00211F76E1/image-dimensions/673x318/is-moderation-mode/true?v=v2" width="673" height="318" role="button" title="birupakshya_sahu_11-1773302190963.png" alt="birupakshya_sahu_11-1773302190963.png" /&gt;&lt;/span&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;H1 id="toc-hId--908576885"&gt;&lt;STRONG&gt;Steps&amp;nbsp;performed from the&amp;nbsp;Consumer&amp;nbsp;&lt;/STRONG&gt;&lt;/H1&gt;&lt;H2 id="toc-hId--1398493397"&gt;&lt;STRONG&gt;1. Discover Product&amp;nbsp;&lt;/STRONG&gt;&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Once Partner has made their product available and has published a product version using the Publish Product app, customers can register the product via&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/LANDSCAPEPORTAL_S4ABAP/bbef3473740144d38c8485d26871a1f0/724f5b6f69634f5ab7a8d6236f327e5a.html" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Discover Product app&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;After registrations customers&amp;nbsp;can&amp;nbsp;deploy the product using Deploy Product.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId--1595006902"&gt;&lt;STRONG&gt;2.&amp;nbsp; Deploy Product&amp;nbsp;&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;You can use the &lt;/SPAN&gt;&lt;A href="https://help.sap.com/docs/LANDSCAPEPORTAL_S4ABAP/bbef3473740144d38c8485d26871a1f0/c4da7bba8b5a46b9ae08986d9399046d.html" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN&gt;Deploy Product&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt; app to deploy or update your product version in specific systems.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Sign in to the Landscape Portal.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Click on the Deploy Product tile to open the app.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;On the left side, under Product and Product Version Selection, select which product and version you want to deploy or update from the drop-down menu.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;In the Available Systems section, select at least one system in which you want to deploy or update the product version. You can also select multiple systems at once.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Click the Deploy button. A dialog box will open. Fill in the remaining details:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Title: Choose a title for your update.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;From: Select the time the update can begin.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;To: The estimated time at which the product version update will be completed.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Confirm with Schedule.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Check the list under Product Version Update Status. Here, all update requests as well as their&amp;nbsp;current status&amp;nbsp;and progress are displayed. The update you just scheduled has been added to the list.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Once the product is deployed successfully then Customer can access the product in target system.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;SAP BTP automatically&amp;nbsp;activates the software&amp;nbsp;component&amp;nbsp;provided from the partner in the ABAP environment, makes packages visible&amp;nbsp;and registers IDE extensions.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId--1623336716"&gt;&lt;STRONG&gt;3.&amp;nbsp; Test IDE Action&amp;nbsp;&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Create/Use ABAP Cloud project in the ABAP instance where you have deployed the&amp;nbsp;product.This&amp;nbsp;should be a development system.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Open any&amp;nbsp;Knowledge Transfer Document&amp;nbsp;in the editor and copy the content.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;To open the &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Run ABAP IDE Action&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; dialog, use the shortcut Ctrl + Alt + R for Windows or CMD + OPT + R for Mac or choose &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Run-&amp;gt;ABAP IDE Action...&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; from the main menu.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Select the IDE action&amp;nbsp;“Translate markdown content”&amp;nbsp;you would like to run Select &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Run&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;It will open&amp;nbsp;the action input dialog&amp;nbsp;where you can select the target language you want to translate and in next text box area provide the&amp;nbsp;Knowledge Transfer Document&amp;nbsp;content.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="birupakshya_sahu_13-1773302190964.png" style="width: 673px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/382445i5CFA0D01A2E06FD3/image-dimensions/673x471/is-moderation-mode/true?v=v2" width="673" height="471" role="button" title="birupakshya_sahu_13-1773302190964.png" alt="birupakshya_sahu_13-1773302190964.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Select &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;Run.&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The result dialog for the selected IDE action opens the result dialog&amp;nbsp;where it translates the&amp;nbsp;Knowledge Transfer Document&amp;nbsp;to the selected language&amp;nbsp;option&amp;nbsp;from the input dialog.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="birupakshya_sahu_14-1773302190965.png" style="width: 677px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/382446i6E809A615D9DEDAC/image-dimensions/677x405/is-moderation-mode/true?v=v2" width="677" height="405" role="button" title="birupakshya_sahu_14-1773302190965.png" alt="birupakshya_sahu_14-1773302190965.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/build-partner-add-on-with-ide-action/ba-p/14346989"/>
+    <published>2026-03-12T09:36:28.552000+01:00</published>
   </entry>
 </feed>
