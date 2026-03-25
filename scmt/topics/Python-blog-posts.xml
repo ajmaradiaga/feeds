@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/Python-blog-posts.xml</id>
   <title>SAP Community - Python</title>
-  <updated>2026-03-24T12:11:34.444743+00:00</updated>
+  <updated>2026-03-25T00:11:26.218287+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/Python/pd-p/f220d74d-56e2-487e-8e6c-a8cb3def2378" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Python blog posts in SAP Community</subtitle>
@@ -1356,37 +1356,40 @@ You are logged in as felix.lastname@company.com&lt;/code&gt;&lt;/pre&gt;&lt;P&gt
 ├── requirements.txt
 ├── runtime.txt
 └── test_client.py&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;First, let's look at the heart of our project—the &lt;CODE&gt;agent.py&lt;/CODE&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import os
+
 from collections.abc import AsyncIterable
 from typing import Any, Literal
+
 import httpx
+
 from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.tools import tool
-from genaihub.proxy.langchain.openai import ChatOpenAI
-from genaihub.proxy.core.proxyclients import getproxy_client
+from gen_ai_hub.proxy.langchain.openai import ChatOpenAI
+from gen_ai_hub.proxy.core.proxy_clients import get_proxy_client
+
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.prebuilt import createreactagent
+from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel
 
+proxy_client = get_proxy_client('gen-ai-hub')
 
-proxyclient = getproxy_client('gen-ai-hub')
+
 memory = MemorySaver()
 
 
 @tool
-def getexchangerate(
+def get_exchange_rate(
     currency_from: str = 'USD',
     currency_to: str = 'EUR',
     currency_date: str = 'latest',
 ):
     """Use this to get current exchange rate.
 
-
     Args:
         currency_from: The currency to convert from (e.g., "USD").
         currency_to: The currency to convert to (e.g., "EUR").
         currency_date: The date for the exchange rate or "latest". Defaults to
             "latest".
-
 
     Returns:
         A dictionary containing the exchange rate data, or an error message if
@@ -1395,10 +1398,9 @@ def getexchangerate(
     try:
         response = httpx.get(
             f'https://api.frankfurter.app/{currency_date}',
-            params={'from': currencyfrom, 'to': currencyto},
+            params={'from': currency_from, 'to': currency_to},
         )
-        response.raiseforstatus()
-
+        response.raise_for_status()
 
         data = response.json()
         if 'rates' not in data:
@@ -1412,22 +1414,21 @@ def getexchangerate(
 
 class ResponseFormat(BaseModel):
     """Respond to the user in this format."""
-    status: Literal['inputrequired', 'completed', 'error'] = 'inputrequired'
+
+    status: Literal['input_required', 'completed', 'error'] = 'input_required'
     message: str
 
 
 class CurrencyAgent:
-    """CurrencyAgent - a specialized assistant for currency conversions."""
-
+    """CurrencyAgent - a specialized assistant for currency convesions."""
 
     SYSTEM_INSTRUCTION = (
         'You are a specialized assistant for currency conversions. '
-        "Your sole purpose is to use the 'getexchangerate' tool to answer questions about currency exchange rates. "
+        "Your sole purpose is to use the 'get_exchange_rate' tool to answer questions about currency exchange rates. "
         'If the user asks about anything other than currency conversion or exchange rates, '
         'politely state that you cannot help with that topic and can only assist with currency-related queries. '
         'Do not attempt to answer unrelated questions or use tools for other purposes.'
     )
-
 
     FORMAT_INSTRUCTION = (
         'Set response status to input_required if the user needs to provide more information to complete the request.'
@@ -1435,29 +1436,26 @@ class CurrencyAgent:
         'Set response status to completed if the request is complete.'
     )
 
+    def __init__(self):
 
-    def init(self):
         self.model = ChatOpenAI(
-            proxymodelname='gpt-4o-mini', 
-            proxyclient=proxyclient,
+            proxy_model_name='gpt-4o-mini', 
+            proxy_client=proxy_client,
             temperature=0            
         )
-        self.tools = [getexchangerate]
+        self.tools = [get_exchange_rate]
 
-
-        self.graph = createreactagent(
+        self.graph = create_react_agent(
             self.model,
             tools=self.tools,
             checkpointer=memory,
             prompt=self.SYSTEM_INSTRUCTION,
-            responseformat=(self.FORMATINSTRUCTION, ResponseFormat),
+            response_format=(self.FORMAT_INSTRUCTION, ResponseFormat),
         )
-
 
     async def stream(self, query, context_id) -&amp;gt; AsyncIterable[dict[str, Any]]:
         inputs = {'messages': [('user', query)]}
-        config = {'configurable': {'threadid': contextid}}
-
+        config = {'configurable': {'thread_id': context_id}}
 
         for item in self.graph.stream(inputs, config, stream_mode='values'):
             message = item['messages'][-1]
@@ -1467,59 +1465,154 @@ class CurrencyAgent:
                 and len(message.tool_calls) &amp;gt; 0
             ):
                 yield {
-                    'istaskcomplete': False,
-                    'requireuserinput': False,
+                    'is_task_complete': False,
+                    'require_user_input': False,
                     'content': 'Looking up the exchange rates...',
                 }
             elif isinstance(message, ToolMessage):
                 yield {
-                    'istaskcomplete': False,
-                    'requireuserinput': False,
+                    'is_task_complete': False,
+                    'require_user_input': False,
                     'content': 'Processing the exchange rates..',
                 }
 
+        yield self.get_agent_response(config)
 
-        yield self.getagentresponse(config)
-
-
-    def getagentresponse(self, config):
-        currentstate = self.graph.getstate(config)
-        structuredresponse = currentstate.values.get('structured_response')
+    def get_agent_response(self, config):
+        current_state = self.graph.get_state(config)
+        structured_response = current_state.values.get('structured_response')
         if structured_response and isinstance(
             structured_response, ResponseFormat
         ):
-            if structuredresponse.status == 'inputrequired':
+            if structured_response.status == 'input_required':
                 return {
-                    'istaskcomplete': False,
-                    'requireuserinput': True,
+                    'is_task_complete': False,
+                    'require_user_input': True,
                     'content': structured_response.message,
                 }
             if structured_response.status == 'error':
                 return {
-                    'istaskcomplete': False,
-                    'requireuserinput': True,
+                    'is_task_complete': False,
+                    'require_user_input': True,
                     'content': structured_response.message,
                 }
             if structured_response.status == 'completed':
                 return {
-                    'istaskcomplete': True,
-                    'requireuserinput': False,
+                    'is_task_complete': True,
+                    'require_user_input': False,
                     'content': structured_response.message,
                 }
 
-
         return {
-            'istaskcomplete': False,
-            'requireuserinput': True,
+            'is_task_complete': False,
+            'require_user_input': True,
             'content': (
                 'We are unable to process your request at the moment. '
                 'Please try again.'
             ),
         }
 
+    SUPPORTED_CONTENT_TYPES = ['text', 'text/plain']&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;It exposes a little baseline agent - able to convert a currency. Based on langgraph - one can get started from here.&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import logging
 
-    SUPPORTEDCONTENTTYPES = ['text', 'text/plain']&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;In this code snippet, several key elements are visible. First, the &lt;CODE&gt;a2a-sdk&lt;/CODE&gt; is heavily utilized, providing the base class for the &lt;CODE&gt;AgentExecutor&lt;/CODE&gt;. This serves as the main interface for exposing an agent through the A2A SDK. Its primary method is &lt;CODE&gt;execute&lt;/CODE&gt;, which receives a task from the A2A client, including context and task details, passes it to the agent, and processes the response. The SDK also handles sending intermittent updates and requesting user input as needed.&lt;/P&gt;&lt;P&gt;Finally, there is the transport layer. The &lt;CODE&gt;app.py&lt;/CODE&gt; file exposes the Agent Card at the well-known endpoint and manages incoming requests. Here, the transport protocol can be chosen, with the default set to JSON-RPC.&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import httpx
+from a2a.server.agent_execution import AgentExecutor, RequestContext
+from a2a.server.events import EventQueue
+from a2a.server.tasks import TaskUpdater
+from a2a.types import (
+    InternalError,
+    InvalidParamsError,
+    Part,
+    TaskState,
+    TextPart,
+    UnsupportedOperationError,
+)
+from a2a.utils import (
+    new_agent_text_message,
+    new_task,
+)
+from a2a.utils.errors import ServerError
+
+from agent import CurrencyAgent
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+class CurrencyAgentExecutor(AgentExecutor):
+    """Currency Conversion AgentExecutor Example."""
+
+    def __init__(self):
+        self.agent = CurrencyAgent()
+
+    async def execute(
+        self,
+        context: RequestContext,
+        event_queue: EventQueue,
+    ) -&amp;gt; None:
+        error = self._validate_request(context)
+        if error:
+            raise ServerError(error=InvalidParamsError())
+
+        query = context.get_user_input()
+        task = context.current_task
+        
+        if not task:
+            task = new_task(context.message)  # type: ignore
+            await event_queue.enqueue_event(task)
+        updater = TaskUpdater(event_queue, task.id, task.context_id)
+        
+        # Log all properties of the context and task objects
+        logger.info(f"Context properties: {vars(context)}")
+        logger.info(f"Task properties: {vars(task)}")
+        
+        try:
+            async for item in self.agent.stream(query, task.context_id):
+                is_task_complete = item['is_task_complete']
+                require_user_input = item['require_user_input']
+
+                if not is_task_complete and not require_user_input:
+                    await updater.update_status(
+                        TaskState.working,
+                        new_agent_text_message(
+                            item['content'],
+                            task.context_id,
+                            task.id,
+                        ),
+                    )
+                elif require_user_input:
+                    await updater.update_status(
+                        TaskState.input_required,
+                        new_agent_text_message(
+                            item['content'],
+                            task.context_id,
+                            task.id,
+                        ),
+                        final=True,
+                    )
+                    break
+                else:
+                    await updater.add_artifact(
+                        [Part(root=TextPart(text=item['content']))],
+                        name='conversion_result',
+                    )
+                    await updater.complete()
+                    break
+
+        except Exception as e:
+            logger.error(f'An error occurred while streaming the response: {e}')
+            raise ServerError(error=InternalError()) from e
+
+    def _validate_request(self, context: RequestContext) -&amp;gt; bool:
+        return False
+
+    async def cancel(
+        self, context: RequestContext, event_queue: EventQueue
+    ) -&amp;gt; None:
+        raise ServerError(error=UnsupportedOperationError())&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;In this code snippet, several key elements are visible. First, the &lt;CODE&gt;a2a-sdk&lt;/CODE&gt; is heavily utilized, providing the base class for the &lt;CODE&gt;AgentExecutor&lt;/CODE&gt;. This serves as the main interface for exposing an agent through the A2A SDK. Its primary method is &lt;CODE&gt;execute&lt;/CODE&gt;, which receives a task from the A2A client, including context and task details, passes it to the agent, and processes the response. The SDK also handles sending intermittent updates and requesting user input as needed.&lt;/P&gt;&lt;P&gt;Finally, there is the transport layer. The &lt;CODE&gt;app.py&lt;/CODE&gt; file exposes the Agent Card at the well-known endpoint and manages incoming requests. Here, the transport protocol can be chosen, with the default set to JSON-RPC.&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import logging
 import os
+
+import httpx
+
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import (
@@ -1532,14 +1625,23 @@ from a2a.types import (
     AgentCard,
     AgentSkill,
 )
+from dotenv import load_dotenv
+
 from agent import CurrencyAgent
 from agent_executor import CurrencyAgentExecutor
 
-Get host and port from environment variables (Cloud Foundry sets PORT)
+
+load_dotenv()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+# Get host and port from environment variables (Cloud Foundry sets PORT)
 HOST = os.getenv('HOST', '0.0.0.0')
 PORT = int(os.getenv('PORT', 10000))
 
-Create agent capabilities and card
+# Create agent capabilities and card
 capabilities = AgentCapabilities(streaming=True, push_notifications=True)
 skill = AgentSkill(
     id='convert_currency',
@@ -1548,43 +1650,41 @@ skill = AgentSkill(
     tags=['currency conversion', 'currency exchange'],
     examples=['What is exchange rate between USD and GBP?'],
 )
-
-
 agent_card = AgentCard(
     name='Currency Agent',
     description='Helps with exchange rates for currencies',
-    url=f'http://localhost:443', # is ignored by the Joule A2A integration - instead the URL from the destination is taken
+    url=f'https://currency-agent.cfapps.sap.hana.ondemand.com',
     version='1.0.0',
-    defaultinputmodes=CurrencyAgent.SUPPORTEDCONTENTTYPES,
-    defaultoutputmodes=CurrencyAgent.SUPPORTEDCONTENTTYPES,
+    default_input_modes=CurrencyAgent.SUPPORTED_CONTENT_TYPES,
+    default_output_modes=CurrencyAgent.SUPPORTED_CONTENT_TYPES,
     capabilities=capabilities,
     skills=[skill],
 )
 
-Create request handler and server
+# Create request handler and server
 httpx_client = httpx.AsyncClient()
-pushconfigstore = InMemoryPushNotificationConfigStore()
+push_config_store = InMemoryPushNotificationConfigStore()
 push_sender = BasePushNotificationSender(
-    httpxclient=httpxclient,
-    configstore=pushconfig_store
+    httpx_client=httpx_client,
+    config_store=push_config_store
 )
-
-
 request_handler = DefaultRequestHandler(
     agent_executor=CurrencyAgentExecutor(),
     task_store=InMemoryTaskStore(),
-    pushconfigstore=pushconfigstore,
-    pushsender=pushsender
+    push_config_store=push_config_store,
+    push_sender=push_sender
 )
-
-
 server = A2AStarletteApplication(
-    agentcard=agentcard, 
-    httphandler=requesthandler
+    agent_card=agent_card, http_handler=request_handler
 )
 
-Export the ASGI app for uvicorn
-app = server.build()&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Again, this is mostly boilerplate code provided by the A2A SDK. We populate the Agent Card with the specific information for our use case and ensure that requests are handled appropriately. To do this, we instantiate the &lt;CODE&gt;DefaultRequestHandler&lt;/CODE&gt;.&lt;/P&gt;&lt;P&gt;Finally, let's look at the files that enable deployment. The &lt;CODE&gt;manifest.yaml&lt;/CODE&gt; facilitates deployment by providing configuration settings and the startup command:&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;applications:
+# Export the ASGI app for uvicorn
+app = server.build()
+
+
+if __name__ == '__main__':
+    import uvicorn
+    uvicorn.run(app, host=HOST, port=PORT)&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Again, this is mostly boilerplate code provided by the A2A SDK. We populate the Agent Card with the specific information for our use case and ensure that requests are handled appropriately. To do this, we instantiate the &lt;CODE&gt;DefaultRequestHandler&lt;/CODE&gt;.&lt;/P&gt;&lt;P&gt;Finally, let's look at the files that enable deployment. The &lt;CODE&gt;manifest.yaml&lt;/CODE&gt; facilitates deployment by providing configuration settings and the startup command:&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;applications:
   - name: currency-agent
     memory: 512M
     disk_quota: 1G
@@ -1597,37 +1697,35 @@ app = server.build()&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Again, this is mostly boil
       AICORE_CLIENT_SECRET: "&amp;lt;your-client-secret&amp;gt;"
       AICORE_RESOURCE_GROUP: "&amp;lt;your-resource-group&amp;gt;"
       AICORE_BASE_URL: "&amp;lt;your-base-url&amp;gt;"
-    command: uvicorn app:app --host 0.0.0.0 --port ${PORT}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;I am using the &lt;CODE&gt;python_buildpack&lt;/CODE&gt; in conjunction with a specific Python version specified in the &lt;CODE&gt;runtime.txt&lt;/CODE&gt;. Since we are utilizing the foundation models of the generative AI hub of AI Core, we also ensure to pass on our credentials via environment variables.&lt;/P&gt;&lt;P&gt;&lt;CODE&gt;runtime.txt&lt;/CODE&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-text"&gt;&lt;code&gt;python-3.13.9&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This is necessary because the dependencies only support Python versions greater than 3.12, while Cloud Foundry currently uses an earlier version by default.&lt;/P&gt;&lt;P&gt;With this structure in place, the agent can be deployed to Cloud Foundry. Alternatively, it can be hosted in any other environment of your choice. Ensure to update the Agent Card with your specific URL.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="2-building-the-joule-pro-code-capability" id="toc-hId-414136374"&gt;2. Building the Joule Pro-Code Capability&lt;/H2&gt;&lt;P&gt;For this example, I prepared a minimal directory and code structure that you can utilize:&lt;/P&gt;&lt;pre class="lia-code-sample language-text"&gt;&lt;code&gt;currencyagentcapability/
+    command: uvicorn app:app --host 0.0.0.0 --port ${PORT}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;I am using the &lt;CODE&gt;python_buildpack&lt;/CODE&gt; in conjunction with a specific Python version specified in the &lt;CODE&gt;runtime.txt&lt;/CODE&gt;. Since we are utilizing the foundation models of the generative AI hub of AI Core, we also ensure to pass on our credentials via environment variables.&lt;/P&gt;&lt;P&gt;&lt;CODE&gt;runtime.txt&lt;/CODE&gt;:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;3.13.*&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This is necessary because the dependencies only support Python versions greater than 3.12, while Cloud Foundry currently uses an earlier version by default.&lt;/P&gt;&lt;P&gt;With this structure in place, the agent can be deployed to Cloud Foundry. Alternatively, it can be hosted in any other environment of your choice. Ensure to update the Agent Card with your specific URL.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="2-building-the-joule-pro-code-capability" id="toc-hId-414136374"&gt;2. Building the Joule Pro-Code Capability&lt;/H2&gt;&lt;P&gt;For this example, I prepared a minimal directory and code structure that you can utilize:&lt;/P&gt;&lt;pre class="lia-code-sample language-text"&gt;&lt;code&gt;currencyagentcapability/
 ├── functions/
 │   └── currencyagentfunction.yaml
 ├── scenarios/
 │   └── currencyagentscenario.yaml
 └── capability.sapdas.yaml&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Let's start with &lt;STRONG&gt;&lt;CODE&gt;capability.sapdas.yaml&lt;/CODE&gt;&lt;/STRONG&gt;. It describes the overall capability with some descriptions, defines the version of the design-time artifacts, and lets us configure the Destination mapping against the system alias.&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;schema_version:  3.27.0   # be aware of the minimum version for agents
 
-
 metadata:
   namespace: joule.ext    # very important to be in the "joule.ext" namespace for capabilities
-  name: currencyagentcapability
+  name: currency_agent_capability
   version: 1.0.0
   display_name: Currency Agent Capability
   description: Capability containing the currency agent
-
 
 system_aliases:
   CURRENCY_AGENT:
     destination: CURRENCY_AGENT # this is referencing the destination name&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; For our example, it is important to use version &lt;STRONG&gt;&lt;CODE&gt;3.27.0&lt;/CODE&gt;&lt;/STRONG&gt; onwards, since this is the minimum version for the Agent integration. In addition, we specify the namespace. Here we need to use the extension namespace &lt;STRONG&gt;&lt;CODE&gt;joule.ext&lt;/CODE&gt;&lt;/STRONG&gt;&amp;nbsp;other namespaces will fail.&lt;/P&gt;&lt;P&gt;If you do not use the proper &lt;STRONG&gt;joule.ext namespace&lt;/STRONG&gt; - you will run into the issue &lt;EM&gt;"User is not authorized to deploy sap capabilities . (error code: Tenant Administration Worker - 5014...)"&amp;nbsp;&lt;/EM&gt;this is because all other namespaces are considered to be "sap namespaces" - a bit like back in the day with Z.&lt;/P&gt;&lt;P&gt;At the bottom, we register a system alias and map it to a destination—both of which I call &lt;CODE&gt;CURRENCY_AGENT&lt;/CODE&gt;. The destination will be named accordingly in the subsequent step in BTP.&lt;/P&gt;&lt;P&gt;Next, we introduce the scenario for our agent.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;CODE&gt;currency&lt;I&gt;agent&lt;/I&gt;scenario.yaml&lt;/CODE&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;description: The Currency Agent supports converting between different currencies.
 target:
-  name: currencyagentfunction
+  name: currency_agent_function
   type: function&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;It basically consists of the description and the target—in this case, the &lt;CODE&gt;currency&lt;I&gt;agent&lt;/I&gt;function&lt;/CODE&gt;. Additionally, one could maintain parameters that would be collected by the Joule Orchestrator. For our particular case, for example, we could maintain a currency pair and an amount to convert. In addition, if your agent is handling multi-turn conversations, you might want to pass the conversation ID to it via the context.&lt;/P&gt;&lt;P&gt;Finally, the function:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;CODE&gt;currency&lt;I&gt;agent&lt;/I&gt;function.yaml&lt;/CODE&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;action_groups:
   - actions:
       - type: agent-request   # This action type allows the agent to trigger an agent
-        systemalias: CURRENCYAGENT # The system alias is defined in the capability.sapdas.yaml file and points to the destination of the agent
+        system_alias: CURRENCY_AGENT # The system alias is defined in the capability.sapdas.yaml file and points to the destination of the agent
         agent_type: remote # remote for code based agents
         result_variable: "apiResponse" # response of the agent - can be used in subsequent actions by referring to the variable name   
       - type: message
         message:
           type: text
-          content: "&amp;lt;? apiResponse.body.artifacts[0].parts[0].text ?&amp;gt;"  # extracting textual response from the agent&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;In here, we define actions, and the most important one is the &lt;CODE&gt;agent-request&lt;/CODE&gt;. It will invoke the Agent via the A2A integration. We specify the system alias, the type as &lt;CODE&gt;remote&lt;/CODE&gt;, and which variable should hold the response.&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; The response from the agent now needs to be "formatted" in this function.&lt;/BLOCKQUOTE&gt;&lt;P&gt;In this super minimalistic case, I just output the result body in a static message sent to the user.&lt;/P&gt;&lt;H2 id="understanding-the-joule-agent-result-variable" id="toc-hId-217622869"&gt;Understanding the Joule Agent Result Variable&lt;/H2&gt;&lt;P&gt;When working with the &lt;STRONG&gt;agent-request&lt;/STRONG&gt; action, the &lt;CODE&gt;result_variable&lt;/CODE&gt; is the connection between the output of the agent and the formatting of the response to Joules Webclient. In that result variable we have the following:&lt;/P&gt;&lt;H3 id="key-components-of-the-response" id="toc-hId-150192083"&gt;Key Components of the Response&lt;/H3&gt;&lt;P&gt;* &lt;STRONG&gt;Body:&lt;/STRONG&gt; The core container for the task data. * &lt;STRONG&gt;History:&lt;/STRONG&gt; A log of the conversation turns between the user and the agent. * &lt;STRONG&gt;Artifacts:&lt;/STRONG&gt; The final, structured answers or generated content. * &lt;STRONG&gt;Status:&lt;/STRONG&gt; The current state of the task (e.g., &lt;CODE&gt;completed&lt;/CODE&gt;).&lt;/P&gt;&lt;H3 id="example" id="toc-hId--121552791"&gt;Example&lt;/H3&gt;&lt;P&gt;Below is a sample JSON payload returned by a Joule agent after a currency conversion request:&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{
+          content: "&amp;lt;? apiResponse.body.artifacts[0].parts[0].text ?&amp;gt;"  # extracting textual response from the agent&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;In here, we define actions, and the most important one is the &lt;CODE&gt;agent-request&lt;/CODE&gt;. It will invoke the Agent via the A2A integration. We specify the system alias, the type as &lt;CODE&gt;remote&lt;/CODE&gt;, and which variable should hold the response.&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; The response from the agent now needs to be "formatted" in this function.&lt;/BLOCKQUOTE&gt;&lt;P&gt;In this super minimalistic case, I just output the result body in a static message sent to the user.&lt;/P&gt;&lt;H2 id="understanding-the-joule-agent-result-variable" id="toc-hId-217622869"&gt;Understanding the Joule Agent Result Variable&lt;/H2&gt;&lt;P&gt;When working with the &lt;STRONG&gt;agent-request&lt;/STRONG&gt; action, the &lt;CODE&gt;result_variable&lt;/CODE&gt; is the connection between the output of the agent and the formatting of the response to Joules Webclient. In that result variable we have the following:&lt;/P&gt;&lt;H3 id="key-components-of-the-response" id="toc-hId-150192083"&gt;Key Components of the Response&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Body:&lt;/STRONG&gt; The core container for the task data.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;History:&lt;/STRONG&gt; A log of the conversation turns between the user and the agent.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Artifacts:&lt;/STRONG&gt; The final, structured answers or generated content.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Status:&lt;/STRONG&gt; The current state of the task (e.g., &lt;CODE&gt;completed&lt;/CODE&gt;).&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="example" id="toc-hId--121552791"&gt;Example&lt;/H3&gt;&lt;P&gt;Below is a sample JSON payload returned by a Joule agent after a currency conversion request:&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{
   "headers": {},
   "body": {
     "kind": "task",
@@ -1663,11 +1761,10 @@ target:
       "timestamp": "2026-02-16T11:45:20.883269+00:00"
     }
   }
-}&lt;/code&gt;&lt;/pre&gt;&lt;HR /&gt;&lt;H3 id="extracting-specific-information" id="toc-hId--318066296"&gt;Extracting Specific Information&lt;/H3&gt;&lt;P&gt;Developers can use simple dot-notation scripting to drill down into this variable and extract specific data for the UI.&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;STRONG&gt;Example:&lt;/STRONG&gt; To grab the final conversion text from the JSON above, you would navigate the path:&lt;/BLOCKQUOTE&gt;&lt;BLOCKQUOTE&gt;&lt;CODE&gt;apiResponse.body.artifacts[0].parts[0].text&lt;/CODE&gt;&lt;/BLOCKQUOTE&gt;&lt;P&gt;This allows you to bypass the background "thought" process or status updates and display only the exact information the user is looking for in a clean, conversational message.&lt;/P&gt;&lt;H2 id="3-destination-creation" id="toc-hId--221176794"&gt;3. Destination Creation&lt;/H2&gt;&lt;P&gt;To bridge Joule with our remote Python agent, we need to establish a connection via the &lt;STRONG&gt;SAP BTP Destination Service&lt;/STRONG&gt;. This follows the standard procedure for creating an HTTP destination within your BTP Subaccount.&lt;/P&gt;&lt;P&gt;In the BTP Cockpit, navigate to &lt;STRONG&gt;Connectivity &amp;gt; Destinations&lt;/STRONG&gt; and create a new destination with the following details:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Name:&lt;/STRONG&gt; &lt;CODE&gt;CURRENCY_AGENT&lt;/CODE&gt; (This must match the system alias we defined in our capability YAML).&amp;nbsp;&lt;BR /&gt;&lt;STRONG&gt;Type:&lt;/STRONG&gt; &lt;CODE&gt;HTTP&lt;/CODE&gt;&amp;nbsp;&lt;BR /&gt;&lt;STRONG&gt;URL:&lt;/STRONG&gt; The base URL where your agent is hosted (e.g., your Cloud Foundry app URL).&amp;nbsp;&lt;BR /&gt;&lt;STRONG&gt;Proxy Type:&lt;/STRONG&gt; &lt;CODE&gt;Internet&lt;/CODE&gt;&lt;BR /&gt;&lt;STRONG&gt;Authentication:&lt;/STRONG&gt; For this demonstration and to keep things simple, I have selected &lt;CODE&gt;NoAuthentication&lt;/CODE&gt;.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="destination create.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/373076iB9088BAEC7A363D9/image-size/large?v=v2&amp;amp;px=999" role="button" title="destination create.png" alt="destination create.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The A2A integration handles the heavy lifting of discovery. When Joule triggers the agent request, it uses the URL provided in this destination to locate the &lt;STRONG&gt;well-known.json&lt;/STRONG&gt; path (the discovery endpoint) of your agent.&lt;/P&gt;&lt;P&gt;From there, Joule retrieves the Agent Card, identifies the specific communication URL defined within that card (+ preferred protocol), and subsequently initiates &lt;STRONG&gt;A2A-compliant messaging&lt;/STRONG&gt; to send tasks and receive responses from your agent.&lt;/P&gt;&lt;H2 id="4-deploy-the-joule-capability" id="toc-hId--417690299"&gt;4. Deploy the Joule Capability&lt;/H2&gt;&lt;P&gt;Now that the Joule capability is built and the destination is configured to point toward our agent on Cloud Foundry, we can bring everything together. To do this, we will use the &lt;STRONG&gt;Joule CLI&lt;/STRONG&gt; to deploy the capability to our instance.&lt;/P&gt;&lt;H3 id="deployment-workflow" id="toc-hId--907606811"&gt;Deployment Workflow&lt;/H3&gt;&lt;P&gt;The Joule CLI handles the lifecycle of your capability through three main phases:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Authentication&lt;/STRONG&gt;: Use &lt;CODE&gt;joule login&lt;/CODE&gt; to authenticate with the specific Joule instance where you want to deploy.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Compilation&lt;/STRONG&gt;: The source files must be compiled into a &lt;CODE&gt;.daar&lt;/CODE&gt; file (Design-time Artifact Archive), which is the deployable format Joule requires.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Deployment&lt;/STRONG&gt;: The archive is uploaded and registered to the assistant.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Compile and deploy can be combined with the following command:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;joule deploy -c -n ""&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;CODE&gt;-c&lt;/CODE&gt; (Compile)&lt;/STRONG&gt;: Tells the CLI to first package your YAML files into the &lt;CODE&gt;.daar&lt;/CODE&gt; format.&lt;BR /&gt;&lt;STRONG&gt;&lt;CODE&gt;-n&lt;/CODE&gt; (Name)&lt;/STRONG&gt;: By specifying a bot name, you are creating a standalone assistant for testing purposes.&lt;/P&gt;&lt;H3 id="sample-output" id="toc-hId--1104120316"&gt;Sample Output:&lt;/H3&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;joule deploy -c  -n "currencyagenttest"
-✔ Building designtime artifact (currencyagentcapability)
-✔ Trigger compilation (C:\Github\joule-code-based-agent-sample\currencyagentcapability)
-✔ Compiled (C:\Github\joule-code-based-agent-sample\currencyagentcapability)
-
+}&lt;/code&gt;&lt;/pre&gt;&lt;HR /&gt;&lt;H3 id="extracting-specific-information" id="toc-hId--318066296"&gt;Extracting Specific Information&lt;/H3&gt;&lt;P&gt;Developers can use simple dot-notation scripting to drill down into this variable and extract specific data for the UI.&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;STRONG&gt;Example:&lt;/STRONG&gt; To grab the final conversion text from the JSON above, you would navigate the path:&lt;/BLOCKQUOTE&gt;&lt;BLOCKQUOTE&gt;&lt;CODE&gt;apiResponse.body.artifacts[0].parts[0].text&lt;/CODE&gt;&lt;/BLOCKQUOTE&gt;&lt;P&gt;This allows you to bypass the background "thought" process or status updates and display only the exact information the user is looking for in a clean, conversational message.&lt;/P&gt;&lt;H2 id="3-destination-creation" id="toc-hId--221176794"&gt;3. Destination Creation&lt;/H2&gt;&lt;P&gt;To bridge Joule with our remote Python agent, we need to establish a connection via the &lt;STRONG&gt;SAP BTP Destination Service&lt;/STRONG&gt;. This follows the standard procedure for creating an HTTP destination within your BTP Subaccount.&lt;/P&gt;&lt;P&gt;In the BTP Cockpit, navigate to &lt;STRONG&gt;Connectivity &amp;gt; Destinations&lt;/STRONG&gt; and create a new destination with the following details:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Name:&lt;/STRONG&gt; &lt;CODE&gt;CURRENCY_AGENT&lt;/CODE&gt; (This must match the system alias we defined in our capability YAML).&amp;nbsp;&lt;BR /&gt;&lt;STRONG&gt;Type:&lt;/STRONG&gt; &lt;CODE&gt;HTTP&lt;/CODE&gt;&amp;nbsp;&lt;BR /&gt;&lt;STRONG&gt;URL:&lt;/STRONG&gt; The base URL where your agent is hosted (e.g., your Cloud Foundry app URL).&amp;nbsp;&lt;BR /&gt;&lt;STRONG&gt;Proxy Type:&lt;/STRONG&gt; &lt;CODE&gt;Internet&lt;/CODE&gt;&lt;BR /&gt;&lt;STRONG&gt;Authentication:&lt;/STRONG&gt; For this demonstration and to keep things simple, I have selected &lt;CODE&gt;NoAuthentication&lt;/CODE&gt;.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="destination create.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/373076iB9088BAEC7A363D9/image-size/large?v=v2&amp;amp;px=999" role="button" title="destination create.png" alt="destination create.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The A2A integration handles the heavy lifting of discovery. When Joule triggers the agent request, it uses the URL provided in this destination to locate the &lt;STRONG&gt;well-known.json&lt;/STRONG&gt; path (the discovery endpoint) of your agent.&lt;/P&gt;&lt;P&gt;From there, Joule retrieves the Agent Card, identifies the specific communication URL defined within that card (+ preferred protocol), and subsequently initiates &lt;STRONG&gt;A2A-compliant messaging&lt;/STRONG&gt; to send tasks and receive responses from your agent.&lt;/P&gt;&lt;H2 id="4-deploy-the-joule-capability" id="toc-hId--417690299"&gt;4. Deploy the Joule Capability&lt;/H2&gt;&lt;P&gt;Now that the Joule capability is built and the destination is configured to point toward our agent on Cloud Foundry, we can bring everything together. To do this, we will use the &lt;STRONG&gt;Joule CLI&lt;/STRONG&gt; to deploy the capability to our instance.&lt;/P&gt;&lt;H3 id="deployment-workflow" id="toc-hId--907606811"&gt;Deployment Workflow&lt;/H3&gt;&lt;P&gt;The Joule CLI handles the lifecycle of your capability through three main phases:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Authentication&lt;/STRONG&gt;: Use &lt;CODE&gt;joule login&lt;/CODE&gt; to authenticate with the specific Joule instance where you want to deploy.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Compilation&lt;/STRONG&gt;: The source files must be compiled into a &lt;CODE&gt;.daar&lt;/CODE&gt; file (Design-time Artifact Archive), which is the deployable format Joule requires.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Deployment&lt;/STRONG&gt;: The archive is uploaded and registered to the assistant.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Compile and deploy can be combined with the following command:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;joule deploy -c -n "&amp;lt;bot_name&amp;gt;"&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;CODE&gt;-c&lt;/CODE&gt; (Compile)&lt;/STRONG&gt;: Tells the CLI to first package your YAML files into the &lt;CODE&gt;.daar&lt;/CODE&gt; format.&lt;BR /&gt;&lt;STRONG&gt;&lt;CODE&gt;-n&lt;/CODE&gt; (Name)&lt;/STRONG&gt;: By specifying a bot name, you are creating a standalone assistant for testing purposes.&lt;/P&gt;&lt;H3 id="sample-output" id="toc-hId--1104120316"&gt;Sample Output:&lt;/H3&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;&amp;gt; joule deploy -c  -n "currency_agent_test"
+✔ Building designtime artifact (currency_agent_capability)
+✔ Trigger compilation (C:\Github\joule-code-based-agent-sample\currency_agent_capability)
+✔ Compiled (C:\Github\joule-code-based-agent-sample\currency_agent_capability)
 
 Detailed logs:
 WARNINGS:
@@ -1676,13 +1773,12 @@ Path:
 Category:            I18N
 Severity:            LOW
 
-
-✔ Downloaded runtime artifact (joule.extcurrencyagentcapability1.0.0.daar)
+✔ Downloaded runtime artifact (joule.ext_currency_agent_capability_1.0.0.daar)
 ✔ Building runtime artifact
-  &amp;gt; joule.extcurrencyagentcapability1.0.0.daar added to the RTA
-✔ Triggering deployment (currencyagenttest)
-✔ Your digital assistant (currencyagenttest) deployed successfully&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;That would have deployed my currency&lt;I&gt;agent&lt;/I&gt;test assistant that I can then launch.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; Test Assistant vs. Production Update&lt;/P&gt;&lt;P&gt;By default, Joule uses the &lt;CODE&gt;sap_&lt;I&gt;digital_&lt;/I&gt;assistant&lt;/CODE&gt; for live enterprise scenarios. (Also when opening Joule with /joule) When you are first developing, using &lt;CODE&gt;joule deploy -n&lt;/CODE&gt; allows you to test your logic in a isolated "sandbox" assistant without affecting the standard content.&lt;/P&gt;&lt;P&gt;Once you are ready to move your capability into the main environment alongside SAP's standard content, you would typically use:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;joule update "sapdigitalassistant" --capability-file capability.sapdas.yaml&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This command pushes your capability into the existing &lt;CODE&gt;sap&lt;I&gt;digital&lt;/I&gt;assistant&lt;/CODE&gt; rather than creating a new standalone bot.&lt;/P&gt;&lt;H3 id="launching-the-assistant" id="toc-hId--1300633821"&gt;Launching the Assistant&lt;/H3&gt;&lt;P&gt;After a successful deployment, the CLI will provide a URL to access your new assistant. When you open this link, you will see the assistant name reflected in the URL path.&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;joule launch "currencyagenttest"
-✔ Launching: https://joule-pro-code-9r3t5r7a.eu10.sapdas.cloud.sap/webclient/standalone/currencyagenttest&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;From here, you can begin interacting with your custom LangGraph agent directly through the Joule interface.&lt;/P&gt;&lt;H2 id="conclusion" id="toc-hId--1203744319"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;Finally, we can test our agent directly from within Joule. For this example, I am using a standalone Joule instance. With the necessary end-user role assigned to my user, I can open the Joule web client and ask Joule for a currency conversion:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="joule result.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/373082i4DE0CEB32AB77F40/image-size/large?v=v2&amp;amp;px=999" role="button" title="joule result.png" alt="joule result.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;As you can see, the scenario is selected, the function is executed, and the agent request action delegates the call to my LangGraph agent deployed on Cloud Foundry. The response is generated there and sent back to Joule. Find the full code on &lt;A href="https://github.com/fyx99/joule-pro-code-a2a" target="_self" rel="nofollow noopener noreferrer"&gt;Github&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;Nice! This opens up plenty of possibilities for extending Joule with custom-built agents.&lt;/P&gt;&lt;P&gt;I hope you found this insightful. Since this blog covered only a very minimal example, stay tuned for additional posts. There are many topics to dive deeper into, such as authentication flows toward SAP systems via principal propagation, managing the agent context across multi-turn conversations, and response formats beyond simple text.&lt;/P&gt;</content>
+  &amp;gt; joule.ext_currency_agent_capability_1.0.0.daar added to the RTA
+✔ Triggering deployment (currency_agent_test)
+✔ Your digital assistant (currency_agent_test) deployed successfully&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;That would have deployed my currency_&lt;I&gt;agent_&lt;/I&gt;test assistant that I can then launch.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; Test Assistant vs. Production Update&lt;/P&gt;&lt;P&gt;By default, Joule uses the &lt;CODE&gt;sap_&lt;I&gt;digital_&lt;/I&gt;assistant&lt;/CODE&gt; for live enterprise scenarios. (Also when opening Joule with /joule) When you are first developing, using &lt;CODE&gt;joule deploy -n&lt;/CODE&gt; allows you to test your logic in a isolated "sandbox" assistant without affecting the standard content.&lt;/P&gt;&lt;P&gt;Once you are ready to move your capability into the main environment alongside SAP's standard content, you would typically use:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;joule update "sap_digital_assistant" --capability-file capability.sapdas.yaml&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This command pushes your capability into the existing &lt;CODE&gt;sap_&lt;I&gt;digital_&lt;/I&gt;assistant&lt;/CODE&gt; rather than creating a new standalone bot.&lt;/P&gt;&lt;H3 id="launching-the-assistant" id="toc-hId--1300633821"&gt;Launching the Assistant&lt;/H3&gt;&lt;P&gt;After a successful deployment, the CLI will provide a URL to access your new assistant. When you open this link, you will see the assistant name reflected in the URL path.&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;&amp;gt; joule launch "currency_agent_test"
+✔ Launching: https://joule-pro-code-9r3t5r7a.eu10.sapdas.cloud.sap/webclient/standalone/currency_agent_test&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;From here, you can begin interacting with your custom LangGraph agent directly through the Joule interface.&lt;/P&gt;&lt;H2 id="conclusion" id="toc-hId--1203744319"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;Finally, we can test our agent directly from within Joule. For this example, I am using a standalone Joule instance. With the necessary end-user role assigned to my user, I can open the Joule web client and ask Joule for a currency conversion:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="joule result.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/373082i4DE0CEB32AB77F40/image-size/large?v=v2&amp;amp;px=999" role="button" title="joule result.png" alt="joule result.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;As you can see, the scenario is selected, the function is executed, and the agent request action delegates the call to my LangGraph agent deployed on Cloud Foundry. The response is generated there and sent back to Joule. Find the full code on &lt;A href="https://github.com/fyx99/joule-pro-code-a2a" target="_self" rel="nofollow noopener noreferrer"&gt;Github&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;Nice! This opens up plenty of possibilities for extending Joule with custom-built agents.&lt;/P&gt;&lt;P&gt;I hope you found this insightful. Since this blog covered only a very minimal example, stay tuned for additional posts. There are many topics to dive deeper into, such as authentication flows toward SAP systems via principal propagation, managing the agent context across multi-turn conversations, and response formats beyond simple text.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/joule-a2a-connect-code-based-agents-into-joule/ba-p/14329279"/>
     <published>2026-02-16T14:35:31.791000+01:00</published>
   </entry>
