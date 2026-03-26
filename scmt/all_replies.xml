@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2026-03-26T22:29:01.292467+00:00</updated>
+  <updated>2026-03-26T22:44:01.299659+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
@@ -1506,8 +1506,10 @@ define behavior for zi_salesdash_mass_change with control //alias &amp;lt;alias_
   @UI.hidden: true
   FilterString : abap.string(4000);
   // ... other action parameters if needed
-}&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-1528556158"&gt;The Fiori Elements Extension&lt;/H3&gt;&lt;P class=""&gt;On the Fiori Elements List Report side, we need a controller extension that does two things when the user triggers the action: capture the current $filter string and inject it into the hidden parameter.&lt;/P&gt;&lt;P class=""&gt;Two helper methods make this work. _getFilterString extracts the $filter from the current table row binding — this is exactly the same filter the framework sent to the backend when the user pressed "Go":&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;function _getFilterString(oView) {
-    var oTable = _getMainTable(oView);
+}&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-1528556158"&gt;The Fiori Elements Extension&lt;/H3&gt;&lt;P class=""&gt;On the Fiori Elements List Report side, we need custom action logic that does two things when the user triggers the action: capture the current $filter string and inject it into the hidden parameter.&lt;/P&gt;&lt;P class=""&gt;This can be achieved through a custom action defined in the manifest.json (or via a controller extension, depending on your app setup).&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;The _getFilterString method extracts the $filter from the current table row binding — this is exactly the same filter the framework sent to the backend when the user pressed "GO".&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;function _getFilterString(oView) {
+    // Table ID follows Fiori Elements convention: 
+    // "&amp;lt;appId&amp;gt;::&amp;lt;ListReportPage&amp;gt;--fe::table::&amp;lt;EntitySet&amp;gt;::LineItem"
+    var oTable = oView.byId("&amp;lt;your-table-control-id&amp;gt;");
     if (oTable) {
         var oRowBinding = oTable.getRowBinding();
         if (oRowBinding) {
@@ -1526,19 +1528,13 @@ define behavior for zi_salesdash_mass_change with control //alias &amp;lt;alias_
         }
     }
     return "";
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;_getTableControlId returns the table control ID needed by the invokeAction API:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;function _getTableControlId(oView) {
-    var oTable = _getMainTable(oView);
-    if (oTable) {
-        return oTable.getId().split("--").pop();
-    }
-    return "";
 }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Then in the action handler, we invoke the static action and pass the $filter string as the hidden parameter:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;onPressExecuteAll: function () {
     var oView = this.editFlow.getView();
     var sActionName = "&amp;lt;your action bound context&amp;gt;";
     var sFilterString = _getFilterString(oView);
 
     var oInvokeParams = {
-        controlId: _getTableControlId(oView),
+        controlId: "&amp;lt;your-table-control-id&amp;gt;",
         bStaticAction: true,
         invocationGrouping: "Isolated",
         parameterValues: [{
@@ -1553,14 +1549,14 @@ define behavior for zi_salesdash_mass_change with control //alias &amp;lt;alias_
         }).catch(function (oError) {
             console.error("Action error:", oError);
         });
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The key point: the parameterValues array injects the filter string into the hidden FilterString field of the Abstract Entity. The user never sees it — the action dialog shows only the visible parameters (if any), while the filter criteria travel silently to the backend.&lt;/P&gt;&lt;H3 id="toc-hId-1332042653"&gt;The ABAP Parser&lt;/H3&gt;&lt;P class=""&gt;On the backend, the action handler receives the $filter string and needs to parse it into ABAP range tables to re-execute the query with the same criteria.&lt;/P&gt;&lt;P class=""&gt;We looked for standard solutions — for example, the method ODATA_FILTER2SELECT_OPTION of class CL_CLB2_TOOLS — but it only supports OData V2.&lt;/P&gt;&lt;P class=""&gt;So we built a custom reusable class: ZCL_ODATA_FILTER_PARSER, which handles both V2 and V4 syntax and converts the $filter string directly into ABAP range tables.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA(lo_parser) = NEW zcl_odata_filter_parser(
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The key point: the parameterValues array injects the filter string into the hidden FilterString field of the Abstract Entity. The user never sees it — the action dialog shows only the visible parameters (if any), while the filter criteria travel silently to the backend.&lt;/P&gt;&lt;P&gt;&lt;EM&gt;Note:&amp;nbsp; this was tested on S/4HANA 2023 with OData V4 and SAPUI5 1.120.&lt;/EM&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1332042653"&gt;The ABAP Parser&lt;/H3&gt;&lt;P class=""&gt;On the backend, the action handler receives the $filter string and needs to parse it into ABAP range tables to re-execute the query with the same criteria.&lt;/P&gt;&lt;P class=""&gt;We looked for standard solutions — for example, the method ODATA_FILTER2SELECT_OPTION of class CL_CLB2_TOOLS — but it only supports OData V2.&lt;/P&gt;&lt;P class=""&gt;So we built a custom reusable class: ZCL_ODATA_FILTER_PARSER, which handles both V2 and V4 syntax and converts the $filter string directly into ABAP range tables.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA(lo_parser) = NEW zcl_odata_filter_parser(
   iv_filter  = lv_filter_string
   iv_version = zcl_odata_filter_parser=&amp;gt;gc_version-v4
 ).
 
 DATA(lt_r_plant) = lo_parser-&amp;gt;get_range( 'Plant' ).
 DATA(lt_r_mat)   = lo_parser-&amp;gt;get_range( 'Material' ).
-DATA(lt_r_date)  = lo_parser-&amp;gt;get_range( 'DeliveryDate' ).&lt;/code&gt;&lt;/pre&gt;&lt;P class=""&gt;The class is open source, includes ABAP Unit tests&amp;nbsp; and is installable via abapGit. You can find the&amp;nbsp; usage examples in the repository:&lt;/P&gt;&lt;P class=""&gt;&lt;A href="https://github.com/alespad/abap-odata-filter-parser" target="_self" rel="nofollow noopener noreferrer"&gt;https://github.com/alespad/abap-odata-filter-parser&lt;/A&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;This is how we approached solving this problem. If you know of better approaches, closer to standard functionality, we'd love to hear about them — please share in the comments!&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;</content>
+DATA(lt_r_date)  = lo_parser-&amp;gt;get_range( 'DeliveryDate' ).&lt;/code&gt;&lt;/pre&gt;&lt;P class=""&gt;The class is open source, includes ABAP Unit tests&amp;nbsp; and is installable via abapGit. You can find the&amp;nbsp; usage examples in the repository:&lt;/P&gt;&lt;P class=""&gt;&lt;A href="https://github.com/alespad/abap-odata-filter-parser" target="_self" rel="nofollow noopener noreferrer"&gt;https://github.com/alespad/abap-odata-filter-parser&lt;/A&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;This is how we approached solving this problem. If you know of better approaches, closer to standard functionality, we'd love to hear about them — please share in the comments!&lt;/P&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/abap-blog-posts/fiori-list-report-the-quot-process-all-quot-dilemma-parsing-odata-filter-in/ba-p/14359159"/>
     <published>2026-03-26T18:27:35.306000+01:00</published>
   </entry>
@@ -1983,7 +1979,7 @@ END;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;If i call this procedure in th
       <name>tskwin</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/823618</uri>
     </author>
-    <content>&lt;P&gt;Hello&amp;nbsp;&amp;nbsp;,thank you very much for your support!&lt;/P&gt;&lt;P&gt;I still have an issue with the email verification behavior in IAS.&lt;/P&gt;&lt;P&gt;Some users already existed in IAS (they were provisioned earlier). After that, I changed my mapping in the source system (IdP) like this:&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{
+    <content>&lt;P&gt;Hello&amp;nbsp; &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/75"&gt;@Yogananda&lt;/a&gt;&lt;/P&gt;&lt;P&gt;thank you very much for your support!&lt;/P&gt;&lt;P&gt;I still have an issue with the email verification behavior in IAS.&lt;/P&gt;&lt;P&gt;Some users already existed in IAS (they were provisioned earlier). After that, I changed my mapping in the source system (IdP) like this:&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{
     "user": {
         "mappings": [
             {
@@ -2054,7 +2050,7 @@ END;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;If i call this procedure in th
             }
         ]
     }
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Then I ran a resync job, but the existing users in IAS were not set to "Verified".&lt;/P&gt;&lt;P&gt;After that, I deleted one user in IAS and provisioned it again.&lt;BR /&gt;→ This user was created correctly and the email was verified.&lt;/P&gt;&lt;P&gt;However, after running another resync job, the verification was removed again (the user is "Not Verified" again).&lt;/P&gt;&lt;P&gt;My question:&lt;BR /&gt;How can I make sure that the email stays verified for already provisioned users and is not overwritten during resync?&lt;/P&gt;&lt;P&gt;Thank you very much&lt;/P&gt;&lt;P&gt;Best Regards&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/75"&gt;@Yogananda&lt;/a&gt;&lt;/P&gt;</content>
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Then I ran a resync job, but the existing users in IAS were not set to "Verified".&lt;/P&gt;&lt;P&gt;After that, I deleted one user in IAS and provisioned it again.&lt;BR /&gt;→ This user was created correctly and the email was verified.&lt;/P&gt;&lt;P&gt;However, after running another resync job, the verification was removed again (the user is "Not Verified" again).&lt;/P&gt;&lt;P&gt;My question:&lt;BR /&gt;How can I make sure that the email stays verified for already provisioned users and is not overwritten during resync?&lt;/P&gt;&lt;P&gt;Thank you very much&lt;/P&gt;&lt;P&gt;Best Regards&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/email-verification-for-provisioned-users-ias/qaa-p/14359287#M4939343"/>
     <published>2026-03-26T23:22:58.873000+01:00</published>
   </entry>
