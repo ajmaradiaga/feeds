@@ -2,211 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2026-03-27T06:59:01.165288+00:00</updated>
+  <updated>2026-03-27T07:14:01.748489+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/abap-blog-posts/fiori-list-report-the-quot-process-all-quot-dilemma-parsing-odata-filter-in/ba-p/14359159</id>
-    <title>Fiori List Report: The "Process All" Dilemma — Parsing OData $filter in ABAP</title>
-    <updated>2026-03-26T18:27:35.306000+01:00</updated>
-    <author>
-      <name>AlessandroSpadoni</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/141302</uri>
-    </author>
-    <content>&lt;H3 id="toc-hId-1921583168"&gt;The Problem&lt;/H3&gt;&lt;P class=""&gt;This scenario is more common than you might think.&lt;/P&gt;&lt;P class=""&gt;In the old SAP GUI world, ALV lists frequently had buttons like "Execute All" or "Process All" defined in the GUI Status, or users could simply "Select All" rows and trigger an action. The entire dataset was right there in memory — stateful, accessible, simple.&lt;/P&gt;&lt;P class=""&gt;Unfortunately, the same approach is still often requested in Fiori Elements List Reports. The reason? There's still a widespread difficulty in understanding the fundamental difference between stateful and stateless, between a classic ALV list and a Fiori List Report.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="AlessandroSpadoni_0-1774545069380.png" style="width: 566px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389401iAE06BFFD8424D291/image-dimensions/566x156?v=v2" width="566" height="156" role="button" title="AlessandroSpadoni_0-1774545069380.png" alt="AlessandroSpadoni_0-1774545069380.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="AlessandroSpadoni_1-1774545139469.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389403i2FBEFF5C8EF959B1/image-size/large?v=v2&amp;amp;px=999" role="button" title="AlessandroSpadoni_1-1774545139469.png" alt="AlessandroSpadoni_1-1774545139469.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class=""&gt;When we try to explain that there's an OData protocol with pagination behind the scenes, that "Select All" doesn't truly select all rows, or that an "Execute All" action has no knowledge of which records to process — unlike in ALV where the entire internal table was available — we can often steer the design away from this pattern. But sometimes, we can't.&lt;/P&gt;&lt;P class=""&gt;The Fiori warning message helps users understand that "Select All" is only partial — it's no longer the same as it was with ALV lists.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="AlessandroSpadoni_2-1774545196426.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389404iDDCFC40BEF6A9545/image-size/large?v=v2&amp;amp;px=999" role="button" title="AlessandroSpadoni_2-1774545196426.png" alt="AlessandroSpadoni_2-1774545196426.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class=""&gt;There are legitimate use cases where, after filtering a dataset, reviewing it, validating it, the user needs to "confirm" an action or a status change to be applied to that specific result set they're currently looking at.&lt;/P&gt;&lt;P class=""&gt;I won't go into the details of how the action should be implemented in ABAP — there could be timeout concerns, and often these actions are executed via background tasks or jobs. I want to focus specifically on the approach for capturing the "snapshot" of what the user has filtered.&lt;/P&gt;&lt;P class=""&gt;As we said, "Select All" is not a viable option. In the modern world we have pagination, and we can't expect the user to scroll all the way to the bottom of the list. Retrieving all row identifiers from the frontend is simply not feasible.&lt;/P&gt;&lt;H3 id="toc-hId-1725069663"&gt;Our Approach&lt;/H3&gt;&lt;P class=""&gt;The best solution we've implemented (together with&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/137528"&gt;@SimoneLicciardi&lt;/a&gt;&amp;nbsp;) is to pass the applied filter criteria back to a Static Action — essentially the same filters that were active when the user pressed "Go".&lt;/P&gt;&lt;P class=""&gt;We can define an Abstract Entity as the import parameter for the RAP action. If the action dialog already has other parameters, this is simply an additional hidden parameter (@UI.hidden: true) that we can call FilterString.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;define abstract entity ZA_ProcessAllParams {
-  @UI.hidden: true
-  FilterString : abap.string(4000);
-  // ... other action parameters if needed
-}&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-1528556158"&gt;The Fiori Elements Extension&lt;/H3&gt;&lt;P class=""&gt;On the Fiori Elements List Report side, we need custom action logic that does two things when the user triggers the action: capture the current $filter string and inject it into the hidden parameter.&lt;/P&gt;&lt;P class=""&gt;This can be achieved through a custom action defined in the manifest.json (or via a controller extension, depending on your app setup).&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;The _getFilterString method extracts the $filter from the current table row binding — this is exactly the same filter the framework sent to the backend when the user pressed "Go".&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;function _getFilterString(oView) {
-    // Table ID follows Fiori Elements convention: 
-    // "&amp;lt;appId&amp;gt;::&amp;lt;ListReportPage&amp;gt;--fe::table::&amp;lt;EntitySet&amp;gt;::LineItem"
-    var oTable = oView.byId("&amp;lt;your-table-control-id&amp;gt;");
-    if (oTable) {
-        var oRowBinding = oTable.getRowBinding();
-        if (oRowBinding) {
-            var sPath = oRowBinding.getDownloadUrl();
-            if (sPath) {
-                var iFilterStart = sPath.indexOf("$filter=");
-                if (iFilterStart &amp;gt; -1) {
-                    var sFilter = sPath.substring(iFilterStart + 8);
-                    var iNextParam = sFilter.indexOf("&amp;amp;");
-                    if (iNextParam &amp;gt; -1) {
-                        sFilter = sFilter.substring(0, iNextParam);
-                    }
-                    return decodeURIComponent(sFilter);
-                }
-            }
-        }
-    }
-    return "";
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Then in the action handler, we invoke the static action and pass the $filter string as the hidden parameter:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;onPressExecuteAll: function () {
-    var oView = this.editFlow.getView();
-    var sActionName = "&amp;lt;your action bound context&amp;gt;";
-    var sFilterString = _getFilterString(oView);
-
-    var oInvokeParams = {
-        controlId: "&amp;lt;your-table-control-id&amp;gt;",
-        bStaticAction: true,
-        invocationGrouping: "Isolated",
-        parameterValues: [{
-            name: "FilterString",
-            value: sFilterString
-        }]
-    };
-
-    this.editFlow.invokeAction(sActionName, oInvokeParams)
-        .then(function (oResult) {
-            // handle success
-        }).catch(function (oError) {
-            console.error("Action error:", oError);
-        });
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The key point: the parameterValues array injects the filter string into the hidden FilterString field of the Abstract Entity. The user never sees it — the action dialog shows only the visible parameters (if any), while the filter criteria travel silently to the backend.&lt;/P&gt;&lt;P&gt;&lt;EM&gt;Note:&amp;nbsp; this was tested on S/4HANA 2023 with OData V4 and SAPUI5 1.120.&lt;/EM&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1332042653"&gt;The ABAP Parser&lt;/H3&gt;&lt;P class=""&gt;On the backend, the action handler receives the $filter string and needs to parse it into ABAP range tables to re-execute the query with the same criteria.&lt;/P&gt;&lt;P class=""&gt;We looked for standard solutions — for example, the method ODATA_FILTER2SELECT_OPTION of class CL_CLB2_TOOLS — but it only supports OData V2.&lt;/P&gt;&lt;P class=""&gt;So we built a custom reusable class: ZCL_ODATA_FILTER_PARSER, which handles both V2 and V4 syntax and converts the $filter string directly into ABAP range tables.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA(lo_parser) = NEW zcl_odata_filter_parser(
-  iv_filter  = lv_filter_string
-  iv_version = zcl_odata_filter_parser=&amp;gt;gc_version-v4
-).
-
-DATA(lt_r_plant) = lo_parser-&amp;gt;get_range( 'Plant' ).
-DATA(lt_r_mat)   = lo_parser-&amp;gt;get_range( 'Material' ).
-DATA(lt_r_date)  = lo_parser-&amp;gt;get_range( 'DeliveryDate' ).&lt;/code&gt;&lt;/pre&gt;&lt;P class=""&gt;The class is open source, includes ABAP Unit tests&amp;nbsp; and is installable via abapGit. You can find the&amp;nbsp; usage examples in the repository:&lt;/P&gt;&lt;P class=""&gt;&lt;A href="https://github.com/alespad/abap-odata-filter-parser" target="_self" rel="nofollow noopener noreferrer"&gt;https://github.com/alespad/abap-odata-filter-parser&lt;/A&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;This is how we approached solving this problem. If you know of better approaches, closer to standard functionality, we'd love to hear about them — please share in the comments!&lt;/P&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-blog-posts/fiori-list-report-the-quot-process-all-quot-dilemma-parsing-odata-filter-in/ba-p/14359159"/>
-    <published>2026-03-26T18:27:35.306000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/is-sap-abap-developer-still-a-good-career-option-in-2026-for-someone/qaa-p/14359164#M4939332</id>
-    <title>Re: Is SAP ABAP developer still a good career option in 2...</title>
-    <updated>2026-03-26T18:39:52.735000+01:00</updated>
-    <author>
-      <name>signortintin</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2253355</uri>
-    </author>
-    <content>&lt;P&gt;I have been in IT and in particular working as an ABAP Developer for last 18+ years. IF you want a true answer NO it won't help you. It is hard to break into SAP as a fresher and now with AI and stuffs around it , the things will become harder for you as you lack ABAP and business skills like OTC, RTR and stuffs like that. So, go and chase some new tech where the entry is easier than SAP. All the best.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/is-sap-abap-developer-still-a-good-career-option-in-2026-for-someone/qaa-p/14359164#M4939332"/>
-    <published>2026-03-26T18:39:52.735000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/idocs-are-still-safe-for-sap-s-4hana-sap-clean-core-extensibility-level-b/bc-p/14359165#M72746</id>
-    <title>Re: IDOCs are Still Safe for SAP S/4HANA - SAP Clean Core Extensibility Level B</title>
-    <updated>2026-03-26T18:42:54.519000+01:00</updated>
-    <author>
-      <name>signortintin</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2253355</uri>
-    </author>
-    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/157724"&gt;@rajeshps&lt;/a&gt;&amp;nbsp; There is no IDOC concept in BTP. &amp;nbsp;But in you S/4 you can use it and. use it freely without fear. I have many customers still having integrations to multiple middleware via IDOCs. That is perfectly fine and proven. But explore if APIs are available and if you can make the switch just to be safer because you can never trust SAP they keep flip flopping&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/idocs-are-still-safe-for-sap-s-4hana-sap-clean-core-extensibility-level-b/bc-p/14359165#M72746"/>
-    <published>2026-03-26T18:42:54.519000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/how-do-i-use-an-out-table/qaq-p/14359166</id>
-    <title>How do I USE an OUT-Table?</title>
-    <updated>2026-03-26T18:47:23.575000+01:00</updated>
-    <author>
-      <name>rhavin</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2266170</uri>
-    </author>
-    <content>&lt;P&gt;&lt;SPAN&gt;I have a procedure that has an OUT table variable:&lt;BR /&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;CREATE OR REPLACE PROCEDURE "q_FollowLinkedTables"
-(
-  IN  EntryNumber int,
-  IN  EntryType   int,
-  IN  Backwards   BOOLEAN,
-  OUT Result      "q_tt_EntryMap"
-)
-
-LANGUAGE SQLSCRIPT 
-SQL SECURITY INVOKER
-
-AS
-  LineTable    NVARCHAR(10);
-  tSQL         NVARCHAR(4000);
-  ActualTab    "q_tt_EntryMap";
-  AllTab       "q_tt_EntryMap";
-  ActualNumber int;
-  ActualType   int;
-  TypeField    NVARCHAR(10);
-  NumberField  NVARCHAR(10);
-  counter      int;
-
-BEGIN
-  counter      := 0;
-  ActualNumber := EntryNumber;
-  ActualType   := EntryType;
-  IF :Backwards = TRUE THEN
-    TypeField    := 'BaseType';
-    NumberField  := 'BaseEntry';
-  ELSE
-    TypeField    := 'TargetType';
-    NumberField  := 'TrgetEntry';
-  END IF;
-  LineTable    := "q_GetDocLinesTable"(EntryType);
-
-  WHILE :LineTable IS NOT NULL
-  DO
-    counter := counter + 1;
-    tSQL := '
-    SELECT DISTINCT "'|| :NumberField ||'" AS "Entry", "'|| :TypeField ||'" AS "Type"
-    FROM ' || :LineTable || '
-    WHERE "DocEntry" = ' || :EntryNumber || ' AND "'|| :TypeField ||'" &amp;lt;&amp;gt; -1
-    ';
-    EXECUTE IMMEDIATE tSQL into ActualTab;
-    IF IS_EMPTY(:ActualTab) THEN
-      BREAK;
-    END IF;
-    
-    SELECT "Type","Entry" INTO EntryType, EntryNumber FROM :ActualTab;
-
-    INSERT INTO :AllTab VALUES (EntryNumber, EntryType);
-
-    LineTable := "q_GetDocLinesTable"(EntryType);
-    
-    /* reasonable safeguard to prevent recursive locks */
-    IF :counter &amp;gt; 10 THEN
-      BREAK;
-    END IF;
-
-  END WHILE;
-
-  Result = SELECT * FROM :AllTab;
-
-END;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;If i call this procedure in the HANA Studio console, I get the correct result:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="rhavin_0-1774546552282.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389411iFB7B154C55A81FE7/image-size/medium?v=v2&amp;amp;px=400" role="button" title="rhavin_0-1774546552282.png" alt="rhavin_0-1774546552282.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;But I need this in a variable in the calling procedure. When I do...&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;CALL "q_FollowLinkedTables"(EntryNumber, EntryType, TRUE, :Result);&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;.. that leads to "&lt;/SPAN&gt;&lt;SPAN&gt;Not supported combination of DML operations for variable" -what? How is this supposed to be done? I want to give this procedure a variable that I can further process in the calling procedure.&lt;/SPAN&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/how-do-i-use-an-out-table/qaq-p/14359166"/>
-    <published>2026-03-26T18:47:23.575000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/automatic-removal-of-dunning-level-in-business-partner-when-no-open-items/qaa-p/14359167#M4238005</id>
-    <title>Re: Automatic Removal of Dunning Level in Business Partne...</title>
-    <updated>2026-03-26T18:53:04.859000+01:00</updated>
-    <author>
-      <name>kristinriedel</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/754021</uri>
-    </author>
-    <content>I have this behaviour although on the private cloud, the customer has no open Items but still a dunning level 2 in the BP</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/automatic-removal-of-dunning-level-in-business-partner-when-no-open-items/qaa-p/14359167#M4238005"/>
-    <published>2026-03-26T18:53:04.859000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/financial-management-q-a/private-cloud-automatic-removal-of-dunning-level-do-not-work/qaq-p/14359168</id>
-    <title>Private Cloud automatic removal of dunning Level do not work</title>
-    <updated>2026-03-26T19:03:40.069000+01:00</updated>
-    <author>
-      <name>kristinriedel</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/754021</uri>
-    </author>
-    <content>&lt;P&gt;Hello Together,&amp;nbsp;&lt;/P&gt;&lt;P&gt;We are in a private Cloud.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Our customer was at Dunning Level 2 in BP.&lt;BR /&gt;We have paid all outstanding items.&lt;BR /&gt;The Dunning Level in BP should actually have been set to 0 automatically.&lt;BR /&gt;However, nothing has happened. The customer is still at Dunning Level 2.&lt;BR /&gt;So I ran a dunning cycle for this customer, even though there was nothing to dunn.&lt;BR /&gt;No change to the dunning level in BP.&lt;/P&gt;&lt;P&gt;We have around 1,500 reminders per month and around 10,000 payments per month.&lt;/P&gt;&lt;P&gt;We cannot process every BP manually.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/financial-management-q-a/private-cloud-automatic-removal-of-dunning-level-do-not-work/qaq-p/14359168"/>
-    <published>2026-03-26T19:03:40.069000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/authorization-issue-in-sap-btp-trial/qaq-p/14359174</id>
-    <title>Authorization Issue in SAP BTP trial</title>
-    <updated>2026-03-26T19:23:17.459000+01:00</updated>
-    <author>
-      <name>WBEJ</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1554989</uri>
-    </author>
-    <content>&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;Hi everyone,&amp;nbsp;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Look, I created a custom Z table in Eclipse. I generated the ABAP repository object, but at the moment of doing the preview of the service binding, clicking on Default Authorization Values, it &lt;A class="" href="https://community.sap.com/t5/forums/postpage/choose-node/true/override-styles/true#" target="_blank"&gt;&lt;IMG src="https://community.sap.com/skins/images/B049CE01C4A47D45E43DDA71AF6926ED/responsive_peak/images/icon_toggle_closed_list_tree.png" border="0" alt="Click to expand Click to expand Interest Groups category Click to collapse Interest Groups category" title="Click to expand Interest Groups category" /&gt;&lt;/A&gt;says:&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Default values might not be sufficient    075BFBCCAF5A8EAC3511217BD89AA9HT (Authorization Default Values)   /TRL_EN/.adt/wbobj/aps/iam/sush/075bfbccaf5a8eac3511217bd89aa9ht  Unknown     ABAP Syntax Check Problem&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Then I changed the authorization object S_START to "Default without field values",&amp;nbsp;&lt;/SPAN&gt;but I'm getting this error when executing the preview of the entity set.&lt;/P&gt;&lt;DIV&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="WBEJ_0-1774548645757.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389413i7754D43F49A1B297/image-size/medium?v=v2&amp;amp;px=400" role="button" title="WBEJ_0-1774548645757.png" alt="WBEJ_0-1774548645757.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;DIV&gt;Also, when I check the Service URL, I'm getting this error also.&lt;/DIV&gt;&lt;DIV&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="WBEJ_1-1774548645757.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389412i3734B1620AF7B2F0/image-size/medium?v=v2&amp;amp;px=400" role="button" title="WBEJ_1-1774548645757.png" alt="WBEJ_1-1774548645757.png" /&gt;&lt;/span&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;SPAN&gt;And if I try to test the Service URL, I'm getting this error.&amp;nbsp;&lt;/SPAN&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="WBEJ_2-1774548645758.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389414iE7470B06BB51B7A4/image-size/medium?v=v2&amp;amp;px=400" role="button" title="WBEJ_2-1774548645758.png" alt="WBEJ_2-1774548645758.png" /&gt;&lt;/span&gt;&lt;/DIV&gt;&lt;P&gt;&lt;SPAN&gt;May I ask for your help, please?&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Best regards.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/authorization-issue-in-sap-btp-trial/qaq-p/14359174"/>
-    <published>2026-03-26T19:23:17.459000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/unlock-sap-joule-for-developers-claim-your-free-access-today/bc-p/14359175#M189374</id>
     <title>Re: Unlock SAP Joule for Developers—Claim Your Free Access Today</title>
@@ -1336,7 +1135,7 @@ cf map-route &amp;lt;app-name&amp;gt;-srv cfapps.&amp;lt;region&amp;gt;.hana.ond
       <name>Chris1973</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2035121</uri>
     </author>
-    <content>&lt;P&gt;Good day&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2087949"&gt;@AlvaroFernandezMorales&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <content>&lt;P&gt;Good day&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2087949"&gt;@AlvaroFernandezMorales&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thank you for your question.&lt;/P&gt;&lt;P&gt;What you described with error AC199, when fiscal year closing is checked against the latest legacy data transfer data in Asset Accounting is well documented in &lt;A href="https://me.sap.com/notes/3730290/E" target="_blank" rel="noopener noreferrer"&gt;KBA 3730290&lt;/A&gt;, which describes the same symptom in the Make Company Code Settings-Asset Accounting Specific app.&lt;/P&gt;&lt;P&gt;Your current setup is last closed fiscal year = 2023 and your migration transfer date in the legacy data transfer segment = 31.12.2025.&lt;/P&gt;&lt;P&gt;Note that, for a transfer during the fiscal year, the transfer date must be in the fiscal year that directly follows the last closed fiscal year. The system derives the current fiscal year and the last closed fiscal year from the legacy data transfer date. Based on that, a transfer date of 31.12.2025 is not compatible with a system where 2023 is still the last closed fiscal year.&lt;/P&gt;&lt;P&gt;Below are references to help you make sense of it.&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/SAP_S4HANA_CLOUD/3e5fcf2c768746049b5627bd5a42f720/1fd2035773b15632e10000000a441470.html?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/SAP_S4HANA_CLOUD/3e5fcf2c768746049b5627bd5a42f720/1fd2035773b15632e10000000a441470.html?locale=en-US&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/SAP_S4HANA_CLOUD/3e5fcf2c768746049b5627bd5a42f720/290e97c27ba3416cb7254cabe4d5dec4.html?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/SAP_S4HANA_CLOUD/3e5fcf2c768746049b5627bd5a42f720/290e97c27ba3416cb7254cabe4d5dec4.html?locale=en-US&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/SAP_S4HANA_CLOUD/3e5fcf2c768746049b5627bd5a42f720/cb476007e11c4221b22d87b80ed18c6d.html?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/SAP_S4HANA_CLOUD/3e5fcf2c768746049b5627bd5a42f720/cb476007e11c4221b22d87b80ed18c6d.html?locale=en-US&lt;/A&gt;&lt;/P&gt;&lt;P&gt;So, in principle, if 2023 is the last closed fiscal year, the valid migration setup must first be consistent with 2024 as the immediately following fiscal year.&lt;/P&gt;&lt;P&gt;Your understanding is correct about the legacy data transfer segments date and the system hindering your from moving backwards to an earlier transfer date. This is a limitation the Public Cloud documents in &lt;A href="https://me.sap.com/notes/2891851/E" target="_blank" rel="noopener noreferrer"&gt;SAP Notes 2891851&lt;/A&gt;, &lt;A href="https://me.sap.com/notes/3408000/E" target="_blank" rel="noopener noreferrer"&gt;3408000&lt;/A&gt; and &lt;A href="https://me.sap.com/notes/3724837/E" target="_blank" rel="noopener noreferrer"&gt;3724837&lt;/A&gt;, which includes the handling of completed and ongoing legacy transfer segments.&lt;/P&gt;&lt;P&gt;In addition, for your exact AC199 error, the issue lies in the coding of the fiscal year closing validation in the app. This is why the app can block you even though you are trying to move forward with the migration design. See &lt;A href="https://me.sap.com/notes/3730290/E" target="_blank" rel="noopener noreferrer"&gt;KBA 3730290&lt;/A&gt; for more details.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;To resolve the issue, do not continue trying to close the fiscal year only in the Make Company Code Settings-Asset Accounting Specific App. Rather use the Schedule Asset Accounting Jobs app and run the job template as described in &lt;A href="https://me.sap.com/notes/3730290/E" target="_blank" rel="noopener noreferrer"&gt;KBA 3730290&lt;/A&gt;. Same Notes also provides an alternative workaround.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Chris1973_0-1774595175232.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389636i10906B69F713C508/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Chris1973_0-1774595175232.png" alt="Chris1973_0-1774595175232.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;A clean approach I would recommend for your test scenario with migration key date 31.12.2025 is as follows:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Close Asset Accounting fiscal years in sequence until the system is consistent for the intended transfer design.&lt;/LI&gt;&lt;LI&gt;Use Schedule Asset Accounting Jobs for the year end close instead of relying only on the company code settings app.&lt;/LI&gt;&lt;LI&gt;Then make sure you recheck the legacy data transfer segment after you close.&lt;/LI&gt;&lt;LI&gt;If you created 31.12.2025 segment prematurely and your system design is no longer consistent, then review whether you need to:&lt;OL&gt;&lt;LI&gt;Keep it and continue the required year closures in sequence, or&lt;/LI&gt;&lt;LI&gt;Reset incorrect test data in a nonproduction tenant and create the migration setup correctly. See &lt;A href="https://me.sap.com/notes/3728565/E" target="_blank" rel="noopener noreferrer"&gt;KBA 3728565&lt;/A&gt; for more details.&lt;/LI&gt;&lt;/OL&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;See the following references for more insights.&lt;/P&gt;&lt;P&gt;&lt;A href="https://me.sap.com/notes/3224015/E" target="_blank" rel="noopener noreferrer"&gt;3224015 - Error AC199 during AJAB - SAP for Me&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://me.sap.com/notes/3318060/E" target="_blank" rel="noopener noreferrer"&gt;3318060 - Central KBA Legacy Data Transfer in Asset Accounting S/4HANA / How-to scenarios, standard behavior and guides. - SAP for Me&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Let me know if you have further questions.&lt;/P&gt;&lt;P&gt;Best regards&lt;/P&gt;&lt;P&gt;Chris&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/financial-management-q-a/issue-with-migration-transfer-date-and-fiscal-year-closing-in-sap-s-4hana/qaa-p/14359463#M258554"/>
     <published>2026-03-27T07:19:31.198000+01:00</published>
   </entry>
@@ -1584,5 +1383,107 @@ END;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Regards,&lt;/P&gt;&lt;P&gt;Johan&lt;/P&gt;
     <content>&lt;P&gt;Task 1&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Siba_Prasad_0-1774593978666.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389618i61AAC6274F761F4C/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Siba_Prasad_0-1774593978666.png" alt="Siba_Prasad_0-1774593978666.png" /&gt;&lt;/span&gt;&lt;BR /&gt;Task 2&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Siba_Prasad_1-1774594130865.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389621i7DC4C9B96545DC60/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Siba_Prasad_1-1774594130865.png" alt="Siba_Prasad_1-1774594130865.png" /&gt;&lt;/span&gt;&lt;BR /&gt;Used "Predict RAP Logic" to evaluate the outcome.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Siba_Prasad_2-1774594301314.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389623i51942A402E4B2DE8/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Siba_Prasad_2-1774594301314.png" alt="Siba_Prasad_2-1774594301314.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;result&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Siba_Prasad_3-1774594348947.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389624i51173C97C1B01FA8/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Siba_Prasad_3-1774594348947.png" alt="Siba_Prasad_3-1774594348947.png" /&gt;&lt;/span&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/abap-blog-posts/week-3-use-rap-business-logic-prediction-to-implement-validation/bc-p/14359516#M1215"/>
     <published>2026-03-27T07:58:26.243000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/your-2026-roadmap-to-getting-started-with-abap-ai-and-abap-1/bc-p/14359517#M189391</id>
+    <title>Re: Your 2026 Roadmap to Getting Started with ABAP AI and ABAP-1</title>
+    <updated>2026-03-27T07:58:58.103000+01:00</updated>
+    <author>
+      <name>sandiago</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2288614</uri>
+    </author>
+    <content>&lt;P&gt;Excellent roadmap post&amp;nbsp; the framing of three distinct paths (Daily Developer, Innovation, and Modernization) is exactly the clarity the ABAP community needs right now because the noise around ABAP-1 has created a lot of confusion about where to actually start.&lt;/P&gt;&lt;P&gt;The key takeaway is spot on: don't get bogged down trying to prompt engineer experimental models like ABAP-1 for production code generation&amp;nbsp; leverage Joule for Developers' mature Explain and Generate skills to maintain a Clean Core and accelerate migration to SAP S/4HANA. That's the practical advice most developers need to hear.&lt;/P&gt;&lt;P&gt;The VS Code with ABAP Cloud path planned for Q2 2026 with built-in Agentic AI assistance powered by an ABAP MCP server is the one I'm watching most closely — supporting a broader range of SAP S/4HANA Private Editions with faster update cycles addresses a real gap for customers who aren't on Public Cloud.&lt;/P&gt;&lt;P&gt;One adjacent point worth raising as teams move down the Modernization path: before migrating to ABAP Cloud or S/4HANA, organizations need a clear handle on what SAP data they're carrying forward and what should be archived or retired. Years of accumulated SAP data&amp;nbsp; financial documents, sales orders, HR records&amp;nbsp; need to be managed as part of the migration strategy, not after it. Solutions like &lt;A href="https://www.solix.com/blog/learning/lets-talk-about-your-sap-data-information-lifecycle-management-unpacked/" target="_self" rel="nofollow noopener noreferrer"&gt;Solix ILM for SAP&lt;/A&gt; help enterprises archive, retain, and govern that data properly so what lands in the clean core system is lean, compliant, and AI-ready from day one.&lt;/P&gt;&lt;P&gt;One question worth raising: for organizations with large volumes of classic ABAP custom code, is there a recommended pattern for prioritizing which custom code objects to migrate first&amp;nbsp; beyond the standard ATC checks&amp;nbsp; particularly when business logic is deeply intertwined with classic enhancement frameworks like user exits and BADIs that have no direct ABAP Cloud equivalent?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/your-2026-roadmap-to-getting-started-with-abap-ai-and-abap-1/bc-p/14359517#M189391"/>
+    <published>2026-03-27T07:58:58.103000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sap-cap-blog-posts/implementing-dynamic-subaccount-based-routing-in-sap-cap-with-sap-btp/bc-p/14359519#M52</id>
+    <title>Re: Implementing Dynamic Subaccount-Based Routing in SAP CAP with SAP BTP Destinations.</title>
+    <updated>2026-03-27T07:59:45.190000+01:00</updated>
+    <author>
+      <name>rajpsodales</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2062898</uri>
+    </author>
+    <content>&lt;P&gt;Great Insights! This was really helpful and easy to understand.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/sap-cap-blog-posts/implementing-dynamic-subaccount-based-routing-in-sap-cap-with-sap-btp/bc-p/14359519#M52"/>
+    <published>2026-03-27T07:59:45.190000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/sap-prco-function-fromjson-function-prosap-prco/qaq-p/14359521</id>
+    <title>SAP PrCo function- fromJson Function ProSAP PrCo</title>
+    <updated>2026-03-27T08:00:34.637000+01:00</updated>
+    <author>
+      <name>ankit12</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/455457</uri>
+    </author>
+    <content>&lt;P&gt;Hi Experts,&lt;/P&gt;&lt;P&gt;Business Scenario -in automation sequence (production connector as runtime environment) we are using structCompGet function to get attribute tag from the structure below:&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;{
+    "Body": {
+        "TempRequests": [
+            {
+                "OperationId": "0040",
+                "StationId": "AY10052A",
+                "Attribute": [
+                    "27","28","29"
+                ]
+            },
+            {
+                "OperationId": "0030",
+                "StationId": "AY10052A",
+                "Attribute": [
+                    "32","31","33"
+                ]
+            }
+        ]
+    }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;output of structcompget function -&lt;STRONG&gt;&amp;nbsp;"[\"27\",\"28\",29]"&amp;nbsp;&lt;/STRONG&gt;as string output its coming.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;we have to convert this string output to string array so we can get use arraygetvalue function.&lt;/P&gt;&lt;P&gt;Problem - how to convert string output to string array. we are trying to use fromJson function but as per SAP documentation -&amp;nbsp;&lt;A href="https://help.sap.com/docs/SAP_PLANT_CONNECTIVITY/c90214be0d934ebdb6f3bce29c63c0ff/26e54eeabcfa4fa9ba3dc154c7659933.html" target="_blank" rel="noopener noreferrer"&gt;Functions in the Expression Editor | SAP Help Portal&lt;/A&gt;&amp;nbsp; .&lt;/P&gt;&lt;P&gt;can anyone please help us to convert the string output to stringArray. Quick help is appreciated.&lt;/P&gt;&lt;P&gt;Regards,&lt;BR /&gt;Ankit Gupta&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/sap-prco-function-fromjson-function-prosap-prco/qaq-p/14359521"/>
+    <published>2026-03-27T08:00:34.637000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/the-initial-replication-for-demands-in-professional-services-projects/ba-p/14359523</id>
+    <title>The initial replication for demands in Professional Services Projects</title>
+    <updated>2026-03-27T08:04:45.194000+01:00</updated>
+    <author>
+      <name>dianne_ji</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/328959</uri>
+    </author>
+    <content>&lt;P&gt;We recently met several askings for what would be initial replicated from SAP S/4HANA Cloud Public Edition-S4HC to SAP Project to Resource Management - Resource Management(SPRM-RM) system? How to associate the created resource requests in RM with demands under a Professional Services project in S4HC?&lt;/P&gt;&lt;P&gt;I have tested in my internal system and documented it here for your reference.&lt;/P&gt;&lt;P&gt;In S4HC system, I create one customer project and create demands for roles T001, T002, T003, T004:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="dianne_ji_0-1774593837768.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389617i20E33AE634D3897D/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="dianne_ji_0-1774593837768.png" alt="dianne_ji_0-1774593837768.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;After 15 minutes' sync interval, these demands are replicated to RM system and create resource requests.&lt;BR /&gt;You can check in "Manage Resource Requests" app, and add 'Project' 'Work Package' within the Adapt Filters will help you quickly capture the demands you created in S4HC.&lt;BR /&gt;On the top right corner of the result lists, there is a Setting button.&lt;BR /&gt;You can add columns such as 'Demand', 'Work Item', 'Requested Resource Organization', 'Required Effort' to help you associate the resource request in RM to the demands in S4HC.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="dianne_ji_7-1774594813263.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389633i305276B1621CB2CA/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="dianne_ji_7-1774594813263.png" alt="dianne_ji_7-1774594813263.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Then check the column 'Publishing Status', if it's Not Published, the resource manager can update the resource org or any other fields here directly by Edit this resource request:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="dianne_ji_2-1774594464855.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389625i93E40AFFC2B8DB44/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="dianne_ji_2-1774594464855.png" alt="dianne_ji_2-1774594464855.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;However, if you set Auto Publish in the replication job, the resource request has already Published, you can still go to "Staff Resource Requests" app to forward the resource org:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="dianne_ji_3-1774594585836.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389628iCF80BD625788D31E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="dianne_ji_3-1774594585836.png" alt="dianne_ji_3-1774594585836.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="dianne_ji_5-1774594624695.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389630i476BD2DAFDDD31AD/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="dianne_ji_5-1774594624695.png" alt="dianne_ji_5-1774594624695.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="dianne_ji_6-1774594639808.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/389631i75ADACEDAC6F06DC/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="dianne_ji_6-1774594639808.png" alt="dianne_ji_6-1774594639808.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;After Forward, the 'Requested Resource Organization' is keeping to the original one, the 'Processing Resource Organization' will be the new one, 'Matching Resources' will by default based on the processing resource org.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/the-initial-replication-for-demands-in-professional-services-projects/ba-p/14359523"/>
+    <published>2026-03-27T08:04:45.194000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/rethink-alm-moving-to-sap-cloud-alm-as-a-clean-core-strategy-for/bc-p/14359528#M189392</id>
+    <title>Re: Rethink ALM: Moving to SAP Cloud ALM as a Clean Core Strategy for Application Lifecycle Manageme</title>
+    <updated>2026-03-27T08:08:19.663000+01:00</updated>
+    <author>
+      <name>sandiago</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2288614</uri>
+    </author>
+    <content>&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Really well-framed post&amp;nbsp; the distinction between migrating a tool versus redesigning your ALM function is exactly the mindset shift that most teams miss. SAP Cloud ALM isn't meant to do everything SAP Solution Manager did&amp;nbsp; and that's actually the point. Customers moving to SAP Cloud ALM must step back and evaluate which ALM processes are truly needed and which are not. That's uncomfortable for teams who've spent years building Solution Manager configurations, but it's the right conversation to have.&lt;/P&gt;&lt;P&gt;The Joule integration angle makes this even more compelling&amp;nbsp; Joule assists in automatically generating project requirements from Fit-to-Standard workshop transcripts, and Joule Agents now automate routine clean core tasks such as managing quality gates and performing completeness checks for governance questionnaires. That changes the ROI calculation significantly for teams that are still manually managing these processes in Solution Manager.&lt;/P&gt;&lt;P&gt;One point worth emphasizing from the field: clean core is not a one-time configuration it requires ongoing coordination, process discipline, and the right tools at the right time. SAP Cloud ALM as the "connective tissue" between business requirements and technical implementations is the right framing, but it only holds if teams resist the temptation to recreate legacy Solution Manager complexity inside the new tool.&lt;/P&gt;&lt;P&gt;One adjacent consideration that often gets missed in ALM discussions: before Cloud ALM governance can work effectively, the underlying data landscape needs to be in order. ECC environments frequently carry decades of accumulated data — financial records, procurement history, HR documents&amp;nbsp; that hasn't been classified, archived, or rationalized. Migrating that data volume into S/4HANA without a structured archiving strategy inflates infrastructure costs, extends testing cycles, and increases reconciliation risk. Solix has published a detailed architectural decision framework specifically around this data lifecycle challenge for large-scale &lt;A href="https://www.solix.com/blog/sap-ecc-to-sap-s-4hana-migration-architectural-decision-framework-for-the-japan-ministry-of-economy-trade-and-industry-meti/" target="_self" rel="nofollow noopener noreferrer"&gt;SAP migrations&lt;/A&gt;, which is worth reading alongside any Cloud ALM planning exercise.&lt;/P&gt;&lt;P&gt;One practical question: for organizations that have heavily customized Solution Manager's ChaRM process for change management&amp;nbsp; with custom workflows, approval steps, and integrations&amp;nbsp; what's the recommended approach to rationalizing those before migrating to Cloud ALM's change and deployment capabilities? Is the expectation a clean-slate redesign, or is there a migration accelerator that preserves meaningful governance logic without carrying over the complexity?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/rethink-alm-moving-to-sap-cloud-alm-as-a-clean-core-strategy-for/bc-p/14359528#M189392"/>
+    <published>2026-03-27T08:08:19.663000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-blog-posts-by-members/how-agentic-ai-slashes-parallel-payroll-reconciliation-from-weeks-to-days/ba-p/14358332</id>
+    <title>How Agentic AI Slashes Parallel Payroll Reconciliation from Weeks to Days</title>
+    <updated>2026-03-27T08:10:57.610000+01:00</updated>
+    <author>
+      <name>VishnuKurra</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1846723</uri>
+    </author>
+    <content>&lt;H3 id="ember661" id="toc-hId-1921555230"&gt;The Last Mile That Matters Most: Parallel Payroll Reconciliation&lt;/H3&gt;&lt;P class=""&gt;Every SAP SuccessFactors ECP implementation builds toward one critical milestone: the parallel payroll phase. It's often one of the last major phases of the project, and a crucial one. Teams frequently spend extended hours, sometimes working round the clock, to analyze comparison reports and identify the root causes of discrepancies. These can range from data issues and configuration gaps to data transformation problems such as mapping errors between Legacy and SAP.&lt;/P&gt;&lt;P class=""&gt;Here's how it works: the implementation team takes a snapshot of several Legacy pay periods, loads the same employee data and configuration into SAP ECP, runs the payroll in ECP, and then compares the results. The question is simple: Does SAP calculate the same result as Legacy?&lt;/P&gt;&lt;P class=""&gt;When it doesn't, and it often doesn't, the real pain begins. A single discrepancy at the Taxable Gross level (/3xx) cascades through the entire tax chain, creating a waterfall of mismatches that obscures the actual root cause.&lt;/P&gt;&lt;P class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Image 3-25-26 at 6.20 PM.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/388989i851ACB77EC51574E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Image 3-25-26 at 6.20 PM.png" alt="Image 3-25-26 at 6.20 PM.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="ember667" id="toc-hId-1725041725"&gt;What AI Does Differently: Reasoning, Not Just Flagging&lt;/H3&gt;&lt;P class=""&gt;Traditional reconciliation tools give you a spreadsheet of red and green cells. The Parallel Payroll Agent goes far beyond detection , it reasons about every discrepancy.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;What We Built : &lt;/STRONG&gt;The AI Understands the Tax Chain&lt;/P&gt;&lt;P class=""&gt;We built an AI-powered Parallel Payroll Reconciliation Agent that validates across all payroll components earnings (regular pay, overtime, bonuses etc ), deductions (401k, FSA, HSA, dental, vision, medical etc ), imputed income (GTL, personal use of company car etc ), and employer-paid benefits , each traced through the full cascading tax chain per tax authority.&lt;/P&gt;&lt;P class=""&gt;Consider &lt;STRONG&gt;Employee 0001&lt;/STRONG&gt; with the following payroll breakdown:&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="VishnuP_2-1774479912955.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/388974iDECA5C407BF98472/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="VishnuP_2-1774479912955.png" alt="VishnuP_2-1774479912955.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;With this breakdown, the /301 VA Taxable Gross should be $4,250.00 (Earnings $4,150 + Imputed Income $100). The /601 VA Taxable Base should be $3,840.00 (Taxable Gross $4,250 minus pre-tax deductions $410). Now let's see what the agent finds when comparing Legacy vs SAP:&lt;/SPAN&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="VishnuP_3-1774479968979.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/388975i81FBF812AD9E185C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="VishnuP_3-1774479968979.png" alt="VishnuP_3-1774479968979.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&lt;SPAN&gt;The agent identifies that the $70 difference at /601 VA (Taxable Base) is actually caused by&lt;/SPAN&gt; &lt;EM&gt;two completely different issues&lt;/EM&gt;&lt;SPAN&gt;: $100 cascading from the /301 VA GTL Imputed Income problem, offset by $30 from an independent FSA configuration error. It labels this as "Mixed (Cascade + Root)" and explains both components.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="VishnuP_5-1774480070721.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/388977iEEFC75C1E9A95DFD/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="VishnuP_5-1774480070721.png" alt="VishnuP_5-1774480070721.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="ember677" id="toc-hId-1528528220"&gt;Before vs. After: The Transformation&lt;/H3&gt;&lt;P class="lia-align-center" style="text-align: center;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="VishnuP_6-1774480124120.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/388979iD828C619AE7D7E3C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="VishnuP_6-1774480124120.png" alt="VishnuP_6-1774480124120.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="ember679" id="toc-hId-1332014715"&gt;How It Works: Smart Architecture, Minimal Token Usage&lt;/H3&gt;&lt;P class=""&gt;We designed the agent in a way that the vast majority of discrepancies are resolved by domain rules using the fewest tokens possible to deliver the best output. AI is invoked for the long tail of genuinely unexplained edge cases.This keeps costs low while delivering expert-level analysis.&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="VishnuP_9-1774480205588.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/388981iB50C246A025278E6/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="VishnuP_9-1774480205588.png" alt="VishnuP_9-1774480205588.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;H3 id="ember76" id="toc-hId-1135501210"&gt;Solving Multi-Combination Puzzles&lt;/H3&gt;&lt;P class=""&gt;One of the hardest challenges in payroll reconciliation is when a single dollar gap can be explained by multiple deduction combinations. For example:&lt;/P&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="VishnuP_10-1774480316633.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/388982i69ECE646AE8D888C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="VishnuP_10-1774480316633.png" alt="VishnuP_10-1774480316633.png" /&gt;&lt;/span&gt;&lt;P&gt;&lt;SPAN&gt;The agent tests every single deduction, every pair, and every triple against the employee's gap for the pattern, and it is confirmed: FSA is the root cause.&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="ember80" id="toc-hId-938987705"&gt;Real Results: A Live Validation Run&lt;/H3&gt;&lt;P class=""&gt;Here's what the agent produced for a real parallel payroll dataset with 2 employees and 102 wage type records across Federal and Virginia tax authorities:&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="VishnuP_11-1774480391330.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/388983i06B7EA2470560BB5/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="VishnuP_11-1774480391330.png" alt="VishnuP_11-1774480391330.png" /&gt;&lt;/span&gt;&lt;P&gt;&lt;SPAN&gt;Notice how the AI distinguishes between root causes (fix these) and cascade effects (these resolve automatically once root causes are fixed). This alone saves consultants from chasing phantom issues.&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="ember84" id="toc-hId-742474200"&gt;Time and Cost Savings&lt;/H3&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Image 3-25-26 at 6.24 PM.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/388990i499BEAAD5ACAEA6B/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Image 3-25-26 at 6.24 PM.png" alt="Image 3-25-26 at 6.24 PM.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class=""&gt;SAP ECP implementations are complex. Parallel payroll reconciliation is often the time-consuming and labor-intensive phase of the project, not because the work is intellectually difficult, but because the volume is overwhelming. AI doesn't replace the payroll consultant's, operations, or tax team expertise. It amplifies it. The team still makes the final call, but now they're reviewing AI-generated explanations instead of building them from scratch.&lt;/P&gt;&lt;P class=""&gt;This is what Agentic AI looks like in enterprise payroll: not a chatbot, not a dashboard, a domain-specific reasoning engine that understands tax chain dependencies, deduction decomposition, and cross-employee patterns.&lt;/P&gt;&lt;P class=""&gt;If you're in the SAP SuccessFactors ECP space and want to hear how this works, I'd love to connect.&lt;/P&gt;&lt;P class=""&gt;*Claude Parallel Payroll Agent plugin, submitted and pending approval from Anthropic.&lt;/P&gt;&lt;/DIV&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-blog-posts-by-members/how-agentic-ai-slashes-parallel-payroll-reconciliation-from-weeks-to-days/ba-p/14358332"/>
+    <published>2026-03-27T08:10:57.610000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-q-a/how-to-enable-print-forms-service-after-2025-update/qaa-p/14359532#M51434</id>
+    <title>Re: How to enable Print Forms Service after 2025 update?</title>
+    <updated>2026-03-27T08:11:13.555000+01:00</updated>
+    <author>
+      <name>Gopinath_Murugaiyan</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/17956</uri>
+    </author>
+    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2258055"&gt;@dariavalgutskova&lt;/a&gt;&amp;nbsp;No action required from your side on print form service enablement and internally taken care by SAP for customer tenants.&lt;/P&gt;&lt;P&gt;Thanks,&lt;/P&gt;&lt;P&gt;Gopi&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-q-a/how-to-enable-print-forms-service-after-2025-update/qaa-p/14359532#M51434"/>
+    <published>2026-03-27T08:11:13.555000+01:00</published>
   </entry>
 </feed>
