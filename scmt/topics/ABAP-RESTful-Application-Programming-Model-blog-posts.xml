@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-RESTful-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2026-04-10T05:00:07.795719+00:00</updated>
+  <updated>2026-04-10T08:00:05.576017+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model blog posts in SAP Community</subtitle>
@@ -1779,42 +1779,40 @@ early numbering // Early numbering declaration in item entity
     CreatedOn  = created_on;
   }
 }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;Behavior Pool Implementation&lt;/STRONG&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;This method ensures that every new entity gets a unique identifier (&lt;CODE&gt;CustNo&lt;/CODE&gt;) during creation if it wasn’t already provided.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;UUID Generation:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;CODE&gt;cl_system_uuid=&amp;gt;create_uuid_x16_static( )&lt;/CODE&gt; generates a globally unique key.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;This avoids collisions and guarantees uniqueness across drafts and active records.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;Mapped Root:&lt;/STRONG&gt;&lt;/U&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;CODE&gt;%cid&lt;/CODE&gt; → correlates client-side temporary IDs with backend entities.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;CODE&gt;%key&lt;/CODE&gt; → holds the generated or existing key.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;CODE&gt;%is_draft&lt;/CODE&gt; → ensures draft state is preserved.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;CODE&gt;CustNo&lt;/CODE&gt; → the actual business key stored in the entity.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD earlynumbering_create.
-  LOOP AT entities INTO DATA(entity) WHERE CustNo IS INITIAL.
-    DATA(ls_uuid) = cl_system_uuid=&amp;gt;create_uuid_x16_static( ).
-
-    APPEND VALUE #( %cid      = entity-%cid
-                    %key      = VALUE #( CustNo = ls_uuid )
-                    %is_draft = entity-%is_draft
-                    CustNo    = ls_uuid ) TO mapped-header.
-  ENDLOOP.
-
-  LOOP AT entities INTO entity WHERE CustNo IS NOT INITIAL.
-    APPEND VALUE #( %cid      = entity-%cid
-                    %key      = entity-%key
-                    %is_draft = entity-%is_draft ) TO mapped-header.
-  ENDLOOP.
-ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Mapped Item:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This method handles early numbering when creating items via association (&lt;CODE&gt;CREATE-BY-ASSOCIATION&lt;/CODE&gt;).&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;First, it retrieves the maximum &lt;CODE&gt;cust_no&lt;/CODE&gt; from the database table &lt;CODE&gt;zvd_t_isale&lt;/CODE&gt; for the current entity.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Then, it checks existing items in the helper class buffer (&lt;CODE&gt;gt_isale&lt;/CODE&gt;) to ensure numbering continuity.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;For each new item (&lt;CODE&gt;DocItem IS INITIAL&lt;/CODE&gt;), it increments the maximum by 10 and assigns the new number.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;CODE&gt;%cid&lt;/CODE&gt; → client-side correlation ID.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;CODE&gt;%key&lt;/CODE&gt; → generated key with &lt;CODE&gt;CustNo&lt;/CODE&gt;.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;CODE&gt;%is_draft&lt;/CODE&gt; → preserves draft state.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;CODE&gt;CustNo&lt;/CODE&gt; → ensures linkage to the root entity.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD earlynumbering_cba_item.
-  LOOP AT entities INTO DATA(entity).
-    SELECT MAX( cust_no ) FROM zvd_t_isale
-      INTO (lv_max)
-      WHERE cust_no = -CustNo.
-
-    LOOP AT zcl_vd_helper=&amp;gt;get_instance( )-&amp;gt;gt_isale INTO DATA(item)
-      WHERE cust_no = entity-%key-CustNo.
-      IF item-doc_item &amp;gt; lv_max.
-        lv_max = item-doc_item.
+   LOOP AT entities INTO DATA(entity).
+      DATA(lv_custno) = entity-custno.
+      IF lv_custno IS INITIAL.
+        TRY.
+            lv_custno = cl_system_uuid=&amp;gt;create_uuid_x16_static( ).
+          CATCH cx_uuid_error.
+            "handle exception
+        ENDTRY.
       ENDIF.
+      APPEND VALUE #(
+          %cid      = entity-%cid
+          %key      = VALUE #( custno = lv_custno )
+          %is_draft = entity-%is_draft
+          custno    = lv_custno
+      ) TO mapped-header.
     ENDLOOP.
+ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Mapped Item:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This method handles early numbering when creating items via association (&lt;CODE&gt;CREATE-BY-ASSOCIATION&lt;/CODE&gt;).&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;First, it retrieves the maximum &lt;CODE&gt;cust_no&lt;/CODE&gt; from the database table &lt;CODE&gt;zvd_t_isale&lt;/CODE&gt; for the current entity.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;CODE&gt;%cid&lt;/CODE&gt; → client-side correlation ID.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;CODE&gt;%key&lt;/CODE&gt; → generated key with &lt;CODE&gt;CustNo&lt;/CODE&gt;.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;CODE&gt;%is_draft&lt;/CODE&gt; → preserves draft state.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;CODE&gt;CustNo&lt;/CODE&gt; → ensures linkage to the root entity.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD earlynumbering_cba_item.
+  LOOP AT entities INTO DATA(entity).
+      " Get current max Customer Number from DB
+      SELECT MAX( cust_no )
+        INTO (lv_max)
+        FROM zvd_t_isale
+        WHERE cust_no = -%key-custno.
 
-    LOOP AT entity-%target INTO DATA(t_item) WHERE DocItem IS INITIAL.
-      lv_max += 10.
-
-      APPEND VALUE #( %cid      = t_item-%cid
-                      %key      = VALUE #( CustNo = entity-%key-CustNo )
-                      %is_draft = t_item-%is_draft
-                      CustNo    = entity-%key-CustNo ) TO mapped-item.
+      LOOP AT entity-%target INTO DATA(t_item).
+        APPEND VALUE #(
+            %cid      = t_item-%cid
+            %key      = VALUE #(
+                            custno = entity-%key-custno )
+            %is_draft = t_item-%is_draft
+            custno    = entity-%key-custno
+        ) TO mapped-item.
+      ENDLOOP.
     ENDLOOP.
-  ENDLOOP.
 ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Item inherits lock and authorization from the header.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Early numbering ensures item keys are generated consistently.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Association links items back to the header BO.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;Persistence Methods&lt;/STRONG&gt;&lt;/U&gt;&lt;/P&gt;&lt;UL class="lia-list-style-type-square"&gt;&lt;LI&gt;&lt;U&gt;&lt;STRONG&gt;Create Method&lt;/STRONG&gt;&lt;/U&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD create.
   LOOP AT entities INTO DATA(entity).
     DATA(header) = CORRESPONDING zvd_t_hsale( entity MAPPING FROM ENTITY ).
@@ -1836,7 +1834,7 @@ ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;&lt;U&gt;&lt;STRONG&gt;Cr
       APPEND item TO gt_isale.
     ENDLOOP.
   ENDLOOP.
-ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;Result&lt;/STRONG&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="o1.png" style="width: 975px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/385288i3FC295D0198CCAE8/image-size/large?v=v2&amp;amp;px=999" role="button" title="o1.png" alt="o1.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1792267916"&gt;&amp;nbsp;&lt;/H2&gt;&lt;H2 id="toc-hId-1595754411"&gt;&amp;nbsp;&lt;/H2&gt;&lt;H2 id="toc-hId-1399240906"&gt;&amp;nbsp;&lt;/H2&gt;&lt;H2 id="toc-hId-1202727401"&gt;&amp;nbsp;&lt;/H2&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5" color="#999999"&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;By combining &lt;STRONG&gt;Draft Handling, Associations, and Early Numbering&lt;/STRONG&gt;, RAP unmanaged scenarios can support complex business objects like Sales Orders, Purchase Orders. This approach ensures flexibility, control, and consistency in transactional applications.&lt;BR /&gt;&lt;BR /&gt;Thank You...&lt;/SPAN&gt;&lt;/P&gt;</content>
+ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;Result&lt;/STRONG&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="o1.png" style="width: 975px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/385288i3FC295D0198CCAE8/image-size/large?v=v2&amp;amp;px=999" role="button" title="o1.png" alt="o1.png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1792267916"&gt;&amp;nbsp;&lt;/H2&gt;&lt;H2 id="toc-hId-1595754411"&gt;&amp;nbsp;&lt;/H2&gt;&lt;H2 id="toc-hId-1399240906"&gt;&amp;nbsp;&lt;/H2&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5" color="#999999"&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;By combining &lt;STRONG&gt;Draft Handling, Associations, and Early Numbering&lt;/STRONG&gt;, RAP unmanaged scenarios can support complex business objects like Sales Orders, Purchase Orders. This approach ensures flexibility, control, and consistency in transactional applications.&lt;BR /&gt;&lt;BR /&gt;Thank You...&lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/rap-unmanaged-draft-early-numbering-and-associations-for-unique-ids/ba-p/14351767"/>
     <published>2026-03-19T15:23:41.063000+01:00</published>
   </entry>
@@ -2994,7 +2992,7 @@ define view entity ZR_DEMO_CC_CD
       draftentityoperationcode      as Draftentityoperationcode,
       hasactiveentity               as Hasactiveentity,
       draftfieldchanges             as Draftfieldchanges
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;You need to &lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/adding-collaboration-capability-to-draft-enabled-managed-business-object?version=LATEST&amp;amp;locale=en-US&amp;amp;state=PRODUCTION#prerequisites" target="_self" rel="noopener noreferrer"&gt;enhance the authorization of the involved users&lt;/A&gt;. In SAP BTP ABAP environment and SAP S/4HANA Public Cloud Edition you assign business catalog&amp;nbsp;&lt;SPAN&gt;SAP_CORE_BC_RAP_DRAFT_PC to the user, in SAP S/4HANA Private Cloud Edition authorization object S_DRAFT.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;User TB is creating a new company code 400 while at the same time user PW is editing company code 100. All changes are recorded on the same transport request.&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="patrick_winkler_0-1775638407159.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/394868i8F2BB89D6419285F/image-size/large?v=v2&amp;amp;px=999" role="button" title="patrick_winkler_0-1775638407159.png" alt="patrick_winkler_0-1775638407159.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Since the collaborative draft is enabled for the singleton entity, the save and discard draft action are applied to all changes.&amp;nbsp;In practice, this means that discarding the draft or saving must be coordinated between the users involved.&lt;BR /&gt;For completely independent editing of individual objects, you must develop a RAP BO without a singleton pattern.&lt;/P&gt;</content>
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;You need to &lt;A href="https://help.sap.com/docs/abap-cloud/abap-rap/adding-collaboration-capability-to-draft-enabled-managed-business-object?version=LATEST&amp;amp;locale=en-US&amp;amp;state=PRODUCTION#prerequisites" target="_self" rel="noopener noreferrer"&gt;enhance the authorization of the involved users&lt;/A&gt;. In SAP BTP ABAP environment and SAP S/4HANA Public Cloud Edition you assign business catalog&amp;nbsp;&lt;SPAN&gt;SAP_CORE_BC_RAP_DRAFT_PC to the user, in SAP S/4HANA Private Cloud Edition authorization object S_DRAFT.&lt;/SPAN&gt;&lt;/P&gt;&lt;H1 id="toc-hId-1074774750"&gt;&lt;SPAN&gt;Collaboration&lt;/SPAN&gt;&lt;/H1&gt;&lt;P&gt;&lt;SPAN&gt;User TB is creating a new company code 400 while at the same time user PW is editing company code 100. All changes are recorded on the same transport request.&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="patrick_winkler_0-1775638407159.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/394868i8F2BB89D6419285F/image-size/large?v=v2&amp;amp;px=999" role="button" title="patrick_winkler_0-1775638407159.png" alt="patrick_winkler_0-1775638407159.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Since the collaborative draft is enabled for the singleton root entity, the save and discard draft action are applied to all object changes. In this example, users PW and TB process two different company codes, which are logically different objects. Technically, however, they process the same singleton root entity. In practice, this means that discarding the draft or saving must be aligned between the users involved, as the save action persists the changes in all company codes.&lt;BR /&gt;For completely independent editing of individual objects, you must develop a RAP BO without a singleton pattern.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/custom-business-configurations-f4579-collaborative-draft/ba-p/14368541"/>
     <published>2026-04-08T10:55:35.536000+02:00</published>
   </entry>
