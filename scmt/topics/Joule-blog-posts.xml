@@ -2,303 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/Joule-blog-posts.xml</id>
   <title>SAP Community - Joule</title>
-  <updated>2026-04-15T11:10:48.932833+00:00</updated>
+  <updated>2026-04-15T23:10:49.697425+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/Joule/pd-p/d0136351-8a9c-4881-aebc-bf414b785998" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Joule blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/building-and-securing-mcp-servers-in-python-on-btp/ba-p/14354754</id>
-    <title>Building and securing MCP servers in Python on BTP</title>
-    <updated>2026-03-26T10:53:42.493000+01:00</updated>
-    <author>
-      <name>felixbartler</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/4997</uri>
-    </author>
-    <content>&lt;P&gt;MCP (Model Context Protocol) is the standard for tool access in AI agents. As SAP developers build extensions and integrations on SAP BTP, creating MCP servers has become equally relevant to expose business functionalities to AI agents. Whether you're extending Joule Studio or building custom AI solutions, MCP servers provide a standardized way to make your BTP services AI-accessible. In this tutorial, I'll show you how to build a production-ready MCP server on SAP Cloud Foundry using Python.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="btp-mcp-server-python-architecture-l.drawio.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/388950i52D29659009E70A4/image-size/large?v=v2&amp;amp;px=999" role="button" title="btp-mcp-server-python-architecture-l.drawio.png" alt="btp-mcp-server-python-architecture-l.drawio.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1792357255"&gt;Scenario&lt;/H2&gt;&lt;P&gt;We'll create three progressively complex MCP servers:&lt;BR /&gt;1. Simple Math Server - Understanding the basics&lt;BR /&gt;2. Research Server - Integrating Perplexity AI via Generative AI Hub&lt;BR /&gt;3. Secured Research Server - Adding IAS authentication&lt;/P&gt;&lt;P&gt;All running on SAP Cloud Foundry, one of the most flexible and cost-effective runtime options on BTP.&lt;/P&gt;&lt;H2 id="toc-hId-1595843750"&gt;Prerequisites&lt;/H2&gt;&lt;P&gt;Before starting, ensure you have:&lt;BR /&gt;- SAP BTP account with Cloud Foundry environment&lt;BR /&gt;- Cloud Foundry CLI installed and configured&lt;BR /&gt;- Python 3.9+ installed locally&lt;BR /&gt;- SAP Generative AI Hub access with service key (for Perplexity example)&lt;BR /&gt;- SAP Cloud Identity Services (IAS) tenant with admin access (for authentication example)&lt;/P&gt;&lt;H2 id="toc-hId-1399330245"&gt;Example 1: Simple MCP Server&lt;/H2&gt;&lt;P&gt;Let's start with the basics. We'll use the fastmcp library which handles MCP's protocol specifications elegantly.&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from starlette.responses import JSONResponse
-from fastmcp import FastMCP
-import os
-
-# Initialize FastMCP server
-mcp = FastMCP("Simple Math Server")
-
-
-@mcp.tool()
-def add(a: float, b: float) -&amp;gt; float:
-    """
-    Add two numbers together.
-
-    Args:
-        a: First number
-        b: Second number
-
-    Returns:
-        Sum of a and b
-    """
-    return a + b
-
-
-if __name__ == "__main__":
-    mcp.run(transport="http", host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Key BTP Adaptations:&lt;BR /&gt;- PORT environment variable: Cloud Foundry assigns a dynamic port via the PORT environment variable — we must use it&lt;BR /&gt;- HTTP transport: We use HTTP transport (not stdio) to make the MCP server accessible via network&lt;/P&gt;&lt;P&gt;To deploy, we need the manifest.yaml and a requirements.txt file. In addition I like to use a runtime.txt to specify a later python version.&lt;/P&gt;&lt;pre class="lia-code-sample language-yaml"&gt;&lt;code&gt;---
-applications:
-- name: simple-mcp-server
-  memory: 1024M
-  disk_quota: 1024M
-  buildpack: python_buildpack
-  command: python server.py&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Deploy to Cloud Foundry:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;cd mcp_simple
-cf push&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;That's it! You now have a working MCP server on BTP.&lt;/P&gt;&lt;H2 id="toc-hId-1202816740"&gt;Example 2: Research Server with Perplexity AI&lt;/H2&gt;&lt;P&gt;Now let's build something more practical: a research tool powered by Perplexity AI through SAP Generative AI Hub.&lt;/P&gt;&lt;P&gt;Why wrap Perplexity instead of using it directly?&lt;/P&gt;&lt;P&gt;You might wonder why not use Perplexity's native MCP server. Two reasons:&lt;BR /&gt;1. Educational value - Great exercise to understand the full stack&lt;BR /&gt;2. Generative AI Hub integration - The Hub exposes the API but not API keys. Perplexity's native MCP requires direct API keys, which isn't compatible with the Hub's proxy model where credentials stay on the server side.&lt;/P&gt;&lt;P&gt;Perplexity Client Implementation&lt;/P&gt;&lt;P&gt;This client handles:&lt;BR /&gt;- Loading AI Core credentials from ai_core_key.json&lt;BR /&gt;- OAuth token management with automatic refresh&lt;BR /&gt;- Calling Perplexity's sonar model via Generative AI Hub&lt;BR /&gt;- Formatting results with citations and related questions&lt;/P&gt;&lt;P&gt;Here's the core implementation snippet showing the Gen AI Hub integration:&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;class PerplexityClient:
-    """Client for Perplexity API via SAP Gen AI Hub native proxy."""
-
-    def __init__(self, config_file: str = 'ai_core_key.json'):
-        """Initialize the client with AI Core credentials."""
-        self.config = self._load_config(config_file)
-        self.token = None
-        self.token_expiry = 0
-        self._refresh_token()
-
-        # IMPORTANT: Create a Gen AI Hub deployment for Perplexity's sonar-pro model
-        # Replace this with your own deployment ID from AI Core
-        self.deployment_id = "d0229dc9c4b56704"
-
-        # Build API URL: Gen AI Hub base URL + deployment endpoint
-        self.base_url = self.config['serviceurls']['AI_API_URL']
-        self.api_url = f"{self.base_url}/v2/inference/deployments/{self.deployment_id}/chat/completions"
-
-    def research(self, query: str) -&amp;gt; str:
-        """Research a query using Perplexity AI with real-time web search."""
-        self._ensure_valid_token()
-
-        payload = {
-            "model": "sonar-pro",
-            "messages": [{"role": "user", "content": query}],
-            "max_tokens": 5000,
-            "temperature": 0.3,
-            "return_citations": True
-        }
-
-        headers = {
-            "Authorization": f"Bearer {self.token}",
-            "Content-Type": "application/json",
-            "AI-Resource-Group": "default"
-        }
-
-        response = requests.post(self.api_url, json=payload, headers=headers)
-        # ... format results with citations ...&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The key is the URL structure: {AI_API_URL}/v2/inference/deployments/{deployment_id}/chat/completions — this routes through Gen AI Hub to Perplexity's native API while preserving citation metadata.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note: &lt;/STRONG&gt;You'll need to create a deployment in AI Core for the Perplexity model and update the deployment_id in the code with your own.&lt;/P&gt;&lt;H3 id="toc-hId-1135385954"&gt;MCP Server with Research Tool&lt;/H3&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from starlette.responses import JSONResponse
-from fastmcp import FastMCP
-import os
-from perplexity import PerplexityClient
-
-# Initialize FastMCP server
-mcp = FastMCP("Research Server")
-
-# Initialize Perplexity client
-client = PerplexityClient()
-
-
-@mcp.tool()
-def research(query: str) -&amp;gt; str:
-    """
-    Research tool using Perplexity AI with real-time web search and citations.
-
-    Args:
-        query: The research query (simple string input)
-
-    Returns:
-        Research results with answer and source citations
-    """
-    return client.research(query)
-
-
-if __name__ == "__main__":
-    mcp.run(transport="http", host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Simple and clean — the MCP decorator handles all protocol complexity, and we just delegate the query to our Perplexity client.&lt;/P&gt;&lt;P&gt;Important: We're using Generative AI Hub's native Perplexity proxy (not the orchestration module) because it preserves citation metadata that's crucial for research tasks.&lt;/P&gt;&lt;H2 id="toc-hId-809789730"&gt;Example 3: Adding IAS Authentication&lt;/H2&gt;&lt;P&gt;For production use, we need to secure the MCP server. Let's add authentication using SAP Cloud Identity Services (IAS).&lt;/P&gt;&lt;H3 id="toc-hId-742358944"&gt;IAS Setup Prerequisites&lt;/H3&gt;&lt;P&gt;Before implementing authentication, complete these IAS configuration steps:&lt;BR /&gt;1. Create an IAS application in your IAS tenant&lt;BR /&gt;2. Configure OAuth 2.0 client credentials&lt;BR /&gt;3. Add custom attribute ias_apis with value api_read_access&lt;BR /&gt;4. Note your token URL, client ID, client secret, and audience&lt;/P&gt;&lt;P&gt;For detailed IAS setup instructions, refer to &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/using-ias-to-secure-python-apis-on-cloud-foundry/ba-p/14354410" target="_self"&gt;my previous blog post on Python authentication with IAS.&lt;/A&gt;&lt;/P&gt;&lt;H3 id="toc-hId-545845439"&gt;Secured MCP Server Implementation&lt;/H3&gt;&lt;P&gt;The secured version adds an authentication middleware that:&lt;BR /&gt;- Validates JWT tokens from IAS&lt;BR /&gt;- Verifies token signature using JWKS (JSON Web Key Set)&lt;BR /&gt;- Checks audience and issuer claims&lt;BR /&gt;- Ensures required scope (api_read_access) is present&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;from fastmcp import FastMCP
-from fastapi import FastAPI, Request
-import os
-import requests
-import jwt
-import uvicorn
-from perplexity import PerplexityClient
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
-
-# Initialize Perplexity client
-client = PerplexityClient()
-
-# Create MCP server
-mcp = FastMCP("Research Server")
-
-# IAS Configuration - Replace with your values
-ISSUER = "https://your-tenant.accounts.ondemand.com"
-JWKS_URL = f"{ISSUER}/oauth2/certs"
-AUDIENCE = "your-client-id-here"
-
-
-class IASAuthMiddleware(BaseHTTPMiddleware):
-    """Middleware to validate IAS JWT tokens."""
-
-    def get_public_key(self, token: str):
-        """Fetch JWKS and find matching public key for token validation."""
-        kid = jwt.get_unverified_header(token)["kid"]
-        jwks = requests.get(JWKS_URL).json()
-
-        for key in jwks["keys"]:
-            if key["kid"] == kid:
-                return jwt.algorithms.RSAAlgorithm.from_jwk(key)
-
-        raise Exception("No matching key found in JWKS")
-
-    def verify_token(self, token: str):
-        """Validate JWT token signature and claims."""
-        public_key = self.get_public_key(token)
-        payload = jwt.decode(
-            token,
-            public_key,
-            algorithms=["RS256"],
-            audience=AUDIENCE,
-            issuer=ISSUER
-        )
-
-        # Verify required scope
-        if "api_read_access" not in payload.get("ias_apis", []):
-            raise Exception("Missing required ias_apis scope")
-
-        return payload
-
-    async def dispatch(self, request: Request, call_next):
-        # Extract and validate authorization header
-        auth_header = request.headers.get("Authorization")
-
-        if not auth_header or not auth_header.startswith("Bearer "):
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Missing or invalid authorization header"}
-            )
-
-        token = auth_header.split(" ")[1]
-
-        try:
-            payload = self.verify_token(token)
-            request.state.user = payload
-        except Exception as e:
-            return JSONResponse(
-                status_code=401,
-                content={"detail": f"Authentication failed: {str(e)}"}
-            )
-
-        return await call_next(request)
-
-
-@mcp.tool()
-def research(query: str) -&amp;gt; str:
-    """
-    Research tool using Perplexity AI with real-time web search and citations.
-
-    Args:
-        query: The research query
-
-    Returns:
-        Research results with answer and source citations
-    """
-    return client.research(query)
-
-
-# Create ASGI app from MCP server
-mcp_app = mcp.http_app(path='/mcp')
-
-# Create FastAPI wrapper with lifespan management
-app = FastAPI(title="Researcher MCP", lifespan=mcp_app.lifespan)
-
-# Add IAS authentication middleware
-mcp_app.add_middleware(IASAuthMiddleware)
-
-# Mount the MCP server
-app.mount("/", mcp_app)
-
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-349331934"&gt;What changed for authentication:&lt;/H3&gt;&lt;P&gt;The key difference from the unsecured version is the middleware layer. Since fastmcp is built on Starlette/FastAPI, we can leverage standard ASGI middleware patterns. The IASAuthMiddleware intercepts every request, validates the JWT token against IAS's public keys (JWKS), and checks required claims before allowing access to MCP endpoints.&lt;/P&gt;&lt;P&gt;To integrate the middleware, we extract the ASGI app from fastmcp using http_app(), wrap it with FastAPI to manage lifespan properly, add our authentication middleware, and mount it. This pattern works seamlessly with Cloud Foundry's router.&lt;/P&gt;&lt;H3 id="toc-hId-152818429"&gt;Testing Authentication&lt;/H3&gt;&lt;P&gt;Test your secured endpoint:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;1. Without token (should fail):
-curl "https://research-mcp-server-ias-auth.cfapps.sap.hana.ondemand.com/mcp"
-Response: 401 - {"detail":"Missing or invalid authorization header"}
-
-2. With valid token (should succeed):
-curl "https://research-mcp-server-ias-auth.cfapps.sap.hana.ondemand.com/mcp" \
-  -H "Authorization: Bearer eyJqa3U..."
-Response: 200 OK with mcp-session-id header&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Perfect! Our MCP server now requires valid IAS authentication.&lt;/P&gt;&lt;H2 id="toc-hId-174476562"&gt;Using the MCP Server in Joule Studio&lt;/H2&gt;&lt;P&gt;Now that we have a secured MCP server, let's integrate it with Joule Studio to build an AI agent with research capabilities.&lt;/P&gt;&lt;H3 id="toc-hId--315439950"&gt;Step 1: Create a Destination&lt;/H3&gt;&lt;P&gt;Navigate to your BTP Subaccount (where Joule Studio is running):&lt;BR /&gt;1. Go to Connectivity → Destinations&lt;BR /&gt;2. Create a new destination with these settings:&lt;BR /&gt;- Name: research-mcp-server&lt;BR /&gt;- Type: HTTP&lt;BR /&gt;- URL: &lt;A href="https://research-mcp-server-ias-auth.cfapps.sap.hana.ondemand.com" target="_blank" rel="noopener nofollow noreferrer"&gt;https://research-mcp-server-ias-auth.cfapps.sap.hana.ondemand.com&lt;/A&gt;&lt;BR /&gt;- Authentication: OAuth2ClientCredentials&lt;BR /&gt;- Client ID: Your IAS client ID&lt;BR /&gt;- Client Secret: Your IAS client secret&lt;BR /&gt;- Token Service URL: &lt;A href="https://your-tenant.accounts.ondemand.com/oauth2/token" target="_blank" rel="noopener nofollow noreferrer"&gt;https://your-tenant.accounts.ondemand.com/oauth2/token&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Additional Properties are needed for Joule Studio to recognize the Destination accordingly:&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;sap-joule-studio-mcp-server:&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN class=""&gt;true&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;STRONG&gt;sap.processautomation.enabled:&amp;nbsp;true&lt;/STRONG&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;&lt;STRONG&gt;Important:&lt;/STRONG&gt; Don't include /mcp in the URL — Joule Studio appends this automatically.&lt;/P&gt;&lt;P&gt;Now the Destination again needs to be added to the respective environment of SAP Build Process Automation via the Control Tower &amp;gt; Destinations.&lt;/P&gt;&lt;H3 id="toc-hId--511953455"&gt;&lt;BR /&gt;Step 2: Create Agent in Joule Studio&lt;/H3&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="research agent.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/387031i474D32133E8BE0D3/image-size/large?v=v2&amp;amp;px=999" role="button" title="research agent.png" alt="research agent.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;1. Create a new Agent in your Joule Extension Project&lt;BR /&gt;2. Define the agent's expertise and instructions&lt;BR /&gt;3. In the MCP section, click Add MCP Server&lt;BR /&gt;4. Select your research-mcp-server destination&lt;BR /&gt;5. Verify the /mcp path (default is fine)&lt;BR /&gt;6. You'll see the available tools (in our case: research)&lt;/P&gt;&lt;H3 id="toc-hId--708466960"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="research mcp add.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/387030i3C9A75781286C67E/image-size/large?v=v2&amp;amp;px=999" role="button" title="research mcp add.png" alt="research mcp add.png" /&gt;&lt;/span&gt;&lt;/H3&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--904980465"&gt;&lt;BR /&gt;Step 3: Test Your Agent&lt;/H3&gt;&lt;P&gt;Start a conversation with your agent and ask it to research current information:&lt;/P&gt;&lt;P&gt;"Research the current situation in the Middle East"&lt;/P&gt;&lt;P&gt;The agent now has access to real-time web information via your MCP server!&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="researcher result.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/387029i715A3F972EBD2247/image-size/large?v=v2&amp;amp;px=999" role="button" title="researcher result.png" alt="researcher result.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;This opens powerful possibilities: combine up-to-date web data with transactional business data from S/4HANA, SuccessFactors, or other SAP systems.&lt;/P&gt;&lt;H3 id="toc-hId--1101493970"&gt;Using It in Action&lt;/H3&gt;&lt;P&gt;Now let's test it in action - I started the agent and asked it to research the current situation in the Middle East and it works! Up-to-date information directly in Joule - can now be combined with any business transactional data one might pull from an S/4HANA system.&lt;/P&gt;&lt;P&gt;By the way, check out my blog on connecting &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/accessing-on-premises-http-apis-with-sap-joule-studio-and-sap-cloud/ba-p/14246127" target="_self"&gt;Joule Studio to on-premises HTTP APIs&lt;/A&gt; to extend this pattern further.&lt;/P&gt;&lt;P&gt;In the &lt;A href="https://github.com/fyx99/btp-mcp-server-python" target="_self" rel="nofollow noopener noreferrer"&gt;GitHub&lt;/A&gt; repository I've added all the different examples including the simple example, with auth based on IAS as well as based on XSUAA, and the Perplexity code. Hope you found this interesting. Leave a comment in case of any questions!&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/building-and-securing-mcp-servers-in-python-on-btp/ba-p/14354754"/>
-    <published>2026-03-26T10:53:42.493000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/extending-sap-joule-with-custom-das-capabilities/ba-p/14359358</id>
-    <title>Extending SAP Joule with Custom DAS Capabilities</title>
-    <updated>2026-03-27T06:16:54.016000+01:00</updated>
-    <author>
-      <name>vikas_d_kulkarni</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/881297</uri>
-    </author>
-    <content>&lt;P&gt;SAP Joule's Digital Assistant Service (DAS) enables extending Joule with custom capabilities: custom scenarios, functions, and backend integrations that respond to natural language queries. On paper, it sounds straightforward: define the scenarios in YAML, compile, deploy, and Joule starts answering domain-specific questions.&lt;/P&gt;&lt;P&gt;In practice, getting a custom DAS capability to work end-to-end: from a user's question in Work Zone all the way to a backend API response: involves navigating a chain of components across multiple subaccounts, each with its own quirks and undocumented constraints.&lt;/P&gt;&lt;P&gt;This post captures the real issues we hit while building a custom Joule integration and the fixes that got us through.&lt;/P&gt;&lt;H2 id="toc-hId-1792502370"&gt;The Architecture: What we are Building&lt;/H2&gt;&lt;P&gt;Before diving into the issues, it helps to understand the full request flow. When a user asks Joule a question, the request traverses multiple layers:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;User (Work Zone / Standalone Joule)
-        │
-        ▼
-DAS Runtime (Joule subaccount)
-  1. Preselection → matches the scenario via semantic similarity
-  2. Executes the DAS function
-  3. Resolves destination
-  4. POSTs to the backend API
-        │
-        ▼  via destination (OAuth2ClientCredentials)
-Backend Service (application subaccount)
-  1. Parses request, resolves entity references
-  2. Processes business logic
-  3. Calls downstream services (AI, DB, etc.)
-        │
-        ▼
-Downstream Service
-  Processes and returns response&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Each arrow in this diagram is a potential failure point. The DAS runtime, the backend, and any downstream services live in different subaccounts with different networking and authentication contexts. This is where things get interesting.&lt;/P&gt;&lt;H2 id="toc-hId-1595988865"&gt;Issue 1: DAS Compilation: The Hidden Limits&lt;/H2&gt;&lt;P&gt;&lt;CODE&gt;joule compile&lt;/CODE&gt; has strict validation rules that aren't always obvious.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Timeout ceiling:&lt;/STRONG&gt; The &lt;CODE&gt;api-request&lt;/CODE&gt; action type has a maximum timeout of &lt;STRONG&gt;45 seconds&lt;/STRONG&gt;. Set it to 60 and compilation fails silently with a generic validation error. If the backend needs more time, the API needs optimization rather than a longer timeout.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Description length limit:&lt;/STRONG&gt; The &lt;CODE&gt;response_context&lt;/CODE&gt; description fields in scenario YAMLs have a &lt;STRONG&gt;50 character limit&lt;/STRONG&gt;. This is easy to exceed when trying to be descriptive:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;# This will fail compilation: too long
-- value: $target_result.currentContent
-  description: The current content of the section before the proposed edit is applied
-
-# This works: under 50 characters
-- value: $target_result.currentContent
-  description: Current content before the edit&lt;/CODE&gt;&lt;/PRE&gt;&lt;H2 id="toc-hId-1399475360"&gt;Issue 2: "I Don't Understand": When Preselection Ignores the Scenario&lt;/H2&gt;&lt;P&gt;This was the most ambiguous issue. Everything compiled and deployed successfully, but Joule kept responding with "I don't understand" or routing queries to SAP Help instead of our custom scenario.&lt;/P&gt;&lt;P&gt;The root cause: DAS preselection uses &lt;STRONG&gt;semantic similarity&lt;/STRONG&gt; to match a user's query against scenario and capability descriptions. If the descriptions are too generic, they won't score high enough to beat the built-in capabilities like &lt;CODE&gt;smalltalkCapability&lt;/CODE&gt;.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;How to diagnose:&lt;/STRONG&gt; Check the Joule debug logs and look for &lt;CODE&gt;RAGE_SEARCHFILTER&lt;/CODE&gt; / &lt;CODE&gt;RESULTS_FOUND&lt;/CODE&gt;. If only &lt;CODE&gt;smalltalkCapability&lt;/CODE&gt; and &lt;CODE&gt;px_user_feedback_capability&lt;/CODE&gt; appear in the results, the scenario isn't making it past preselection.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The fix:&lt;/STRONG&gt; Enrich the descriptions with domain-specific keywords that users would naturally say:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;# Too generic: loses to built-in capabilities
-description: Answers questions about a document.
-
-# Keyword-rich: wins preselection
-description: &amp;gt;-
-  Answers questions about project documents including requirements,
-  architecture, data model, interfaces, personas, security,
-  assumptions, and scope. Use when the user asks about project
-  details, specifications, or design decisions.&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;Important:&lt;/STRONG&gt; Update both the scenario YAML and &lt;CODE&gt;capability.sapdas.yaml&lt;/CODE&gt; descriptions. Preselection checks both levels.&lt;/P&gt;&lt;H2 id="toc-hId-1202961855"&gt;Issue 3: "Destination Not Found": The Cross-Subaccount Trap&lt;/H2&gt;&lt;P&gt;&lt;CODE&gt;W_API_REQUEST_EXECUTION&lt;/CODE&gt; errors with "destination not found."&lt;/P&gt;&lt;P&gt;The destination existed. We could see it in the BTP cockpit. But DAS couldn't find it.&lt;/P&gt;&lt;P&gt;The key insight: &lt;STRONG&gt;DAS runtime resolves destinations from its own subaccount&lt;/STRONG&gt;, not from the application's subaccount. If the destination was only created in the app's subaccount, DAS will never see it.&lt;/P&gt;&lt;P&gt;The fix is twofold:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Create a Destination Service instance&lt;/STRONG&gt; (lite plan) in the Joule subaccount if one doesn't exist&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Create the destination in the Joule subaccount&lt;/STRONG&gt; (or both subaccounts)&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;The destination configuration needs:&lt;/P&gt;&lt;P&gt;Property Value&lt;/P&gt;&lt;TABLE border="1" cellspacing="0" cellpadding="8"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;Name&lt;/TD&gt;&lt;TD&gt;The destination name&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Type&lt;/TD&gt;&lt;TD&gt;HTTP&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;URL&lt;/TD&gt;&lt;TD&gt;The backend's &lt;STRONG&gt;public&lt;/STRONG&gt; URL&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;ProxyType&lt;/TD&gt;&lt;TD&gt;Internet&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Authentication&lt;/TD&gt;&lt;TD&gt;OAuth2ClientCredentials&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Client ID&lt;/TD&gt;&lt;TD&gt;From XSUAA service key&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Client Secret&lt;/TD&gt;&lt;TD&gt;From XSUAA service key&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Token Service URL&lt;/TD&gt;&lt;TD&gt;The subdomain's authentication token endpoint&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;H2 id="toc-hId-1006448350"&gt;Issue 4: The &lt;CODE&gt;.internal&lt;/CODE&gt; Route Problem&lt;/H2&gt;&lt;P&gt;Even with the destination correctly configured, we got &lt;CODE&gt;404 Not Found&lt;/CODE&gt; with &lt;CODE&gt;x-cf-routererror: unknown_route&lt;/CODE&gt;.&lt;/P&gt;&lt;P&gt;The culprit: MTA deploys Cloud Foundry apps with &lt;CODE&gt;.internal.cfapps.&lt;/CODE&gt; routes by default. These internal routes are &lt;STRONG&gt;not reachable across subaccounts&lt;/STRONG&gt;. Since DAS runs in a different subaccount than the backend, it simply cannot reach an internal route.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Quick fix: map a public route:&lt;/STRONG&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;cf map-route &amp;lt;app-name&amp;gt;-srv cfapps.&amp;lt;region&amp;gt;.hana.ondemand.com \
-  --hostname &amp;lt;app-hostname&amp;gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;Verify it's reachable&lt;/STRONG&gt; (a 401 means reachable but requires auth: that's correct):&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;curl -s -o /dev/null -w "%{http_code}" \
-  "https://&amp;lt;hostname&amp;gt;.cfapps.&amp;lt;region&amp;gt;.hana.ondemand.com/&amp;lt;api-path&amp;gt;/$metadata"&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Then update the destination URL to use the public route (without &lt;CODE&gt;.internal&lt;/CODE&gt;).&lt;/P&gt;&lt;H2 id="toc-hId-809934845"&gt;Issue 5: Routes Disappearing After Redeploy&lt;/H2&gt;&lt;P&gt;We fixed the route, everything worked, and then after the next &lt;CODE&gt;cf deploy&lt;/CODE&gt;: Joule broke again with the same &lt;CODE&gt;404 unknown_route&lt;/CODE&gt;.&lt;/P&gt;&lt;P&gt;The reason: &lt;CODE&gt;cf deploy&lt;/CODE&gt; resets routes to &lt;STRONG&gt;only those defined in &lt;CODE&gt;mta.yaml&lt;/CODE&gt;&lt;/STRONG&gt;. Our manually mapped public route was wiped out.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The permanent fix: add the public route to &lt;CODE&gt;mta.yaml&lt;/CODE&gt;:&lt;/STRONG&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;- name: &amp;lt;app-name&amp;gt;-srv
-  type: nodejs
-  path: gen/srv
-  parameters:
-    routes:
-    - route: ${default-host}.internal.cfapps.&amp;lt;region&amp;gt;.hana.ondemand.com
-    - route: ${default-host}.cfapps.&amp;lt;region&amp;gt;.hana.ondemand.com   # add this&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;This ensures the public route survives every deployment.&lt;/P&gt;&lt;H2 id="toc-hId-613421340"&gt;Issue 6: Works Standalone, Fails in Work Zone&lt;/H2&gt;&lt;P&gt;The final issue was the most confusing. Our capability worked perfectly in standalone Joule (&lt;CODE&gt;/webclient/standalone/&amp;lt;bot-name&amp;gt;&lt;/CODE&gt;), but embedded Joule in SAP Build Work Zone couldn't find any of our scenarios.&lt;/P&gt;&lt;P&gt;The root cause: Work Zone uses the &lt;STRONG&gt;&lt;CODE&gt;sap_digital_assistant&lt;/CODE&gt;&lt;/STRONG&gt; assistant: a system-managed assistant that SAP products (Work Zone, SuccessFactors, etc.) share. Custom assistants created via &lt;CODE&gt;joule deploy&lt;/CODE&gt; are completely separate.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Diagnosis:&lt;/STRONG&gt; Run &lt;CODE&gt;joule get sap_digital_assistant&lt;/CODE&gt; and check if the capability is listed. If it only shows &lt;CODE&gt;smalltalkCapability&lt;/CODE&gt; and &lt;CODE&gt;px_user_feedback_capability&lt;/CODE&gt;, the capability isn't registered.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The fix:&lt;/STRONG&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;# Register the capability with the Work Zone assistant
-joule update sap_digital_assistant --capability-file core/capability.sapdas.yaml
-
-# Verify it's registered
-joule get sap_digital_assistant&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;This was a critical "aha" moment: deploying to a custom assistant is great for testing, but for production use via Work Zone, explicit registration with &lt;CODE&gt;sap_digital_assistant&lt;/CODE&gt; is required.&lt;/P&gt;&lt;H2 id="toc-hId-416907835"&gt;The Subaccount Mental Model&lt;/H2&gt;&lt;P&gt;One of the biggest sources of confusion was understanding which component lives where. Here's the mapping that finally made everything click:&lt;/P&gt;&lt;P&gt;Component Subaccount Purpose&lt;/P&gt;&lt;TABLE border="1" cellspacing="0" cellpadding="8"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;Backend Service (CAP app)&lt;/TD&gt;&lt;TD&gt;Application subaccount&lt;/TD&gt;&lt;TD&gt;Backend API + DB&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Downstream Services&lt;/TD&gt;&lt;TD&gt;Application subaccount&lt;/TD&gt;&lt;TD&gt;AI, processing, etc.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;DAS / Joule Runtime&lt;/TD&gt;&lt;TD&gt;Joule subaccount&lt;/TD&gt;&lt;TD&gt;Capability hosting&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Build Work Zone&lt;/TD&gt;&lt;TD&gt;Application subaccount&lt;/TD&gt;&lt;TD&gt;UI / Launchpad&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Backend Destination&lt;/TD&gt;&lt;TD&gt;&lt;STRONG&gt;Both&lt;/STRONG&gt; subaccounts&lt;/TD&gt;&lt;TD&gt;DAS → backend connectivity&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;SWZ_JOULE Destination&lt;/TD&gt;&lt;TD&gt;Application subaccount&lt;/TD&gt;&lt;TD&gt;Work Zone → DAS connection&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;The key takeaway: &lt;STRONG&gt;destinations must exist where they're consumed, not where the target lives.&lt;/STRONG&gt; DAS consumes the backend destination, so it must exist in the Joule subaccount.&lt;/P&gt;&lt;H2 id="toc-hId-220394330"&gt;Essential Commands Reference&lt;/H2&gt;&lt;P&gt;For anyone working with DAS, these are the commands needed daily:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;# Compile the capability (catches YAML errors early)
-joule compile core
-
-# Deploy to a standalone assistant for testing
-joule deploy -c -n &amp;lt;bot-name&amp;gt;
-
-# Register with Work Zone's assistant for production
-joule update sap_digital_assistant --capability-file core/capability.sapdas.yaml
-
-# List all assistants and inspect them
-joule list
-joule get sap_digital_assistant
-joule get &amp;lt;bot-name&amp;gt;
-
-# Launch standalone Joule for quick testing
-joule launch &amp;lt;bot-name&amp;gt;
-
-# Check and manage routes
-cf app &amp;lt;app-name&amp;gt;-srv | grep routes
-cf map-route &amp;lt;app-name&amp;gt;-srv cfapps.&amp;lt;region&amp;gt;.hana.ondemand.com --hostname &amp;lt;hostname&amp;gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;H2 id="toc-hId-23880825"&gt;Lessons Learned&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Compile early, compile often.&lt;/STRONG&gt; DAS has strict but poorly documented validation rules. Don't wait until deployment to find out the descriptions are too long.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Think in subaccounts.&lt;/STRONG&gt; Every cross-subaccount interaction: destinations, routes, assistant registration: is a potential failure point. Map out which components live where before starting.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Preselection is semantic, not exact.&lt;/STRONG&gt; Scenario descriptions are effectively marketing copy for an AI classifier. They should be optimized like search keywords: domain-specific and descriptive.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Internal routes are invisible across subaccounts.&lt;/STRONG&gt; Always add public routes to &lt;CODE&gt;mta.yaml&lt;/CODE&gt; to survive redeployments.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Standalone ≠ Work Zone.&lt;/STRONG&gt; Testing in standalone Joule doesn't validate the Work Zone integration. Always test in both contexts.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Debug logs are essential.&lt;/STRONG&gt; The &lt;CODE&gt;RAGE_SEARCHFILTER&lt;/CODE&gt; and &lt;CODE&gt;RESULTS_FOUND&lt;/CODE&gt; entries reveal exactly what preselection is seeing.&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-174621677"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;Building a custom SAP Joule DAS integration involves more moving parts. The chain from user query to backend response crosses subaccount boundaries, networking layers, and semantic matching: each with its own failure modes.&lt;/P&gt;&lt;P&gt;The issues we encountered: compilation limits, preselection tuning, cross-subaccount destinations, internal routing, route persistence, and assistant registration, are not edge cases. They're the standard path anyone extending Joule will walk.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/extending-sap-joule-with-custom-das-capabilities/ba-p/14359358"/>
-    <published>2026-03-27T06:16:54.016000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/my-ai-experience-sharing-setting-up-joule-for-the-s-4hana-public-edition-pt/ba-p/14359836</id>
     <title>My AI Experience Sharing – Setting up Joule for the S/4HANA Public Edition (Pt D: Improvements)</title>
@@ -738,5 +445,29 @@ curl -s "https://&amp;lt;your-agent&amp;gt;.cfapps.sap.hana.ondemand.com/" \
     <content>&lt;P&gt;While we all have started using J4C , it is quite important to know how the success is meaured &amp;amp; evaluted in terms of J4C's adoption.&lt;A title="J4C" href="https://www.sap.com/products/artificial-intelligence/ai-assistant/sap-consulting-capability.html" target="_blank" rel="noopener noreferrer"&gt;https://www.sap.com/products/artificial-intelligence/ai-assistant/sap-consulting-capability.html&amp;nbsp;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Measuring the success of J4C requires establishing comprehensive Key Performance Indicators (KPIs) that evaluate user adoption, business impact, and technical performance. The measurement approach should cover KPIs that monitor influencing factors on user adoption both before and during the go-live phase, as well as KPIs to assess actual user adoption post go-live.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;While J4C is still evolving but it has become one of the most important resources /tool for functional consultants as it caters to all types of projects like Greenfield , Upgrades, Migration , Conversion and many more.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;I have tried to articulate possible metrics criteria in a tabular format.&lt;/SPAN&gt;&lt;/P&gt;&lt;TABLE width="988px"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="247px"&gt;&lt;P&gt;&lt;STRONG&gt;Metric Category&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="247px"&gt;&lt;P&gt;&lt;STRONG&gt;Target Value&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="247px"&gt;&lt;P&gt;&lt;STRONG&gt;Measurement Period&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="247px"&gt;&lt;P&gt;&lt;STRONG&gt;Success Indicator&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="247px"&gt;&lt;P&gt;Consultant Adoption&lt;/P&gt;&lt;/TD&gt;&lt;TD width="247px"&gt;&lt;P&gt;80%+ active users&lt;/P&gt;&lt;/TD&gt;&lt;TD width="247px"&gt;&lt;P&gt;8-10 weeks during the project engagement&lt;/P&gt;&lt;/TD&gt;&lt;TD width="247px"&gt;&lt;P&gt;High engagement levels , Peer learning&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="247px"&gt;&lt;P&gt;Business Impact&lt;/P&gt;&lt;/TD&gt;&lt;TD width="247px"&gt;&lt;P&gt;15%+ productivity /operational efficiency gain&lt;/P&gt;&lt;/TD&gt;&lt;TD width="247px"&gt;&lt;P&gt;All project phases-implementation&lt;/P&gt;&lt;/TD&gt;&lt;TD width="247px"&gt;&lt;P&gt;Measurable efficiency improvements&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="247px"&gt;&lt;P&gt;Measurable efficiency improvements&lt;/P&gt;&lt;/TD&gt;&lt;TD width="247px"&gt;&lt;P&gt;99%+ accurate responses&lt;/P&gt;&lt;/TD&gt;&lt;TD width="247px"&gt;&lt;P&gt;Ongoing&lt;/P&gt;&lt;/TD&gt;&lt;TD width="247px"&gt;&lt;P&gt;Reliable tool performance&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="247px"&gt;&lt;P&gt;User Satisfaction&lt;/P&gt;&lt;/TD&gt;&lt;TD width="247px"&gt;&lt;P&gt;4.0+ rating (5-point scale) as an example&lt;/P&gt;&lt;/TD&gt;&lt;TD width="247px"&gt;&lt;P&gt;Monthly surveys&lt;/P&gt;&lt;/TD&gt;&lt;TD width="247px"&gt;&lt;P&gt;Positive user experience&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/joule-for-consultants-success-metrics/ba-p/14373479"/>
     <published>2026-04-14T04:49:27.474000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/rag-for-document-analysis/ba-p/14364944</id>
+    <title>RAG For Document Analysis</title>
+    <updated>2026-04-15T20:43:16.553000+02:00</updated>
+    <author>
+      <name>harsh_verma</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/841165</uri>
+    </author>
+    <content>&lt;P&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Large Language Models (LLMs) have transformed how we interact with data, enabling natural language understanding and generation at unprecedented levels. Yet, despite their capabilities, they are inherently limited by the knowledge embedded during training and often referred to as &lt;STRONG&gt;parametric memory&lt;/STRONG&gt;. This limitation becomes evident when models are tasked with answering questions that require up-to-date, proprietary, or domain-specific information.&lt;/P&gt;&lt;P&gt;Retrieval-Augmented Generation (RAG) emerges as a powerful paradigm to address this gap. By integrating external knowledge sources into the generation process, RAG enables LLMs to produce responses that are not only coherent but also &lt;STRONG&gt;factually grounded and contextually relevant&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Understanding the RAG Paradigm&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;At its core, RAG separates &lt;STRONG&gt;knowledge storage&lt;/STRONG&gt; from &lt;STRONG&gt;reasoning capability&lt;/STRONG&gt;.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Parametric Knowledge&lt;/STRONG&gt;: Encoded within the model during training&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Non-Parametric Knowledge&lt;/STRONG&gt;: Stored externally in a searchable repository&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This separation allows systems to remain flexible and continuously updated without the need for expensive retraining.&lt;/P&gt;&lt;P&gt;A useful analogy is the distinction between a &lt;STRONG&gt;closed-book exam&lt;/STRONG&gt; and an &lt;STRONG&gt;open-book exam&lt;/STRONG&gt;. Traditional LLMs operate like the former, relying solely on what they have learned. RAG-enabled systems, however, can reference external materials, enabling more accurate and informed responses.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The RAG Workflow&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="mounika_mooli1_0-1775671052561.png" style="width: 837px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/395201iBDFFA98F9035E816/image-dimensions/837x546/is-moderation-mode/true?v=v2" width="837" height="546" role="button" title="mounika_mooli1_0-1775671052561.png" alt="mounika_mooli1_0-1775671052561.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;A typical RAG pipeline consists of these stages:&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Document Ingestion and Chunking&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The process begins with ingesting documents from various sources such as PDFs, Word files, or structured data formats. These documents are divided into smaller, manageable segments or &lt;EM&gt;chunks&lt;/EM&gt;. Effective chunking is critical, as it directly impacts the quality of retrieval.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Embedding Generation&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Each chunk is transformed into a vector representation using an embedding model. These embeddings capture the semantic meaning of the text, allowing similar pieces of information to be located efficiently.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Vector Storage&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The embeddings are stored in a &lt;STRONG&gt;vector database&lt;/STRONG&gt;, such as Chroma, FAISS, or Pinecone. This database functions as an external memory layer, enabling rapid similarity searches.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Retrieval&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;When a user submits a query, it is converted into an embedding and compared against the stored vectors. The system retrieves the &lt;STRONG&gt;top-k most relevant chunks&lt;/STRONG&gt;, forming the contextual foundation for the response.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Augmentation&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The retrieved content is combined with the user query using a structured prompt template. This step ensures the language model has access to the most relevant information before generating a response.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Generation&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Finally, the augmented prompt is passed to the LLM, which synthesizes a response grounded in both its internal knowledge and the retrieved context.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Why RAG Over Fine-Tuning?&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Historically, adapting models to domain-specific tasks required &lt;STRONG&gt;fine-tuning&lt;/STRONG&gt;, a process that is resource-intensive and inflexible. RAG offers a more efficient alternative:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Dynamic Knowledge Updates&lt;/STRONG&gt;: No need to retrain the model when data changes&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Cost Efficiency&lt;/STRONG&gt;: Eliminates repeated training cycles&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Scalability&lt;/STRONG&gt;: Easily adapts to growing datasets&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Modularity&lt;/STRONG&gt;: Components can be independently optimized&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This makes RAG particularly well-suited for environments where information evolves rapidly.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Benefits of RAG&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Organizations adopting RAG can expect several advantages:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Improved Accuracy&lt;/STRONG&gt;: Responses are grounded in real, retrievable data&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Reduced Hallucinations&lt;/STRONG&gt;: Minimizes unsupported or fabricated outputs&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Real-Time Relevance&lt;/STRONG&gt;: Easily incorporates the latest information&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Transparency&lt;/STRONG&gt;: Enables traceability to source documents&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Domain Adaptability&lt;/STRONG&gt;: Works seamlessly with specialized datasets&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Challenges and Considerations&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Despite its advantages, implementing RAG effectively requires careful design:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Chunking Strategy&lt;/STRONG&gt;: Poor segmentation can degrade retrieval quality&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Embedding Selection&lt;/STRONG&gt;: Model choice significantly impacts performance&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Latency&lt;/STRONG&gt;: Retrieval adds overhead to response time&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Prompt Engineering&lt;/STRONG&gt;: Poorly structured prompts can limit effectiveness&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Evaluation Metrics&lt;/STRONG&gt;: Measuring success requires more than traditional accuracy metrics&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Addressing these challenges is essential for building robust, production-ready systems.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Retrieval-Augmented Generation represents a significant evolution in the design of intelligent systems. By decoupling knowledge from reasoning, it enables LLMs to operate with greater accuracy, flexibility, and relevance.&lt;/P&gt;&lt;P&gt;For document analysis, RAG is not just an enhancement, it is a foundational capability that transforms how organizations interact with information. As data continues to grow in volume and complexity, RAG will play a central role in enabling systems that are not only intelligent, but also reliable and context-aware.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/rag-for-document-analysis/ba-p/14364944"/>
+    <published>2026-04-15T20:43:16.553000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/sap-joule-conversational-insights-for-production-and-process-orders/ba-p/14375087</id>
+    <title>SAP Joule: Conversational insights for production and process orders</title>
+    <updated>2026-04-15T23:21:59.580000+02:00</updated>
+    <author>
+      <name>Caetano</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/121014</uri>
+    </author>
+    <content>&lt;P&gt;SAP Joule introduced conversational capabilities directly into the Fiori Launchpad, and users can now interact with a SAP S/4HANA system using natural language. As of SAP S/4HANA 2021, Private Cloud Edition, Joule also supports manufacturing orders, and users can now use it to gain insights about production and process orders. The production scheduler can now use Joule to get, for example, a list of production orders for a material, show details of a specific order or get details about items or operations of an order.&lt;/P&gt;&lt;P&gt;This blog will show details about the features available for production orders.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Pre-requisites&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;First of all, Production and Process Order specific capabilities should be available as of SAP S/4HANA Private Cloud 2021.&lt;/P&gt;&lt;P&gt;In order to use the Joule capabilities described in this blog, you need to have Joule active in the system. You can find a detailed Joule setup guide in the following blog:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/joule-for-sap-s-4hana-cloud-private-edition-a-comprehensive-setup-guide/ba-p/13786453" target="_blank"&gt;Joule for SAP S/4HANA Cloud Private Edition - A Comprehensive Setup Guide&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The implementation of SAP Notes &lt;A href="https://help.sap.com/docs/link-disclaimer?site=https://me.sap.com/notes/3694923" target="_blank" rel="noopener noreferrer"&gt;3694923&lt;/A&gt; and &lt;A href="https://help.sap.com/docs/link-disclaimer?site=https://me.sap.com/notes/3703307" target="_blank" rel="noopener noreferrer"&gt;3703307&lt;/A&gt; is required to allow some actions to be completed in the respective Fiori App.&lt;/P&gt;&lt;P&gt;Users with access to Joule will need roles SAP_BR_PRODN_SUPERVISOR_DISC and SAP_BR_PRODN_SUPERVISOR_PROC to be able to use the production and process orders use cases.&lt;/P&gt;&lt;P&gt;Some use cases require the user to have an Area of Responsibility defined for the production supervisor. You can find more details about how to define an Area of Responsibility in the following link:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/34de0103497c4b80a7c7fbf6952ff971/c544d71e772a4c5dbdedeb71e89ef8b7.html?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;My Area of Responsibility – Production Supervisor&lt;/A&gt;.&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Use cases&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Joule supports the following uses cases for Production Orders:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Show all production orders&lt;/LI&gt;&lt;LI&gt;Show production order details&lt;/LI&gt;&lt;LI&gt;Show production orders for a plant and/or production supervisor&lt;/LI&gt;&lt;LI&gt;Show a specific detail of a production order&lt;/LI&gt;&lt;LI&gt;Show all items of a production order&lt;/LI&gt;&lt;LI&gt;Show all operations of a production order&lt;/LI&gt;&lt;LI&gt;Show master output material data&lt;/LI&gt;&lt;LI&gt;Find material details for a production order&lt;/LI&gt;&lt;LI&gt;Show statuses of a production order&lt;/LI&gt;&lt;LI&gt;Check status of a production order&lt;/LI&gt;&lt;LI&gt;Show all late production orders&lt;/LI&gt;&lt;LI&gt;Show all missing components of a production order&lt;/LI&gt;&lt;LI&gt;Show all late operations of a production order&lt;/LI&gt;&lt;LI&gt;Show all production orders created by &amp;lt;username&amp;gt;&lt;/LI&gt;&lt;LI&gt;Show production orders which satisfy multiple filter criteria including status, type of issue and date filters.&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Examples&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Now that we went through the pre-requisites and the supported use-cases, let’s see some examples of the use-cases described above. If you have Joule Active and enabled for your user, you should be able to access it in the Fiori Launchpad, by clicking the diamond icon in the right upper-right corner, as highlighted in the Figure below:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Caetano_6-1776256807295.png" style="width: 947px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398564iEFEE61F4FD58E9BC/image-dimensions/947x310/is-moderation-mode/true?v=v2" width="947" height="310" role="button" title="Caetano_6-1776256807295.png" alt="Caetano_6-1776256807295.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Figure 1:&lt;/STRONG&gt; Accessing Joule in the Fiori Launchpad&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;We can start with a basic prompt, asking Joule to show all Production Orders for material SG224. As we can see in &lt;STRONG&gt;Figure 2&lt;/STRONG&gt;, system shows a list of production orders for our material, and shows the button &lt;STRONG&gt;Open&lt;/STRONG&gt; for each order.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Caetano_7-1776256807306.png" style="width: 930px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398566i6E9F0E9928AC603A/image-dimensions/930x667/is-moderation-mode/true?v=v2" width="930" height="667" role="button" title="Caetano_7-1776256807306.png" alt="Caetano_7-1776256807306.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Figure 2: &lt;/STRONG&gt;&amp;nbsp;List of production orders in Joule.&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;If we click button &lt;STRONG&gt;Open&lt;/STRONG&gt;, we will branch into the app Manage Production Orders, where we will be able to take actions for those production orders, as shown in&amp;nbsp;&lt;STRONG&gt;Figure 3&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Caetano_8-1776256807314.png" style="width: 951px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398565i08BE330A923FFB0F/image-dimensions/951x504/is-moderation-mode/true?v=v2" width="951" height="504" role="button" title="Caetano_8-1776256807314.png" alt="Caetano_8-1776256807314.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Figure 3: &lt;/STRONG&gt;Manage Production Orders app&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Even inside the app, we can still use Joule, and we can ask for details about a specific Production Order, as we can see in &lt;STRONG&gt;Figure 4&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Caetano_9-1776256807324.png" style="width: 947px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398568iB5A8D7C897962F5A/image-dimensions/947x684/is-moderation-mode/true?v=v2" width="947" height="684" role="button" title="Caetano_9-1776256807324.png" alt="Caetano_9-1776256807324.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Figure 4: &lt;/STRONG&gt;Details of a Production Order&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;We can keep asking questions about this order, like the details about the order items and operations, and Joule will understand the context, even if we do not mention the order number again. In &lt;STRONG&gt;Figure 5&lt;/STRONG&gt; we can see how Joule answers when we ask about the operations of the order previously displayed.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Caetano_10-1776256807333.png" style="width: 944px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398567iF99CBE9A9F31F46D/image-dimensions/944x680/is-moderation-mode/true?v=v2" width="944" height="680" role="button" title="Caetano_10-1776256807333.png" alt="Caetano_10-1776256807333.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&amp;nbsp;&lt;STRONG&gt;Figure 5: &lt;/STRONG&gt;List of Production Order operations&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Finally, Joule is also capable of answering more complex questions, and show production orders filtering by a specific status and plant, for example, as we can see in &lt;STRONG&gt;Figure 6&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Caetano_11-1776256807344.png" style="width: 946px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398569i95621622AD09324D/image-dimensions/946x686/is-moderation-mode/true?v=v2" width="946" height="686" role="button" title="Caetano_11-1776256807344.png" alt="Caetano_11-1776256807344.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Figure 6:&lt;/STRONG&gt; List of partially confirmed Production Orders.&lt;/P&gt;&lt;P&gt;Similar use cases are available for Process Orders, and a comprehensive list of the available use cases with example can be found in the links below:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/joule/capabilities-guide/production-order" target="_blank" rel="noopener noreferrer"&gt;Production Order&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/joule/capabilities-guide/process-order" target="_blank" rel="noopener noreferrer"&gt;Process Order&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;More information:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;List of release specific Joule capabilities: &lt;A href="https://help.sap.com/docs/joule/capabilities-guide/release-specific-capabilities" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/joule/capabilities-guide/release-specific-capabilities&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;Joule Integration SAP Help: &lt;A href="https://help.sap.com/docs/joule/integrating-joule-with-sap/integration-with-sap-s-4hana-cloud-private-edition" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/joule/integrating-joule-with-sap/integration-with-sap-s-4hana-cloud-private-edition&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;AI Functionality in SAP S/4HANA Cloud Private Edition: SAP note &lt;A href="https://me.sap.com/notes/3558794" target="_blank" rel="noopener noreferrer"&gt;3558794&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;EM&gt;Brought to you by the SAP S/4HANA Regional Implementation Group&lt;/EM&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/sap-joule-conversational-insights-for-production-and-process-orders/ba-p/14375087"/>
+    <published>2026-04-15T23:21:59.580000+02:00</published>
   </entry>
 </feed>
