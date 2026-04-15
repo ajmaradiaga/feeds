@@ -2,569 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2026-04-15T12:59:01.919587+00:00</updated>
+  <updated>2026-04-15T13:14:01.589103+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/triggering-background-jobs-from-rap-actions-a-practical-guide/ba-p/14371274</id>
-    <title>Triggering Background Jobs from RAP Actions – A Practical Guide</title>
-    <updated>2026-04-15T11:24:21.616000+02:00</updated>
-    <author>
-      <name>Arshiya2</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1912702</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-1794110181"&gt;&lt;STRONG&gt;Introduction:&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;In the SAP ABAP RESTful Application Programming Model (RAP), actions are typically executed within a single transactional request. However, resource-intensive operations are not suitable for synchronous execution as they impact performance and user experience. To handle this, background job processing can be used to execute heavy logic asynchronously. This blog demonstrates how a RAP action can trigger a background job to keep the main transaction lightweight.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;What is a RAP Action?&lt;/STRONG&gt;&lt;BR /&gt;An action in RAP is a non-standard operation used to change data or trigger specific business logic. By default, these are synchronous, meaning the UI waits for the logic to finish before the user can continue.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;What is Background Processing (BG)?&lt;/STRONG&gt;&lt;BR /&gt;Background processing allows the system to run tasks in a separate session without user interaction. It is ideal for "fire-and-forget" scenarios or resource-intensive tasks that would otherwise cause a timeout in a web session.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Scenario: Bulk Asynchronous Processing in RAP&lt;/STRONG&gt;&lt;BR /&gt;A business user needs to process multiple records simultaneously in a SAP Fiori application—such as updating statuses for a large batch of background job entries. While a simple status change is quick, the underlying business logic (like complex data validation or external system integration) is resource-intensive and long-running.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Problem Statement&lt;/STRONG&gt;&lt;BR /&gt;Executing heavy synchronous logic directly within RAP actions causes poor user experience, performance degradation, and potential transaction timeouts.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Solution&lt;/STRONG&gt;&lt;BR /&gt;Trigger an asynchronous background job from the RAP action. The action marks the records as "In Progress," and the Saver Class calls a Function Module IN BACKGROUND TASK to schedule a background report. This offloads the processing to a separate session, allowing the main UI transaction to remain lightweight and responsive.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-810796794" id="toc-hId-1597596676"&gt;Implementation Steps&lt;/H2&gt;&lt;H4 id="toc-hId-872448727" id="toc-hId-1659248609"&gt;Step 1: Create a database table&lt;/H4&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'DATABASE TABLE FOR BACKGROUND JOB' 
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE 
-@AbapCatalog.tableCategory : #TRANSPARENT 
-@AbapCatalog.deliveryClass : #A 
-@AbapCatalog.dataMaintenance : #RESTRICTED 
-
-define table zaf_dt_backjob { 
-
-key id : uuid not null; 
-description : abap.char(50); 
-status : abap.char(10); 
-job_name : abap.char(32); 
-job_count : abap.char(10); 
-start_time : timestampl; 
-end_time : timestampl; 
-error_message : abap.char(255); 
-created_by : abap.char(12);
-created_at : abp_creation_tstmpl; 
-last_changed_at : abp_lastchange_tstmpl; 
-
-} &lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-546852503" id="toc-hId-1333652385"&gt;Step 2: Create a interface view on top of database table.&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE] 
-@AccessControl.authorizationCheck: #NOT_REQUIRED 
-@EndUserText.label: 'BACKGROUND job interface view' 
-@Metadata.ignorePropagatedAnnotations: true 
-
-define root view entity zi_AF_backjob as select from zaf_dt_backjob 
-
-{ 
-key id as Id, 
-description as Description, 
-status as Status, 
-job_name as JobName, 
-job_count as JobCount, 
-start_time as StartTime, 
-end_time as EndTime, 
-error_message as ErrorMessage, 
-created_by as CreatedBy, 
-created_at as CreatedAt, 
-last_changed_at as LastChangedAt, 
-case status 
-when 'DONE' then 3 
-when 'INPR' then 2 
-when 'NEW' then 1 
-when 'ERR' then 4 
-else 0 
-end as StatusCriticality 
-
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId-1137138880"&gt;&amp;nbsp;Step 3: Create a Consumption view&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Background job projection view'
-@Metadata.ignorePropagatedAnnotations: true
-@Metadata.allowExtensions: true
-@UI.headerInfo: {
-  typeName: 'Background Job',
-  typeNamePlural: 'Background Jobs',
-  title: { type: #STANDARD, value: 'Description' }
-}
-define root view entity zc_af_backjob
-provider contract transactional_query
-as projection on zi_AF_backjob
-{
-
-key Id,
-  Description,
-  Status,
-  JobName,
-  JobCount,
-  StartTime,
-  EndTime,
-  ErrorMessage,
-  CreatedAt,
-  LastChangedAt,
-  StatusCriticality
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId-940625375"&gt;Step 4: Metadata Extension file&amp;nbsp;&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CORE
-annotate entity zc_af_backjob with 
-{
-  .facet: [
-    {
-      id: 'General',
-      purpose: #STANDARD,
-      type: #IDENTIFICATION_REFERENCE,
-      label: 'General Information',
-      position: 10
-    }
-  ]
-
-  .lineItem: [{ position: 10, label: 'UUID' }]
-  .identification: [{ position: 10, label: 'UUID' }]
-  .selectionField: [{ position: 10 }]
-  Id;
-
-  .lineItem: [{ position: 20, label: 'Description' }]
-  .identification: [{ position: 20, label: 'Description' }]
-  Description;
-
-  .lineItem: [
-    { position: 30, label: 'Status' },
-    { type: #FOR_ACTION, dataAction: 'StartProcessing', label: 'Start Job' }
-  ]
-  .identification: [{ position: 30, label: 'Status' }]
-  .selectionField: [{ position: 30 }]
-  .dataPoint: {
-    title: 'Status',
-    criticality: 'StatusCriticality'
-  }
-  Status;
-
-  .lineItem: [{ position: 40, label: 'Job Name' }]
-  .identification: [{ position: 40, label: 'Job Name' }]
-  .selectionField: [{ position: 40 }]
-  JobName;
-
-  .lineItem: [{ position: 50, label: 'Job Count' }]
-  .identification: [{ position: 50, label: 'Job Count' }]
-  JobCount;
-
-  .lineItem: [{ position: 60, label: 'Start Time' }]
-  .identification: [{ position: 60, label: 'Start Time' }]
-  StartTime;
-
-  .lineItem: [{ position: 70, label: 'End Time' }]
-  .identification: [{ position: 70, label: 'End Time' }]
-  EndTime;
-
-  .lineItem: [{ position: 80, label: 'Error Message' }]
-  .identification: [{ position: 80, label: 'Error Message' }]
-  ErrorMessage;
-
-  .hidden: true
-  CreatedAt;
-
-  .hidden: true
-  LastChangedAt;
-
-  .hidden: true
-  StatusCriticality;
-}&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId-744111870"&gt;Step 5:&amp;nbsp; Create a Behavior Definition on top of interface View&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;unmanaged implementation in class zbp_i_af_backjob unique;
-strict ( 2 );
-with draft;
-
-define behavior for zi_AF_backjob 
-lock master
-total etag LastChangedAt
-draft table zaf_draft_bg
-authorization master ( instance )
-early numbering
-
-{
-  create;
-  update;
-  delete;
-
-     draft action activate optimized;
-     draft action resume;
-     draft action Edit;
-     draft action Discard;
-     draft determine action Prepare;
-
-    action StartProcessing result [1] $self;
-
-  determination SetInitialStatus on modify { create; }
-
- field ( readonly ) Id;
-  field ( readonly ) Status, JobName, JobCount, StartTime, EndTime, ErrorMessage;
-  field ( readonly ) CreatedAt, LastChangedAt, CreatedBy;
-
-  field ( mandatory ) Description;
-
-
-mapping for zaf_dt_backjob{
-
-CreatedAt = created_at;
-CreatedBy = created_by;
-Description = description;
-EndTime = end_time;
-ErrorMessage = error_message;
-Id = id;
-JobCount = job_count;
-JobName = job_name;
-LastChangedAt = last_changed_at;
-StartTime = start_time;
-Status = status;
-
-}
-}&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId-547598365"&gt;Step 6: Create implementation class&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_zi_af_backjob DEFINITION INHERITING FROM cl_abap_behavior_handler.
-
-  PUBLIC SECTION.
-    TYPES: tt_backjob_db TYPE STANDARD TABLE OF zaf_dt_backjob WITH EMPTY KEY.
-
-    " Buffer for CRUD and Job Scheduling
-    CLASS-DATA: mt_buffer_upsert TYPE tt_backjob_db,
-                mt_buffer_delete TYPE tt_backjob_db,
-                gt_jobs          TYPE STANDARD TABLE OF zaf_dt_backjob-id.
-
-  PRIVATE SECTION.
-    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-      IMPORTING keys REQUEST requested_authorizations FOR zi_af_backjob RESULT result.
-
-    METHODS earlynumbering_create FOR NUMBERING
-      IMPORTING entities FOR CREATE zi_af_backjob.
-
-    METHODS create FOR MODIFY
-      IMPORTING entities FOR CREATE zi_af_backjob.
-
-    METHODS update FOR MODIFY
-      IMPORTING entities FOR UPDATE zi_af_backjob.
-
-    METHODS delete FOR MODIFY
-      IMPORTING keys FOR DELETE zi_af_backjob.
-
-    METHODS read FOR READ
-      IMPORTING keys FOR READ zi_af_backjob RESULT result.
-
-    METHODS lock FOR LOCK
-      IMPORTING keys FOR LOCK zi_af_backjob.
-
-    METHODS StartProcessing FOR MODIFY
-      IMPORTING keys FOR ACTION zi_af_backjob~StartProcessing RESULT result.
-
-    METHODS SetInitialStatus FOR DETERMINE ON MODIFY
-      IMPORTING keys FOR zi_af_backjob~SetInitialStatus.
-
-ENDCLASS.
-
-CLASS lhc_zi_af_backjob IMPLEMENTATION.
-
-  METHOD get_instance_authorizations.
-  ENDMETHOD.
-
-  METHOD earlynumbering_create.
-    LOOP AT entities INTO DATA(ls_entity).
-      IF ls_entity-id IS NOT INITIAL.
-        CONTINUE.
-      ENDIF.
-
-      DATA(lv_uuid) = cl_system_uuid=&amp;gt;create_uuid_x16_static( ).
-
-      APPEND VALUE #(
-        %cid      = ls_entity-%cid
-        %is_draft = ls_entity-%is_draft
-        id        = lv_uuid
-      ) TO mapped-zi_af_backjob.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD create.
-    LOOP AT entities INTO DATA(ls_entity).
-      APPEND VALUE #(
-        id          = ls_entity-id
-        description = ls_entity-Description
-        status      = 'NEW'
-        created_by  = sy-uname
-      ) TO mt_buffer_upsert.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD update.
-    LOOP AT entities INTO DATA(ls_entity).
-      " In unmanaged, we must fetch current state to apply partial updates
-      SELECT SINGLE * FROM zaf_dt_backjob WHERE id = _entity-id INTO (ls_db).
-
-      IF ls_entity-%control-Description = if_abap_behv=&amp;gt;mk-on.
-         ls_db-description = ls_entity-Description.
-      ENDIF.
-
-      IF ls_entity-%control-Status = if_abap_behv=&amp;gt;mk-on.
-         ls_db-status = ls_entity-Status.
-      ENDIF.
-
-      GET TIME STAMP FIELD ls_db-last_changed_at.
-      APPEND ls_db TO mt_buffer_upsert.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD delete.
-    LOOP AT keys INTO DATA(ls_key).
-      APPEND VALUE #( id = ls_key-id ) TO mt_buffer_delete.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD read.
-    IF keys IS INITIAL. RETURN. ENDIF.
-    SELECT * FROM zaf_dt_backjob FOR ALL ENTRIES IN  WHERE id = -id INTO TABLE (lt_data).
-
-    result = CORRESPONDING #( lt_data MAPPING
-      Id = id Description = description Status = status JobName = job_name
-      JobCount = job_count StartTime = start_time EndTime = end_time
-      ErrorMessage = error_message CreatedBy = created_by CreatedAt = created_at
-      LastChangedAt = last_changed_at ).
-  ENDMETHOD.
-
-  METHOD lock.
-    
-  ENDMETHOD.
-
-  METHOD StartProcessing.
-    LOOP AT keys INTO DATA(ls_key).
-      " 1. Mark status as 'INPR' immediately in the database
-      UPDATE zaf_dt_backjob SET status = 'INPR' WHERE id = _key-id.
-
-      " 2. Add to global job queue for the SAVE phase
-      INSERT ls_key-id INTO TABLE gt_jobs.
-    ENDLOOP.
-
-    result = VALUE #( FOR key IN keys ( Id = key-id %param = CORRESPONDING #( key ) ) ).
-  ENDMETHOD.
-
-  METHOD SetInitialStatus.
-    LOOP AT keys INTO DATA(ls_key).
-      SELECT SINGLE * FROM zaf_dt_backjob WHERE id = _key-id INTO (ls_db).
-      IF ls_db-status IS INITIAL.
-        ls_db-status = 'NEW'.
-        APPEND ls_db TO mt_buffer_upsert.
-      ENDIF.
-    ENDLOOP.
-  ENDMETHOD.
-
-ENDCLASS.
-
-" --- Saver Class Implementation ---
-CLASS lsc_zi_af_backjob DEFINITION INHERITING FROM cl_abap_behavior_saver.
-  PROTECTED SECTION.
-    METHODS finalize REDEFINITION.
-    METHODS check_before_save REDEFINITION.
-    METHODS save REDEFINITION.
-    METHODS cleanup REDEFINITION.
-    METHODS cleanup_finalize REDEFINITION.
-ENDCLASS.
-
-CLASS lsc_zi_af_backjob IMPLEMENTATION.
-
-  METHOD finalize.
-  ENDMETHOD.
-
-  METHOD check_before_save.
-  ENDMETHOD.
-
-  METHOD save.
-    " 1. Standard DB Persistence
-    IF lhc_zi_af_backjob=&amp;gt;mt_buffer_delete IS NOT INITIAL.
-      DELETE zaf_dt_backjob FROM TABLE @lhc_zi_af_backjob=&amp;gt;mt_buffer_delete.
-    ENDIF.
-
-    IF lhc_zi_af_backjob=&amp;gt;mt_buffer_upsert IS NOT INITIAL.
-      MODIFY zaf_dt_backjob FROM TABLE @lhc_zi_af_backjob=&amp;gt;mt_buffer_upsert.
-    ENDIF.
-
-    " 2. Trigger Async logic using the reference pattern
-    LOOP AT lhc_zi_af_backjob=&amp;gt;gt_jobs INTO DATA(lv_id).
-      CALL FUNCTION 'ZAF_FM_BACKJOB'
-        IN BACKGROUND TASK
-        DESTINATION 'NONE'  " Critical for separate LUW execution
-        EXPORTING
-          iv_id = lv_id.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD cleanup.
-    " Clear all buffers after the LUW is complete
-    CLEAR: lhc_zi_af_backjob=&amp;gt;mt_buffer_upsert,
-           lhc_zi_af_backjob=&amp;gt;mt_buffer_delete,
-           lhc_zi_af_backjob=&amp;gt;gt_jobs.
-  ENDMETHOD.
-
-  METHOD cleanup_finalize.
-  ENDMETHOD.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId-351084860"&gt;Step 7: Create behavior definition on Consumption view&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection;
-strict ( 2 );
-use draft;
-
-define behavior for zc_af_backjob //alias &amp;lt;alias_name&amp;gt;
-{
-  use create;
-  use update;
-  use delete;
-
-  use action StartProcessing;
-
-  use action activate;
-  use action resume;
-  use action Edit;
-  use action Discard;
-  use action Prepare;
-}&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId-154571355"&gt;Step 8: Create service Definition on top of Consumption view&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'service defination for background job'
-define service Zsevd_bg_job {
-  expose zc_af_backjob;
-}&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId--117173519"&gt;Step 9: Create service binding on top of service defination&lt;/H3&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Arshiya2_0-1775890344719.png" style="width: 723px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/396279iB45CDAC61736EFBC/image-dimensions/723x270?v=v2" width="723" height="270" role="button" title="Arshiya2_0-1775890344719.png" alt="Arshiya2_0-1775890344719.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId--313687024"&gt;Step 10: Create Function Module&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;FUNCTION zaf_fm_backjob.
-*"----------------------------------------------------------------------
-*"  IMPORTING VALUE(IV_ID) TYPE ZAF_DT_BACKJOB-ID
-*"----------------------------------------------------------------------
-  DATA: lv_jobname   TYPE tbtcjob-jobname,
-        lv_jobcount  TYPE tbtcjob-jobcount,
-        lv_timestamp TYPE timestampl.
-
-  " 1. Dynamic Job Name for better monitoring in SM37
-  lv_jobname = |ZAF_BG_{ iv_id+0(8) }|.
-
-  CALL FUNCTION 'JOB_OPEN'
-    EXPORTING jobname = lv_jobname
-    IMPORTING jobcount = lv_jobcount.
-
-  IF sy-subrc = 0.
-    GET TIME STAMP FIELD lv_timestamp.
-
-    " 2. Update DB with system metadata immediately
-    UPDATE zaf_dt_backjob
-      SET job_name   = _jobname,
-          job_count  = _jobcount,
-          status     = 'INPR',
-          start_time = _timestamp
-      WHERE id = _id.
-
-    " 3. Push data to UI so it's visible while report processes
-    COMMIT WORK.
-  ENDIF.
-
-  " 4. Schedule the report
-  SUBMIT zaf_bg_job_report WITH p_id = iv_id
-    VIA JOB lv_jobname NUMBER lv_jobcount AND RETURN.
-
-  " 5. Release job
-  CALL FUNCTION 'JOB_CLOSE'
-    EXPORTING jobname = lv_jobname jobcount = lv_jobcount strtimmed = 'X'.
-ENDFUNCTION.&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId--510200529"&gt;Step 11: Create a Report Program&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;REPORT zaf_bg_job_report.
-
-PARAMETERS: p_id TYPE zaf_dt_backjob-id.
-
-DATA: lv_timestamp TYPE timestampl.
-
-START-OF-SELECTION.
-
-  IF p_id IS INITIAL.
-    RETURN.
-  ENDIF.
-
-  WAIT UP TO 5 SECONDS.
-
-  GET TIME STAMP FIELD lv_timestamp.
-
-  " Update final status to match the reference 'DONE'
-  UPDATE zaf_dt_backjob
-    SET status        = 'DONE',
-        end_time      = _timestamp,
-        error_message = ''
-    WHERE id = @p_id.
-
-  COMMIT WORK.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Result :&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Arshiya2_1-1775891590814.png" style="width: 756px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/396284iFDBDB624975EBC0E/image-dimensions/756x238?v=v2" width="756" height="238" role="button" title="Arshiya2_1-1775891590814.png" alt="Arshiya2_1-1775891590814.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Select&lt;STRONG&gt; Multiple Records&lt;/STRONG&gt; then click Action Button &lt;STRONG&gt;Start Job&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Arshiya2_3-1775891777189.png" style="width: 759px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/396287iC7D568C508521124/image-dimensions/759x205?v=v2" width="759" height="205" role="button" title="Arshiya2_3-1775891777189.png" alt="Arshiya2_3-1775891777189.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Arshiya2_4-1775891833126.png" style="width: 763px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/396288i28F7193F5FE702AE/image-dimensions/763x246?v=v2" width="763" height="246" role="button" title="Arshiya2_4-1775891833126.png" alt="Arshiya2_4-1775891833126.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId--413311027"&gt;&lt;STRONG&gt;Conclusion :&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;FONT size="4"&gt;This approach demonstrates how the SAP ABAP RESTful Application Programming Model (RAP) can be extended beyond standard transactional processing to meet demanding real-world requirements. By leveraging the Saver Class to trigger asynchronous background jobs, you ensure that resource-intensive operations—such as bulk status updates in SD or MM—are executed efficiently without affecting the performance of the main transaction.&lt;/FONT&gt;&lt;/P&gt;&lt;H3 id="toc-hId--903227539"&gt;&amp;nbsp;&lt;/H3&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/triggering-background-jobs-from-rap-actions-a-practical-guide/ba-p/14371274"/>
-    <published>2026-04-15T11:24:21.616000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/bridging-the-physical-digital-divide-proof-of-presence-for-sap-eam-tm-and/ba-p/14369702</id>
-    <title>Bridging the Physical-Digital Divide: Proof of Presence for SAP EAM, TM, and SuccessFactors</title>
-    <updated>2026-04-15T11:25:28.905000+02:00</updated>
-    <author>
-      <name>psvz</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2291811</uri>
-    </author>
-    <content>&lt;P&gt;In our journey toward the Intelligent Enterprise, data integrity is everything. We rely on SAP as our single source of truth. However, when it comes to remote physical operations – whether a technician inspecting a pipeline in SAP EAM, a field crew logging hours in SuccessFactors, or a logistics provider reaching a warehouse dock in SAP EWM – verifying&amp;nbsp;&lt;EM&gt;actual&lt;/EM&gt;&amp;nbsp;physical presence at a specific time remains a conundrum.&lt;/P&gt;&lt;P&gt;While standard GPS or static barcodes offer basic tracking, they can be manipulated and often lack the mathematical certainty required for rigorous compliance, payroll accuracy, and safety audits. To achieve true "4D compliance" (verifying location and time simultaneously), organizations need an offline-capable solution that seamlessly integrates into the SAP ecosystem.&lt;/P&gt;&lt;P&gt;That is why I developed IAT4D (Identity Attendance Tracking) platform - see a &lt;A href="https://iat4d.com" target="_self" rel="nofollow noopener noreferrer"&gt;whitepaper&lt;/A&gt;. Combined with SAP Business Technology Platform (BTP), it provides the foundation to integrate and automate these secure workflows across an enterprise. Check the iFlow code in my &lt;A href="https://github.com/psvz/iat4d-cpi" target="_self" rel="nofollow noopener noreferrer"&gt;GitHub&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The Architecture: Secure, Offline, and Clean Core Compliant&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;IAT4D utilizes edge-compute identity chips (iMarks) embedded in durable materials for site tagging. These passive markers require no power source or satellite signals, operating entirely on standard Apple CoreNFC and ISO 7816 smart-card technology.&lt;/P&gt;&lt;P&gt;Here is how it integrates with our existing SAP environment to guarantee unspoofable proof of presence:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;The Interaction:&lt;/STRONG&gt;&amp;nbsp;A field worker uses a standard SAP Mobile Development Kit (MDK) application to tap their mobile device against the physical iMark at the site.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Dynamic Signature:&lt;/STRONG&gt;&amp;nbsp;Instead of broadcasting a static ID, the iMark electronically signs a dynamic, one-time passcode using Ed25519 cryptography. This creates a unique tamper-resistant digital bundle containing the location and the time.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;SAP Integration Suite:&lt;/STRONG&gt;&amp;nbsp;The mobile app forwards this as a lightweight JSON payload to SAP Cloud Integration (CPI).&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Verification:&lt;/STRONG&gt;&amp;nbsp;Using a pre-built Groovy script, SAP CPI verifies the cryptographic signature against an individual verification key. If successful, the system of record updates instantly:&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="iFlow-architecture.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397438iA0B1F8198B2F87C5/image-size/large?v=v2&amp;amp;px=999" role="button" title="iFlow-architecture.png" alt="iFlow-architecture.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;This approach aligns perfectly with SAP’s Clean Core strategy. By keeping the cryptographic verification within SAP BTP, we ensure that only clean, mathematically verified data feeds into S/4HANA or SuccessFactors.&lt;/P&gt;&lt;P&gt;Bringing cryptographic proof of presence into standard SAP workflows unlocks immediate operational excellence across several core modules:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SAP EAM / Plant Maintenance (PM) &amp;amp; FSM&lt;/STRONG&gt;&lt;BR /&gt;For critical assets like remote HVAC systems, lifts, rail switches, or pipelines, compliance is non-negotiable. By affixing an iMark directly to the physical asset, a technician’s tap provides verifiable proof that a safety inspection or maintenance routine actually occurred on-site. This transforms routine maintenance logs into immutable, audit-ready compliance records.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SAP SuccessFactors &amp;amp; SAP Fieldglass&lt;/STRONG&gt;&lt;BR /&gt;Tracking time and attendance for sparse field workers, remote construction crews, or third-party contractors often happens in environments where networked biometric scanners are impossible to deploy. A rugged, offline iMark across service area allows workers to securely check in using their mobile devices. This ensures absolute payroll accuracy and protects the integrity of HR data.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SAP TM / EWM / Global Track and Trace (GTT)&lt;/STRONG&gt;&lt;BR /&gt;Supply chain visibility relies on accurate milestone tracking. Tapping an iMark at a loading dock, specific drop-off checkpoint, or secure warehouse zone guarantees that logistics providers have reached the precise physical location. This eliminates the unreliability of fluctuating GPS signals and dramatically strengthens the track and trace capabilities.&lt;/P&gt;&lt;P&gt;How is your organization currently managing attendance verification for remote assets and field teams? Let’s discuss in the comments below...&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/bridging-the-physical-digital-divide-proof-of-presence-for-sap-eam-tm-and/ba-p/14369702"/>
-    <published>2026-04-15T11:25:28.905000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/access-unauthorized-services-in-sap-btp-trial-fixes/ba-p/14367917</id>
-    <title>Access/ Unauthorized services in SAP BTP Trial: Fixes</title>
-    <updated>2026-04-15T11:30:17.807000+02:00</updated>
-    <author>
-      <name>Dhanasupriya</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/146681</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Access Denied/ Unauthorized across SAP BTP Trial Services&lt;/STRONG&gt;&lt;BR /&gt;&lt;FONT color="#808000"&gt;&lt;STRONG&gt;SAP Business Application Studio (BAS)&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;I subscribed to BAS in my trial account and I was ready to open the application, it says&lt;BR /&gt;Access Denied – You do not have the necessary roles.&lt;/P&gt;&lt;P&gt;BAS requires role collections like Business_Application_Studio_Developer or Business_Application_Studio_Administrator.&lt;BR /&gt;Even though the service was entitled and subscribed, I had no roles assigned.&lt;/P&gt;&lt;P&gt;Go to BTP Cockpit → Subaccount → Entitlements → make sure BAS is listed. otherwise, click Edit&amp;nbsp; → Add Service Plans → search for BAS as follows. Select the plans based on your requirement.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="1.png" style="width: 478px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397544i7698F6FD71D74EC1/image-dimensions/478x257?v=v2" width="478" height="257" role="button" title="1.png" alt="1.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="2.png" style="width: 468px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397545i79A147BBFCC08414/image-dimensions/468x257?v=v2" width="468" height="257" role="button" title="2.png" alt="2.png" /&gt;&lt;/span&gt;&lt;BR /&gt;Subscribe to BAS in Service Marketplace by clicking on Create (choose developer/ required plan).&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="3.png" style="width: 477px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397547iFB6266953FDEC588/image-dimensions/477x239?v=v2" width="477" height="239" role="button" title="3.png" alt="3.png" /&gt;&lt;/span&gt;&lt;BR /&gt;Go to Security → Users, assign role collection: Select the required roles, go back to market place as shown above and click on Go to Application.&lt;BR /&gt;Business_Application_Studio_Developer&lt;BR /&gt;Business_Application_Studio_Administrator&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="4.png" style="width: 433px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397580iEB8130D7A70D47C1/image-dimensions/433x212?v=v2" width="433" height="212" role="button" title="4.png" alt="4.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Log out and back in if you see any errors. After this, BAS opened instantly.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#808000"&gt;&lt;STRONG&gt;SAP Build Apps&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;I opened SAP Build Apps to build an app. It loaded, but most buttons were disabled, and deployment failed.&lt;/P&gt;&lt;P&gt;Build Apps needs role collections like Build_Apps_Developer or Build_Apps_Administrator.&lt;BR /&gt;Without them, you can see the UI, but cannot fully interact.&lt;/P&gt;&lt;P&gt;Check entitlements for SAP Build Apps.&amp;nbsp;Go to BTP Cockpit → Subaccount → Entitlements → Edit&amp;nbsp;→ Add Service Plan&amp;nbsp;→ Follow below&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="5.png" style="width: 501px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397590i414FD41123EA6B83/image-dimensions/501x281?v=v2" width="501" height="281" role="button" title="5.png" alt="5.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Subscribe to Build Apps plan in Service Marketplace as done for SAP BAS.&lt;BR /&gt;Assign roles under Security → Users:&lt;BR /&gt;Build_Apps_Developer&lt;BR /&gt;Build_Apps_Administrator&lt;BR /&gt;Re-login to apply roles.&lt;/P&gt;&lt;P&gt;For trial accounts, always assign both developer and admin roles to avoid hidden restrictions for all necessary services.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Lessons Learned Across All Services&lt;/STRONG&gt;&lt;BR /&gt;Trial doesn’t mean preconfigured – almost every service needs entitlements, subscriptions, and roles.&lt;BR /&gt;Roles are critical – without them, you may see the service, but can’t use it.&lt;BR /&gt;Re-login matters – changes don’t always take effect immediately.&lt;/P&gt;&lt;P&gt;If you follow this sequence across all services, errors become a clue rather than a blocker.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note&lt;/STRONG&gt;:&amp;nbsp;This blog post is originally written based on my personal experience and knowledge. I have ensured that the content reflects my own understanding.&lt;BR /&gt;Thank you!!&lt;BR /&gt;BR// Dhanasupriya Sidagam&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/access-unauthorized-services-in-sap-btp-trial-fixes/ba-p/14367917"/>
-    <published>2026-04-15T11:30:17.807000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/wrong-volume-calculation-in-delivery/qaq-p/14374843</id>
-    <title>Wrong Volume Calculation in Delivery</title>
-    <updated>2026-04-15T11:30:25.491000+02:00</updated>
-    <author>
-      <name>tulasiperla31</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/840114</uri>
-    </author>
-    <content>&lt;P&gt;Wrong Volume is getting calculated in Delivery Header in SAP. It is getting calculated correctly at item level. Packing also happening in this case. What could be the reason for wrong Volume Calculation at header level? This is happening only for 1 material and the stacking factor is changed from 1 to 3 in recent changes. Is that the reason? Or Do I need to check any config related to packing? Please advise.&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/wrong-volume-calculation-in-delivery/qaq-p/14374843"/>
-    <published>2026-04-15T11:30:25.491000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/human-capital-management-blog-posts-by-members/1h-2026-release-highlights-of-sap-successfactors-onboarding/bc-p/14374845#M7736</id>
-    <title>Re: 1H 2026 - Release highlights of SAP SuccessFactors Onboarding</title>
-    <updated>2026-04-15T11:31:17.971000+02:00</updated>
-    <author>
-      <name>GajendraKumar</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/22638</uri>
-    </author>
-    <content>&lt;P&gt;Nice blog, Thanks Sachine.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/human-capital-management-blog-posts-by-members/1h-2026-release-highlights-of-sap-successfactors-onboarding/bc-p/14374845#M7736"/>
-    <published>2026-04-15T11:31:17.971000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/abap-forum/can-the-atc-baseline-be-considered-in-regular-batch-runs-for-the-s4hana/m-p/14374849#M866</id>
-    <title>Re: Can the ATC baseline be considered in regular batch runs for the S4HANA_READINESS_2023 check?</title>
-    <updated>2026-04-15T11:35:47.626000+02:00</updated>
-    <author>
-      <name>BaerbelWinkler</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/439</uri>
-    </author>
-    <content>&lt;P&gt;Update: With&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/6638"&gt;@OlgaDolinskaja&lt;/a&gt;'s help I was able to figure out that I had the checkbox to "consider baseline" set, just unfortunately in the wrong but very similarly named run-definition! So, the issue was easy to resolve and the baseline kicked in as expected with the next run.&lt;/P&gt;&lt;P&gt;==&amp;gt; Tip: use more distinct names than xxx_S4HANA_Z_ALL vs.&amp;nbsp;xxx_S4HANA_ALL_Z for the run series to not as easily confuse yourself as happened for me!&lt;/P&gt;&lt;P&gt;Cheers&lt;/P&gt;&lt;P&gt;Bärbel&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-forum/can-the-atc-baseline-be-considered-in-regular-batch-runs-for-the-s4hana/m-p/14374849#M866"/>
-    <published>2026-04-15T11:35:47.626000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/setting-mandatory-fields-in-purchase-requisitions-via-custom-logic-in/ba-p/14373784</id>
-    <title>Setting Mandatory Fields in Purchase Requisitions via Custom Logic in Public Cloud</title>
-    <updated>2026-04-15T11:40:00.015000+02:00</updated>
-    <author>
-      <name>Kerisha123</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1480621</uri>
-    </author>
-    <content>&lt;P&gt;In SAP S/4HANA Public Cloud, Purchase Requisitions (PRs) often require additional field validations to ensure data completeness and process compliance. While some fields can be defined as mandatory through standard customizing, this is limited to predefined fields and specific scenarios.&lt;/P&gt;&lt;P&gt;This blog post explains how to &lt;STRONG&gt;set additional standard fields as mandatory in Purchase Requisitions&lt;/STRONG&gt; by using &lt;STRONG&gt;Custom Logic with Key User Extensibility&lt;/STRONG&gt;.&lt;/P&gt;&lt;DIV&gt;&lt;P&gt;The solution applies to the following apps:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Manage Purchase Requisitions – Professional&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Create Purchase Requisition – Advanced&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;DIV&gt;&lt;DIV&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1794174599"&gt;&lt;SPAN&gt;Business Requirement&lt;/SPAN&gt;&lt;/H2&gt;&lt;/DIV&gt;&lt;P&gt;The business requirement was to enforce mandatory entry of the following fields at &lt;STRONG&gt;purchase requisition item level&lt;/STRONG&gt;:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Purchasing Organization&lt;/STRONG&gt; (Field &lt;CODE&gt;EKORG&lt;/CODE&gt;)&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Requisitioner&lt;/STRONG&gt; (Field &lt;CODE&gt;AFNAM&lt;/CODE&gt;)&lt;/LI&gt;&lt;/UL&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Kerisha123_0-1776158140472.png" style="width: 950px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397957i11B3C2D5689BCC7C/image-dimensions/950x270?v=v2" width="950" height="270" role="button" title="Kerisha123_0-1776158140472.png" alt="Kerisha123_0-1776158140472.png" /&gt;&lt;/span&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1726743813"&gt;Why standard customizing is not sufficient&lt;/H3&gt;&lt;P&gt;Using the customizing activity &lt;STRONG&gt;Maintain Account Assignment Categories (ID 101815)&lt;/STRONG&gt;, some fields (for example Cost Center) can be set as mandatory. However:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;This applies only during the creation of an account assignment category&lt;/LI&gt;&lt;LI&gt;Only predefined fields are available&lt;/LI&gt;&lt;LI&gt;Additional standard fields cannot be enforced&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;To cover these gaps, &lt;STRONG&gt;Custom Logic (BAdIs)&lt;/STRONG&gt; must be used.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1401147589"&gt;Solution Overview&lt;/H2&gt;&lt;P&gt;To fulfill the requirements, two different &lt;STRONG&gt;Custom Logic extension points&lt;/STRONG&gt; are used:&lt;/P&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Kerisha123_0-1776156952737.png" style="width: 535px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397951i2363F724B1F13291/image-dimensions/535x107?v=v2" width="535" height="107" role="button" title="Kerisha123_0-1776156952737.png" alt="Kerisha123_0-1776156952737.png" /&gt;&lt;/span&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Kerisha123_1-1776157056557.png" style="width: 878px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397952i3F02102D1FB9D6F3/image-dimensions/878x192?v=v2" width="878" height="192" role="button" title="Kerisha123_1-1776157056557.png" alt="Kerisha123_1-1776157056557.png" /&gt;&lt;/span&gt;&lt;P&gt;Both extension points are available via the &lt;STRONG&gt;Custom Logic&lt;/STRONG&gt; app in SAP S/4HANA Public Cloud.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1204634084"&gt;Custom Logic 1: Change of Field Control (Purchasing Organization)&lt;/H2&gt;&lt;H3 id="toc-hId-1137203298"&gt;Extension Point:&amp;nbsp;&lt;STRONG&gt;Change of Field Control for Purchase Requisitions&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Extension Point ID:&amp;nbsp;&lt;CODE&gt;MM_PUR_S4_PR_FLDCNTRL_SIMPLE&lt;/CODE&gt;&lt;/P&gt;&lt;H3 id="toc-hId-940689793"&gt;Description&lt;/H3&gt;&lt;P&gt;This BAdI allows you to:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Hide fields&lt;/LI&gt;&lt;LI&gt;Set fields as read-only&lt;/LI&gt;&lt;LI&gt;Set fields as mandatory&lt;/LI&gt;&lt;LI&gt;Set fields as optional&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;It works &lt;STRONG&gt;directly at UI field control level&lt;/STRONG&gt;.&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;&lt;span class="lia-unicode-emoji" title=":warning:"&gt;⚠️&lt;/span&gt;Limitation&lt;BR /&gt;This extension point supports the field &lt;CODE&gt;PURREQNSSPREQUESTOR&lt;/CODE&gt;, which is relevant only for &lt;STRONG&gt;Self‑Service Procurement&lt;/STRONG&gt;.&lt;BR /&gt;It does &lt;STRONG&gt;not&lt;/STRONG&gt; enforce the Requisitioner field in apps Manage Purchase Requisitions - Professional or Create Purchase Requisition - Advanced.&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-744176288"&gt;Sample Code –&amp;nbsp; &lt;STRONG&gt;Change of Field Control (Purchasing Organization)&amp;nbsp;&lt;/STRONG&gt;&lt;/H3&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;* Sample Code
-
-    FIELD-SYMBOLS &amp;lt;fs&amp;gt; TYPE mmpur_s_pr_fldsel.
-
-
-   READ TABLE fieldselection_table ASSIGNING &amp;lt;fs&amp;gt; WITH KEY field = 'PURCHASINGORGANIZATION'.
-    IF sy-subrc EQ 0.
-     &amp;lt;fs&amp;gt;-fieldstatus = '+'.
-    ENDIF.
-
-* END OF Sample Code&lt;/code&gt;&lt;/pre&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":heavy_check_mark:"&gt;✔️&lt;/span&gt;&amp;nbsp; Result:&lt;/SPAN&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL&gt;&lt;LI&gt;The &lt;STRONG&gt;Purchasing Organization&lt;/STRONG&gt; field becomes mandatory on PR item level.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Kerisha123_2-1776158411071.png" style="width: 931px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397961iC6CD5FC115BF89E2/image-dimensions/931x440?v=v2" width="931" height="440" role="button" title="Kerisha123_2-1776158411071.png" alt="Kerisha123_2-1776158411071.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-418580064"&gt;Custom Logic 2: Check of Purchase Requisition Item (Requisitioner)&lt;/H2&gt;&lt;P&gt;Since the Requisitioner (&lt;CODE&gt;AFNAM&lt;/CODE&gt;) cannot be enforced via field control, a &lt;STRONG&gt;check-based validation&lt;/STRONG&gt; is required.&lt;/P&gt;&lt;H3 id="toc-hId-351149278"&gt;Extension Point:&amp;nbsp;&lt;STRONG&gt;Check of Purchase Requisition Item&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Extension Point ID:&amp;nbsp;&lt;CODE&gt;MM_PUR_S4_PR_CHECK&lt;/CODE&gt;&lt;/P&gt;&lt;H3 id="toc-hId-154635773"&gt;Description&lt;/H3&gt;&lt;P&gt;This BAdI allows you to:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Perform custom validations&lt;/LI&gt;&lt;LI&gt;Trigger error messages&lt;/LI&gt;&lt;LI&gt;Prevent saving the Purchase Requisition&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H3 id="toc-hId--117109101"&gt;Sample Code –&amp;nbsp;&lt;STRONG&gt;Check of Purchase Requisition Item (Requisitioner)&lt;/STRONG&gt;&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;* Sample Code
-
-DATA: ls_message LIKE LINE OF messages.
-
-IF PURCHASEREQUISITION-PURCHASINGDOCUMENTTYPE = 'NB'.
-LOOP AT purchaserequisitionitem_table INTO DATA(ls_item).
-      IF ls_item-PURREQNREQUESTOR = ''.
-
-         APPEND VALUE #( messagetype = 'E'
-         messageid = 'ME'
-         messagenumber = '999'
-         messagevariable1 = 'Enter Requisitioner / Anforderer fehlt' ) TO messages.
-         purchaserequisitionhaserror = abap_true.
-         RETURN.
-      ENDIF.
-  ENDLOOP.
-ENDIF.
-
-* END OF Sample Code&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;span class="lia-unicode-emoji" title=":heavy_check_mark:"&gt;✔️&lt;/span&gt;&amp;nbsp; Result:&lt;/SPAN&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;UL&gt;&lt;LI&gt;The PR &lt;STRONG&gt;cannot be saved&lt;/STRONG&gt; if the Requisitioner is missing&lt;/LI&gt;&lt;LI&gt;A clear &lt;STRONG&gt;error message&lt;/STRONG&gt; is displayed to the user&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Kerisha123_1-1776158337644.png" style="width: 957px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397960iF8E8C514C302F39A/image-dimensions/957x452?v=v2" width="957" height="452" role="button" title="Kerisha123_1-1776158337644.png" alt="Kerisha123_1-1776158337644.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId--20219599"&gt;Transport&lt;/H2&gt;&lt;P&gt;Custom Logic implementations are not transported automatically and must be added to a Software Collection.&lt;/P&gt;&lt;H3 id="toc-hId--510136111"&gt;Steps&lt;/H3&gt;&lt;OL&gt;&lt;LI&gt;Open &lt;STRONG&gt;Export Software Collection&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;Select an existing collection or create a new one&lt;/LI&gt;&lt;LI&gt;Choose &lt;STRONG&gt;Add Items&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;Filter by:&lt;UL&gt;&lt;LI&gt;&lt;EM&gt;Last Changed On&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Last Changed By&lt;/EM&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;Add the Custom Logic entries&lt;/LI&gt;&lt;LI&gt;Transport the collection as usual&lt;/LI&gt;&lt;/OL&gt;&lt;HR /&gt;&lt;H2 id="toc-hId--413246609"&gt;Summary&lt;/H2&gt;&lt;P&gt;By combining two Custom Logic extension points, it is possible to:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Enforce mandatory fields beyond standard customizing limits&lt;/LI&gt;&lt;LI&gt;Apply validations consistently across professional and advanced PR apps&lt;/LI&gt;&lt;LI&gt;Stay fully within SAP-recommended extensibility&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This approach provides a flexible and upgrade-safe way to enhance Purchase Requisition quality.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId--609760114"&gt;References&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://me.sap.com/notes/3345421" target="_blank" rel="noopener noreferrer"&gt;3345421 - BAdI: Field Control for Purchase Requisitions - SAP for Me&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/SAP_S4HANA_CLOUD/0f69f8fb28ac4bf48d2b57b9637e81fa/f0d605f1bddb471ba1de8a3b5a41d71f.html?locale=en-US&amp;amp;profile=20668661&amp;amp;version=LATEST&amp;amp;state=PRODUCTION" target="_blank" rel="noopener noreferrer"&gt;How to Manage and Export Your Software Collection | SAP Help Portal&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/setting-mandatory-fields-in-purchase-requisitions-via-custom-logic-in/ba-p/14373784"/>
-    <published>2026-04-15T11:40:00.015000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/scenario-2-workflow-to-verify-general-journal-entries-per-submitter/bc-p/14374850#M63994</id>
     <title>Re: Scenario 2: Workflow to Verify General Journal Entries per Submitter</title>
@@ -1630,6 +1071,18 @@ entity  B as projection on my.B actions{
     <published>2026-04-15T14:41:00.945000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/app-quot-schedule-tax-jobs-quot-public-cloud/qaa-p/14375057#M4239130</id>
+    <title>Re: app " Schedule Tax Jobs" public cloud</title>
+    <updated>2026-04-15T14:42:19.712000+02:00</updated>
+    <author>
+      <name>PaoloN</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1570842</uri>
+    </author>
+    <content>However, I need a technical/functional clarification regarding the persistence of the output data. Specifically: When using the standard app for scheduling tax jobs, what is the recommended best practice for the archiving and retrieval of the generated prints/reports (e.g., VAT registers, tax settlement communications)? Is there a native functionality for the automatic archiving of these outputs in the integrated DMS or in a dedicated monitoring area that allows for historical consultation beyond the standard retention period of the job logs? In the event of an Audit, how is the availability of the documents produced via this specific app guaranteed without resorting to custom developments (Side-by-Side)? I look forward to your kind feedback or to any pointers towards official documentation (SAP Help Portal or Process Navigator) that specifically addresses the management of the "Print Result" for Tax Jobs. Best regards,</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/app-quot-schedule-tax-jobs-quot-public-cloud/qaa-p/14375057#M4239130"/>
+    <published>2026-04-15T14:42:19.712000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/technology-q-a/crystal-reports-9-download/qaa-p/14375058#M4940427</id>
     <title>Re: Crystal Reports 9 download</title>
     <updated>2026-04-15T14:43:35.301000+02:00</updated>
@@ -1678,6 +1131,18 @@ entity  B as projection on my.B actions{
     <published>2026-04-15T14:50:57.973000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/human-capital-management-q-a/latest-people-profile/qaq-p/14375095</id>
+    <title>Latest People Profile</title>
+    <updated>2026-04-15T14:57:05.700000+02:00</updated>
+    <author>
+      <name>Falah_Alsaadi</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2294803</uri>
+    </author>
+    <content>&lt;P&gt;Hi, my client is about to move to the newly released People Profile. However, while testing it Priore to the release I have encountered several issues:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;1- Action menu:&lt;/STRONG&gt; I no longer can print the profile the option is taken, and when I click on Issuing Letter unable to select a template in order to complete the process and SAVE/Download.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;2- HR Tile:&lt;/STRONG&gt; after filling up all fields and saving it, tried to click in the URL to download the letter but the system through an error "&lt;STRONG&gt;“The requested operation is not available.”&lt;/STRONG&gt; The system displayed an authorization error referencing the /download file request.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;3- Overtime&lt;/STRONG&gt;&lt;STRONG&gt;:&amp;nbsp;&lt;/STRONG&gt;Accessing the Overtime tile resulted in the message: “Looks like something went wrong.” The system diagnostic tooltip stated: Role‑Based Permissions (RBP) security is not enabled for object cust_overtimeconfirmationparent.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;4-&amp;nbsp;Work Starting Procedure:&amp;nbsp;&lt;/STRONG&gt;Accessing the Work Starting Procedure tile resulted in: Message: “Looks like something went wrong” Error Code: 400.&lt;BR /&gt;&lt;BR /&gt;&lt;STRONG&gt;Seeking the support if any have encountered this issue with the new release&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (1).png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398595i07002B8033FED65B/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image (1).png" alt="image (1).png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 670px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398594iAC25A885E599DA34/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (4).png" style="width: 961px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398597i06C0FC4B3F8E49CE/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image (4).png" alt="image (4).png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (3).png" style="width: 616px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398596iA5A1BCED859C9E45/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image (3).png" alt="image (3).png" /&gt;&lt;/span&gt;&lt;/STRONG&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-q-a/latest-people-profile/qaq-p/14375095"/>
+    <published>2026-04-15T14:57:05.700000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/technology-q-a/sproxy-shows-service-outdated-only-for-newly-created-integration-suite/qaa-p/14375097#M4940431</id>
     <title>Re: SPROXY shows “Service outdated” only for newly created Integration Suite Service Interfaces</title>
     <updated>2026-04-15T14:57:32.201000+02:00</updated>
@@ -1690,6 +1155,18 @@ entity  B as projection on my.B actions{
     <published>2026-04-15T14:57:32.201000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/online-validation-service-vies-validation-with-sap-solutions/bc-p/14375098#M63998</id>
+    <title>Re: Online Validation Service: VIES validation with SAP solutions</title>
+    <updated>2026-04-15T14:57:37.426000+02:00</updated>
+    <author>
+      <name>Dani17</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1937736</uri>
+    </author>
+    <content>&lt;P&gt;Hello,&lt;/P&gt;&lt;P&gt;we're doing the transition to S4/HANA Private Cloud FSP2025/1.&amp;nbsp;&lt;BR /&gt;Is the feature available out-of-the-box?&lt;/P&gt;&lt;P&gt;Thanks&lt;/P&gt;&lt;P&gt;Dani&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/online-validation-service-vies-validation-with-sap-solutions/bc-p/14375098#M63998"/>
+    <published>2026-04-15T14:57:37.426000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/finished-product-processing/qaa-p/14375099#M4239132</id>
     <title>Re: Finished product processing</title>
     <updated>2026-04-15T14:58:16.751000+02:00</updated>
@@ -1700,5 +1177,53 @@ entity  B as projection on my.B actions{
     <content>&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;FONT color="#000000"&gt;If the requirement is strict blocking of GR until raw material is approved, the cleanest way is via QM integration with procurement + batch status management. Activate QM in procurement for the raw material. When the raw material is received, the system creates an inspection lot. Until the lot is cleared (usage decision made), the stock remains in quality inspection stock and cannot be consumed in production or posted to unrestricted use. You can configure that subsequent documents (like GR for finished goods) check the stock status of the raw material.&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;FONT color="#000000"&gt;If you want flexibility to allow urgent GR sometimes, then a custom BAdI validation at GR posting is the other workaround.&lt;/FONT&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/finished-product-processing/qaa-p/14375099#M4239132"/>
     <published>2026-04-15T14:58:16.751000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/sap-crystal-reports-libcurl-dll-vulnerabilities/qaa-p/14375100#M4940432</id>
+    <title>Re: SAP Crystal Reports libcurl.dll Vulnerabilities</title>
+    <updated>2026-04-15T14:58:37.498000+02:00</updated>
+    <author>
+      <name>Optum</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2289024</uri>
+    </author>
+    <content>In response to Don Williams comment “As noted by R&amp;amp;D CR does not use any of the vulnerabilities, so nothing to fix. If you can create an app that shows there is an issue in CR R&amp;amp;D can have a look at it.” "...so nothing to fix." Is not valid, and unacceptable. Your application supplies the .dll file, so your application should be updated. Just having the vulnerable file on the server is the issue. Deleting, or manually updating it is unsupported. We pay for a support contract, and this is unacceptable. This is not support. This is complacency. This should be updated as soon as possible, or we look elsewhere for a product that is fully supported.</content>
+    <link href="https://community.sap.com/t5/technology-q-a/sap-crystal-reports-libcurl-dll-vulnerabilities/qaa-p/14375100#M4940432"/>
+    <published>2026-04-15T14:58:37.498000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/financial-management-q-a/new-question-subject-enter-a-subject-where-do-you-want-to-post-this/qaa-p/14375107#M258829</id>
+    <title>Re: New Question Subject Enter a subject Where do you wan...</title>
+    <updated>2026-04-15T15:03:18.770000+02:00</updated>
+    <author>
+      <name>Kerisha123</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1480621</uri>
+    </author>
+    <content>&lt;P&gt;Hello&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2278100"&gt;@Syeda7&lt;/a&gt;,&lt;/P&gt;&lt;P&gt;for each Learning Journey, SAP provides some information about the recommended prerequisites, like here:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Kerisha123_0-1776257724101.png" style="width: 714px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398598i176A3504C1F6A480/image-dimensions/714x406/is-moderation-mode/true?v=v2" width="714" height="406" role="button" title="Kerisha123_0-1776257724101.png" alt="Kerisha123_0-1776257724101.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Helpful links for you:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://learning.sap.com/learning-journeys/implementing-financial-accounting-in-sap-s4hana-cloud" target="_blank" rel="noopener noreferrer"&gt;Implementing Financial Accounting in SAP S/4HANA Cloud&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://learning.sap.com/courses/getting-started-with-support-from-sap-support-accreditation" target="_blank" rel="noopener noreferrer"&gt;Getting Started with Support from SAP (Support Accreditation)&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://learning.sap.com/courses/implementing-sap-s-4hana-cloud-public-edition" target="_blank" rel="noopener noreferrer"&gt;Implementing SAP S/4HANA Cloud Public Edition&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://learning.sap.com/courses/exploring-sap-cloud-erp" target="_blank" rel="noopener noreferrer"&gt;Exploring SAP Cloud ERP&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://saplearninghub.plateau.com/learning/user/deeplink.do?linkId=ITEM_DETAILS&amp;amp;componentID=LS_00011001&amp;amp;targetStudentSysGUID=&amp;amp;componentTypeID=EXPERT_LED&amp;amp;fromSF=Y&amp;amp;revisionDate=1754921699000&amp;amp;actingAs=#/15FFD70AEA76997E19005D42D96F0F51" target="_blank" rel="nofollow noopener noreferrer"&gt;Get Certified: SAP Certified - SAP S/4HANA Cloud Public Edition, Management Accounting – SAP SuccessFactors&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;My personal advice would be to start with the more general&amp;nbsp;&lt;STRONG&gt;Implementing SAP S/4HANA Cloud Public Edition &lt;/STRONG&gt;and get comfortable here&amp;nbsp;before focusing on&amp;nbsp;&lt;SPAN&gt;&lt;STRONG&gt;SAP S/4HANA Cloud Public Edition – Financial Accounting&lt;/STRONG&gt;.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;For each Learning Journey that starts with "Implementing..." (links above), you can scroll to the very bottom to find:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Access to a practice system including a PDF with training excersises&lt;/LI&gt;&lt;LI&gt;Live Sessions in which topics from the learning journey are explained in more detailed&lt;/LI&gt;&lt;LI&gt;Links to planned "Get Certified" Sessions, which will cover all content relevant for a Certification&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;I hope this helps.&lt;/P&gt;&lt;P&gt;Best regards &amp;amp; good luck with your certification,&lt;/P&gt;&lt;P&gt;Kerisha&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/financial-management-q-a/new-question-subject-enter-a-subject-where-do-you-want-to-post-this/qaa-p/14375107#M258829"/>
+    <published>2026-04-15T15:03:18.770000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/hybrid-data-modeling-in-sap-bdc-a-simple-framework-for-product-oriented/ba-p/14369128</id>
+    <title>Hybrid Data Modeling in SAP BDC: a simple Framework for product-oriented architecture</title>
+    <updated>2026-04-15T15:04:55.479000+02:00</updated>
+    <author>
+      <name>daniele_cortopassi</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/662700</uri>
+    </author>
+    <content>&lt;H3 id="toc-hId-1922506595"&gt;Intro&lt;/H3&gt;&lt;P&gt;When facing a transformation project towards SAP BDC, the real question should be where each piece of logic belongs in a &lt;EM&gt;product-oriented architecture&lt;/EM&gt;: close to the source as a primary data product, or in Datasphere as a derived one.&lt;/P&gt;&lt;P&gt;That boundary depends on semantics, ownership, and the BW starting point — especially whether you are on BW/4HANA PCE or BW 7.5 PCE. This is why the unit of exchange matters.&lt;/P&gt;&lt;P&gt;In BDC, the architectural shift is from objects to data products, and that change has direct consequences for how modeling decisions should be made.&lt;BR /&gt;&lt;EM&gt;BW PCE and Datasphere are not competing layers. They serve different purposes, and the strongest architectures place each logic block where it creates the most semantic value, the least technical debt, and the clearest ownership.&lt;/EM&gt;&lt;BR /&gt;For those who prefer an infographic, here is a visual summary:&lt;/P&gt;&lt;H3 id="toc-hId-1725993090"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="unnamed (2).png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/395195i8A46A0F14F456174/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="unnamed (2).png" alt="unnamed (2).png" /&gt;&lt;/span&gt;&lt;/H3&gt;&lt;H3 id="toc-hId-1529479585"&gt;Where You Start Matters&lt;/H3&gt;&lt;P&gt;Not all BW landscapes enter BDC from the same position, and the hybrid strategy changes depending on the BW release you run.&lt;BR /&gt;If you are on BW/4HANA PCE, you are in the cleanest architectural position. Your objects are already BW/4HANA-compliant — ADSOs, Composite Providers, InfoObjects — and the Data Product Generator can work with them directly. From there, the main decision is which BW PCE objects should become certified primary data products and which logic should be rebuilt natively in Datasphere. &lt;EM&gt;BW/4HANA PCE is supported at least until 2040, so there is no need to rush the architecture.&lt;/EM&gt;&lt;BR /&gt;If you are on BW 7.5 PCE, the situation is different. BW 7.5 mainstream maintenance ends in 2027, with extended support available until 2030 at a premium. That matters, but the bigger issue is the legacy object gap. Many traditional BW 7.5 objects — classic Info-Cubes, Multi-Providers, older 3.x objects — cannot be used in BW/4HANA PCE and therefore will not be available in BDC after 2030. &lt;EM&gt;A lift-and-shift into PCE without addressing these objects simply delays the problem.&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;For BW 7.5, a credible hybrid strategy starts with an object-level assessment:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Which objects are BW/4HANA-compatible and can become data products now.&lt;/LI&gt;&lt;LI&gt;Which objects need conversion before they can be used in BDC.&lt;/LI&gt;&lt;LI&gt;Which logic should be rebuilt directly in Datasphere.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Standard SAP extractors such as 2LIS_02_ITM, 0CO_OM_CCA_9, and 2LIS_03_BF also require careful treatment when moving from BW 7.5 to BDC. They need a deliberate integration strategy, not an assumption of clean portability.&lt;/P&gt;&lt;H3 id="toc-hId-1332966080"&gt;The Conceptual Shift: Stop Thinking in Objects, Start Thinking in Products&lt;/H3&gt;&lt;P&gt;&lt;EM&gt;The key mindset shift in BDC is simple: the architectural unit is no longer the object, but the data product.&lt;/EM&gt;&lt;BR /&gt;In traditional BW, consumers reach into queries, InfoProviders, and extractors. In BDC, the focus moves to data products that carry metadata, ownership, lineage, and a consumer contract. That is a deeper change than a terminology update.&lt;BR /&gt;This changes the modeling question. The relevant question is no longer whether something should stay in BW or move to Datasphere. The better question is whether that logic belongs in a primary data product or a derived one, and who should own it.&lt;BR /&gt;BDC uses three product types that matter in practice:&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;U&gt;SAP-managed data products&lt;/U&gt; are primary products delivered by SAP from source applications such as S/4HANA Public Cloud or RISE.&lt;/LI&gt;&lt;LI&gt;&lt;U&gt;Customer-managed data products&lt;/U&gt; are primary products you create in Datasphere from BW-originated or other data, using your own domain logic.&lt;/LI&gt;&lt;LI&gt;&lt;U&gt;Derived data products&lt;/U&gt; are secondary, consumer-oriented datasets that combine and enrich multiple primary sources.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;EM&gt;The practical implication is straightforward: BW PCE is a strong producer of primary data products, while Datasphere is the place to curate, combine, and distribute derived ones. The boundary between the two is a product contract, not a migration line.&lt;/EM&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1136452575"&gt;AI-Readiness and Planning do not shift the paradigm&lt;/H3&gt;&lt;P&gt;&lt;EM&gt;What about AI and Planning? they would deserve their own article, but bottom line they confirm the principle.&lt;/EM&gt;&lt;BR /&gt;AI does not introduce a new modeling principle; it raises the quality bar.&lt;/P&gt;&lt;P&gt;The same boundary rules that govern reporting also govern AI: preserve semantic correctness and lineage in the primary product layer, then publish governed derived products for consumption by analytics, SAP-native AI services, SAP Databricks, or other platforms accessible via BDC Connect and zero-copy sharing.&lt;/P&gt;&lt;P&gt;The same applies to Planning, your planning processes can succeed only if their baseline data layer is consistent, reliable, curated. This of course is not enough to have outstanding budgeting and forecasting processes, but it's mandatory.&lt;BR /&gt;Those reinforce that overall framework it's not only a matter of layers or platforms, it's a matter of having a governed ecosystem able to produce data products that can capture the whole complexity and completeness of business semantics.&lt;/P&gt;&lt;H3 id="toc-hId-939939070"&gt;What BW Does Best&lt;/H3&gt;&lt;P&gt;&lt;EM&gt;BW PCE remains the right place for logic that depends on SAP semantics and needs deep built-in handling.&lt;/EM&gt;&lt;BR /&gt;&lt;U&gt;Currency translation is a good example&lt;/U&gt;. Multi-step translation paths, exchange rate types, fiscal-year-aware conversion, and runtime target currency selection are native BW strengths. Datasphere can reproduce this, but only by rebuilding logic that BW already handles well.&lt;BR /&gt;&lt;U&gt;Delta extraction is another example.&lt;/U&gt; For many SAP source systems, especially in BW 7.5 landscapes, extraction logic is not a trivial technical layer. It often contains business rules that should remain stable and governed. In many cases, the right approach is to preserve that extraction logic, then expose the result as a governed data product for Datasphere consumption.&lt;BR /&gt;&lt;U&gt;Non-cumulative key figures are also a BW strength&lt;/U&gt;. Stock quantities, headcount, and open items depend on exception aggregation behaviors such as MIN, MAX, and LAST. Those patterns don't have yet a similar coverage by the Datasphere Analytical Model.&lt;BR /&gt;I&lt;U&gt;nfoObject-based master data governance is another area where BW still has the edge&lt;/U&gt;. Time-dependent attributes, compounding, and SID-based joins provide referential integrity that Datasphere’s more flexible dimension model does not automatically replicate.&lt;/P&gt;&lt;H3 id="toc-hId-743425565"&gt;What Datasphere Does Best&lt;/H3&gt;&lt;P&gt;&lt;EM&gt;Datasphere is not a replacement for BW. It is the right place for breadth, composition, and domain ownership.&lt;/EM&gt;&lt;BR /&gt;&lt;U&gt;Its strongest use case is the creation of derived data products&lt;/U&gt;. A Finance product from BW, an HR product from SuccessFactors, and an external benchmark source can be combined in Datasphere into a single analytical model such as cost per FTE by region. BW was not designed for this kind of cross-domain composition.&lt;BR /&gt;&lt;U&gt;Datasphere is also the right place for domain-driven ownership.&lt;/U&gt; Its space model supports a data mesh operating model, where Finance, Supply Chain, and HR can each own and govern their own derived products independently. That gives teams clear accountability and reduces dependency on a central modeling team.&lt;BR /&gt;&lt;U&gt;Consumption-layer modernization belongs here as well.&lt;/U&gt; New analytical models should be built in Datasphere, not as additional BW queries. The gap with BW query semantics is still real, but building new consumption artifacts in BW PCE only adds more logic to a layer that will eventually need to be unwound.&lt;/P&gt;&lt;P&gt;SAP-managed data products also need to be part of the decision. If SAP already provides a product that covers the domain adequately, that is often the right starting point. In that case, neither a custom BW model nor a custom Datasphere model should be the default answer.&lt;/P&gt;&lt;H3 id="toc-hId-546912060"&gt;A Simple Decision Framework&lt;/H3&gt;&lt;P&gt;A good hybrid design becomes much easier if you ask three questions for each piece of logic.&lt;/P&gt;&lt;H4 id="toc-hId-479481274"&gt;1. Does this logic produce a primary or derived product?&lt;/H4&gt;&lt;P&gt;If the logic extracts governed SAP data, applies BW-specific semantics, manages currency conversion, or handles delta logic, it is producing a primary product. It should stay as close to the authoritative source as possible.&lt;BR /&gt;If the logic combines multiple primary products or enriches SAP data with non-SAP sources, it is producing a derived product. That belongs in Datasphere.&lt;/P&gt;&lt;H4 id="toc-hId-282967769"&gt;2. How many consumers depend on it?&lt;/H4&gt;&lt;P&gt;A small experimental dashboard can move quickly. A reconciled P&amp;amp;L report or a statutory close process cannot. The more consumers depend on the logic, the more important it is to validate equivalence before switching over.&lt;BR /&gt;That is where the data product contract helps. You can publish both versions, validate them in parallel, and move consumers gradually instead of forcing a hard cutover.&lt;/P&gt;&lt;H4 id="toc-hId--411262831"&gt;3. What does the legacy object inventory look like?&lt;/H4&gt;&lt;P&gt;This is the critical BW 7.5 question. Classic InfoCubes, MultiProviders, and 3.x-era objects cannot be used in BW/4HANA PCE and therefore have no path into BDC after 2030.&lt;BR /&gt;Before you design a hybrid architecture on BW 7.5, you need an object compatibility assessment. That assessment will tell you whether BW PCE can still serve as a short-term primary product layer for a given domain, or whether that domain should move to Datasphere-native modeling sooner.&lt;/P&gt;&lt;H3 id="toc-hId--314373329"&gt;Where Projects usually break&lt;/H3&gt;&lt;P&gt;Naive migration usually fails in the same places.&lt;BR /&gt;&lt;EM&gt;BW query semantics do not survive simple translation&lt;/EM&gt;. Exception aggregation, non-cumulative key figures, and variable-driven dynamic filters do not map cleanly to Datasphere Analytical Models. The result is often subtle numeric differences that only appear under specific hierarchy settings or filter combinations.&lt;BR /&gt;&lt;EM&gt;Delta capture is defined at the source and is not reversible downstream&lt;/EM&gt;. The source ADSO determines what can be loaded incrementally into Datasphere, and that cannot be fixed later. If delta handling is wrong at the beginning, the downstream design will inherit that mistake.&lt;BR /&gt;&lt;EM&gt;The legacy object gap remains a major risk in BW 7.5 landscapes.&lt;/EM&gt; If you lift and shift without addressing object compatibility, the issue simply reappears later at higher cost.&lt;BR /&gt;&lt;EM&gt;SAP-managed data products create another common trap.&lt;/EM&gt; They remain immutable, and custom Z-tables are not currently supported in them. Any extension pattern involving custom fields or tables should therefore be designed as a customer-managed derived product from the start.&lt;BR /&gt;&lt;EM&gt;Authorization is another area that requires redesign, not configuration&lt;/EM&gt;. BW analysis authorizations do not have a direct one-to-one equivalent in Datasphere Data Access Control, so security needs to be treated as its own workstream.&lt;/P&gt;&lt;H3 id="toc-hId--510886834"&gt;Closing the Loop&lt;/H3&gt;&lt;P&gt;&lt;EM&gt;The strongest BDC architectures treat the boundary between BW and Datasphere as a product contract, not a migration deadline.&lt;/EM&gt;&lt;BR /&gt;Some logic belongs close to the source because it carries SAP semantics that are difficult to reproduce elsewhere. Some logic belongs in Datasphere because it combines sources, serves a domain, and creates new analytical value. SAP-managed products should be used whenever they already cover the need. The job of the architect is to place each piece of logic where it creates the best semantic result.&lt;BR /&gt;&lt;EM&gt;That is the real shift in BDC: not faster migration, but better placement. Not object thinking, but product thinking. And once that shift is made, the architecture becomes much clearer, much more defensible, and much easier to evolve.&lt;/EM&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/hybrid-data-modeling-in-sap-bdc-a-simple-framework-for-product-oriented/ba-p/14369128"/>
+    <published>2026-04-15T15:04:55.479000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/configuring-single-sign-on-sso-for-sap-datasphere-using-sap-cloud-identity/ba-p/14375113</id>
+    <title>Configuring Single Sign-On (SSO) for SAP Datasphere using SAP Cloud Identity Services (IAS)</title>
+    <updated>2026-04-15T15:09:59.772000+02:00</updated>
+    <author>
+      <name>karthikj2</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/148163</uri>
+    </author>
+    <content>&lt;P&gt;In today’s enterprise landscape, managing secure and seamless access across multiple applications is not just a convenience - it’s a necessity. As organizations expand their SAP ecosystem, implementing a centralized authentication mechanism becomes critical for both user experience and security.&lt;/P&gt;&lt;P&gt;In this blog, I will walk through in detail on how &lt;STRONG&gt;Single Sign-On (SSO)&lt;/STRONG&gt; can be effectively implemented for &lt;STRONG&gt;SAP Datasphere&lt;/STRONG&gt; using &lt;STRONG&gt;SAP Cloud Identity Services&lt;/STRONG&gt;, specifically leveraging the &lt;STRONG&gt;SAP Identity Authentication Service&lt;/STRONG&gt;, integrated with &lt;STRONG&gt;OKTA. &lt;/STRONG&gt;Microsoft Active Directory integration follows similar procedure.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5" color="#003300"&gt;&lt;STRONG&gt;What is Single Sign-On (SSO)?&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Single Sign-On (SSO) is an authentication mechanism that allows users to log in once and gain access to multiple applications without being prompted to log in again.&lt;/P&gt;&lt;P&gt;Instead of managing multiple credentials, users authenticate through a trusted identity provider, which securely handles access across integrated systems.&lt;/P&gt;&lt;P&gt;&lt;FONT color="#003300"&gt;&lt;STRONG&gt;Key Objective:&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL class="lia-list-style-type-square"&gt;&lt;LI&gt;One Identity&lt;/LI&gt;&lt;LI&gt;One Login&lt;/LI&gt;&lt;LI&gt;Multiple Secure Access Points&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="5" color="#003300"&gt;&lt;STRONG&gt;What is SAP Datasphere?&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SAP Datasphere&lt;/STRONG&gt; is SAP’s next-generation cloud-based data warehousing solution that enables organizations to unify, analyze, and manage data across landscapes.&lt;/P&gt;&lt;P&gt;It provides:&lt;/P&gt;&lt;UL class="lia-list-style-type-square"&gt;&lt;LI&gt;Seamless data integration from SAP and non-SAP sources&lt;/LI&gt;&lt;LI&gt;Advanced analytics and data modeling capabilities&lt;/LI&gt;&lt;LI&gt;Business-ready semantic layers&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Given its critical role in enterprise data strategy, secure and efficient user access becomes essential.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5" color="#003300"&gt;&lt;STRONG&gt;What are SAP Cloud Identity Services?&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SAP Cloud Identity Services&lt;/STRONG&gt; is SAP’s central identity management platform designed to handle authentication, authorization, and identity lifecycle management across SAP and non-SAP applications.&lt;/P&gt;&lt;P&gt;It consists of two main components:&lt;/P&gt;&lt;UL class="lia-list-style-type-square"&gt;&lt;LI&gt;Identity Authentication Service (IAS)&lt;/LI&gt;&lt;LI&gt;Identity Provisioning Service (IPS)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This blog focuses on IAS as the authentication engine for SSO.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5" color="#003300"&gt;&lt;STRONG&gt;What is SAP Identity Authentication Service (IAS)?&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SAP Identity Authentication Service&lt;/STRONG&gt; is a cloud-based identity provider that manages user authentication and provides secure access to SAP applications.&lt;/P&gt;&lt;P&gt;It supports:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;SAML 2.0, OAuth, OpenID Connect&lt;/LI&gt;&lt;LI&gt;Multi-Factor Authentication (MFA)&lt;/LI&gt;&lt;LI&gt;Conditional authentication policies&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="5" color="#003300"&gt;&lt;STRONG&gt;Architecture Overview: SSO with SAP IAS as Proxy&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;In this implementation:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;IAS acts as a Proxy Identity Provider&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;Authentication requests are redirected to &lt;STRONG&gt;OKTA &lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;IAS validates and passes authentication back to SAP Applications&lt;/LI&gt;&lt;LI&gt;Email address is used as the Unique User Identifier (Attribute)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT color="#003300"&gt;&lt;STRONG&gt;Flow Simplified:&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;User accesses SAP Datasphere&lt;/LI&gt;&lt;LI&gt;Redirected to IAS (Proxy Identity Provider)&lt;/LI&gt;&lt;LI&gt;IAS forwards authentication to OKTA&lt;/LI&gt;&lt;LI&gt;User logs in via corporate credentials&lt;/LI&gt;&lt;LI&gt;IAS validates and grants access&lt;/LI&gt;&lt;LI&gt;User gains seamless access to SAP Datasphere&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;FONT color="#003300"&gt;&lt;STRONG&gt;Why use Email as the User Attribute?&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Using email as a unique identifier ensures:&lt;/P&gt;&lt;UL class="lia-list-style-type-square"&gt;&lt;LI&gt;Global uniqueness across systems&lt;/LI&gt;&lt;LI&gt;Alignment with corporate identity standards&lt;/LI&gt;&lt;LI&gt;Simplified user mapping across SAP and non-SAP applications&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT color="#003300"&gt;&lt;STRONG&gt;Benefits of Single Sign-On (SSO)&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Enhanced User Experience&lt;/STRONG&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;UL class="lia-list-style-type-square"&gt;&lt;LI&gt;Eliminates repeated logins&lt;/LI&gt;&lt;LI&gt;Faster access to applications&lt;/LI&gt;&lt;LI&gt;Reduced password fatigue&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; 2. &lt;STRONG&gt;Improved Security&lt;/STRONG&gt;&lt;/P&gt;&lt;UL class="lia-list-style-type-square"&gt;&lt;LI&gt;Centralized authentication control&lt;/LI&gt;&lt;LI&gt;Enables Multi-Factor Authentication (MFA)&lt;/LI&gt;&lt;LI&gt;Reduces attack surface from password reuse&lt;/LI&gt;&lt;/UL&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Increased Productivity&lt;/STRONG&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;UL class="lia-list-style-type-square"&gt;&lt;LI&gt;Less time spent on login issues&lt;/LI&gt;&lt;LI&gt;Streamlined access to enterprise tools&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="5" color="#003300"&gt;&lt;STRONG&gt;End-to-End Configuration Steps&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SAP IAS – OKTA Integration&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 1: Extract the IAS Tenant Metadata:&lt;/STRONG&gt; Login IAS as Administrator -&amp;gt; Applications &amp;amp; Resources -&amp;gt; Tenant Settings -&amp;gt; Single Sign-On -&amp;gt; SAML 2.0 Configuration -&amp;gt; Download Metadata File&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_0-1776257202600.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398572iFE83930DC1DFCB06/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_0-1776257202600.png" alt="karthikj2_0-1776257202600.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 2: Configure IAS Tenant in OKTA:&lt;/STRONG&gt; Login OKTA Admin Portal as Administrator -&amp;gt; Click on the 'Use single sign on' - 'Add App' option -&amp;gt; Create New App -&amp;gt; Platform = Web | Sign on method = SAML 2.0 -&amp;gt; Create&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_1-1776257202607.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398571iFB7E10966758CFD0/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_1-1776257202607.png" alt="karthikj2_1-1776257202607.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Provide IAS Tenant Description -&amp;gt; Maintain Single Sign-On Endpoint URL from IAS (ACS End Point) as Single Sign-On URL | &amp;nbsp;Recipient URL | Destination URL. Audience Restriction -&amp;gt; IAS Domain. Name ID Format -&amp;gt; E-mail Address. Digest Algorithm -&amp;gt; SHA256 -&amp;gt; Save.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_2-1776257202614.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398573i8788BA8C09C514CD/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_2-1776257202614.png" alt="karthikj2_2-1776257202614.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_3-1776257202618.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398574i9ABD4FEE17067A0D/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_3-1776257202618.png" alt="karthikj2_3-1776257202618.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Navigate to the 'Sign On' tab -&amp;gt; Click on 'Identity Provider metadata' hyperlink -&amp;gt; Export Configuration Metadata into an XML file&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 3: Configure OKTA as Trusted Corporate Identity Provider :&lt;/STRONG&gt; Login IAS Portal as Administrator -&amp;gt; Click on Identity Providers -&amp;gt; Corporate Identity Providers -&amp;gt; Create&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_4-1776257202625.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398576iEC3153DF8E62E9F1/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_4-1776257202625.png" alt="karthikj2_4-1776257202625.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Go to SAML 2.0 Configuration -&amp;gt; Browse and upload the OKTA Metadata XML file -&amp;gt; Save&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_5-1776257202630.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398575iB64DBD1B1F75B406/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_5-1776257202630.png" alt="karthikj2_5-1776257202630.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 4: SAP Datasphere - IAS Configuration:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Only a System Owner can perform Single Sign-On Administration activity in SAP Datasphere.&lt;/P&gt;&lt;P&gt;Assign the System Owner Privilege with valid email address&lt;/P&gt;&lt;P&gt;Navigate to Information -&amp;gt; Administration&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_6-1776257202647.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398579iE01BAC2F1EB85DEF/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_6-1776257202647.png" alt="karthikj2_6-1776257202647.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 4.1:&lt;/STRONG&gt; Go to Security Tab -&amp;gt; Click on Change icon -&amp;gt; Authentication Method -&amp;gt; Choose SAML Single Sign-On (SSO)&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_7-1776257202651.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398577iB3282F93CD4B487C/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_7-1776257202651.png" alt="karthikj2_7-1776257202651.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 4.2:&lt;/STRONG&gt; Under SAML Single Sign-On (SSO) Configuration -&amp;gt; Download Service Provider Metadata -&amp;gt; Extract SAP Datasphere Tenant’s Metadata (Here SAP Datasphere is the Service Provider)&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;EM&gt;We will complete parallel configuration in IAS for SAP Datasphere and resume further steps for seamless verification process&lt;/EM&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 4.2.1: Configure SAP Datasphere Application in IAS&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Open new browser session -&amp;gt; Login IAS Tenant as Administrator -&amp;gt; Applications &amp;amp; Resources -&amp;gt; Applications -&amp;gt; Create -&amp;gt; Provide Display Name -&amp;gt; Choose Type as SAP Datasphere Solution -&amp;gt; Protocol Type – SAML2.0&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_8-1776257202657.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398578i031A1C8038720830/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_8-1776257202657.png" alt="karthikj2_8-1776257202657.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Go to SAML 2.0 Configuration -&amp;gt; Upload SAP Datasphere Metadata (Service Provider) extracted from &lt;STRONG&gt;Step 4.2&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_9-1776257202665.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398582i5EB1689CCBF79276/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_9-1776257202665.png" alt="karthikj2_9-1776257202665.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Maintain &lt;STRONG&gt;Subject Name Identifier&lt;/STRONG&gt; with Email as Primary Attribute. It is optional to configure fallback attribute.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_10-1776257202673.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398580i31026DBDEFBCD3E8/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_10-1776257202673.png" alt="karthikj2_10-1776257202673.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Default Name ID Format&lt;/STRONG&gt; -&amp;gt; Email&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_11-1776257202677.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398581iCAD76FE920C399AD/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_11-1776257202677.png" alt="karthikj2_11-1776257202677.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;By default, &lt;STRONG&gt;Conditional Authentication&lt;/STRONG&gt; will be set with Identity Authentication as Default Identity Provider&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_12-1776257202683.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398584iF18215658A913063/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_12-1776257202683.png" alt="karthikj2_12-1776257202683.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Resuming Configuration in SAP Datasphere -&amp;gt; Administrator -&amp;gt; Security&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;STRONG&gt;Step 4.3:&lt;/STRONG&gt; Under SAML Single Sign-On (SSO) Configuration -&amp;gt; Upload Identity Provider Metadata -&amp;gt; Upload IAS Tenant Metadata extracted from &lt;STRONG&gt;Step 1&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 4.4:&lt;/STRONG&gt; Under Confirm that the mapping is working, provide the System Owner E-mail Address -&amp;gt; Verify Account -&amp;gt; Follow instructions as per prompt&lt;/P&gt;&lt;P&gt;Note: System Owner ID must exist in IAS with correct e-mail address maintained&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_13-1776257202687.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398583i430B9AA47DB4D3A5/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_13-1776257202687.png" alt="karthikj2_13-1776257202687.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 4.5:&lt;/STRONG&gt; Click Save icon to enable SAML Single Sign-On -&amp;gt; Convert&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_14-1776257202690.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398585iD285C48535658D21/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_14-1776257202690.png" alt="karthikj2_14-1776257202690.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Authentication Verification with IAS: &lt;/STRONG&gt;Try login SAP Datasphere Tenant in an Incognito / Private Browser session. Authentication to happen by IAS.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5" color="#003300"&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;STRONG&gt;Enabling IAS as Proxy:&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Go to Conditional Authentication of SAP Datasphere Application and change the Default Identity Provider to the OKTA Corporate Identity Provider created in &lt;STRONG&gt;Step 3.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_15-1776257202696.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398587iE81A31832190048D/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_15-1776257202696.png" alt="karthikj2_15-1776257202696.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Authentication Verification with IAS as Proxy : &lt;/STRONG&gt;Try login SAP Datasphere Tenant in an Incognito / Private Browser session. Authentication to happen by OKTA via IAS.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="karthikj2_16-1776257202700.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398586i377EF188EC05C27B/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="karthikj2_16-1776257202700.png" alt="karthikj2_16-1776257202700.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="5" color="#003300"&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Implementing SSO for &lt;STRONG&gt;SAP Datasphere&lt;/STRONG&gt; using &lt;STRONG&gt;SAP Cloud Identity Services&lt;/STRONG&gt; -&amp;nbsp;&lt;STRONG&gt;SAP Identity Authentication Service&lt;/STRONG&gt; provides a robust, scalable, and secure authentication framework.&lt;/P&gt;&lt;P&gt;By configuring IAS as &lt;STRONG&gt;Proxy&lt;/STRONG&gt; for Corporate Identity Provider, organizations can achieve a &lt;STRONG&gt;unified authentication strategy&lt;/STRONG&gt; that enhances both user experience and security posture.&lt;/P&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Author’s Note&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;This implementation reflects a real-world enterprise approach to consolidating authentication mechanisms across SAP landscapes using modern identity services.&lt;/P&gt;&lt;P&gt;If you're planning your Single Sign-On (SSO) journey or optimizing SAP Applications Architecture, this model serves as a strong foundation.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Referral Links&lt;/STRONG&gt;&lt;/P&gt;&lt;UL class="lia-list-style-type-square"&gt;&lt;LI&gt;&lt;A href="https://me.sap.com/notes/0002943651" target="_blank" rel="noopener noreferrer"&gt;https://me.sap.com/notes/0002943651&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/connect-okta-to-identity-authentication/ba-p/13468665" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-sap/connect-okta-to-identity-authentication/ba-p/13468665&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;#SAP #SingleSignOn #SSO #SAPDatasphere #SAPCloudIdentityServices #SAPIdentityAuthenticationService #SAPIAS #OKTA&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/configuring-single-sign-on-sso-for-sap-datasphere-using-sap-cloud-identity/ba-p/14375113"/>
+    <published>2026-04-15T15:09:59.772000+02:00</published>
   </entry>
 </feed>
