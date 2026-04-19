@@ -2,129 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2026-04-19T23:14:01.257070+00:00</updated>
+  <updated>2026-04-19T23:29:01.242271+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/downloading-data-in-different-formats-using-factory-design-pattern/bc-p/14377141#M178503</id>
-    <title>Re: Downloading Data in Different Formats Using Factory Design Pattern</title>
-    <updated>2026-04-17T21:23:15.311000+02:00</updated>
-    <author>
-      <name>Jelena_Perfiljeva</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/4934</uri>
-    </author>
-    <content>&lt;P&gt;Did you use ChatGPT or something similar to generate this? The code oddly looks like a first version one would get from a basic prompt, but then I think these days even basic GenAI produces better quality.&lt;/P&gt;&lt;P&gt;It just seems very odd that in one place, it's using cl_gui_frontend_services=&amp;gt;gui_download but then in another, GUI_DOWNLOAD FM. Also, the code for download is repeated; there is no exception handling; the parameter in the report should be a radio-button or at least a dropdown, not a text. That's just the obvious stuff.&lt;BR /&gt;&lt;BR /&gt;As an experiment, I gave this very simple prompt to Gemini: &lt;EM&gt;"&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Using factory pattern, create a global ABAP class that can download files in different formats: TXT, PDF, and XLSX. Data to be downloaded would be a standard internal table.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;"&lt;/EM&gt;&lt;BR /&gt;&lt;BR /&gt;Here is the exact result I got. It's wild that it decided to use SALV method in XLSX download. &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt; But I think ABAPXLSX is the best way to go here anyway. Note: this is not an endorsement of the result in any way, just showing what one can get in seconds.&lt;BR /&gt;-----------------------------&lt;/P&gt;&lt;P&gt;This is a classic use case for the &lt;STRONG&gt;Factory Design Pattern&lt;/STRONG&gt;. By decoupling the calling program from the specific implementation logic (TXT vs. XLSX), you make your code significantly easier to maintain and extend—say, if your boss suddenly decides they want JSON support next week.&lt;/P&gt;&lt;P&gt;In ABAP, we’ll achieve this using an &lt;STRONG&gt;Interface&lt;/STRONG&gt; for the behavior, &lt;STRONG&gt;Concrete Classes&lt;/STRONG&gt; for the specific formats, and a &lt;STRONG&gt;Factory Class&lt;/STRONG&gt; to instantiate them.&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1923370589"&gt;1. The Interface: &lt;CODE&gt;ZIF_FILE_DOWNLOADER&lt;/CODE&gt;&lt;/H3&gt;&lt;P&gt;First, define the common "contract" that all downloaders must follow.&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;ABAP&lt;/SPAN&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;PRE&gt;&lt;CODE&gt;INTERFACE zif_file_downloader PUBLIC.
-  METHODS download
-    IMPORTING
-      it_data     TYPE ANY TABLE
-      iv_filename TYPE string.
-ENDINTERFACE.&lt;/CODE&gt;&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1726857084"&gt;2. Concrete Implementation: TXT&lt;/H3&gt;&lt;P&gt;This class handles simple tab-delimited text output.&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;ABAP&lt;/SPAN&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;PRE&gt;&lt;CODE&gt;CLASS zcl_file_downloader_txt DEFINITION PUBLIC FINAL CREATE PUBLIC.
-  PUBLIC SECTION.
-    INTERFACES zif_file_downloader.
-ENDCLASS.
-
-CLASS zcl_file_downloader_txt IMPLEMENTATION.
-  METHOD zif_file_downloader~download.
-    cl_gui_frontend_services=&amp;gt;gui_download(
-      EXPORTING
-        filename                = iv_filename
-        filetype                = 'ASC'
-        write_field_separator   = 'X'
-      CHANGING
-        data_tab                = it_data
-      EXCEPTIONS
-        OTHERS                  = 1 ).
-  ENDMETHOD.
-ENDCLASS.&lt;/CODE&gt;&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1530343579"&gt;3. Concrete Implementation: XLSX&lt;/H3&gt;&lt;P&gt;For Excel, we can leverage &lt;CODE&gt;cl_salv_table&lt;/CODE&gt; to get the binary data easily.&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;ABAP&lt;/SPAN&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;PRE&gt;&lt;CODE&gt;CLASS zcl_file_downloader_xlsx DEFINITION PUBLIC FINAL CREATE PUBLIC.
-  PUBLIC SECTION.
-    INTERFACES zif_file_downloader.
-ENDCLASS.
-
-CLASS zcl_file_downloader_xlsx IMPLEMENTATION.
-  METHOD zif_file_downloader~download.
-    DATA: lo_table   TYPE REF TO cl_salv_table,
-          lt_binary  TYPE solix_tab,
-          lv_length  TYPE i,
-          lv_xstring TYPE xstring.
-
-    " Convert internal table to SALV and then to XLSX binary
-    cl_salv_table=&amp;gt;factory( IMPORTING r_salv_table = lo_table 
-                            CHANGING  t_table      = it_data ).
-    
-    lv_xstring = lo_table-&amp;gt;to_xml( if_salv_bs_xml=&amp;gt;c_type_xlsx ).
-
-    " Convert xstring to binary table for download
-    cl_bcs_convert=&amp;gt;xstring_to_solix( EXPORTING iv_xstring = lv_xstring
-                                      IMPORTING et_solix   = lt_binary ).
-
-    cl_gui_frontend_services=&amp;gt;gui_download(
-      EXPORTING
-        filename     = iv_filename
-        filetype     = 'BIN'
-        bin_filesize = xstrlen( lv_xstring )
-      CHANGING
-        data_tab     = lt_binary ).
-  ENDMETHOD.
-ENDCLASS.&lt;/CODE&gt;&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1333830074"&gt;4. Concrete Implementation: PDF&lt;/H3&gt;&lt;P&gt;PDF conversion from a raw internal table usually requires a transformation or a form. Here is a conceptual implementation using the SALV PDF utility.&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;ABAP&lt;/SPAN&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;PRE&gt;&lt;CODE&gt;CLASS zcl_file_downloader_pdf DEFINITION PUBLIC FINAL CREATE PUBLIC.
-  PUBLIC SECTION.
-    INTERFACES zif_file_downloader.
-ENDCLASS.
-
-CLASS zcl_file_downloader_pdf IMPLEMENTATION.
-  METHOD zif_file_downloader~download.
-    " Implementation logic similar to XLSX but using 'if_salv_bs_xml=&amp;gt;c_type_pdf'
-    " or a functional module like 'SX_OBJECT_CONVERT_OTF_PDF' if using Spool/Smartforms.
-  ENDMETHOD.
-ENDCLASS.&lt;/CODE&gt;&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1137316569"&gt;5. The Factory Class: &lt;CODE&gt;ZCL_DOWNLOAD_FACTORY&lt;/CODE&gt;&lt;/H3&gt;&lt;P&gt;This is the "brain" that decides which object to create.&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;ABAP&lt;/SPAN&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;PRE&gt;&lt;CODE&gt;CLASS zcl_download_factory DEFINITION PUBLIC FINAL CREATE PRIVATE.
-  PUBLIC SECTION.
-    TYPES: ty_format TYPE c LENGTH 4.
-    CONSTANTS: co_txt  TYPE ty_format VALUE 'TXT',
-               co_xlsx TYPE ty_format VALUE 'XLSX',
-               co_pdf  TYPE ty_format VALUE 'PDF'.
-
-    STATIC-METHODS get_downloader
-      IMPORTING iv_format            TYPE ty_format
-      RETURNING VALUE(ro_downloader) TYPE REF TO zif_file_downloader.
-ENDCLASS.
-
-CLASS zcl_download_factory IMPLEMENTATION.
-  METHOD get_downloader.
-    CASE iv_format.
-      WHEN co_txt.
-        ro_downloader = NEW zcl_file_downloader_txt( ).
-      WHEN co_xlsx.
-        ro_downloader = NEW zcl_file_downloader_xlsx( ).
-      WHEN co_pdf.
-        ro_downloader = NEW zcl_file_downloader_pdf( ).
-    ENDCASE.
-  ENDMETHOD.
-ENDCLASS.&lt;/CODE&gt;&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-940803064"&gt;How to use it in your Program&lt;/H3&gt;&lt;P&gt;The beauty of this setup is that the caller doesn't need to know &lt;I&gt;how&lt;/I&gt; the file is created, only that it &lt;I&gt;will&lt;/I&gt; be created.&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;SPAN class=""&gt;ABAP&lt;/SPAN&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;PRE&gt;&lt;CODE&gt;DATA(lt_data) = VALUE #( ( name = 'Alice' ) ( name = 'Bob' ) ). " Your internal table
-
-" Get the downloader for XLSX
-DATA(lo_downloader) = zcl_download_factory=&amp;gt;get_downloader( zcl_download_factory=&amp;gt;co_xlsx ).
-
-IF lo_downloader IS BOUND.
-  lo_downloader-&amp;gt;download(
-    it_data     = lt_data
-    iv_filename = 'C:\Temp\Export.xlsx'
-  ).
-ENDIF.&lt;/CODE&gt;&lt;/PRE&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;H3 id="toc-hId-744289559"&gt;Why this rocks:&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Single Responsibility:&lt;/STRONG&gt; Each class does exactly one thing (TXT logic stays in the TXT class).&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Open/Closed Principle:&lt;/STRONG&gt; If you want to add &lt;STRONG&gt;CSV&lt;/STRONG&gt; support, you just create a new class and update the Factory. You don't have to touch the existing TXT or XLSX code.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Type Safety:&lt;/STRONG&gt; Using the interface ensures that the calling program always has access to the &lt;CODE&gt;download&lt;/CODE&gt; method regardless of the format chosen.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/downloading-data-in-different-formats-using-factory-design-pattern/bc-p/14377141#M178503"/>
-    <published>2026-04-17T21:23:15.311000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/am-asset-archiving-for-a-specific-asset-number/qaq-p/14377142</id>
-    <title>AM_ASSET - Archiving for a specific asset number</title>
-    <updated>2026-04-17T21:30:20.580000+02:00</updated>
-    <author>
-      <name>analucia_albuquerqued05813</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2295540</uri>
-    </author>
-    <content>&lt;P&gt;Dear SAP Support,&lt;/P&gt;&lt;P&gt;We are currently configuring the archiving object AM_ASSET due to errors FIN_AA_RECON 795. However, considering that the business requires a retention period of 10 years, not all deactivated assets with this error are eligible for archiving.&lt;/P&gt;&lt;P&gt;Is there a way to perform archiving based on specific asset numbers?&lt;/P&gt;&lt;P&gt;Thank you.&lt;/P&gt;&lt;P&gt;Ana Albuquerque&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/am-asset-archiving-for-a-specific-asset-number/qaq-p/14377142"/>
-    <published>2026-04-17T21:30:20.580000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/crm-and-cx-q-a/how-do-i-validate-a-zip-code-using-an-external-api-in-sap-sales-cloud-v2/qaq-p/14377146</id>
     <title>How do I validate a ZIP code using an external API in SAP Sales Cloud v2 when registering a customer</title>
@@ -1518,5 +1399,29 @@ claude --print "What is 2+2?"&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;When the proxy st
     <content>&lt;P&gt;&lt;SPAN&gt;Package : ZAC_140517 created&lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/abap-blog-posts/week-1-set-up-the-basic-trial-account-enabled-with-joule-for-developers/bc-p/14377701#M1535"/>
     <published>2026-04-20T01:04:44.116000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/early-numbering-with-number-range-object-in-rap/bc-p/14377702#M178515</id>
+    <title>Re: Early Numbering With Number Range Object In RAP</title>
+    <updated>2026-04-20T01:14:14.267000+02:00</updated>
+    <author>
+      <name>bettinasilveira</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/960404</uri>
+    </author>
+    <content>&lt;P&gt;I'm not using early numbering, I just want the number determined when saving the document, but I'm having this error, any ideas?:&lt;/P&gt;&lt;H2 id="toc-hId-1794293513"&gt;Statement "UPDATE&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;" is not allowed with this status.&lt;/H2&gt;&lt;H4 id="ERROR" id="toc-hId-1855945446"&gt;Error analysis&lt;/H4&gt;&lt;P&gt;&lt;SPAN&gt;Execution takes place in a transactional context: A BO implementation&lt;/SPAN&gt;&lt;BR /&gt;&lt;SPAN&gt;is active for "ZMRS_R_ARTIST". Statement "UPDATE &amp;lt;dbtab&amp;gt;" is therefore forbidden. In the case of&lt;/SPAN&gt;&lt;BR /&gt;&lt;SPAN&gt;statement MESSAGE, the message text is as follows: "???" The actual error&lt;/SPAN&gt;&lt;BR /&gt;&lt;SPAN&gt;is probably not located in the program where the termination occurs but&lt;/SPAN&gt;&lt;BR /&gt;&lt;SPAN&gt;at a higher call level from which the program was called in an illegal&lt;/SPAN&gt;&lt;BR /&gt;&lt;SPAN&gt;BEHAVIOR phase.&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/early-numbering-with-number-range-object-in-rap/bc-p/14377702#M178515"/>
+    <published>2026-04-20T01:14:14.267000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/strategies-for-downtime-optimized-dmo-dodmo-doc-dmove2s4-for-large/bc-p/14377703#M178516</id>
+    <title>Re: Strategies for Downtime-Optimized DMO : doDMO, doC,  DMOVE2S4 for large databases</title>
+    <updated>2026-04-20T01:19:01.579000+02:00</updated>
+    <author>
+      <name>SAP4VMG</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1987324</uri>
+    </author>
+    <content>&lt;P&gt;Thanks for putting it out clearly. For Customers already on HANA DB on-premise making move to Rise and/or public cloud hypersaler all older DMO blogs makes it confusing at a time. Blog here clarifies very well the incorporation of DMOVE2S4 with downtime optimized options. Unfortunately, for on premise ECC on Hana customers in the absence of bandwidth and latency requirement fulfillment, they had to rely on DMO with system move!&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/651658"&gt;@sumitjais&lt;/a&gt;&amp;nbsp; I still have one question though. Based on sap blogs, It looks like DoDMO and DOC are purpose built for target S4 HANA application stack along with DB migration to HANA, Is this statement incorrect?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/strategies-for-downtime-optimized-dmo-dodmo-doc-dmove2s4-for-large/bc-p/14377703#M178516"/>
+    <published>2026-04-20T01:19:01.579000+02:00</published>
   </entry>
 </feed>
