@@ -2,209 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2026-04-21T03:29:01.313318+00:00</updated>
+  <updated>2026-04-21T03:44:01.321366+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/a2a-agents-on-sap-btp-wiring-the-agent-to-agent-protocol-into-cap/ba-p/14378591</id>
-    <title>A2A Agents on SAP BTP: Wiring the Agent-to-Agent Protocol into CAP</title>
-    <updated>2026-04-20T19:02:48.175000+02:00</updated>
-    <author>
-      <name>rpagni</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/33824</uri>
-    </author>
-    <content>&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1665238941"&gt;A2A Agents on SAP BTP: Wiring the Agent-to-Agent Protocol into CAP&lt;/H1&gt;&lt;DIV class=""&gt;&lt;P&gt;A technical guide to building Agent-to-Agent agents natively on SAP Business Technology Platform&lt;/P&gt;&lt;/DIV&gt;&lt;P&gt;Google's &lt;STRONG&gt;Agent-to-Agent (A2A) protocol&lt;/STRONG&gt; is quickly becoming a standard for agent interoperability. For SAP developers, this raises a practical question: how do you build A2A agents that feel native to BTP — authenticated through XSUAA, persisting state to HANA, reaching services through destinations — without reinventing infrastructure that already exists?&lt;/P&gt;&lt;P&gt;The answer might be simpler than expected: &lt;STRONG&gt;mount A2A directly into a CAP application.&lt;/STRONG&gt; Not as a sidecar. As a first-class part of your server, sharing its runtime, its database, its service bindings. This post explores what that architecture looks like using TypeScript and the &lt;CODE&gt;@a2a-js/sdk&lt;/CODE&gt;.&lt;/P&gt;&lt;P&gt;This will hopefully become a short blog series, from this introduction to the fully working project template.&lt;/P&gt;&lt;H2 id="toc-hId-1597808155"&gt;The Project Structure&lt;/H2&gt;&lt;P&gt;A CAP-based A2A agent follows a familiar CAP layout, with the agent logic living alongside standard services:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;cap-based-agent/
-├── db/
-│   └── schema.cds                  # HANA entities for tasks, telemetry
-├── srv/
-│   ├── a2a-service.cds             # Read-only CDS service for monitoring
-│   ├── a2a-service.ts              # Service handler (if needed)
-│   ├── server.ts                   # CAP bootstrap — mounts A2A routes
-│   ├── lib/
-│   │   └── base-executor.ts        # Reusable A2A task lifecycle engine
-│   └── agent/
-│       ├── index.ts                # Your agent subclass
-│       ├── agent-definition.ts     # Declarative agent config
-│       └── agent-card.ts           # A2A agent card (discovery metadata)&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;If you've built a CAP application before, this looks familiar — and that's the point. The agent &lt;EM&gt;is&lt;/EM&gt; a CAP app. &lt;CODE&gt;cds watch&lt;/CODE&gt; works. &lt;CODE&gt;cds deploy -2 hana&lt;/CODE&gt; creates your HANA tables. &lt;CODE&gt;cds up&lt;/CODE&gt; ships everything as one artifact.&lt;/P&gt;&lt;H2 id="toc-hId-1401294650"&gt;One Server, Two Protocol Worlds&lt;/H2&gt;&lt;P&gt;CAP generates an Express application at startup. The &lt;CODE&gt;cds.on("bootstrap")&lt;/CODE&gt; hook gives you access to that Express instance before CAP finalizes its own routes — and that's where A2A plugs in:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;// server.ts
-cds.on("bootstrap", async (app: express.Application) =&amp;gt; {
-    const agentExecutor = new agentDefinition.executorClass(agentDefinition.config);
-    const hanaTaskStore = new HanaTaskStore();
-    const requestHandler = new DefaultRequestHandler(
-        agentDefinition.agentCard, hanaTaskStore, agentExecutor
-    );
-
-    // A2A discovery endpoint
-    app.use(`${agentDefinition.path}/.well-known/agent.json`,
-        agentCardHandler({ agentCardProvider: requestHandler }));
-
-    // A2A JSON-RPC transport (the one Joule speaks)
-    app.use(`${agentDefinition.path}/a2a/jsonrpc`,
-        express.json(), jwtMiddleware,
-        jsonRpcHandler({ requestHandler }));
-
-    console.log(`🚀 Agent "${agentDefinition.name}" is running`);
-});&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;After this, your application speaks A2A's JSON-RPC on one path and CAP's OData/REST on the others. One deployment, one HANA binding, one XSUAA instance. The operational surface area doesn't grow.&lt;/P&gt;&lt;H2 id="toc-hId-1204781145"&gt;Persistence: Just CDS&lt;/H2&gt;&lt;P&gt;An A2A agent needs to store tasks, push notification configurations, and — if you care about observability — telemetry data. In CAP, that's a schema file:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;-- db/schema.cds
-entity Tasks : managed {
-    key id        : String(36);
-        contextId : String(36);
-        state     : String(20);
-        data      : LargeString;
-}
-
-entity AgentTaskTelemetry : managed {
-    key taskId           : UUID;
-        contextId        : String(100);
-        finalState       : String(30);
-        durationMs       : Integer;
-        toolsCalled      : Integer default 0;
-        tokensTotal      : Integer default 0;
-        errorMessage     : String(500);
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;The &lt;CODE&gt;managed&lt;/CODE&gt; aspect gives you &lt;CODE&gt;createdAt&lt;/CODE&gt;, &lt;CODE&gt;modifiedAt&lt;/CODE&gt;, &lt;CODE&gt;createdBy&lt;/CODE&gt; for free. Expose the telemetry entity as a read-only CAP service and you get a monitoring API without writing a single handler:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;-- srv/a2a-service.cds
-service A2AServerService @(path: '/a2a-service') {
-    @readonly entity Tasks as projection on db.Tasks excluding { data };
-    @readonly entity AgentTaskTelemetry as projection on db.AgentTaskTelemetry;
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Query your agent's performance, error rates, and token consumption through standard OData. No custom dashboards required to get started.&lt;/P&gt;&lt;H2 id="toc-hId-1008267640"&gt;Extending A2A Standards with CAP: The HanaTaskStore&lt;/H2&gt;&lt;P&gt;The A2A SDK defines a &lt;CODE&gt;TaskStore&lt;/CODE&gt; interface — a contract for persisting task state. The default in-memory implementation works for prototyping, but production agents on BTP need HANA. Here's where CAP shines: implementing a &lt;CODE&gt;HanaTaskStore&lt;/CODE&gt; becomes almost trivial because you're working &lt;EM&gt;with&lt;/EM&gt; CDS, not around it.&lt;/P&gt;&lt;P&gt;The &lt;CODE&gt;TaskStore&lt;/CODE&gt; interface expects methods like &lt;CODE&gt;get&lt;/CODE&gt;, &lt;CODE&gt;set&lt;/CODE&gt;, and &lt;CODE&gt;delete&lt;/CODE&gt;. With CAP's query language, each of these maps to a one-liner:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;async get(taskId: string): Promise {
-    const result = await SELECT.one.from("a2a.taskstore.Tasks").where({ id: taskId });
-    return result ? JSON.parse(result.data) : undefined;
-}
-
-async set(task: Task): Promise {
-    await UPSERT.into("a2a.taskstore.Tasks").entries({
-        id: task.id,
-        contextId: task.contextId,
-        state: task.status.state,
-        data: JSON.stringify(task),
-    });
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;No connection pools to configure. No ORM mappings to maintain. CDS handles the HANA connection lifecycle through the same binding your CAP services already use. The same pattern extends naturally: a &lt;CODE&gt;HanaPushNotificationStore&lt;/CODE&gt; for managing notification configs, a &lt;CODE&gt;HanaCheckpointer&lt;/CODE&gt; for LangGraph's conversation memory — each one a thin adapter between an SDK interface and a CDS entity. This is the kind of extensibility that emerges when your agent framework and your persistence layer share the same runtime.&lt;/P&gt;&lt;H2 id="toc-hId-811754135"&gt;The Base Executor: Lifecycle Without Ceremony&lt;/H2&gt;&lt;P&gt;The heart of the architecture is a base executor class that handles the full A2A task lifecycle. It manages LLM streaming, publishes status updates through the A2A event bus, handles interrupts when the agent needs user input, and deals with cancellation and timeouts. Here's what it looks like, simplified to the essential flow:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;// lib/base-executor.ts (simplified)
-export abstract class BaseAgentExecutor implements AgentExecutor {
-
-    async execute(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise&amp;lt;void&amp;gt; {
-        const { taskId, contextId, userMessage } = requestContext;
-
-        // 1. Publish "working" status
-        this.publishStatusUpdate(eventBus, taskId, contextId, "working", "Processing...", false);
-
-        // 2. Build messages — system prompt on first turn only, LangGraph
-        //    prepends full checkpoint history on follow-ups automatically
-        const messages = await this.buildMessages(userMessage, contextId);
-
-        // 3. Stream the agent's response
-        const stream = await this.agent.stream(
-            { messages },
-            { configurable: { thread_id: contextId } }
-        );
-
-        let lastAIContent = "";
-        for await (const chunk of stream) {
-            // Agent is asking the user a question — pause and wait
-            if (chunk.__interrupt__?.length) {
-                const question = this.getInputRequiredMessage(taskId, chunk.__interrupt__[0].value);
-                this.publishStatusUpdate(eventBus, taskId, contextId, "input-required", question, false);
-                return; // Checkpoint preserved — conversation resumes on next message
-            }
-
-            // Capture latest AI output
-            if (isAIMessage(chunk)) {
-                lastAIContent = chunk.content;
-                this.publishStatusUpdate(eventBus, taskId, contextId, "working",
-                    this.getWorkingMessage(taskId, lastAIContent), false);
-            }
-        }
-
-        // 4. Publish final result and persist telemetry
-        this.publishArtifact(eventBus, taskId, contextId, lastAIContent);
-        this.publishStatusUpdate(eventBus, taskId, contextId, "completed",
-            this.getCompletedMessage(taskId, lastAIContent), true);
-    }
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;The key states are clear: &lt;STRONG&gt;working → input-required → working → completed&lt;/STRONG&gt; (or &lt;STRONG&gt;failed&lt;/STRONG&gt;/&lt;STRONG&gt;canceled&lt;/STRONG&gt;). The base class manages HANA-backed conversation checkpointing for multi-turn dialogues, abort controllers with configurable timeouts, concurrency guards preventing parallel writes to the same thread, and automatic telemetry persistence after every execution. All of this stays invisible to the subclass author.&lt;/P&gt;&lt;H2 id="toc-hId-615240630"&gt;Your Agent: Override What Matters&lt;/H2&gt;&lt;P&gt;Building a concrete agent means extending the base and providing just the behavior-specific pieces:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;// agent/index.ts
-export default class GreetingsAgentExecutor extends BaseAgentExecutor {
-    constructor(config?: Partial&amp;lt;AgentConfig&amp;gt;) {
-        super({ loggerName: "GreetingsAgentExecutor", ...config });
-    }
-
-    protected getWorkingMessage(taskId: string, thoughts: string): string {
-        return `Working on it. ${thoughts || ""}`;
-    }
-
-    protected getCompletedMessage(taskId: string, content: string): string {
-        return content;
-    }
-
-    protected getInputRequiredMessage(_taskId: string, interruptValue: unknown): string {
-        if ((interruptValue as any)?.type === "ask_user") {
-            return (interruptValue as any).question;
-        }
-        return "I need more information to proceed.";
-    }
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;And then, the definition ties everything together declaratively:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;// agent/agent-definition.ts
-export const agentDefinition: AgentDefinition = {
-    name: "greetings-agent",
-    path: "/greetings-agent",
-    agentCard: exampleAgentCard,
-    executorClass: GreetingsAgentExecutor,
-    config: {
-        systemPrompt: "You are a friendly assistant that greets users using ASCII Code Art",
-        orchestration: new OrchestrationClient({
-            promptTemplating: { model: { name: "gpt-4o" } },
-        }, { streaming: true }, { resourceGroup: "default" }, {
-            destinationName: "ai-core-wr-artificial-intelligence-sdk",
-        }),
-    },
-};&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;No API keys in environment variables. The BTP Destination Service handles credentials for AI Core access. The same mechanism works for any LLM available through the Orchestration API.&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Rather than managing separate LLM integrations and credentials, we use the Orchestration Client abstracts away model selection, prompt templating, and fallback policies. Your agent configuration simply declares which model to use, and the Orchestration API handles routing, token counting, cost tracking, and seamless model switching without code changes. This makes agents portable across SAP's AI landscape — from open-source models to enterprise-licensed capabilities — while keeping sensitive model endpoints and API keys secure within the BTP infrastructure.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Leveraging the &lt;CODE&gt;sap-ai-sdk/orchestration&lt;/CODE&gt; SDK, Agents can even leverage pre-existing Orchestration configuration: Prompt Engineers prepare the scenario in SAP AI Launchpad, developers wire it up into Agents with a simple ID.&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId-418727125"&gt;MCP Tool Discovery Through BTP Destinations&lt;/H2&gt;&lt;P&gt;An agent that only talks to an LLM is limited. The real power comes when it can call external tools. The architecture supports connecting to &lt;STRONG&gt;MCP servers&lt;/STRONG&gt; through BTP destinations — add them to your agent definition and tools are discovered at startup:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;config: {
-    mcpServers: [{
-        name: "My Tool Server",
-        destinationName: "destination-to-mcp-server",
-        path: "/mcp",
-    }]
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Each tool &lt;EM&gt;call&lt;/EM&gt; could use principal propagation enabled destinations, so authorization is enforced per request:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// We can customize how the StreamableHTTPClientTransport triggers its fetches by providing a customized fetch function:
-const baseFetch = (transportOpts.fetch as typeof globalThis.fetch) ?? globalThis.fetch;
-transportOpts.fetch = async (input: RequestInfo | URL, init?: RequestInit) =&amp;gt; {
-	const mergedHeaders = new Headers(init?.headers);
-	try {
-		const userJwt = getCurrentJwt();
-		const dest = await getDestination({
-			destinationName: serverConfig.destinationName,
-			...(userJwt &amp;amp;&amp;amp; { jwt: userJwt }),
-		});
-
-		if (dest?.authTokens?.length) {
-			for (const token of dest.authTokens) {
-				if (!token.error &amp;amp;&amp;amp; token.http_header) {
-					mergedHeaders.set(token.http_header.key, token.http_header.value);
-				}
-			}
-		}
-		// Additional headers needed by the destination?
-		if (dest?.headers) {
-			for (const [key, value] of Object.entries(dest.headers)) {
-				mergedHeaders.set(key, value as string);
-			}
-		}
-	} catch (err) {
-		this.LOG.warn(
-			`Failed to resolve destination "${serverConfig.destinationName}" for tool call:`,
-			err instanceof Error ? err.message : err,
-		);
-	}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The inbound JWT can be safely stored in a node's AsyncLocalStorage: the a2a-sdk/js uses Express, so a simple middleware will suffice:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;export function createJwtContextMiddleware(xsuaaService: XsuaaService | null) {
-   return function jwtContextMiddleware(req: Request, _res: Response, next: NextFunction): void {
-   const authHeader = req.headers.authorization;
-   if (!authHeader?.startsWith("Bearer ")) {
-	next();
-	return;
-   }
-   const token = authHeader.substring(7);
-   // Do something with the JWT
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Wired up to the a2a jsonrpc endpoint:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// JSON-RPC endpoint with middleware chain
-app.use(
-  `${agentPath}/a2a/jsonrpc`,
-  express.json(),
-  jwtMiddleware, // Extract the JWT before the a2a's jsonRpc handler
-  jsonRpcHandler({ requestHandler, userBuilder }),
-);&lt;/code&gt;&lt;/pre&gt;&lt;H2 id="toc-hId-222213620"&gt;A Note on Language Choice&lt;/H2&gt;&lt;P&gt;You can build A2A agents in any language — the protocol is transport-level JSON-RPC, so Python, Go, Java, anything that speaks HTTP will work. Python in particular has a rich ecosystem for AI workloads and may be the natural choice for teams with existing ML pipelines.&lt;/P&gt;&lt;P&gt;But it's worth considering what comes &lt;EM&gt;after&lt;/EM&gt; the LLM call. An agent on BTP needs to persist tasks somewhere. It needs to authenticate users. It needs to resolve destinations for external services, manage push notification tokens, store conversation checkpoints. In a Python-based setup, each of these is a separate integration to build and maintain: an SAP HANA client library, manual XSUAA token validation, a custom Destination Service client, connection pooling, credential lifecycle management.&lt;/P&gt;&lt;P&gt;With CAP, these are solved problems. &lt;CODE&gt;cds.run(SELECT.from(...))&lt;/CODE&gt; talks to HANA through an already-configured binding. JWT verification hooks into the CAP middleware stack. Destinations resolve through the SAP Cloud SDK. The &lt;CODE&gt;managed&lt;/CODE&gt; aspect on your CDS entities handles audit fields you'd otherwise write by hand.&lt;/P&gt;&lt;P&gt;The question isn't whether Python or other languages &lt;EM&gt;can&lt;/EM&gt; do all of this — they can. The question is whether you want to spend your time wiring infrastructure or building agent behavior. When the platform already provides a programming model that handles the plumbing, there's real value in staying within it.&lt;/P&gt;&lt;P&gt;See the&amp;nbsp;&lt;A href="https://architecture.learning.sap.com/docs/ref-arch/ca1d2a3e/3" target="_blank" rel="noopener noreferrer"&gt;SAP Architecture Center&lt;/A&gt;&amp;nbsp;article for additional reference.&lt;/P&gt;&lt;H2 id="toc-hId-25700115"&gt;What's Next&lt;/H2&gt;&lt;P&gt;This architecture opens up interesting possibilities. Imagine agents that can leverage CDS-defined actions as tools, or that use CAP's ecosystem integrations to react to business events autonomously. The base executor pattern means each new agent is a subclass and a config object — the protocol and infrastructure complexity stays solved once.&lt;/P&gt;&lt;P&gt;Next, we'll dive deeper in the initial setup of the major building blocks to wire up the a2a standards with HANA.&lt;/P&gt;&lt;P&gt;&lt;EM&gt;&lt;FONT size="2"&gt;Co-Authored with Haiku &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&lt;/FONT&gt;&lt;/EM&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/a2a-agents-on-sap-btp-wiring-the-agent-to-agent-protocol-into-cap/ba-p/14378591"/>
-    <published>2026-04-20T19:02:48.175000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/financial-management-q-a/how-to-setup-supplier-invoice-email-trigger-process-in-work-flow/qaq-p/14378592</id>
     <title>How to Setup supplier invoice email trigger process in work flow</title>
@@ -1398,7 +1199,7 @@ iv_screlm_name = '&amp;lt;GRUND field name&amp;gt;'.&lt;/code&gt;&lt;/pre&gt;&lt
       <name>Joey3</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1474902</uri>
     </author>
-    <content>Hi Kerisha,</content>
+    <content>&lt;P&gt;Hi Kerisha,&lt;/P&gt;&lt;P&gt;Thanks for the detailed explanation!&lt;/P&gt;&lt;P&gt;We I did the restricted configuration for "Read, Value Help" and "Value Help" as below,&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Joey3_0-1776742200166.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400601iF818902CE165F7C1/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Joey3_0-1776742200166.png" alt="Joey3_0-1776742200166.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;I only set authorization group A for material&amp;nbsp;&lt;SPAN&gt;A2C7860730699, but I still can check the sales order with other parts number. Pls check the below example.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Joey3_1-1776742300914.png" style="width: 301px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400604iDA6FCE646762A100/image-dimensions/301x197/is-moderation-mode/true?v=v2" width="301" height="197" role="button" title="Joey3_1-1776742300914.png" alt="Joey3_1-1776742300914.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Joey3_2-1776742307882.png" style="width: 317px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400605i6DBFEBF55D898557/image-dimensions/317x161/is-moderation-mode/true?v=v2" width="317" height="161" role="button" title="Joey3_2-1776742307882.png" alt="Joey3_2-1776742307882.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;I also try to maintain authorization group for product for&amp;nbsp;"Write, Read, Value Help", "Read, Value Help" and "Value Help"&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Joey3_3-1776742356221.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400607i367285E82015DC2F/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Joey3_3-1776742356221.png" alt="Joey3_3-1776742356221.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;But I met the following error when I checked the sales order, even check the&amp;nbsp;material&amp;nbsp;&lt;SPAN&gt;A2C7860730699 (order70000068) which has maintained the authorization group.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Joey3_4-1776742563694.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400611i1A3A0EE2C8340F6C/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Joey3_4-1776742563694.png" alt="Joey3_4-1776742563694.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Joey3_5-1776742578338.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400614iDCD1777E09362042/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Joey3_5-1776742578338.png" alt="Joey3_5-1776742578338.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Could you provide some suggestions for this case? Thanks!&lt;/P&gt;&lt;P&gt;Best regards,&lt;/P&gt;&lt;P&gt;Joey&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/sap-s-4hana-public-cloud-enables-user-based-authorization-control-for-sales/qaa-p/14378948#M4239426"/>
     <published>2026-04-21T05:16:32.961000+02:00</published>
   </entry>
@@ -1413,5 +1214,17 @@ iv_screlm_name = '&amp;lt;GRUND field name&amp;gt;'.&lt;/code&gt;&lt;/pre&gt;&lt
     <content>Its a work around as we can see in the note as well</content>
     <link href="https://community.sap.com/t5/technology-q-a/my-inbox-build-process-automation-stuck-loading/qaa-p/14378949#M4940727"/>
     <published>2026-04-21T05:19:41.346000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/implementing-a-public-anonymous-sapui5-registration-app-on-btp-with-backend/qaa-p/14378965#M4940728</id>
+    <title>Re: Implementing a Public/Anonymous SAPUI5 Registration A...</title>
+    <updated>2026-04-21T05:37:08.434000+02:00</updated>
+    <author>
+      <name>AmberXu</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1486176</uri>
+    </author>
+    <content>&lt;P&gt;Hi&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2276163"&gt;@remin2504&lt;/a&gt;&amp;nbsp;,&lt;/P&gt;&lt;P&gt;Please refer to recommendation from Joule for Consultant &lt;span class="lia-unicode-emoji" title=":winking_face:"&gt;😉&lt;/span&gt;:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="AmberXu_0-1776742567688.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400612i4DD8E9261A7C55E7/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="AmberXu_0-1776742567688.png" alt="AmberXu_0-1776742567688.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="AmberXu_1-1776742574318.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400613iE4179527BEBDDB85/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="AmberXu_1-1776742574318.png" alt="AmberXu_1-1776742574318.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/implementing-a-public-anonymous-sapui5-registration-app-on-btp-with-backend/qaa-p/14378965#M4940728"/>
+    <published>2026-04-21T05:37:08.434000+02:00</published>
   </entry>
 </feed>
