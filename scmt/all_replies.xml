@@ -2,351 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2026-04-23T12:44:01.516958+00:00</updated>
+  <updated>2026-04-23T12:59:01.162575+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/frontend-ui5-sap-fiori-blog-posts/sap-fiori-elements-list-report-implementing-dual-data-views-with-flat-and/ba-p/14381131</id>
-    <title>SAP Fiori Elements List Report: Implementing Dual Data Views with Flat and Hierarchical Entities</title>
-    <updated>2026-04-23T11:15:16.150000+02:00</updated>
-    <author>
-      <name>AnanyaSingh</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1623186</uri>
-    </author>
-    <content>&lt;P&gt;In many SAP Fiori Elements applications, data is modeled hierarchically. Consider a scenario with a 3-level entity structure:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT color="#000080"&gt;Header&lt;/FONT&gt; (parent)&lt;/LI&gt;&lt;LI&gt;&lt;FONT color="#000080"&gt;Item&lt;/FONT&gt; (child)&lt;/LI&gt;&lt;LI&gt;&lt;FONT color="#000080"&gt;SubItem&lt;/FONT&gt; (grandchild)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;By default, the List Report displays data at the Header level. However, there is a requirement to provide a &lt;FONT color="#000080"&gt;Detailed view:&amp;nbsp;&lt;/FONT&gt;a flat representation that surfaces fields from all three levels in a single row, without requiring navigation into each record.&lt;/P&gt;&lt;H3 id="toc-hId-1924115333"&gt;&lt;SPAN&gt;&lt;STRONG&gt;Goal&lt;/STRONG&gt;: &lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;Segmented button on the List Report&lt;SPAN&gt; that lets the user toggle between:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT color="#000080"&gt;Detailed View&lt;/FONT&gt;: flat structure, fields from all 3 levels in one row&lt;/LI&gt;&lt;LI&gt;&lt;FONT color="#000080"&gt;Normal View&lt;/FONT&gt;: standard hierarchical view at the&amp;nbsp;Header&amp;nbsp;level&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1727601828"&gt;&lt;STRONG&gt;Why this approach&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Instead of modifying the existing hierarchical entity, a separate flat view entity allows both representations to coexist without impacting the original data model.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1402005604"&gt;&lt;STRONG&gt;Backend: Exposing a Flat View Entity (CAP)&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;The standard Header entity only holds parent-level fields. To surface child and grandchild fields in a single flat list, a dedicated &lt;STRONG&gt;view entity&lt;/STRONG&gt; is exposed in the CAP service.&lt;/P&gt;&lt;P&gt;This entity (HeaderDetailView) is built using a &lt;FONT color="#000080"&gt;bottom-to-top&lt;/FONT&gt; approach, starting from SubItem and joining upward through Item to Header, making all fields available at a single level.&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;// In schema.cds
-
-entity HeaderDetailView as select from SubItem {
-    // SubItem fields
-    subItemField1 as field1,
-    subItemField2 as field2,
-
-    // Item fields (via association)
-    item.itemField1 as field3
-    item.itemField2 as field4
-
-    // Header fields (via association)
-    item.header.headerField1 as field5,
-    item.header.headerField2 as field6,
-    item.header.ID as ID
-};&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This entity is then exposed in the service:&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;// In service.cds
-
-service AppService {
-    entity Header         as projection on db.Header;
-    entity HeaderDetailView as projection on db.HeaderDetailView;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1205492099"&gt;&lt;STRONG&gt;UI: Wiring Two Entities into One List Report&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;The UI layer uses annotations and manifest configuration to expose both entities as separate views within the same List Report.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 1: Define&lt;/STRONG&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;STRONG&gt;LineItem&lt;/STRONG&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;STRONG&gt;annotations for both views&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Detailed view:&amp;nbsp;&lt;/STRONG&gt;on HeaderDetailView:&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;//In Annotations.cds file
-
-annotate service.HeaderDetailView with @(UI: { 
-    HeaderInfo                       : {
-        TypeName      : 'Item',
-        TypeNamePlural: 'Items'
-    },
-    PresentationVarinat #DetailedView: {
-        Visualizations: [{$AnnotationPath:'HeaderDetailView/@UI.LineItem#DetailedView'}],
-        GroupBy       : [ID],
-    },
-    PresentationVarinat #NormalView  : {
-        Visualizations: [{$AnnotationPath:'Header/@UI.LineItem'}],
-    },
-    LineItem #DetailedView           : [
-        {
-            $Type            : 'UI.DataField',
-            Value            : ID,
-            ![@UI.Importance]: #High
-        },
-        {
-            $Type            : 'UI.DataField',
-            Value            : field1,
-            ![@UI.Importance]: #High
-        },
-        //add other fields in similar fashion
-    ],
-});&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Normal view&lt;/STRONG&gt;: on Header:&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;//In Annotations.cds file
-
-annotate service.Header with @(UI: { 
-    HeaderInfo                       : {
-        TypeName      : 'Item',
-        TypeNamePlural: 'Items'
-    },
-    LineItem          : [
-        {
-            $Type            : 'UI.DataField',
-            Value            : ID,
-            ![@UI.Importance]: #High
-        },
-        {
-            $Type            : 'UI.DataField',
-            Value            : field1,
-            ![@UI.Importance]: #High
-        },
-        //add other header level-fields in similar fashion
-    ],
-});&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 2: Define&lt;/STRONG&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;STRONG&gt;SelectionPresentationVariant&lt;/STRONG&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;STRONG&gt;on both entities&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This is what the List Report uses to derive the tab label and resolve the correct LineItem.&lt;/P&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;//In Annotations.cds file
-
-annotate service.HeaderDetailView with @(UI: {
-    SelectionPresentationVariant #DetailedView: {
-        $Type              : 'UI.SelectionPresentationVariantType',
-        Text               : 'Detailed View',
-        PresentationVariant: {
-            Visualizations: ['@UI.LineItem#DetailedView']
-        }
-    }
-});
-
-annotate service.Header with @(UI: { 
-    SelectionPresentationVariant #NormalView: {
-        $Type              : 'UI.SelectionPresentationVariantType',
-        Text               : 'Normal View',
-        PresentationVariant: {
-            Visualizations: ['@UI.LineItem']
-        }
-    }
-});&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 3: Configure&lt;/STRONG&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;STRONG&gt;manifest.json&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;"targets": {
-        "HeaderList": {
-          "type": "Component",
-          "id": "HeaderList",
-          "name": "sap.fe.templates.ListReport",
-          "options": {
-            "settings": {
-              "contextPath": "/HeaderDetailView",
-              "views": {
-                "paths": [
-                  {
-                    "key": "tab1",
-                    "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#DetailedView"
-                  },
-                  {
-                    "key": "tab2",
-                    "entitySet": "ObjectPageEntity",
-                    "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#NormalView"
-                  }
-                ]
-
-              },
-              
-              "enhanceI18n": "i18n/i18n.properties",
-              "variantManagement": "Page",
-              "initialLoad": "Enabled",
-              "navigation": {
-                "ObjectPageEntity": {
-                  "detail": {
-                    "route": "ObjectPageEntityRoute"
-                  }
-                }
-              },
-              "controlConfiguration": {
-                "@com.sap.vocabularies.UI.v1.SelectionPresentationVariant#DetailedView": {
-                  "tableSettings": {
-                    "type": "ResponsiveTable",
-                    "disableCopyToClipboard": true,
-                    "enablePaste": false,
-                    "personalization": {
-                      "column": true,
-                      "sort": true,
-                      "filter": true,
-                      "group": true
-                    }
-                  },
-                  "columns": {
-                  }
-                },
-                "/Header/@com.sap.vocabularies.UI.v1.SelectionPresentationVariant#NormalView": {
-                  "tableSettings": {
-                    "type": "ResponsiveTable",
-                    "disableCopyToClipboard": true,
-                    "enablePaste": false,
-                    "personalization": {
-                      "filter": true,
-                      "group":false
-                    }
-                  },
-                  "columns": {
-                 }
-           }
-        },&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This configuration enables the List Report to render multiple views backed by different entity sets.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Key points:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;contextPath&amp;nbsp;points to the flat view entity (HeaderDetailView) as the primary entity&lt;/LI&gt;&lt;LI&gt;Tab2&amp;nbsp;uses&amp;nbsp;entitySet&amp;nbsp;to point to the hierarchical entity (Header)&lt;/LI&gt;&lt;LI&gt;annotationPath must point to SelectionPresentationVariant (not LineItem), as it provides both the visualization reference and the tab label.&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1138061313"&gt;&lt;STRONG&gt;Result&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;The List Report renders a segmented button on the table toolbar, allowing users to switch between&amp;nbsp;&lt;FONT color="#000080"&gt;Detailed View&lt;/FONT&gt; and&amp;nbsp;&lt;FONT color="#000080"&gt;Normal View.&amp;nbsp;&lt;/FONT&gt;Thus, both views are available at the same List Report level, without requiring navigation.&lt;/P&gt;&lt;P&gt;&amp;gt;&amp;gt; Normal View:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (24).png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401763i330938781E6A2709/image-size/large?v=v2&amp;amp;px=999" role="button" title="image (24).png" alt="image (24).png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;gt;&amp;gt; Detailed View:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (25).png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401762iE511F2B39D1642DD/image-size/large?v=v2&amp;amp;px=999" role="button" title="image (25).png" alt="image (25).png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-941547808"&gt;&lt;STRONG&gt;Summary&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Comparison of Views:&lt;/P&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;FONT color="#000080"&gt;&lt;STRONG&gt;Detailed View&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;&lt;FONT color="#000080"&gt;&lt;STRONG&gt;Normal View&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;FONT color="#000080"&gt;Entity&lt;/FONT&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;HeaderDetailView&amp;nbsp;(flat)&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Header&amp;nbsp;(hierarchical)&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;FONT color="#000080"&gt;Structure&lt;/FONT&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Fields from all 3 levels&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;Parent-level fields only&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;FONT color="#000080"&gt;Annotation&lt;/FONT&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;UI.LineItem#DetailedView&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;UI.LineItem&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;P&gt;&lt;FONT color="#000080"&gt;Variant&lt;/FONT&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;SelectionPresentationVariant#DetailedView&lt;/P&gt;&lt;/TD&gt;&lt;TD&gt;&lt;P&gt;SelectionPresentationVariant#NormalView&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-745034303"&gt;&lt;STRONG&gt;Final takeaway&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;SAP Fiori Elements List Report supports multiple views backed by different entity sets, not just filtered variants of the same entity.&amp;nbsp;&lt;FONT color="#000080"&gt;SelectionPresentationVariant&lt;/FONT&gt; acts as the bridge between CDS annotations and manifest configuration, controlling both the tab label and the rendered content.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;When to use this approach&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;When a hierarchical model needs a flattened analytical view&lt;/LI&gt;&lt;LI&gt;When users need detailed data without navigating to Object Pages&lt;/LI&gt;&lt;LI&gt;When multiple representations of the same data are required in a single List Report&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/frontend-ui5-sap-fiori-blog-posts/sap-fiori-elements-list-report-implementing-dual-data-views-with-flat-and/ba-p/14381131"/>
-    <published>2026-04-23T11:15:16.150000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/workflow-for-journal-entries-in-public-cloud-sap/qaa-p/14381236#M4239625</id>
-    <title>Re: Workflow for journal entries in Public cloud sap</title>
-    <updated>2026-04-23T11:17:22.202000+02:00</updated>
-    <author>
-      <name>nilesh_banait1e9d4b</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2279543</uri>
-    </author>
-    <content>&lt;P&gt;Hi Fegutieri, thank you for your response. However, we are unable to find the “Agent Determination by BAdI” option in the Manage Workflows for Verify Journal Entries app, even though we have developed the BAdI, The approvers are not deriving due to Agent Determination by BAdI” in workflows steps.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="nilesh_banait1e9d4b_0-1776935886830.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401773i3E60E30F2584D297/image-size/medium?v=v2&amp;amp;px=400" role="button" title="nilesh_banait1e9d4b_0-1776935886830.png" alt="nilesh_banait1e9d4b_0-1776935886830.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/workflow-for-journal-entries-in-public-cloud-sap/qaa-p/14381236#M4239625"/>
-    <published>2026-04-23T11:17:22.202000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/mb5b-and-mb5w-data-miss-match-in-tsp/qaq-p/14381237</id>
-    <title>mb5b and MB5w data miss match in TSP</title>
-    <updated>2026-04-23T11:17:34.159000+02:00</updated>
-    <author>
-      <name>nivedita_pala3920f</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2296287</uri>
-    </author>
-    <content>&lt;P&gt;Dear SAP team,&amp;nbsp;&lt;/P&gt;&lt;P&gt;WE are extracting the data using MB5B and MB5W with inputs as company code T101 to T501.&amp;nbsp;&lt;/P&gt;&lt;P&gt;but the close value of MB5B and total value of MB5w is not matching.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Can you please guide what are the possiblity that these 2 standard report aren't matching&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;regards&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/mb5b-and-mb5w-data-miss-match-in-tsp/qaq-p/14381237"/>
-    <published>2026-04-23T11:17:34.159000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/rap-unmanaged-implementation-draft-enablement-late-numbering-and/bc-p/14381238#M178558</id>
-    <title>Re: RAP Unmanaged Implementation: Draft Enablement, Late Numbering, and Associations Explained.</title>
-    <updated>2026-04-23T11:17:52.652000+02:00</updated>
-    <author>
-      <name>hasan123</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1928123</uri>
-    </author>
-    <content>&lt;P&gt;&lt;span class="lia-unicode-emoji" title=":thumbs_up:"&gt;👍&lt;/span&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/rap-unmanaged-implementation-draft-enablement-late-numbering-and/bc-p/14381238#M178558"/>
-    <published>2026-04-23T11:17:52.652000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/odata-batch-deleting-records-across-multiple-tables-in-single-transaction/bc-p/14381240#M178559</id>
-    <title>Re: OData $batch Deleting Records Across Multiple Tables in Single Transaction</title>
-    <updated>2026-04-23T11:18:12.010000+02:00</updated>
-    <author>
-      <name>hasan123</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1928123</uri>
-    </author>
-    <content>&lt;P&gt;&lt;span class="lia-unicode-emoji" title=":thumbs_up:"&gt;👍&lt;/span&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/odata-batch-deleting-records-across-multiple-tables-in-single-transaction/bc-p/14381240#M178559"/>
-    <published>2026-04-23T11:18:12.010000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/how-to-find-a-cds-view-for-a-classic-table-in-abap-cheat-sheet/bc-p/14381243#M189922</id>
-    <title>Re: How to find a CDS view for a classic Table in ABAP? - Cheat Sheet</title>
-    <updated>2026-04-23T11:21:58.124000+02:00</updated>
-    <author>
-      <name>LBretschneider</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/14226</uri>
-    </author>
-    <content>&lt;P&gt;Link is adjusted and updated, valid until Mid July (we can only share 90 days max. through this path).&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/how-to-find-a-cds-view-for-a-classic-table-in-abap-cheat-sheet/bc-p/14381243#M189922"/>
-    <published>2026-04-23T11:21:58.124000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/artificial-intelligence-forum/week-2-building-ai-agents-with-crewai-and-generative-ai-hub/m-p/14381250#M1295</id>
-    <title>Re: Week 2 – Building AI Agents with CrewAI and Generative AI Hub</title>
-    <updated>2026-04-23T11:24:55.180000+02:00</updated>
-    <author>
-      <name>ozgu_ozsan</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1608209</uri>
-    </author>
-    <content>&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ozgu_ozsan_0-1776936287682.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401780iD09FDD7EDF7362FF/image-size/medium?v=v2&amp;amp;px=400" role="button" title="ozgu_ozsan_0-1776936287682.png" alt="ozgu_ozsan_0-1776936287682.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/artificial-intelligence-forum/week-2-building-ai-agents-with-crewai-and-generative-ai-hub/m-p/14381250#M1295"/>
-    <published>2026-04-23T11:24:55.180000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/human-capital-management-blog-posts-by-sap/1h-2026-experience-updates-in-sap-successfactors-improving-navigation-and/bc-p/14381254#M9961</id>
-    <title>Re: 1H 2026 Experience Updates in SAP SuccessFactors: Improving Navigation and Consistency</title>
-    <updated>2026-04-23T11:26:27.526000+02:00</updated>
-    <author>
-      <name>DariusSoreata</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1596737</uri>
-    </author>
-    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/55815"&gt;@Gi&lt;/a&gt;&amp;nbsp;Hi, did you manage to find a fix for this? I'm experiencing the same issue.&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/human-capital-management-blog-posts-by-sap/1h-2026-experience-updates-in-sap-successfactors-improving-navigation-and/bc-p/14381254#M9961"/>
-    <published>2026-04-23T11:26:27.526000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/preparation-to-migration-of-new-accrual-engine/ba-p/14381259</id>
-    <title>Preparation to Migration of New Accrual Engine</title>
-    <updated>2026-04-23T11:26:27.555000+02:00</updated>
-    <author>
-      <name>Zsuzsi0403</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1456488</uri>
-    </author>
-    <content>&lt;P&gt;&lt;SPAN&gt;Starting with release S/4HANA 1809, the new S/4HANA Accrual Engine becomes available. The programs for the Manual Accruals application have transitioned from the&amp;nbsp;classic&amp;nbsp;Accrual Engine to the S/4HANA Accrual Engine. As a result, you need to migrate the data and customizing settings for Manual Accruals from the&amp;nbsp;old&amp;nbsp;Accrual Engine to the S/4HANA Accrual Engine after upgrading to release S/4HANA 1809. If&amp;nbsp;you've&amp;nbsp;been using Manual Accruals before the upgrade and want to continue using them afterward, this migration is mandatory.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;(&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;A href="https://me.sap.com/notes/3701921" target="_blank" rel="noopener noreferrer"&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;SAP KBA 3701921&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;)&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The engine enables complex postings. You can define posting schemas that allow more than&amp;nbsp;two&amp;nbsp;line&amp;nbsp;items. It also allows optional review and/or approval of periodic accruals at the period end.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Migration Activities (ACEMIGIMG)&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The data model of customizing and transactional data of the (new) S/4HANA Accrual Engine has changed compared to the old Accrual Engine. Several of the old tables have been replaced by new tables.&amp;nbsp;As a consequence, both types of tables, customizing and transactional data, need to be migrated after the&amp;nbsp;upgrade&amp;nbsp;to S/4HANA 1809 or higher.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;This migration is necessary after an upgrade from:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;A ‘classic’ ERP release&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;An S/4HANA Finance (aka&amp;nbsp;sFIN) release&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;An S/4HANA release &amp;lt; 1809&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Note: The transactional data of the Accrual Engine consists of:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Accrual Objects&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Accrual Postings&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Required migration of transparent tables:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Zsuzsi0403_1-1776936120813.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401776i0CA22BE89CF13CB6/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Zsuzsi0403_1-1776936120813.png" alt="Zsuzsi0403_1-1776936120813.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Zsuzsi0403_5-1776936169332.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401779i1B3B6A732720187C/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Zsuzsi0403_5-1776936169332.png" alt="Zsuzsi0403_5-1776936169332.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Timing and Independence of Migration&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The migration of Accrual Engine transactional data can be performed after the migration of all other postings in the system (either of the migration tool from ECC to S/4HANA). This process is technically independent from the migration of other postings, such as FI or CO postings. The advantages of this separate migration include:&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;System Usability:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; The system can be used, and all kinds of postings can be performed even if the Accrual Engine has not yet been migrated. However, applications that rely on the Accrual Engine will not function until the migration is complete.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Flexible Timing:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; The migration of the Accrual Engine can be scheduled at a different time, such as on a separate weekend. This is particularly useful if the&amp;nbsp;initial&amp;nbsp;migration activities are time-consuming and adding the Accrual Engine migration would exceed the available&amp;nbsp;timeframe.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;SPAN&gt;Separate Tool:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; Technically, the migration of Accrual Engine transactional data uses a separate tool compared to the migration of other postings. It employs the mass data processing cockpit, which is an SAP standard tool for handling mass data processing.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Migration of Accrual Engine Data for Customers Upgrading to S/4HANA 1809&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Customers upgrading from S/4HANA releases earlier than 1809 or from S/4HANA Finance to release 1809 are&amp;nbsp;required&amp;nbsp;to migrate the Accrual Engine data for Manual Accruals. Although these customers have already completed the conversion to S/4HANA, they may not typically revisit the IMG folder&amp;nbsp;labeled&amp;nbsp;"Conversion of Accounting to SAP S/4HANA."&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Error Message Notification&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;To ensure that such customers are aware of the need to migrate the Accrual Engine, an error message will be triggered by the system whenever the old Accrual Engine is used for Manual Accruals&amp;nbsp;(ACE_S4001).&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Zsuzsi0403_3-1776936120818.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401775i37E20AFCEB72E154/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Zsuzsi0403_3-1776936120818.png" alt="Zsuzsi0403_3-1776936120818.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Zsuzsi0403_4-1776936120819.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401778i1A628B0DC29C4D4F/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Zsuzsi0403_4-1776936120819.png" alt="Zsuzsi0403_4-1776936120819.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/preparation-to-migration-of-new-accrual-engine/ba-p/14381259"/>
-    <published>2026-04-23T11:26:27.555000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/welcome-corner-blog-posts/hierarchical-value-help-in-sap-fiori-elements-beyond-flat-value-help/bc-p/14381258#M37587</id>
-    <title>Re: Hierarchical Value Help in SAP Fiori Elements – Beyond Flat Value Help</title>
-    <updated>2026-04-23T11:26:32.816000+02:00</updated>
-    <author>
-      <name>Reserve</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2289767</uri>
-    </author>
-    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1585930"&gt;@LiyaAjayan&lt;/a&gt;&amp;nbsp;would it be possible to implement this using custom entity assuming you want to expose the value help and use as code list cds in custom field?&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/welcome-corner-blog-posts/hierarchical-value-help-in-sap-fiori-elements-beyond-flat-value-help/bc-p/14381258#M37587"/>
-    <published>2026-04-23T11:26:32.816000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/artificial-intelligence-forum/week-3-use-ai-agents-with-grounding-tools/m-p/14381261#M1296</id>
-    <title>Re: Week 3 - Use AI Agents with Grounding Tools</title>
-    <updated>2026-04-23T11:27:36.228000+02:00</updated>
-    <author>
-      <name>ozgu_ozsan</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1608209</uri>
-    </author>
-    <content>&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="ozgu_ozsan_0-1776936450404.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401786iBD7F0B4DF9AEC619/image-size/medium?v=v2&amp;amp;px=400" role="button" title="ozgu_ozsan_0-1776936450404.png" alt="ozgu_ozsan_0-1776936450404.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/artificial-intelligence-forum/week-3-use-ai-agents-with-grounding-tools/m-p/14381261#M1296"/>
-    <published>2026-04-23T11:27:36.228000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/introducing-application-vulnerability-report-for-cloudfoundry-applications/bc-p/14381262#M189923</id>
-    <title>Re: Introducing Application Vulnerability Report for Cloudfoundry Applications – Try It Now!</title>
-    <updated>2026-04-23T11:29:13.908000+02:00</updated>
-    <author>
-      <name>Michael-G</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/212024</uri>
-    </author>
-    <content>&lt;P&gt;this looks promising, also currently released UI. Are there any details / security infos about the security layer and the scanning process regarding data privacy etc.?&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/introducing-application-vulnerability-report-for-cloudfoundry-applications/bc-p/14381262#M189923"/>
-    <published>2026-04-23T11:29:13.908000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/supply-chain-management-q-a/planning-with-mode-coupling-mode-linkage-in-discrte-industry/qaq-p/14381263</id>
-    <title>Planning with mode coupling(mode linkage) in discrte industry</title>
-    <updated>2026-04-23T11:30:05.995000+02:00</updated>
-    <author>
-      <name>yob0319</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1777463</uri>
-    </author>
-    <content>&lt;P&gt;Dear ePP/DS Gurus,&lt;/P&gt;&lt;P&gt;My business scenario for planning an scheduling is as follows.&lt;/P&gt;&lt;P&gt;Material X has 3 operations(Activitity P), for example 10, 20, 30, and each operation has alternative modes in PDS.&lt;/P&gt;&lt;P&gt;Operation(Activity P) : 10, Alternative Modes : AA1(Mode No 1), AA2(Mode No 2), AA3(Mode No 3)&lt;BR /&gt;Operation(Activity P) : 20, Alternative Modes : BB1(Mode No 1), BB2(Mode No 2)&lt;BR /&gt;Operation(Activity P) : 30, Alternative Modes : CC1(Mode No 1), CC2(Mode No 2), CC3(Mode No 3)&lt;BR /&gt;(Mode Linkage Type : Resource-Independent)&lt;/P&gt;&lt;P&gt;When it comes to scheduling, the relationships between Activities in my scenario are as follows.&lt;/P&gt;&lt;P&gt;AA1 or AA2 -&amp;gt; BB1 -&amp;gt; CC1 or CC2&lt;BR /&gt;AA3&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;-&amp;gt; BB2 -&amp;gt; CC3&lt;/P&gt;&lt;P&gt;I tried to use Resource Network for modeling the relationships but&amp;nbsp;&lt;SPAN&gt;an error message,&amp;nbsp;"Order could&amp;nbsp; ot be scheduled", is raised after executing SAP_PP_001 in Product View, which is the same symptoms in Note&amp;nbsp;3496388.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;So I changed Mode No for each Mode with BAdi as follows.&lt;BR /&gt;Mode&amp;nbsp; &amp;nbsp; &amp;nbsp; Mode No&lt;BR /&gt;AA1&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; 1&lt;BR /&gt;AA2&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; 1&lt;BR /&gt;AA3&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; 2&lt;BR /&gt;BB1&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; 1&lt;BR /&gt;BB2&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; 2&lt;BR /&gt;CC1&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; 1&lt;BR /&gt;CC2&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; 1&lt;BR /&gt;CC3&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; 2&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;After changing Mode No, still left Material assigned with Resource Network, I executed Heuristic again. In this time, another error message is raised saying "Attempt was made to create two modes with the same number for a segment"&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;And found Note 1625010, 1625007, but these are not related with my scenario which is about MRP-based Detailed Schedulig.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Please guide me to reslove the problem and let me know how to configure for my scenario.&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Thanks in advance for your cooperation.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Best Regards,&lt;BR /&gt;Sean Lee&lt;/SPAN&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/supply-chain-management-q-a/planning-with-mode-coupling-mode-linkage-in-discrte-industry/qaq-p/14381263"/>
-    <published>2026-04-23T11:30:05.995000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/sap-ui5-issue-calling-deep-entity-of-json-sap-ui5-v2-odata-standard-api/qaa-p/14381264#M4940925</id>
-    <title>Re: SAP UI5: ISSUE : Calling Deep Entity of JSON - SAP UI...</title>
-    <updated>2026-04-23T11:34:03.059000+02:00</updated>
-    <author>
-      <name>Akash0924</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2111748</uri>
-    </author>
-    <content>&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Akash0924_0-1776938187951.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401796i91D21F30D1DF105D/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Akash0924_0-1776938187951.png" alt="Akash0924_0-1776938187951.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/sap-ui5-issue-calling-deep-entity-of-json-sap-ui5-v2-odata-standard-api/qaa-p/14381264#M4940925"/>
-    <published>2026-04-23T11:34:03.059000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/ewm-pack-specification-how-to-find-the-table-link-between-internal-node/qaq-p/14381265</id>
-    <title>EWM Pack Specification: How to find the table/link between internal node GUID and Pack Spec ID?</title>
-    <updated>2026-04-23T11:34:24.010000+02:00</updated>
-    <author>
-      <name>Vedant_Chaudhari</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2092968</uri>
-    </author>
-    <content>&lt;P&gt;Hi experts,&lt;/P&gt;&lt;P&gt;I am working with &lt;STRONG&gt;EWM Packaging Specifications&lt;/STRONG&gt; in transaction &lt;STRONG&gt;&lt;CODE&gt;/SCWM/PACKSPEC&lt;/CODE&gt;&lt;/STRONG&gt; and I am trying to understand how the &lt;STRONG&gt;internal technical identifier &lt;/STRONG&gt;stored in the below tables is related to the &lt;STRONG&gt;displayed Pack Spec ID o&lt;/STRONG&gt;n the screen of /SCWM/PACKSPEC.&lt;/P&gt;&lt;P&gt;Tables:&lt;/P&gt;&lt;P&gt;Header- /SCWM/S_PS_DL_HEADER&lt;BR /&gt;Content - /SCWM/S_PS_DL_CONTENT&lt;BR /&gt;Level - /SCWM/S_PS_DL_LEVEL&lt;BR /&gt;Level Element - /SCWM/S_PS_DL_LEVEL_ELEMENT&lt;/P&gt;&lt;P&gt;Basically, it is getting difficult to identify the Pack Specification created in /SCWM/PACKSPEC. When you open the tables to see the data, the Pack Spec ID is not stored in the tables, instead a GUID (Internal Node Number) is stored. So wanted to find a way which can give me a relation between them.&lt;/P&gt;&lt;P&gt;What I found so far:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The field &lt;STRONG&gt;&lt;CODE&gt;PS_ID&lt;/CODE&gt;&lt;/STRONG&gt; is shown in structure &lt;STRONG&gt;&lt;CODE&gt;/SCWM/S_PS_HEADER_INT&lt;/CODE&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;Data element is &lt;STRONG&gt;&lt;CODE&gt;/SCWM/DE_PSID&lt;/CODE&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;So this looks like a structure field, not a direct database table field&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;My doubt is:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Is there any standard SAP table that gives the relation between:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;the &lt;STRONG&gt;internal node/header GUID&lt;/STRONG&gt; (technical number, for example from pack spec tables), and&lt;/LI&gt;&lt;LI&gt;the &lt;STRONG&gt;normal Pack Spec ID (&lt;CODE&gt;PS_ID&lt;/CODE&gt;)&lt;/STRONG&gt; shown in &lt;CODE&gt;/SCWM/PACKSPEC&lt;/CODE&gt;?&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;I am specifically looking for a table or standard object that can help convert/map:&lt;BR /&gt;&lt;STRONG&gt;internal GUID / node number → Pack Spec ID&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;If anyone knows:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;the exact table name,&lt;/LI&gt;&lt;LI&gt;a CDS/view,&lt;/LI&gt;&lt;LI&gt;or the standard relationship between these objects,&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;that would really help.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thank You&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/ewm-pack-specification-how-to-find-the-table-link-between-internal-node/qaq-p/14381265"/>
-    <published>2026-04-23T11:34:24.010000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/joule-studio-why-is-build-default-required-if-standard-plan-exists/qaa-p/14381266#M4940926</id>
-    <title>Re: Joule Studio: Why is build_default required if standard plan exists?</title>
-    <updated>2026-04-23T11:34:30.483000+02:00</updated>
-    <author>
-      <name>cherry_li</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/253379</uri>
-    </author>
-    <content>BTP entitlements are additive at the subaccount level. Assigning “build_default” does not remove or downgrade “standard,” and it will not affect running workflows, RPA bots, monitoring, or other capabilities already enabled by the “standard” plan. Best practice is to keep your “standard” entitlement for productive use and, if the activation requires it, add “build_default” to satisfy the Joule Studio checks.</content>
-    <link href="https://community.sap.com/t5/technology-q-a/joule-studio-why-is-build-default-required-if-standard-plan-exists/qaa-p/14381266#M4940926"/>
-    <published>2026-04-23T11:34:30.483000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/custom-validation-not-working-for-create-incoming-invoices-app/qaa-p/14381267#M4239628</id>
     <title>Re: Custom Validation not working for create incoming inv...</title>
@@ -1376,6 +1035,30 @@ if (isSwitchOn) {
     <published>2026-04-23T14:28:57.459000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/technology-q-a/iflows-extract-access-token-in-flow/qaq-p/14381419</id>
+    <title>iFlows - Extract access token in Flow</title>
+    <updated>2026-04-23T14:32:05.209000+02:00</updated>
+    <author>
+      <name>VeronikaSch</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/64029</uri>
+    </author>
+    <content>&lt;P&gt;dear support,&lt;/P&gt;&lt;P&gt;I have an iFlow which has a groovy script.&lt;/P&gt;&lt;P&gt;the flow calls sth from SFSF, then handles the data in the groovy script.&lt;/P&gt;&lt;P&gt;in this script, we need to fetch further data via odata call.&lt;/P&gt;&lt;P&gt;is there ANY possibility to extract the access_token for further usage inside the script?&lt;/P&gt;&lt;P&gt;---&lt;/P&gt;&lt;P&gt;connection.setRequestProperty("Authorization", "Bearer ${access_token}")&lt;/P&gt;&lt;P&gt;connection.connect()&lt;/P&gt;&lt;P&gt;---&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/iflows-extract-access-token-in-flow/qaq-p/14381419"/>
+    <published>2026-04-23T14:32:05.209000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/sac-scoping-the-date-dimension-using-source-version-and-target-version/qaq-p/14381420</id>
+    <title>SAC: Scoping the date dimension using source version and target version property</title>
+    <updated>2026-04-23T14:33:14.869000+02:00</updated>
+    <author>
+      <name>Shailesh_mishra-983</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2278593</uri>
+    </author>
+    <content>&lt;P&gt;Hi all,&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;Background:&lt;/STRONG&gt;&lt;/U&gt; M creating a data action to &lt;STRONG&gt;copy data from a source version to a target version&lt;/STRONG&gt; (both are members of version dimension having different start date and end date properties). I need to &lt;STRONG&gt;use advanced formula&lt;/STRONG&gt; because there are multiple conditions which are achieved. However, the performance of the data action is slow due to not scoping date dimension.&lt;BR /&gt;&lt;BR /&gt;&lt;U&gt;&lt;STRONG&gt;Issue:&lt;/STRONG&gt;&lt;/U&gt; I need help to restrict the date dimension in the config part itself such that, the dates between the &lt;STRONG&gt;start date of the source version&lt;/STRONG&gt; and&amp;nbsp;&lt;STRONG&gt;end date of the target version&amp;nbsp;&lt;/STRONG&gt;are only processed further.&lt;BR /&gt;&lt;BR /&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Analytics+Cloud/pd-p/67838200100800006884" class="lia-product-mention" data-product="3-1"&gt;SAP Analytics Cloud&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/sac-scoping-the-date-dimension-using-source-version-and-target-version/qaq-p/14381420"/>
+    <published>2026-04-23T14:33:14.869000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/financial-management-q-a/scope-items-for-contract-and-lease-management-in-public-cloud/qaa-p/14381421#M258983</id>
     <title>Re: Scope items for Contract and Lease Management in Publ...</title>
     <updated>2026-04-23T14:33:58.965000+02:00</updated>
@@ -1424,6 +1107,18 @@ if (isSwitchOn) {
     <published>2026-04-23T14:38:58.644000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/technology-q-a/invoice-split-issue/qaa-p/14381432#M4940947</id>
+    <title>Re: Invoice Split Issue</title>
+    <updated>2026-04-23T14:40:27.758000+02:00</updated>
+    <author>
+      <name>jochen_weyandt</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/410591</uri>
+    </author>
+    <content>It looks like one item has no tax reporting country / tax determination country (maybe item without pricing) how to avoid split in this case?</content>
+    <link href="https://community.sap.com/t5/technology-q-a/invoice-split-issue/qaa-p/14381432#M4940947"/>
+    <published>2026-04-23T14:40:27.758000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/human-capital-management-q-a/continuous-feedback-details-delete-button/qaa-p/14381433#M51845</id>
     <title>Re: Continuous Feedback Details Delete Button</title>
     <updated>2026-04-23T14:40:39.359000+02:00</updated>
@@ -1446,5 +1141,161 @@ if (isSwitchOn) {
     <content>&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;FONT color="#000000"&gt;Sorry your post is not clear to understand. Please answer the following:&lt;/FONT&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;FONT color="#000000"&gt;Do you want a technical mapping of ECC vendor fields to S/4HANA BP fields?&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT color="#000000"&gt;Are you asking for a report/tool that compares field status settings between ECC and S/4HANA?&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT color="#000000"&gt;Is the focus on mandatory/optional/suppressed fields in master data maintenance?&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT color="#000000"&gt;Do you want this comparison for migration purposes (to check what fields will be lost/changed)?&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT color="#000000"&gt;Should the report cover all vendor fields or only those relevant for finance (like reconciliation account, payment terms)?&lt;/FONT&gt;&lt;/LI&gt;&lt;/OL&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/sap-report-for-field-status-comparison-between-ecc-and-s4-hana-for-vendor/qaa-p/14381434#M4239657"/>
     <published>2026-04-23T14:41:00.126000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-q-a/creating-a-derived-wage-type-based-on-base-salary-and-absence-factoring/qaq-p/14381435</id>
+    <title>Creating a derived wage type based on base salary and absence factoring (International Payroll</title>
+    <updated>2026-04-23T14:41:19.368000+02:00</updated>
+    <author>
+      <name>salimo</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1704498</uri>
+    </author>
+    <content>&lt;P&gt;Hello SAP Experts,&lt;/P&gt;&lt;P&gt;I am working on &lt;STRONG&gt;SAP S/4HANA Payroll (International)&lt;/STRONG&gt; and I need your guidance to design a new wage type.&lt;/P&gt;&lt;H3 id="toc-hId-1924118220"&gt;&lt;span class="lia-unicode-emoji" title=":direct_hit:"&gt;🎯&lt;/span&gt; Requirement:&lt;/H3&gt;&lt;P&gt;I want to create a &lt;STRONG&gt;derived wage type (e.g., 9991)&lt;/STRONG&gt; calculated as a percentage of the employee’s base salary.&lt;/P&gt;&lt;H3 id="toc-hId-1727604715"&gt;✔ Business Scenario:&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;Base Salary = 1000 (example)&lt;/LI&gt;&lt;LI&gt;If there is no absence:&lt;BR /&gt;→ WT = Base Salary × 20%&lt;/LI&gt;&lt;LI&gt;If there is absence:&lt;BR /&gt;→ Adjusted Base Salary = Base Salary – Absence impact&lt;BR /&gt;→ WT = Adjusted Base Salary × 20%&lt;/LI&gt;&lt;/UL&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-q-a/creating-a-derived-wage-type-based-on-base-salary-and-absence-factoring/qaq-p/14381435"/>
+    <published>2026-04-23T14:41:19.368000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/recipientbusinesssystemid-under-interface-conf-out/qaq-p/14381437</id>
+    <title>RecipientBusinessSystemID under Interface CONF_OUT</title>
+    <updated>2026-04-23T14:43:14.177000+02:00</updated>
+    <author>
+      <name>Hyrum_Agudo</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2296801</uri>
+    </author>
+    <content>&lt;P&gt;Hello!&lt;/P&gt;&lt;P&gt;In XML structure for Sales Order Acknowledgement with Interface CONF_OUT, how can I modify the RecipientBusinessSystemID of the data structure?&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Hyrum_Agudo_1-1776947944422.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401844iE12441D82C491691/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Hyrum_Agudo_1-1776947944422.png" alt="Hyrum_Agudo_1-1776947944422.png" /&gt;&lt;/span&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Hyrum_Agudo_3-1776948002384.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401848i478BC919A5E6E6EE/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Hyrum_Agudo_3-1776948002384.png" alt="Hyrum_Agudo_3-1776948002384.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/recipientbusinesssystemid-under-interface-conf-out/qaq-p/14381437"/>
+    <published>2026-04-23T14:43:14.177000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/issue-in-creating-ses-with-multiple-subline-items-due-to-decimal-quantity/qaq-p/14381438</id>
+    <title>Issue in Creating SES with Multiple Subline Items Due to Decimal Quantity Limitation</title>
+    <updated>2026-04-23T14:44:03.712000+02:00</updated>
+    <author>
+      <name>SAPSupport</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/121003</uri>
+    </author>
+    <content>&lt;P&gt;Dear Team,&lt;/P&gt;&lt;P&gt;We are facing an issue while creating the Service Entry Sheet (SES) for a Purchase Order that was migrated from ECC to Grow.The PO contains multiple subline items (approximately 1,000 lines). During SES creation, users are unable to enter the &lt;STRONG&gt;exact service quantities&lt;/STRONG&gt;, as the system restricts quantity values to&amp;nbsp;&lt;STRONG&gt;only three decimal places (e.g., 0.123)&lt;/STRONG&gt;. Due to this SAP system limitation, a&amp;nbsp;&lt;STRONG&gt;shortfall in the total amount&lt;/STRONG&gt;&amp;nbsp;is occurring when compared to the PO value at the time of SES posting.Because of this discrepancy, users are unable to complete the SES with the precise quantity and value reflected in the PO.Could you please advise on the&amp;nbsp;&lt;STRONG&gt;recommended approach to proceed with a trial or interim SES entry&lt;/STRONG&gt;&amp;nbsp;in such scenarios? Specifically, guidance would be appreciated on:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;How to handle the quantity rounding differences&lt;/LI&gt;&lt;LI&gt;Whether an adjustment line or alternative process is recommended&lt;/LI&gt;&lt;LI&gt;Any best practices or SAP-supported workaround for SES creation with high-volume subline items&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Your support and suggestions on how to proceed in such cases would be greatly appreciated.Thank you for your assistance.&lt;/P&gt;&lt;P&gt;Additionally, could you please confirm&amp;nbsp;&lt;STRONG&gt;whether there is any possibility to import SES service line items via a file (e.g., Excel/upload template or mass upload option)&lt;/STRONG&gt;&amp;nbsp;instead of manual entry, especially for POs with a high number of service subline items?&lt;/P&gt;&lt;P&gt;Regards,&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;BR /&gt;------------------------------------------------------------------------------------------------------------------------------------------------&lt;BR /&gt;&lt;B&gt;Learn more about the SAP Support user and program &lt;A target="_blank" href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/maximizing-the-power-of-sap-community-at-product-support/ba-p/13501276"&gt;here&lt;/A&gt;.&lt;/B&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/issue-in-creating-ses-with-multiple-subline-items-due-to-decimal-quantity/qaq-p/14381438"/>
+    <published>2026-04-23T14:44:03.712000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/issue-in-creating-ses-with-multiple-subline-items-due-to-decimal-quantity/qaa-p/14381439#M4239660</id>
+    <title>Re: Issue in Creating SES with Multiple Subline Items Due...</title>
+    <updated>2026-04-23T14:44:11.803000+02:00</updated>
+    <author>
+      <name>SAPSupport</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/121003</uri>
+    </author>
+    <content>&lt;P&gt;Dear Customer,&lt;/P&gt;&lt;P&gt;Thank you for the detailed explanation and for outlining the challenges so clearly — I understand how this situation, especially with a high number of service lines, can impact your SES processing.&lt;/P&gt;&lt;P&gt;Please find below our guidance:&lt;/P&gt;&lt;HR /&gt;&lt;P&gt;&lt;STRONG&gt;1. Decimal Limitation (System Behavior)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In SAP S/4HANA Cloud, quantities are maintained with a &lt;STRONG&gt;maximum of 3 decimal places&lt;/STRONG&gt; as part of the standard system design.&lt;/P&gt;&lt;P&gt;Because of this limitation, it is expected that &lt;STRONG&gt;minor rounding differences&lt;/STRONG&gt; may occur between the Purchase Order and the Service Entry Sheet values when higher precision quantities are involved. At present, this precision cannot be extended.&lt;/P&gt;&lt;HR /&gt;&lt;P&gt;&lt;STRONG&gt;2. Handling the Rounding Difference&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;To manage this discrepancy, the following approach is recommended:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Adjustment Line in SES (Recommended)&lt;/STRONG&gt;&lt;BR /&gt;You can add an additional line item in the SES to &lt;STRONG&gt;adjust the small difference in value&lt;/STRONG&gt; caused by rounding. This is the most practical and commonly followed approach in such scenarios.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Distributing the Difference&lt;/STRONG&gt;&lt;BR /&gt;Alternatively, small adjustments can be spread across multiple lines, though this may be less convenient given the volume of items.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Final SES Balancing&lt;/STRONG&gt;&lt;BR /&gt;Any remaining minor variance can also be handled in the final SES to ensure alignment with the PO value.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;P&gt;&lt;STRONG&gt;3. Handling Large Number of Service Lines&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;We understand that managing ~1000 sublines can be time-consuming. While the system supports it, such volume can make processing more complex.&lt;/P&gt;&lt;P&gt;For future cases, where possible, you may consider:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Grouping or consolidating service lines&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Reducing excessive granularity in the PO structure&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;P&gt;&lt;STRONG&gt;4. Mass Upload / Excel Import Option&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Regarding your question on uploading SES via file:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;The transaction &lt;STRONG&gt;ML87&lt;/STRONG&gt; and program &lt;STRONG&gt;MM_PUR_SES_UPLOAD&lt;/STRONG&gt; are &lt;STRONG&gt;not available in SAP S/4HANA Cloud&lt;/STRONG&gt;, as they belong to legacy/on-premise functionality.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;A href="https://me.sap.com/notes/3383958/E" target="_blank" rel="noopener noreferrer"&gt;https://me.sap.com/notes/3383958/E&lt;/A&gt;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Best regards,&lt;BR /&gt;Aishwarya&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/issue-in-creating-ses-with-multiple-subline-items-due-to-decimal-quantity/qaa-p/14381439#M4239660"/>
+    <published>2026-04-23T14:44:11.803000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/supply-chain-management-blog-posts-by-sap/mastering-test-management-amp-automation-for-sap-digital-manufacturing/ba-p/14381441</id>
+    <title>Mastering Test Management &amp; Automation for SAP Digital Manufacturing: Webinar series with concircle</title>
+    <updated>2026-04-23T14:45:57.848000+02:00</updated>
+    <author>
+      <name>AnastasiaZvonov</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1636312</uri>
+    </author>
+    <content>&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Test Management &amp;amp; Test Automation for SAP DM.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401850i9AC259CAB6D3EC18/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Test Management &amp;amp; Test Automation for SAP DM.png" alt="Test Management &amp;amp; Test Automation for SAP DM.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;SPAN&gt;As SAP Digital Manufacturing landscapes continue to evolve, organizations are unlocking new levels of innovation, scalability, and integration across their operations.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;At the same time, this evolution brings new requirements for &lt;STRONG&gt;how testing is approached&lt;/STRONG&gt;:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Frequent releases bring continuous innovation&lt;/STRONG&gt;&lt;BR /&gt;Regular updates create opportunities to deliver value faster, while requiring structured regression testing to ensure consistency and reliability.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Manufacturing processes are business-critical&lt;/STRONG&gt;&lt;BR /&gt;Ensuring quality and stability across shop floor operations remains a top priority.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;System landscapes are becoming more interconnected&lt;/STRONG&gt;&lt;BR /&gt;Integrations, custom extensions, and multi-plant environments call for a more structured and scalable testing approach.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Manual testing does not scale&lt;/STRONG&gt;&lt;BR /&gt;Organizations are increasingly moving from manual execution towards more efficient, automated, and transparent testing practices.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;End-to-end visibility becomes more and more important&lt;/STRONG&gt;&lt;BR /&gt;Connecting processes, risks, and test cases helps teams make better, more informed testing decisions.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;As a result, many organizations are now focusing on how to&amp;nbsp;&lt;STRONG&gt;scale their testing capabilities while maintaining reliability and supporting continuous innovation.&lt;BR /&gt;&lt;BR /&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1795035528"&gt;&lt;SPAN&gt;&lt;STRONG&gt;What you will learn&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;In this webinar series, we will walk you through a structured approach to &lt;STRONG&gt;test management and automation for SAP Digital Manufacturing&lt;/STRONG&gt;, from foundation to advanced practices:&lt;/P&gt;&lt;H3 id="toc-hId-1727604742"&gt;&lt;SPAN&gt;&lt;STRONG&gt;Session 1 – Test Management in SAP Cloud ALM for SAP Digital Manufacturing&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Tuesday, April 28, 2026&lt;/STRONG&gt;&lt;BR /&gt;9:00 AM – 10:00 AM EDT&lt;BR /&gt;3:00 PM - 4:00 PM CEST&lt;/P&gt;&lt;P&gt;Get an overview of Test Management in SAP Cloud ALM for SAP Digital Manufacturing, from building a strong testing foundation to enabling scalable automation. Gain real-world insights from partner concircle on risk-driven, process-based testing.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1531091237"&gt;&lt;SPAN&gt;&lt;STRONG&gt;Session 2 – Integration &amp;amp; Automation with SAP Test Automation by Tricentis&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Thursday, April 30, 2026&lt;/STRONG&gt;&lt;BR /&gt;9:00 AM – 10:00 AM EDT&lt;BR /&gt;3:00 PM - 4:00 PM CEST&lt;/P&gt;&lt;P&gt;Explore the integration of SAP Cloud ALM and SAP Test Automation by Tricentis for SAP Digital Manufacturing. This session also includes practical guidance from partner concircle on getting started with test automation and key prerequisites for success.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1334577732"&gt;&lt;SPAN&gt;&lt;STRONG&gt;Session 3 – End-to-End Test Automation for SAP Digital Manufacturing&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Tuesday, May 5, 2026&lt;/STRONG&gt;&lt;BR /&gt;9:00 AM – 10:00 AM EDT&lt;BR /&gt;3:00 PM - 4:00 PM CEST&lt;/P&gt;&lt;P&gt;Gain insights into an end-to-end test automation approach for SAP Digital Manufacturing with partner concircle — combining process, risk, and execution. Learn how to reduce test effort, improve quality, manage quarterly releases, and generate automated test cases using Tosca (TTA/ECT).&lt;/P&gt;&lt;H3 id="toc-hId-1138064227"&gt;&lt;SPAN&gt;&lt;STRONG&gt;Session 4 – Advanced Test Automation Engineering for SAP Digital Manufacturing&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Thursday, May 7, 2026&lt;/STRONG&gt;&lt;BR /&gt;9:00 AM – 10:00 AM EDT&lt;BR /&gt;3:00 PM - 4:00 PM CEST&lt;/P&gt;&lt;P&gt;Deep dive into advanced test automation engineering for SAP Digital Manufacturing, focusing on scalable, maintainable, and robust automation approaches. Learn how to structure automation using reusable components and clear architectures, and apply best practices for configuration handling, execution stability, test data management, and scaling with Tosca Cloud.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;H2 id="toc-hId-812468003"&gt;&lt;SPAN&gt;&lt;STRONG&gt;Join us&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;Whether you are just starting with test management or already exploring automation, this series is designed to support you at different stages of your journey&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":backhand_index_pointing_right:"&gt;👉&lt;/span&gt; &lt;A href="https://event.on24.com/wcc/r/5279831/A628590BB0256C5D2A4F0B36EE8B1EC8/6672525" target="_self" rel="nofollow noopener noreferrer"&gt;&lt;STRONG&gt;Register now and secure your spot.&lt;/STRONG&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;We look forward to having you join us!&lt;/P&gt;&lt;H2 id="toc-hId-615954498"&gt;&amp;nbsp;&lt;/H2&gt;&lt;H2 id="toc-hId-810864101" id="toc-hId-419440993"&gt;&lt;SPAN&gt;Feedback or questions?&amp;nbsp;&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;We continuously evolve our enablement offerings based on feedback from customers and partners.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;If you have questions, are looking for specific resources, or would like to suggest topics for future webcasts, feel free to reach out to us at:&amp;nbsp;&lt;/SPAN&gt;&lt;A href="mailto:engage-manufacturing@sap.com" target="_blank" rel="noopener nofollow noreferrer"&gt;engage-manufacturing@sap.com&lt;/A&gt;&lt;SPAN&gt;.&amp;nbsp; We’d be happy t&lt;/SPAN&gt;&lt;SPAN&gt;o hear your thoughts and continuously improve our content based on your input.&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/supply-chain-management-blog-posts-by-sap/mastering-test-management-amp-automation-for-sap-digital-manufacturing/ba-p/14381441"/>
+    <published>2026-04-23T14:45:57.848000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-blog-posts-by-sap/introducing-powerful-innovations-for-system-administrators-in-our-h1-2026/ba-p/14381442</id>
+    <title>Introducing Powerful Innovations for System Administrators in Our H1 2026 Release</title>
+    <updated>2026-04-23T14:46:02.200000+02:00</updated>
+    <author>
+      <name>npurohit</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/16686</uri>
+    </author>
+    <content>&lt;P&gt;At SAP, we deeply appreciate the critical role system administrators and HR IT teams play in keeping HR operations resilient, compliant, and continuously improving. With our H1 2026 release, we’re investing in capabilities that make your work faster, safer, and easier—so you can focus on delivering value. This release advances integration, extensibility, and compliance with three standout highlights.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Embedded Extensibility Wizard: Build the Right Extensions, Faster&lt;BR /&gt;&lt;/STRONG&gt;We’re bringing the SAP Business Technology Platform (SAP BTP) extensibility wizard directly into SAP SuccessFactors solutions. This guided, in-app experience walks you through creating custom extensions—whether that’s a new data field, a People Profile tile for custom or external data, or an end-to-end business process—and ensures they’re seamlessly integrated with your SAP SuccessFactors landscape. Specifically, you can extend the People Profile, Spotlight, or Home Page by creating new tiles (UI cards) that surface organization-specific data from SuccessFactors or embed SAP BTP extensions, so users see all the context they need in one place.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;What it means for you: &lt;SPAN&gt;Extend the People Profile with new tiles to surface unique HR or external data and accelerate delivery while aligning HR processes to your unique requirements.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;Why it matters: &lt;SPAN&gt;Bring custom and external data into People Profile in a standardized, governed way—reducing complexity and manual effort and boosting productivity across HR and IT teams. &lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;Real-world impact: &lt;SPAN&gt;Give HR, managers, and employees a richer, holistic view in People Profile while streamlining operations with extensions that fit your business today and scale with you tomorrow.&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;New API for the SAP Audit Log Service: Strengthen Compliance and Risk Management&lt;BR /&gt;&lt;/STRONG&gt;SAP SuccessFactors HCM already exposes audit data to the SAP Audit Log service. With this release, we’re introducing a new API that programmatically surfaces read audit, change audit, and general audit data.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;What it means for you: Access audit logs via the new interface or continue to use the SAP Audit Log Viewer UI—whichever fits your workflow.&lt;/LI&gt;&lt;LI&gt;Why it matters: Integrate SAP SuccessFactors audit logs with your internal GRC or SIEM systems to enhance monitoring, automate evidence collection, and speed audit responses.&lt;/LI&gt;&lt;LI&gt;Real-world impact: Improve compliance oversight, reduce manual effort and costs, and increase operational efficiency with direct, secure access to the data you need.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;New AI Agents for Permissions and Transport: Revolutionize Your System Administration&lt;/STRONG&gt;&lt;BR /&gt;As part of our SAP-wide AI innovation program, we’re introducing two AI-powered agents (availability planned for June) to help streamline system administration tasks. We picked two of the most critical and time-consuming activities.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Configuration Transport Agent: Quickly finds configurations, automatically bundles recent changes, and exports transport bundles to simplify and de-risk rollouts across your landscape. This helps reduce errors in a critical process and supports stronger business continuity.&lt;/LI&gt;&lt;LI&gt;Role-Based Permissions Agent: Accelerates troubleshooting by diagnosing permission configuration issues and recommending actionable fixes with impact analysis. This can reduce resolution times from hours to minutes—without requiring specialized tools or deep-dive expertise.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Together, these H1 2026 enhancements represent a significant step forward in administrative efficiency and AI-powered assistance. The combination of streamlined extensibility, enhanced audit capabilities, and intelligent agents positions your organization for more agile, secure, and efficient HR operations.&lt;/P&gt;&lt;P&gt;The focus on reducing administrative overhead while improving security and compliance capabilities means you can spend more time on strategic initiatives and less time on routine maintenance tasks.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Get Started and Learn More&lt;/STRONG&gt;&lt;BR /&gt;To dive deeper into these and other enhancements, visit the &lt;SPAN&gt;&lt;A href="https://pages.community.sap.com/topics/successfactors/product-release-road-map" target="_blank" rel="noopener noreferrer"&gt;Product Release &amp;amp; Road Map page&lt;/A&gt;&lt;/SPAN&gt; in the SAP SuccessFactors Community. For an overview of the release, check out the release highlights brochure and videos. For details, go to the What’s New Viewer. We can’t wait for you to experience how these updates streamline your day-to-day work and strengthen your HR foundation for the long term.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-blog-posts-by-sap/introducing-powerful-innovations-for-system-administrators-in-our-h1-2026/ba-p/14381442"/>
+    <published>2026-04-23T14:46:02.200000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/business-partner-sap-s-4hana-cloud-public-edition-fit-to-standard-workshops/ba-p/14381231</id>
+    <title>Business Partner @ SAP S/4HANA Cloud Public Edition - Fit-to-Standard Workshops</title>
+    <updated>2026-04-23T14:48:13.386000+02:00</updated>
+    <author>
+      <name>Andi_M</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/181182</uri>
+    </author>
+    <content>&lt;H1 id="toc-hId-1665950856"&gt;Introduction&lt;/H1&gt;&lt;P&gt;&lt;BR /&gt;This blog is part of my small blog series &lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/business-partner-sap-s-4hana-cloud-public-amp-private-edition/ba-p/14357674" target="_blank"&gt;Business Partner @ SAP S/4HANA Cloud Public Edition&lt;/A&gt;.&lt;BR /&gt;In this post, we’re moving into the Explore phase of the SAP Activate methodology.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="09 explore.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401766i55B6BA0CC3A8B5D0/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="09 explore.jpg" alt="09 explore.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The Explore phase is the critical third phase of SAP Activate where teams perform fit-to-standard analysis to validate that SAP's solution functionality can satisfy business requirements. This phase conducts structured workshops to review SAP best practice functionality, identify delta requirements, and document the conceptual design of the to-be delivered solution.&lt;/P&gt;&lt;P&gt;More details for Scoping you will find in SAP Activate via Road Map Viewer &lt;A href="https://me.sap.com/roadmapviewer/group/658F507A-D6F5-4B78-9EE1-0300C5F1E40F/roadmapoverviewpage/82b2db84548d41209cda972f0fac428b" target="_blank" rel="noopener noreferrer"&gt;Road Map Viewer - SAP for Me&lt;/A&gt;&lt;BR /&gt;Navigation: Tab 'Content' -&amp;gt; Phase 'Explore' -&amp;gt; 'Fit-to-Standard Workshops'&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1469437351"&gt;Workshop Execution&lt;/H1&gt;&lt;P&gt;Based on most relevant Scope Items for Business Partner you execute the standard processes covered during the Fit-to-Standard workshops. The SAP Best Practices content, test scripts, and process flows that were used by the Configuration Expert for the demonstration are used.&lt;/P&gt;&lt;P&gt;Accounts Receivable (J59)&lt;BR /&gt;Accounts Payable (J60)&lt;BR /&gt;Mass Load and Mass Maintenance for Business Partners (7MI)&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1402006565"&gt;Little Helpers&lt;/H2&gt;&lt;H3 id="toc-hId-1334575779"&gt;Workshop Slides&lt;/H3&gt;&lt;P&gt;As a foundation for your Business Partner Fit-to-Standard workshop you can use this slides&lt;/P&gt;&lt;P&gt;English version&lt;/P&gt;&lt;P&gt;&lt;A href="https://d.dam.sap.com/a/JhPDnhK?rc=10&amp;amp;doi=SAP1306919" target="_blank" rel="noopener noreferrer"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="10 Powerpoint EN.jpg" style="width: 200px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401770i674B9B5D16F572B8/image-size/small/is-moderation-mode/true?v=v2&amp;amp;px=200" role="button" title="10 Powerpoint EN.jpg" alt="10 Powerpoint EN.jpg" /&gt;&lt;/span&gt;&lt;/A&gt;&lt;BR /&gt;&lt;BR /&gt;German version&lt;/P&gt;&lt;P&gt;&lt;A href="https://d.dam.sap.com/a/7TJAmXe?rc=10&amp;amp;doi=SAP1306920" target="_blank" rel="noopener noreferrer"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="11 Powerpoint DE.jpg" style="width: 200px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401772i91CC0B3CB78CDC07/image-size/small/is-moderation-mode/true?v=v2&amp;amp;px=200" role="button" title="11 Powerpoint DE.jpg" alt="11 Powerpoint DE.jpg" /&gt;&lt;/span&gt;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;As you can see, I use already Business Partner like an own scope item related to scope items mentioned above.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1138062274"&gt;Test Scripts for Demo&lt;/H3&gt;&lt;P&gt;If you like you can step into customers starter system which has proper demo data already.&lt;BR /&gt;As a guideline I recommend to use test scripts for master data provided by SAP.&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/s4hana-best-practices/create-customer-master-bnd-982e94d5f072f9a0ade948ef90c00af1/purpose?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;Create Customer Master - MDS (BND)&lt;/A&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/s4hana-best-practices/create-supplier-master-bne-56ccaf9fbaf5bc19a4cd462421191488/purpose?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;Create Supplier Master - MDS (BNE)&amp;nbsp;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Please pay attention to version field at top of the page. It might be that you have to adjust it.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-683383331"&gt;Move from SAP Signavio to SAP CALM&lt;/H1&gt;&lt;P&gt;At that point where you move forward from SAP Signavio to CALM (SAP Cloud Application Lifecycle Management) consider to create a generic Business Partner requirement in CALM in addition to Customer and Supplier requirements.&lt;/P&gt;&lt;P&gt;This approach will help to collect all Business Partner relevant information at one central point. I know this is not the standard way but helpfull.&lt;/P&gt;&lt;H1 id="toc-hId-486869826"&gt;&amp;nbsp;&lt;/H1&gt;&lt;H1 id="toc-hId-290356321"&gt;&lt;BR /&gt;Conclusion&lt;/H1&gt;&lt;P&gt;You have successfully validated Business Partner processes against SAP standard functionality through structured demonstrations using starter system with demo data. Now you are ready to document all delta requirements in SAP Cloud ALM, creating a prioritized backlog while maintaining the cloud mindset principle of minimal customization.&lt;/P&gt;&lt;P&gt;Next steps are now the transition from SAP Signavio Process Navigator to CALM (SAP Cloud Application Lifecycle Management) with the innovative approach of creating a generic Business Partner requirement alongside Customer and Supplier requirements.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/business-partner-sap-s-4hana-cloud-public-edition-fit-to-standard-workshops/ba-p/14381231"/>
+    <published>2026-04-23T14:48:13.386000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/financial-management-q-a/related-to-exam-sap-certified-sap-s-4hana-cloud-private-edition-financial/qaa-p/14381444#M258984</id>
+    <title>Re: Related to exam (SAP Certified - SAP S/4HANA Cloud Private Edition, Financial Accounting)</title>
+    <updated>2026-04-23T14:52:02.216000+02:00</updated>
+    <author>
+      <name>vijayalakshmi_ca-88</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2296695</uri>
+    </author>
+    <content>Hi, I also need the same clarification. Can anyone help please?</content>
+    <link href="https://community.sap.com/t5/financial-management-q-a/related-to-exam-sap-certified-sap-s-4hana-cloud-private-edition-financial/qaa-p/14381444#M258984"/>
+    <published>2026-04-23T14:52:02.216000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-q-a/how-to-dynamically-calculate-it0014-wage-type-20-of-contributory-salary/qaa-p/14381445#M51847</id>
+    <title>Re: How to dynamically calculate IT0014 wage type (20% of...</title>
+    <updated>2026-04-23T14:53:07.306000+02:00</updated>
+    <author>
+      <name>corriveau_remi</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/641577</uri>
+    </author>
+    <content>&lt;P&gt;.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-q-a/how-to-dynamically-calculate-it0014-wage-type-20-of-contributory-salary/qaa-p/14381445#M51847"/>
+    <published>2026-04-23T14:53:07.306000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-q-a/story-reports-data-export-in-view-mode/qaq-p/14381446</id>
+    <title>Story Reports: Data Export in View Mode</title>
+    <updated>2026-04-23T14:54:26.393000+02:00</updated>
+    <author>
+      <name>SebastianGr1</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/78980</uri>
+    </author>
+    <content>&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;DIV&gt;&lt;P&gt;Dear all,&lt;/P&gt;&lt;P&gt;With the H1 2026 release, a new feature -&amp;nbsp;&lt;A href="https://help.sap.com/docs/successfactors-release-information/8e0d540f96474717bbf18df51e54e522/5922a47cf7fd45b9ada7a25b58a1f060.html?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;Data Export in View Mode for Story Reports | SAP Help Portal&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;-&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;will be introduced. This feature allows users with view-only access to Story Reports to download the data from the underlying data sources of the report.&lt;/SPAN&gt;&lt;/P&gt;&lt;DIV&gt;&lt;P&gt;While I understand the intention behind this feature, it poses a significant risk of granting overly broad access to underlying data, including the ability to download it.&lt;/P&gt;&lt;P&gt;There are several scenarios in which we deliberately provide only aggregated reports. In these cases, users are intended to see aggregated data only and explicitly not the raw, row-level data behind the reports — and certainly not be able to download it.&lt;/P&gt;&lt;P&gt;I believe this feature can be valuable for certain users and roles. However, it should be secured either through a dedicated permission or a configurable option within Story Reports.&lt;/P&gt;&lt;P&gt;If the feature remains unchanged for the H1 2026 rollout in May, I am concerned that we will be forced to remove many reports from user self-service, which would represent a significant setback.&lt;/P&gt;&lt;P&gt;Thank you and kind regards,&lt;BR /&gt;Sebastian&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-q-a/story-reports-data-export-in-view-mode/qaq-p/14381446"/>
+    <published>2026-04-23T14:54:26.393000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/abap-blog-posts/access-control-in-abap-cds-using-user-defined-aspects/bc-p/14381447#M1555</id>
+    <title>Re: Access Control in ABAP CDS Using User Defined Aspects</title>
+    <updated>2026-04-23T14:54:48.054000+02:00</updated>
+    <author>
+      <name>Atul_Joshi85</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2274193</uri>
+    </author>
+    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/142295"&gt;@NooruBohra&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thanks for checking this and for adding the ST05 trace—that really helps make the behavior more visible.&amp;nbsp;&lt;/P&gt;&lt;P&gt;You’re right in what you observed. In cases where &lt;STRONG&gt;pure user-defined aspects&lt;/STRONG&gt; are used (without any PFCG-based checks), &lt;STRONG&gt;STAUTHTRACE may not always capture entries&lt;/STRONG&gt;, because it primarily logs classical&amp;nbsp; authority-check executions tied to authorization objects.&lt;/P&gt;&lt;P&gt;In CDS access control, especially with user-defined aspects, the filtering happens more at the &lt;STRONG&gt;data layer (SQL generation level)&lt;/STRONG&gt; rather than through explicit authorization checks. That’s why &lt;STRONG&gt;ST05 becomes the most reliable tool&lt;/STRONG&gt; to understand how the WHERE clause is expanded.&lt;/P&gt;&lt;P&gt;That said, I’ve seen in some mixed scenarios (for example, when aspects are combined with PFCG roles or standard authorization objects), &lt;STRONG&gt;STAUTHTRACE can still be useful&lt;/STRONG&gt; to validate the authorization part of the flow.&lt;/P&gt;&lt;P&gt;So maybe a simple way to position it is:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;ST05 → best for understanding data filtering (actual SQL)&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;STAUTHTRACE → useful only when authorization objects / roles are involved&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Also, your example nicely highlights another important point—the “no data” case when the aspect returns nothing. This is something many developers miss during testing.&lt;/P&gt;&lt;P&gt;Overall, great addition to the blog. It’s becoming very practical for developers.&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thx.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/abap-blog-posts/access-control-in-abap-cds-using-user-defined-aspects/bc-p/14381447#M1555"/>
+    <published>2026-04-23T14:54:48.054000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/what-s-new/introducing-our-new-reply-progression-badges-and-a-color-refresh/bc-p/14381449#M1044</id>
+    <title>Re: Introducing Our New Reply Progression Badges and a Color Refresh!</title>
+    <updated>2026-04-23T14:56:17.164000+02:00</updated>
+    <author>
+      <name>caroleighdeneen</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/20</uri>
+    </author>
+    <content>&lt;P&gt;Nice, thank you&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/182"&gt;@david_ruizb&lt;/a&gt;&amp;nbsp;- I appreciate your input!&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/what-s-new/introducing-our-new-reply-progression-badges-and-a-color-refresh/bc-p/14381449#M1044"/>
+    <published>2026-04-23T14:56:17.164000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/mrp-settings-mdbt-creating-planned-orders-then-purchase-requisitions/qaa-p/14381450#M4239661</id>
+    <title>Re: MRP Settings - MDBT creating Planned Orders then Purc...</title>
+    <updated>2026-04-23T14:57:25.210000+02:00</updated>
+    <author>
+      <name>Lakshmipathi</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/348</uri>
+    </author>
+    <content>&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;FONT color="#000000"&gt;When MRP results flip between planned orders and purchase requisitions, it usually points to a configuration or master data nuance rather than a pure system bug. Here are the main areas you should investigate:&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;&lt;FONT color="#000000"&gt;1) Procurement type in material master&lt;/FONT&gt;&lt;/STRONG&gt;&lt;BR /&gt;&lt;FONT color="#000000"&gt;If the material is set to “E” (in‑house production) in one plant and “F” (external procurement) in another, MRP will generate different proposals. Cross‑plant differences can cause the weekend run to overwrite the daily run’s results.&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;&lt;FONT color="#000000"&gt;2) MRP control parameters in the planning run&lt;/FONT&gt;&lt;/STRONG&gt;&lt;BR /&gt;&lt;FONT color="#000000"&gt;Daily run (NETCH) vs. weekly run (NETPL) use different logic. NETPL re‑plans only within the planning horizon, while NETCH re‑plans all net changes. The “Create purchase requisitions” setting (2 vs. 3) determines whether MRP creates requisitions directly or planned orders first. If the weekly run uses “2” (direct PR creation) and the daily run uses “3” (planned orders), the system will keep flipping.&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;&lt;FONT color="#000000"&gt;3) Planning file entries &lt;/FONT&gt;&lt;/STRONG&gt;&lt;BR /&gt;&lt;FONT color="#000000"&gt;Even though you confirmed the material is in the planning file, check whether the planning horizon and rescheduling parameters differ between plants.&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;&lt;FONT color="#000000"&gt;4) Lot sizing and procurement type &lt;/FONT&gt;&lt;/STRONG&gt;&lt;BR /&gt;&lt;FONT color="#000000"&gt;Lot‑sizing procedures (e.g., FX vs. EX) and procurement type inconsistencies can cause MRP to regenerate different order types.&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;&lt;FONT color="#000000"&gt;5) Scheduling agreements or quota arrangements &lt;/FONT&gt;&lt;/STRONG&gt;&lt;BR /&gt;&lt;FONT color="#000000"&gt;If active, they can override the default proposal type.&lt;/FONT&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/mrp-settings-mdbt-creating-planned-orders-then-purchase-requisitions/qaa-p/14381450#M4239661"/>
+    <published>2026-04-23T14:57:25.210000+02:00</published>
   </entry>
 </feed>
