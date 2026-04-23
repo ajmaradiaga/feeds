@@ -2,47 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-HANA-blog-posts.xml</id>
   <title>SAP Community - SAP HANA</title>
-  <updated>2026-04-23T05:01:08.104146+00:00</updated>
+  <updated>2026-04-23T08:01:14.487087+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP HANA/pd-p/73554900100700000996" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP HANA blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/avoiding-hana-connection-exhaustion-a-practical-guide-to-hikari-amp-multi/ba-p/14336199</id>
-    <title>Avoiding HANA Connection Exhaustion: A Practical Guide to Hikari &amp; Multi-Tenant Scaling</title>
-    <updated>2026-02-26T09:53:05.868000+01:00</updated>
-    <author>
-      <name>rishabhdhakarwal</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/698059</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-1790564158"&gt;Introduction&lt;/H2&gt;&lt;P&gt;Modern SAP applications running on &lt;STRONG&gt;SAP BTP with CAP Java and SAP HANA&lt;/STRONG&gt; rely heavily on efficient database connection management.&lt;/P&gt;&lt;P&gt;Opening a new database connection for every request is expensive:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;It increases latency&lt;/LI&gt;&lt;LI&gt;It consumes database resources&lt;/LI&gt;&lt;LI&gt;It reduces scalability&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;To solve this, we use &lt;STRONG&gt;connection pools&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;In this blog, we’ll walk through how connection pooling works in CAP Java, what can go wrong in multi-tenant systems, and how to configure it correctly to avoid production outages.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1594050653"&gt;What is a Connection Pool?&lt;/H2&gt;&lt;P&gt;A connection pool is a cache of reusable database connections maintained by your application.&lt;/P&gt;&lt;PRE&gt;open connection → execute query → close connection&lt;/PRE&gt;&lt;P&gt;becomes:&lt;/P&gt;&lt;PRE&gt;borrow connection → execute query → return to pool&lt;/PRE&gt;&lt;H3 id="toc-hId-1526619867"&gt;Benefits&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;Faster response times&lt;/LI&gt;&lt;LI&gt;Reduced database load&lt;/LI&gt;&lt;LI&gt;Reuse of expensive DB sessions&lt;/LI&gt;&lt;LI&gt;Better scalability&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1201023643"&gt;How CAP Java Uses Connection Pools&lt;/H2&gt;&lt;P&gt;In CAP Java:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Database access uses &lt;STRONG&gt;JDBC connection pooling via Spring Boot&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;The default pool implementation is &lt;STRONG&gt;HikariCP&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;Each &lt;STRONG&gt;application instance maintains its own connection pool&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This means that if your application is scaled horizontally, the number of connections increases with the number of instances.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1004510138"&gt;Why This Becomes Critical in Production&lt;/H2&gt;&lt;P&gt;In the basic mode, the HANA database is provisioned with &lt;STRONG&gt;2 vCPUs&lt;/STRONG&gt;, which allows roughly &lt;STRONG&gt;1000 concurrent connections&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;Now consider a typical CAP multi-tenant setup:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Multiple services&lt;/LI&gt;&lt;LI&gt;Multiple tenants&lt;/LI&gt;&lt;LI&gt;Multiple app instances (autoscaling)&lt;/LI&gt;&lt;LI&gt;Each instance maintaining its own pool&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The total DB connections can grow very quickly if not controlled.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-807996633"&gt;Multi-Tenant Scaling Problem&lt;/H2&gt;&lt;P&gt;Without optimization, the connection count grows like this:&lt;/P&gt;&lt;PRE&gt;connections = instances × tenants × pool size&lt;/PRE&gt;&lt;P&gt;Example:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;4 tenants&lt;/LI&gt;&lt;LI&gt;3 application instances&lt;/LI&gt;&lt;LI&gt;default pool size = 10&lt;/LI&gt;&lt;/UL&gt;&lt;PRE&gt;4 × 3 × 10 = 120 connections&lt;/PRE&gt;&lt;P&gt;Now multiply this across multiple services and sidecars, you can quickly reach the HANA limit.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-611483128"&gt;The Solution: Shared Pools with combinePools&lt;/H2&gt;&lt;P&gt;CAP Java provides a very important optimization:&lt;/P&gt;&lt;PRE&gt;cds:
-  multi-tenancy:
-    datasource:
-      combinePools:
-        enabled: true&lt;/PRE&gt;&lt;P&gt;This ensures that instead of creating pools per tenant, the application uses:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;One shared connection pool per HANA database per application instance&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Now the formula becomes:&lt;/P&gt;&lt;PRE&gt;connections = instances × pool size&lt;/PRE&gt;&lt;P&gt;This makes connection usage predictable and scalable.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-414969623"&gt;HikariCP Configuration (Production)&lt;/H2&gt;&lt;P&gt;A production-ready CAP Java configuration looks like this:&lt;/P&gt;&lt;PRE&gt;cds:
-  multi-tenancy:
-    datasource:
-      combinePools:
-        enabled: true
-      hikari:
-        maximum-pool-size: 40
-        minimum-idle: 10
-        idle-timeout: 600000
-        max-lifetime: 3300000&lt;/PRE&gt;&lt;P&gt;Parameter Description&lt;/P&gt;&lt;TABLE border="1" cellpadding="6"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;maximumPoolSize&lt;/TD&gt;&lt;TD&gt;Maximum connections per instance&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;minimumIdle&lt;/TD&gt;&lt;TD&gt;Warm connections kept ready&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;idleTimeout&lt;/TD&gt;&lt;TD&gt;Idle connection eviction time&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;maxLifetime&lt;/TD&gt;&lt;TD&gt;Maximum lifetime before connection refresh&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-218456118"&gt;How to Size Your Pool Correctly&lt;/H2&gt;&lt;P&gt;Use this simple guideline:&lt;/P&gt;&lt;PRE&gt;maximumPoolSize ≈ concurrent DB requests per instance&lt;/PRE&gt;&lt;P&gt;And always validate:&lt;/P&gt;&lt;PRE&gt;instances × maximumPoolSize &amp;lt; HANA DB connection limit&lt;/PRE&gt;&lt;P&gt;For example:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;3 instances&lt;/LI&gt;&lt;LI&gt;pool size 40&lt;/LI&gt;&lt;/UL&gt;&lt;PRE&gt;3 × 40 = 120 connections&lt;/PRE&gt;&lt;P&gt;Well within a 1000 connection limit.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-21942613"&gt;Monitoring &amp;amp; Observability&lt;/H2&gt;&lt;P&gt;You should continuously monitor:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Active DB connections&lt;/LI&gt;&lt;LI&gt;Idle connections&lt;/LI&gt;&lt;LI&gt;Pool utilization&lt;/LI&gt;&lt;LI&gt;Total HANA connection usage&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Set alerts at 70–80% of DB capacity.&lt;/STRONG&gt;&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-172683465"&gt;Common Pitfalls&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;Not enabling &lt;CODE&gt;combinePools&lt;/CODE&gt; in multi-tenant apps&lt;/LI&gt;&lt;LI&gt;Oversizing connection pools&lt;/LI&gt;&lt;LI&gt;Multiple services sharing same HANA DB without coordination&lt;/LI&gt;&lt;LI&gt;No monitoring of DB connection usage&lt;/LI&gt;&lt;LI&gt;Assuming default values are safe for production&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H2 id="toc-hId--23830040"&gt;Summary&lt;/H2&gt;&lt;P&gt;Area Recommendation&lt;/P&gt;&lt;TABLE border="1" cellpadding="6"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;Connection Pool&lt;/TD&gt;&lt;TD&gt;Use HikariCP&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Multi-Tenancy&lt;/TD&gt;&lt;TD&gt;Enable combinePools&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Pool Sizing&lt;/TD&gt;&lt;TD&gt;Based on concurrency&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Monitoring&lt;/TD&gt;&lt;TD&gt;Mandatory&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Scaling&lt;/TD&gt;&lt;TD&gt;Validate against DB limits&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId--220343545"&gt;Final Thoughts&lt;/H2&gt;&lt;P&gt;Connection pooling is often invisible, until it fails in production.&lt;/P&gt;&lt;P&gt;With the right configuration in CAP Java and SAP HANA, you can:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;avoid outages&lt;/LI&gt;&lt;LI&gt;improve performance&lt;/LI&gt;&lt;LI&gt;scale safely in multi-tenant environments&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;If you are running CAP Java in production, take a few minutes to review your pool configuration, it can prevent your next incident.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId--416857050"&gt;References&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://github.com/brettwooldridge/HikariCP" target="_blank" rel="noopener nofollow noreferrer"&gt;HikariCP&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://cap.cloud.sap/docs/java/multitenancy#db-connection-pooling" target="_blank" rel="noopener nofollow noreferrer"&gt;DB Connection Pooling&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://cap.cloud.sap/docs/java/cqn-services/persistence-services#datasource-configuration" target="_blank" rel="noopener nofollow noreferrer"&gt;CAP Datasource Configuration&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/avoiding-hana-connection-exhaustion-a-practical-guide-to-hikari-amp-multi/ba-p/14336199"/>
-    <published>2026-02-26T09:53:05.868000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/understanding-sap-hana-disaster-recovery-technical-scope-distance-and-data/ba-p/14292769</id>
-    <title>Understanding SAP HANA Disaster Recovery - Technical Scope, Distance, and Data Protection Boundaries</title>
-    <updated>2026-03-01T18:00:00.018000+01:00</updated>
-    <author>
-      <name>HakanHaslaman</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/185386</uri>
-    </author>
-    <content>&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;BR /&gt;SAP HANA provides documented mechanisms to support disaster recovery (DR) scenarios in which an entire site, data center, or availability zone becomes unavailable.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;From a technical perspective, disaster recovery addresses failure domains that exceed the scope of local high-availability mechanisms. Its primary objective is to restore database operations after site-level outages, while preserving data consistency according to architecturally defined recovery objectives.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Disaster recovery in SAP HANA is implemented through a combination of documented mechanisms such as system replication, backup-based recovery, distance-aware configurations, and controlled takeover procedures.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;This article consolidates SAP-documented SAP HANA disaster-recovery mechanisms into a single technical view.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Its purpose is to make scope, distance considerations, and data-protection boundaries explicit, supporting sound DR architecture design and precise technical discussions.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;All statements are derived from official SAP Help Portal documentation.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;1. Disaster Recovery in SAP HANA - Technical Definition&lt;/STRONG&gt;&lt;BR /&gt;In SAP HANA documentation, disaster recovery refers to mechanisms that enable database availability after site-level failures, such as:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;complete data-center outages&lt;/LI&gt;&lt;LI&gt;regional infrastructure failures&lt;/LI&gt;&lt;LI&gt;loss of connectivity between sites&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Although some SAP HANA mechanisms such as system replication can be used for both high availability and disaster recovery scenarios, disaster recovery addresses broader failure domains such as site-level outages.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;This separation of objectives is consistently reflected in SAP HANA administration and architecture documentation.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;U&gt;Key boundary&lt;/U&gt;&lt;BR /&gt;In this context, disaster recovery focuses on broader failure domains such as site-level outages rather than isolated single-component failures.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;2. Failure Domains and Distance Considerations&lt;/STRONG&gt;&lt;BR /&gt;A defining characteristic of disaster recovery is physical and logical separation between systems.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;From a technical standpoint, DR architectures introduce:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;network latency&lt;/LI&gt;&lt;LI&gt;increased failure isolation&lt;/LI&gt;&lt;LI&gt;replication latency considerations&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Distance directly influences:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;feasible replication modes&lt;/LI&gt;&lt;LI&gt;achievable Recovery Point Objective (RPO)&lt;/LI&gt;&lt;LI&gt;achievable Recovery Time Objective (RTO)&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Distance and latency influence the choice of replication mode and DR architecture.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;U&gt;Key boundary&lt;/U&gt;&lt;BR /&gt;Distance and latency are key architectural design considerations that influence the feasible replication mode and the achievable recovery characteristics.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;3. SAP HANA System Replication as a DR Mechanism&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;3.1 Technical Role in Disaster Recovery&lt;/STRONG&gt;&lt;BR /&gt;SAP HANA System Replication (SR) is a primary building block for replication-based disaster recovery architectures.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;In DR scenarios:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;primary and secondary systems are deployed in separate sites&lt;/LI&gt;&lt;LI&gt;replication protects against site-level failures&lt;/LI&gt;&lt;LI&gt;takeover is initiated when the primary site is unavailable&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;System replication continuously transfers data changes from the primary system to the secondary system, maintaining a replica of the current database state.&lt;/P&gt;&lt;P&gt;SAP Help Portal reference&lt;BR /&gt;&lt;A href="https://help.sap.com/docs/SAP_HANA_PLATFORM/6b94445c94ae495c83a19646e7c3fd56/b74e16a9e09541749a745f41246a065e.html?utm_source=chatgpt.com&amp;amp;locale=en-US" target="_blank" rel="noopener noreferrer"&gt;SAP HANA System Replication - Overview&lt;/A&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;3.2 Replication Modes and Distance&lt;/STRONG&gt;&lt;BR /&gt;SAP HANA system replication supports synchronous and asynchronous replication modes.&lt;BR /&gt;From a disaster-recovery perspective:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Synchronous replication&lt;BR /&gt;is typically constrained by distance and latency and is therefore limited to shorter distances&lt;/LI&gt;&lt;LI&gt;Asynchronous replication&lt;BR /&gt;is commonly used for long-distance DR scenarios and accepts some replication lag&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;The selected replication mode directly influences:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;potential data loss during failover&lt;/LI&gt;&lt;LI&gt;achievable RPO values&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;This behavior is an inherent consequence of documented SR semantics.&lt;/P&gt;&lt;P&gt;SAP Help Portal reference&lt;BR /&gt;&lt;A href="https://help.sap.com/docs/SAP_HANA_PLATFORM/6b94445c94ae495c83a19646e7c3fd56/c039a1a5b8824ecfa754b55e0caffc01.html" target="_blank" rel="noopener noreferrer"&gt;SAP HANA System Replication - Replication Modes&lt;/A&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;U&gt;Key boundary&lt;/U&gt;&lt;BR /&gt;Replication mode determines data-loss characteristics, not historical recovery capability.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;4. Multitier and Multitarget System Replication&lt;/STRONG&gt;&lt;BR /&gt;SAP HANA supports multitier system replication in chained setups as well as multitarget system replication for replication to more than one secondary system.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;In disaster-recovery architectures, multitier replication can be used to:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;combine high availability and disaster recovery objectives&lt;/LI&gt;&lt;LI&gt;separate near-site and far-site replicas&lt;/LI&gt;&lt;LI&gt;increase isolation between failure domains&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Each replication tier operates within documented technical constraints, including supported replication paths and takeover rules.&lt;/P&gt;&lt;P&gt;SAP Help Portal reference&lt;BR /&gt;&lt;A href="https://help.sap.com/docs/SAP_HANA_PLATFORM/6b94445c94ae495c83a19646e7c3fd56/ca6f4c62c45b4c85a109c7faf62881fc.html" target="_blank" rel="noopener noreferrer"&gt;SAP HANA Multi-Tier System Replication&lt;/A&gt;&lt;BR /&gt;&lt;A href="https://help.sap.com/docs/SAP_HANA_PLATFORM/6b94445c94ae495c83a19646e7c3fd56/c3fe0a3c263c49dc9404143306455e16.html" target="_blank" rel="noopener noreferrer"&gt;Supported Replication Modes Between Systems&lt;/A&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;U&gt;Key boundary&lt;/U&gt;&lt;BR /&gt;Multitier replication can support multi-site architectures and extended failure-domain separation; however, it does not replace backup-based recovery mechanisms.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;5. Backup-Based Disaster Recovery&lt;/STRONG&gt;&lt;BR /&gt;&lt;STRONG&gt;5.1 Technical Model&lt;/STRONG&gt;&lt;BR /&gt;In addition to replication-based approaches, disaster recovery can be implemented using backup-based recovery.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;In this model:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;data and log backups are stored in a remote or isolated location&lt;/LI&gt;&lt;LI&gt;recovery is performed by restoring backups at the target site&lt;/LI&gt;&lt;LI&gt;point-in-time recovery is possible, depending on backup and log availability&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Backup-based DR provides:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;strong isolation between sites&lt;/LI&gt;&lt;LI&gt;access to historical restore points&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;It typically involves longer recovery times compared to replication-based DR.&lt;/P&gt;&lt;P&gt;SAP Help Portal reference&lt;BR /&gt;&lt;A href="https://help.sap.com/docs/SAP_HANA_PLATFORM/6b94445c94ae495c83a19646e7c3fd56/ef085cd5949c40b788bba8fd3c65743e.html" target="_blank" rel="noopener noreferrer"&gt;Planning Your Backup and Recovery Strategy&lt;/A&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;5.2 Replication-Based vs. Backup-Based DR&lt;/STRONG&gt;&lt;BR /&gt;From a technical standpoint:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Replication-based DR&lt;BR /&gt;prioritizes continuity with limited data loss&lt;/LI&gt;&lt;LI&gt;Backup-based DR&lt;BR /&gt;prioritizes isolation and historical recovery&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Replication-based and backup-based approaches can be combined to address different availability and recovery requirements.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;6. Disaster Recovery vs. High Availability&lt;/STRONG&gt;&lt;BR /&gt;Although both HA and DR may use system replication, their objectives and assumptions differ fundamentally.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;High availability&lt;BR /&gt;handles component-level failures within a site&lt;/LI&gt;&lt;LI&gt;Disaster recovery&lt;BR /&gt;handles complete loss of a site or failure domain&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Disaster recovery designs emphasize:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;physical separation&lt;/LI&gt;&lt;LI&gt;controlled takeover procedures&lt;/LI&gt;&lt;LI&gt;explicitly defined data-loss boundaries&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;U&gt;Key boundary&lt;/U&gt;&lt;BR /&gt;DR is validated against site-level failure scenarios, not host failures.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;7. RPO and RTO in Disaster Recovery Context&lt;/STRONG&gt;&lt;BR /&gt;In SAP HANA DR architectures:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;RPO&lt;BR /&gt;is influenced by replication mode or backup frequency&lt;/LI&gt;&lt;LI&gt;RTO&lt;BR /&gt;is influenced by takeover procedures, recovery execution, and operational readiness&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;SAP HANA provides the technical mechanisms required to support different RPO/RTO targets.&lt;BR /&gt;Actual values are derived from architecture and configuration, not configured as product parameters.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;8. Design Boundaries and Architectural Implications&lt;/STRONG&gt;&lt;BR /&gt;From a disaster-recovery architecture perspective:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;no single mechanism covers all site-level failure scenarios&lt;/LI&gt;&lt;LI&gt;replication-based DR trades isolation for continuity&lt;/LI&gt;&lt;LI&gt;backup-based DR trades speed for historical recovery&lt;/LI&gt;&lt;LI&gt;distance and latency impose hard technical constraints&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Understanding these documented boundaries is essential for realistic DR expectations and technically sound architecture design.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;Summary&lt;/STRONG&gt;&lt;BR /&gt;SAP HANA provides documented technical mechanisms to support disaster-recovery scenarios involving site-level failures.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Disaster recovery is not defined by a single feature, but by the combination of system replication, backup mechanisms, distance-aware configuration, and controlled recovery procedures.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;By understanding the documented scope, distance considerations, and data-protection boundaries of SAP HANA disaster-recovery mechanisms, architectures can be designed with clear, realistic, and technically defensible recovery expectations.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/understanding-sap-hana-disaster-recovery-technical-scope-distance-and-data/ba-p/14292769"/>
-    <published>2026-03-01T18:00:00.018000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/bi-remediation-checks-during-ecc-to-s-4hana-migration/ba-p/14338910</id>
     <title>BI Remediation Checks during ECC to S/4HANA Migration</title>
@@ -1730,5 +1693,500 @@ AT SELECTION-SCREEN OUTPUT.
     <content>&lt;P&gt;Introduction:&lt;BR /&gt;This &amp;nbsp;topic describes the distinction between column-based and row-based data storage and its impact on the query performance. The blog uses a big ORDERS table to compare the cost of accessing data. It also emphasises the fact that row stores can read whole rows when only a few columns are required. This results in unneeded data reads, increased I/O, and increased CPU consumption. It also describes how indexing minimizes the amount of data that is scanned and introduces overhead of random access. Column stores, on the other hand, only read the appropriate columns such as Amount and Country.&lt;BR /&gt;This helps a lot in minimizing the overall data read and enhances efficiency.Column store performance further is enhanced by sequential access and compression. The blog is designed to simplify these concepts using real numbers.&lt;BR /&gt;&lt;BR /&gt;Target Audience:&lt;BR /&gt;It can be used by developers, data engineers, consultants as well as novices who are learning database systems.&lt;SPAN&gt;It is desirable to have basic knowledge of databases, SQL, and, optionally, SAP HANA, and access to a database system such as SAP S/4HANA or any column-store platform.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Body:&lt;/P&gt;&lt;P&gt;Consider a table called ORDERS that has 100,000,000 rows having&amp;nbsp;columns: Amount (8 bytes decimal), OrderDate (8 bytes), Country (dictionary-encoded; code 1 byte), OrderID (4 bytes int), CustomerID (4 bytes int), and five additional miscellaneous columns with an average of 8 bytes each. In a row store, the approximate row width is ≈ 4+4+1+8+8 + (5×8) = 69 bytes, which rounds up to 72 bytes.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;Ex: &lt;I&gt;SELECT SUM(Amount) FROM ORDERS WHERE Country = 'IN'.&lt;/I&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;If&amp;nbsp;the&amp;nbsp;executable&amp;nbsp;query&amp;nbsp;is&amp;nbsp;'IN'&amp;nbsp;=&amp;nbsp;5%&amp;nbsp;of&amp;nbsp;rows&amp;nbsp;(selectivity&amp;nbsp;5%),&amp;nbsp;the&amp;nbsp;cost&amp;nbsp;of&amp;nbsp;fetching&amp;nbsp;data&amp;nbsp;from&amp;nbsp;a&amp;nbsp;row&amp;nbsp;store&amp;nbsp;table&amp;nbsp;is&amp;nbsp;as&amp;nbsp;follows:&amp;nbsp;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;Case&amp;nbsp;A: Complete&amp;nbsp;table&amp;nbsp;scan:&amp;nbsp;Bytes&amp;nbsp;read&amp;nbsp;≈&amp;nbsp;rows&amp;nbsp;×&amp;nbsp;row_size&amp;nbsp;=&amp;nbsp;100,000,000&amp;nbsp;×&amp;nbsp;72B&amp;nbsp;=&amp;nbsp;7.2&amp;nbsp;GB.However,&amp;nbsp;only&amp;nbsp;11%&amp;nbsp;of&amp;nbsp;that&amp;nbsp;is&amp;nbsp;required&amp;nbsp;by&amp;nbsp;the&amp;nbsp;query,&amp;nbsp;which&amp;nbsp;only&amp;nbsp;requires&amp;nbsp;one&amp;nbsp;column&amp;nbsp;(Amount). Thus,&amp;nbsp;nearly&amp;nbsp;90%&amp;nbsp;of&amp;nbsp;what&amp;nbsp;is&amp;nbsp;read&amp;nbsp;is&amp;nbsp;meaningless. It also means more CPU work and slower performance.&lt;/P&gt;&lt;P&gt;Case B: Applying a B-tree index to the&amp;nbsp;Country. Using the index, find the 5% matching = 5,000,000 row IDs. The base table's bytes touched are approximately 360 MB, or 5,000,000 × 72B. In addition to the CPU overhead for random pointers, index pages are read in tens to hundreds of MB. Even though there are fewer total bytes than a full scan, performance can still lag behind a tight sequential column scan due to random access + cache misses.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;Data fetch cost in a column store table:&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Each column is stored independently in a column-based database. Therefore, it only reads the necessary columns (Country and Amount) for the same query. Bytes read ≈ rows × row_size = Amount column → 100 million × 8 bytes = 800 MB + Country column → 100 million × 1 byte = 100 MB.&lt;/P&gt;&lt;P&gt;To figure out which rows belong to "IN," it first scans the country (100 MB). After that, it adds up only the rows that are marked after scanning the Amount column up to 800 MB. The CPU operates very efficiently because this data is sequentially stored and processed in batches. Parts of the data may even be ignored if it is compressed or grouped, which would lower the read size to less than 900 MB. Therefore, a column store requires only about 900 MB of tightly packed, easily readable data rather than 7.2 GB as a row store does. This makes it approximately eight times faster and much more CPU-friendly.&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;Conclusion:&lt;BR /&gt;In Summary, column stores drastically decrease data reads as only necessary columns are accessed, enhancing performance.&lt;/SPAN&gt; &lt;SPAN class=""&gt;They reduce I/O, increase the efficiency of the CPU, and scale to large analytical queries.&lt;/SPAN&gt; &lt;SPAN class=""&gt;Row stores are helpful in transactions, but not as effective at such workloads.&lt;/SPAN&gt; &lt;SPAN class=""&gt;The correct storage format depends on the use-case to ensure optimum performance.&lt;/SPAN&gt; &lt;SPAN class=""&gt;A few best practices include using column stores to perform analytics and query only needed data.&lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/abap-blog-posts/how-is-column-store-fetch-faster-than-row-store/ba-p/14296988"/>
     <published>2026-04-16T11:35:41.619000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/sap-capm-project-lifecycle-from-development-to-fiori-preview/ba-p/14378158</id>
+    <title>SAP CAPM Project Lifecycle: From Development to Fiori Preview</title>
+    <updated>2026-04-23T08:35:14.493000+02:00</updated>
+    <author>
+      <name>IdaEvangelin</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2064307</uri>
+    </author>
+    <content>&lt;P&gt;Let's see an end&amp;nbsp; to end demonstration for creating the CAPM project, entity, service with annotations, create the entry via Post man tool and Preview the Application in Fiori.&lt;/P&gt;&lt;P&gt;Below mentioned detailed points covered in this Blog,&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;EM&gt;BTP Cockpit and its properties&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Creation of CAP Project&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Linkage of Entity to the HANA DB in the SAP HANA Cloud central&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Post man tool Authorization and Post Operation&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Preview in the Fiori Application&lt;/EM&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;BTP Cockpit and its properties:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Create a BTP Cock PIT Trial account and Sub Account.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_0-1776679820371.png" style="width: 443px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400085i82D17A97A497907E/image-dimensions/443x291/is-moderation-mode/true?v=v2" width="443" height="291" role="button" title="IdaEvangelin_0-1776679820371.png" alt="IdaEvangelin_0-1776679820371.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In the Instances and Subscription Add SAP HANA Cloud and SAP Business Application Studio.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_1-1776679820378.png" style="width: 441px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400083i154F205C6DA04F19/image-dimensions/441x96/is-moderation-mode/true?v=v2" width="441" height="96" role="button" title="IdaEvangelin_1-1776679820378.png" alt="IdaEvangelin_1-1776679820378.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Create a Space in the Cloud Foundry, which is a shared, isolated location with an organization (org) used to develop, deploy and manage application and services.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_2-1776679820383.png" style="width: 431px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400084i44450EB5D32F7F7D/image-dimensions/431x253/is-moderation-mode/true?v=v2" width="431" height="253" role="button" title="IdaEvangelin_2-1776679820383.png" alt="IdaEvangelin_2-1776679820383.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In SAP BTP Cockpit administrators navigate to &lt;STRONG&gt;security-&amp;gt;Role collections, &lt;/STRONG&gt;create or edit a collection, and add roles-derived from application templates-to define the granular access.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_3-1776679820388.png" style="width: 515px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400088iCB021C5757415306/image-dimensions/515x166/is-moderation-mode/true?v=v2" width="515" height="166" role="button" title="IdaEvangelin_3-1776679820388.png" alt="IdaEvangelin_3-1776679820388.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_4-1776679820393.png" style="width: 425px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400087iFD4B49DA7DE43522/image-dimensions/425x335/is-moderation-mode/true?v=v2" width="425" height="335" role="button" title="IdaEvangelin_4-1776679820393.png" alt="IdaEvangelin_4-1776679820393.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Creation of CAP Project:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In this Business Application studio create a Dev space and create a Project as mentioned below.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_5-1776679820398.png" style="width: 432px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400086iD08E360CC6593EAB/image-dimensions/432x293/is-moderation-mode/true?v=v2" width="432" height="293" role="button" title="IdaEvangelin_5-1776679820398.png" alt="IdaEvangelin_5-1776679820398.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_6-1776679820401.png" style="width: 439px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400089iB8D165FAF646FCBE/image-dimensions/439x238/is-moderation-mode/true?v=v2" width="439" height="238" role="button" title="IdaEvangelin_6-1776679820401.png" alt="IdaEvangelin_6-1776679820401.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_7-1776679820406.png" style="width: 434px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400090iCC83A608198FEF73/image-dimensions/434x331/is-moderation-mode/true?v=v2" width="434" height="331" role="button" title="IdaEvangelin_7-1776679820406.png" alt="IdaEvangelin_7-1776679820406.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_8-1776679820411.png" style="width: 427px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400091iE9C88ECFCA8DF296/image-dimensions/427x329/is-moderation-mode/true?v=v2" width="427" height="329" role="button" title="IdaEvangelin_8-1776679820411.png" alt="IdaEvangelin_8-1776679820411.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Once Project created a project with workspace created. Here I have created ENTITY_CRUD project. As per below image under DB Node we can create the entity and service for the entity create under SRV node.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;gen&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Auto-generated folder created during build; contains compiled artifacts from your CDS models. You normally don’t edit this manually.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;.vscode&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Holds VS Code-specific settings like launch configs and workspace preferences for development.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;app&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Used for UI/front-end apps (like SAP Fiori); contains HTML, UI5, or other frontend resources.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;db&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Defines your data model and database artifacts using CDS files (like itemrecordsdb.cds) and deployment configs (undeploy.json).&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;gen&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Another generated folder used during build/deploy; stores intermediate files created by CAP tools.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;mta_archives&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Contains packaged .mtar files used for deployment to SAP BTP (multi-target application archives).&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;node_modules&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Stores all installed npm dependencies required for your CAP project.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;srv&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Defines the service layer (business logic &amp;amp; APIs); CDS files like itemrecordssrv.cds expose entities as OData services.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;.cdsrc-private.json&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Local configuration file for CAP (like profiles, credentials); usually not committed to Git.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;.gitignore&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Specifies files/folders (like node_modules) that Git should ignore.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;eslint.config.mjs&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Configuration for code linting to maintain code quality and standards.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;mta.yaml&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Defines how the application is structured and deployed in SAP BTP (modules, resources, dependencies).&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;package.json&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Main project config file listing dependencies, scripts, and metadata.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;package-lock.json&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Locks exact versions of installed dependencies for consistent builds.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;STRONG&gt;README.md&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Documentation file describing the project, setup, and usage.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_9-1776679820413.png" style="width: 299px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400093i8F103C396CD814BD/image-dimensions/299x423/is-moderation-mode/true?v=v2" width="299" height="423" role="button" title="IdaEvangelin_9-1776679820413.png" alt="IdaEvangelin_9-1776679820413.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;An entity with Itemrecords created. Here I have used ‘manage, cuid’&amp;nbsp; &amp;nbsp;from @sap/cds/manage which will create a UUID key for every record creation.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_10-1776679820417.png" style="width: 442px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400094iF22CA83F0CD89F7B/image-dimensions/442x164/is-moderation-mode/true?v=v2" width="442" height="164" role="button" title="IdaEvangelin_10-1776679820417.png" alt="IdaEvangelin_10-1776679820417.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Create a service for itemrecords db which acts as an interface between your data models and outside the world like UI apps or external systems.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_11-1776679820419.png" style="width: 390px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400092i461BA03C1C968CB1/image-dimensions/390x433/is-moderation-mode/true?v=v2" width="390" height="433" role="button" title="IdaEvangelin_11-1776679820419.png" alt="IdaEvangelin_11-1776679820419.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_12-1776679820421.png" style="width: 647px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400096iF32E466E7C46038F/image-dimensions/647x110/is-moderation-mode/true?v=v2" width="647" height="110" role="button" title="IdaEvangelin_12-1776679820421.png" alt="IdaEvangelin_12-1776679820421.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Once entity and service generated in the project deploy the project using cf deploy mta_archives/&amp;lt;file&amp;gt;.mtar bash commands. After successful deployment we can see service instances created in the BTP cockpit as shown below.&lt;/P&gt;&lt;P&gt;To link the created entity in BAS to SAP HANA Cloud create a service key for the &amp;lt;entity&amp;gt;-db instance as shown from the below steps.&lt;/P&gt;&lt;P&gt;Choose Entity_CRUD-db and click on the navigation panel where service key need to create. In this illustration I have created as ENTITY_CRUD-db-key.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_13-1776679820426.png" style="width: 446px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400095i800574BD69D86EC1/image-dimensions/446x154/is-moderation-mode/true?v=v2" width="446" height="154" role="button" title="IdaEvangelin_13-1776679820426.png" alt="IdaEvangelin_13-1776679820426.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_14-1776679820431.png" style="width: 450px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400097iB43D4ECB35552625/image-dimensions/450x168/is-moderation-mode/true?v=v2" width="450" height="168" role="button" title="IdaEvangelin_14-1776679820431.png" alt="IdaEvangelin_14-1776679820431.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Once service key generated, we can see the JSON file in the view parameter. This JSON file needs to upload in the SAP HANA explorer to link the DB.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_15-1776679820433.png" style="width: 461px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400099i9675C1813CDBB866/image-dimensions/461x219/is-moderation-mode/true?v=v2" width="461" height="219" role="button" title="IdaEvangelin_15-1776679820433.png" alt="IdaEvangelin_15-1776679820433.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_16-1776679820439.png" style="width: 441px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400098i6D6E094D5AD1A893/image-dimensions/441x271/is-moderation-mode/true?v=v2" width="441" height="271" role="button" title="IdaEvangelin_16-1776679820439.png" alt="IdaEvangelin_16-1776679820439.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Linkage of Entity to the HANA DB in the SAP HANA Cloud central:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Navigate to Subscribed SAP HANA CLOUD and create instances which allows you to use in-memory computing for real-time transactional and analytical processing. Once instance is created it should be in Running status which indicates Active, available for SQL connections and able to perform data processing, backups and administrative tasks.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_17-1776679820446.png" style="width: 454px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400100i38F099CD39894A54/image-dimensions/454x227/is-moderation-mode/true?v=v2" width="454" height="227" role="button" title="IdaEvangelin_17-1776679820446.png" alt="IdaEvangelin_17-1776679820446.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Now, open the SAP HANA database Explorer in the SAP HANA cloud central, click on the + icon where instance type to be chosen as HDI container and choose Apply from JSON string where need to paste the JSON file from the service key entity in the BTP cockpit.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_18-1776679820454.png" style="width: 444px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400103i5C7D01418E6EF3EE/image-dimensions/444x275/is-moderation-mode/true?v=v2" width="444" height="275" role="button" title="IdaEvangelin_18-1776679820454.png" alt="IdaEvangelin_18-1776679820454.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_19-1776679820455.png" style="width: 424px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400101i4DA367569FA98631/image-dimensions/424x350/is-moderation-mode/true?v=v2" width="424" height="350" role="button" title="IdaEvangelin_19-1776679820455.png" alt="IdaEvangelin_19-1776679820455.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_20-1776679820466.png" style="width: 464px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400102iC553DC5541399726/image-dimensions/464x280/is-moderation-mode/true?v=v2" width="464" height="280" role="button" title="IdaEvangelin_20-1776679820466.png" alt="IdaEvangelin_20-1776679820466.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Once JSON file applied Entity from the BAS linked to the SAP HANA Cloud central.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_21-1776679820473.png" style="width: 506px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400105i36187AAC4C7EC19E/image-dimensions/506x217/is-moderation-mode/true?v=v2" width="506" height="217" role="button" title="IdaEvangelin_21-1776679820473.png" alt="IdaEvangelin_21-1776679820473.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Post man tool Authorization and Post Operation:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;To Authenticate authorization in the Post Man tool go to &amp;lt;entity&amp;gt;-auth in the BTP cockpit as shown below.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_22-1776679820478.png" style="width: 454px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400106iE442F1D7AC33904C/image-dimensions/454x236/is-moderation-mode/true?v=v2" width="454" height="236" role="button" title="IdaEvangelin_22-1776679820478.png" alt="IdaEvangelin_22-1776679820478.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Here I have navigated to the ENTITY_CRUD-auth where service key SK-ENTITY_CRUD is created once service key created a JSON file generated with client ID, client secret, URL.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_23-1776679820480.png" style="width: 446px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400104i460638C4620D44A3/image-dimensions/446x45/is-moderation-mode/true?v=v2" width="446" height="45" role="button" title="IdaEvangelin_23-1776679820480.png" alt="IdaEvangelin_23-1776679820480.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_24-1776679820482.png" style="width: 471px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400107i150A7B58A36207FC/image-dimensions/471x233/is-moderation-mode/true?v=v2" width="471" height="233" role="button" title="IdaEvangelin_24-1776679820482.png" alt="IdaEvangelin_24-1776679820482.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_25-1776679820487.png" style="width: 455px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400108i81DBCC9899AC0B7C/image-dimensions/455x293/is-moderation-mode/true?v=v2" width="455" height="293" role="button" title="IdaEvangelin_25-1776679820487.png" alt="IdaEvangelin_25-1776679820487.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Client ID, URL client secret mapped to the Authorization in the post man tool and generate the Access Token.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_26-1776679820491.png" style="width: 447px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400109i02B692ABFF0312B3/image-dimensions/447x209/is-moderation-mode/true?v=v2" width="447" height="209" role="button" title="IdaEvangelin_26-1776679820491.png" alt="IdaEvangelin_26-1776679820491.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_27-1776679820493.png" style="width: 485px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400110iFD41C8D9E409E205/image-dimensions/485x252/is-moderation-mode/true?v=v2" width="485" height="252" role="button" title="IdaEvangelin_27-1776679820493.png" alt="IdaEvangelin_27-1776679820493.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Using post operation can create a data to the entity in the CAP project.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_28-1776679820496.png" style="width: 444px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400112iC4BC45E8AD17D57E/image-dimensions/444x387/is-moderation-mode/true?v=v2" width="444" height="387" role="button" title="IdaEvangelin_28-1776679820496.png" alt="IdaEvangelin_28-1776679820496.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Successful created entries showing in the SAP HANA Cloud central.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_29-1776679820500.png" style="width: 450px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400111i2366F5AF163875FA/image-dimensions/450x95/is-moderation-mode/true?v=v2" width="450" height="95" role="button" title="IdaEvangelin_29-1776679820500.png" alt="IdaEvangelin_29-1776679820500.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;STRONG&gt;Preview in the Fiori Application:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;To Preview the data in the Fiori application, In the CAP project search with Open Application Generator and create a List Report page.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_30-1776679820501.png" style="width: 472px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400113i3C50E4AB8FC24555/image-dimensions/472x79/is-moderation-mode/true?v=v2" width="472" height="79" role="button" title="IdaEvangelin_30-1776679820501.png" alt="IdaEvangelin_30-1776679820501.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_31-1776679820505.png" style="width: 471px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400114iA686B05F26DCBFAF/image-dimensions/471x258/is-moderation-mode/true?v=v2" width="471" height="258" role="button" title="IdaEvangelin_31-1776679820505.png" alt="IdaEvangelin_31-1776679820505.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_32-1776679820509.png" style="width: 475px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400115i15215DBD148F2A01/image-dimensions/475x385/is-moderation-mode/true?v=v2" width="475" height="385" role="button" title="IdaEvangelin_32-1776679820509.png" alt="IdaEvangelin_32-1776679820509.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_33-1776679820510.png" style="width: 451px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400117iC7D79EBD15019914/image-dimensions/451x481/is-moderation-mode/true?v=v2" width="451" height="481" role="button" title="IdaEvangelin_33-1776679820510.png" alt="IdaEvangelin_33-1776679820510.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_34-1776679820512.png" style="width: 454px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400118i96607A7FAF4ECB38/image-dimensions/454x421/is-moderation-mode/true?v=v2" width="454" height="421" role="button" title="IdaEvangelin_34-1776679820512.png" alt="IdaEvangelin_34-1776679820512.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Once Application created, In the project terminal using Cds watch –profile hybrid can view the preview of the Application in Fiori&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_35-1776679820513.png" style="width: 468px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400116iE01EC0F7CB000DE2/image-dimensions/468x137/is-moderation-mode/true?v=v2" width="468" height="137" role="button" title="IdaEvangelin_35-1776679820513.png" alt="IdaEvangelin_35-1776679820513.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Required Annotations can use in the srv which will be reflect in the Fiori Application.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_36-1776679820518.png" style="width: 473px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400121i6A605FD4AC3C92DE/image-dimensions/473x228/is-moderation-mode/true?v=v2" width="473" height="228" role="button" title="IdaEvangelin_36-1776679820518.png" alt="IdaEvangelin_36-1776679820518.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_37-1776679820520.png" style="width: 452px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400119i2F316DC473947470/image-dimensions/452x102/is-moderation-mode/true?v=v2" width="452" height="102" role="button" title="IdaEvangelin_37-1776679820520.png" alt="IdaEvangelin_37-1776679820520.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_38-1776679820523.png" style="width: 467px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400120i3803C52152B65CA1/image-dimensions/467x161/is-moderation-mode/true?v=v2" width="467" height="161" role="button" title="IdaEvangelin_38-1776679820523.png" alt="IdaEvangelin_38-1776679820523.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_39-1776679820525.png" style="width: 478px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400122iF9592D4D68B7BB56/image-dimensions/478x116/is-moderation-mode/true?v=v2" width="478" height="116" role="button" title="IdaEvangelin_39-1776679820525.png" alt="IdaEvangelin_39-1776679820525.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion&lt;BR /&gt;&lt;/STRONG&gt;&lt;SPAN&gt;This demonstration showcased the seamless integration between SAP Business Application Studio, SAP HANA Cloud, and the Fiori front-end. By leveraging annotations and the CAP service layer, we successfully created a functional CRUD application with automated UUID management and secure API access. You are now ready to extend this project with custom business logic or complex UI enhancements.&lt;/SPAN&gt;&lt;/P&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/sap-capm-project-lifecycle-from-development-to-fiori-preview/ba-p/14378158"/>
+    <published>2026-04-23T08:35:14.493000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/sales-configuration-display-by-cds-with-table-function-hana-sql-for/ba-p/14381112</id>
+    <title>Sales Configuration display by CDS with table function/HANA SQL for Embedded Analytics and Fiori RAP</title>
+    <updated>2026-04-23T09:28:19.160000+02:00</updated>
+    <author>
+      <name>OlegBash</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/632877</uri>
+    </author>
+    <content>&lt;P&gt;In that blog I want to share approach to display Sales Item Configuration in CDS-way. The approach could be used both in new reporting technology (like Fiori RAP-reporting (managed and unmanaged), Embedded Analytics) and in classical (ALV classic Dynpro, SE16N, SE16H etc.)&lt;/P&gt;&lt;P&gt;Technically, the approach is using the following:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Table Function with HANA SQL with &lt;EM&gt;scalar&lt;/EM&gt; and &lt;EM&gt;table&lt;/EM&gt; variable declaration&lt;/LI&gt;&lt;LI&gt;Functions &lt;STRONG&gt;STRING_AGG&lt;/STRONG&gt; for row concatenation, &lt;STRONG&gt;CAST&lt;/STRONG&gt; for casting to target type, &lt;STRONG&gt;CASE&lt;/STRONG&gt; for conditional logic in HANA SQL&lt;/LI&gt;&lt;LI&gt;Window function for grouping and splitting the logic inside SQL-procedure&lt;/LI&gt;&lt;LI&gt;Sorting inside database procedure&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;So, it can be used both for Sales Item Configuration and as a cheat-sheet for HANA SQL in AMDP-classes.&lt;/P&gt;&lt;P&gt;The blog is dedicated to &lt;A href="https://www.linkedin.com/in/natalia-yakimenko-a202a892/" target="_blank" rel="noopener nofollow noreferrer"&gt;Natalya Yakimenko&lt;/A&gt;; really encouraging and supportive person especially for Analytical Tools in Big Data / HANA.&lt;/P&gt;&lt;H2 id="toc-hId-1795032553"&gt;What is Sales Item Configuration?&lt;/H2&gt;&lt;P&gt;In sales order we can parametrize item (configure) with characteristics according to customer needs: width, length, color, chemicals, mechanicals and so on. The configuration – is what the customer wants; so, it could be not only exact values, but &lt;STRONG&gt;&lt;EM&gt;interval&lt;/EM&gt;&lt;/STRONG&gt; values also; &lt;EM&gt;for example, Carbon (C) between 1 and 2 %&lt;/EM&gt;. Also, it could be several values: &lt;EM&gt;for example, RED, YELLOW color&lt;/EM&gt;.&lt;/P&gt;&lt;P&gt;On the Figure 1 it is shown sample of exact and multiple values. LENGTH has exact value and Colour has multiple values.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="OlegBash_0-1776928374930.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401715i1C1E457F1BE0EC24/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="OlegBash_0-1776928374930.png" alt="OlegBash_0-1776928374930.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Figure 1 Exact value with UOM for LENGTH and multiple values for Colour&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;On the Figure 2 it is shown interval values in Sales Item Configuration. Carbon (C) has interval from 1 to 2 percents and Hydrogen (H) should be strictly more than 5% (also pay attention to different decimals part on the screenshot).&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="OlegBash_1-1776928374931.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401716iA905FBCB316FAAEF/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="OlegBash_1-1776928374931.png" alt="OlegBash_1-1776928374931.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Figure 2 Sample of Interval values in Sales Item Configuration&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1598519048"&gt;How to read the configuration programmatically for reporting purposes?&lt;/H2&gt;&lt;H3 id="toc-hId-1531088262"&gt;Classical approach with function&lt;/H3&gt;&lt;P&gt;In table VBAP (sales items) there is a special field (&lt;STRONG&gt;&lt;EM&gt;VBAP-CUOBJ&lt;/EM&gt;&lt;/STRONG&gt;, or CDS &lt;STRONG&gt;&lt;EM&gt;I_SalesDocumentItem-ProductConfiguration&lt;/EM&gt;&lt;/STRONG&gt; ) that links &lt;EM&gt;Sales Item Data Model&lt;/EM&gt; to &lt;EM&gt;Variant Configuration Data Model&lt;/EM&gt;.&lt;/P&gt;&lt;P&gt;For classical reporting very often the function &lt;STRONG&gt;VC_I_GET_CONFIGURATION_IBASE&lt;/STRONG&gt; was used. It is still good function, and can be used, however&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;it does not allow us to select by characteristics values&lt;/LI&gt;&lt;LI&gt;it hardly can be used inside new approaches like Embedded Analytics and Fiori RAP-reporting&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;    DATA lt_CONFIGURATION     TYPE STANDARD TABLE OF conf_out.
+    DATA lT_CONF_WITH_AUTHOR  TYPE STANDARD TABLE OF  api_value .
+
+    CALL FUNCTION 'VC_I_GET_CONFIGURATION_IBASE'
+      EXPORTING
+        instance            = iv_cuobj                 
+      TABLES
+        configuration       = lt_CONFIGURATION                  
+        et_conf_with_author = lT_CONF_WITH_AUTHOR               
+      EXCEPTIONS
+        instance_not_found  = 1
+        OTHERS              = 2.
+    IF sy-subrc &amp;lt;&amp;gt; 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+        WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO sy-msgli.
+    ENDIF.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;For Embedded Analytics and RAP-applications I decided to create two group of CDS (view entities):&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Sales Configuration in row-mode with specifying master info about characteristics itself: data type, single/multiple etc.&lt;/LI&gt;&lt;LI&gt;CDS with table function which present any char in the one line.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1334574757"&gt;CDS with values in each Row&lt;/H3&gt;&lt;P&gt;The CDS (view entity) for Sales Configuration in row-mode with master data is the following. We could see that core tables are: &lt;STRONG&gt;IBIN, IBINVALUES, IBSYMBOL, CABN, CABNT&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;The base part:&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;define view entity ZI_CUOBJ_CLS300
+  as select from ibin       as ibh
+    inner join   ibinvalues as ibv    on ibh.in_recno = ibv.in_recno
+    inner join   ibsymbol   as ibsymb on ibsymb.symbol_id = ibv.symbol_id
+    inner join   cabn       as CABN   on  cabn.atinn = ibsymb.atinn
+                                      and cabn.adzhl = '0000'
+
+
+  association [1] to I_ClfnCharcDesc         as _CharDescr  on  $projection.CHARCINTERNALID   = _CharDescr.CharcInternalID
+                                                            and _CharDescr.Language           = 'E'
+                                                            and _CharDescr.TimeIntervalNumber = '0000'
+
+  association [1] to ZI_CHARVALUE_MD as _CharValueH on  $projection.CHARCINTERNALID =  _CharValueH.CHARCINTERNALID
+                                                            and $projection.CharcValuestr      =  _CharValueH.CHARCVALUE
+                                                            and $projection.CharcValuestr      &amp;lt;&amp;gt; ''
+
+{
+  key ibh.instance                      as cuobj,
+  key ibh.in_recno                      as IN_RECNO,
+  key ibv.in_segmcnt                    as IN_SEGMCNT,
+
+      ibsymb.atinn                      as CHARCINTERNALID,
+      cabn.atnam                        as CharHure,
+      _CharDescr.CharcDescription       as CharcDescription,
+      cabn.atfor                        as dt_type,
+      cabn.anzst                        as NumOfChars,
+      cabn.anzdz                        as NumOfDecimals,
+      cabn.msehi                        as char_uom,
+      cabn.atein                        as Single_Mark,
+      ibsymb.atcod                      as IntervalType,
+
+      ibsymb.atwrt                      as CharcValuestr,
+      ibv.dec_value_from                as CHARCFROMDECIMALVALUE,
+      ibv.dec_value_to                  as CHARCUPTODECIMALVALUE,
+      ibv.date_from                     as CharcFromDate,
+      ibv.date_to                       as CharcUptoDate,
+      ibv.time_from                     as CharcFromTime,
+      ibv.time_to                       as CharcUptoTime,
+      _CharValueH.CHARCVALUEDESCRIPTION as CHARCVALUEDESCRIPTION,
+
+
+      /* associations */
+      _CharValueH
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Part:&amp;nbsp;ZI_CHARVALUE_MD&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'MasterData for Char Value'
+@Metadata.ignorePropagatedAnnotations: true
+@ObjectModel.usageType:{
+    serviceQuality: #X,
+    sizeCategory: #S,
+    dataClass: #MIXED
+}
+define view entity ZI CHARVALUE_MD
+  as select from I_ClfnCharcValue as ValID
+  association [0..1] to ZI_CharcValueDesc as _ValDesc     on  $projection.CHARCINTERNALID    = _ValDesc.CharcInternalID
+                                                                  and ValID.CharcValuePositionNumber = _ValDesc.CharcValuePositionNumber
+                                                                  and _ValDesc.Language              = 'E'
+                                                                  and _ValDesc.TimeIntervalNumber    = '0000'
+
+  association [1..1] to I_ClfnCharcBasic          as _ClasCharBsc on  $projection.CHARCINTERNALID     = _ClasCharBsc.CharcInternalID
+                                                                  and _ClasCharBsc.TimeIntervalNumber = '0000'
+{
+  key ValID.CharcInternalID          as CHARCINTERNALID,
+  key ValID.CharcValuePositionNumber as CharValuePos,
+      _ClasCharBsc.Characteristic    as CharNamHuRe, --Human Readable
+      ValID.CharcValue               as CHARCVALUE,
+      _ValDesc.CharcValueDescription as CHARCVALUEDESCRIPTION,
+      
+      ValID.CharcFromDecimalValue    as CHARC_DECVAL,
+      
+      _ValDesc,
+      _ClasCharBsc
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;part:&amp;nbsp;ZI_CharcValueDesc&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Characteristcis Value Desc'
+@Metadata.ignorePropagatedAnnotations: true
+@ObjectModel.usageType:{
+    serviceQuality: #X,
+    sizeCategory: #S,
+    dataClass: #MIXED
+}
+define view entity ZI_CharcValueDesc 
+    as select from cawnt as CharacteristicValueDesc
+  
+      association [0..1] to I_Language as _Language 
+        on $projection.Language = 'E'
+             
+{
+  key   cast ( CharacteristicValueDesc.atinn as atinn_no_conv preserving type ) as CharcInternalID,
+        @ObjectModel.foreignKey.association: null
+  key   CharacteristicValueDesc.atzhl as CharcValuePositionNumber,
+        @ObjectModel.foreignKey.association: '_Language'
+        @Semantics.language: true
+  key   CharacteristicValueDesc.spras as Language,
+        @ObjectModel.foreignKey.association: null
+  key   CharacteristicValueDesc.adzhl as TimeIntervalNumber,
+        @Semantics.text: true
+        CharacteristicValueDesc.atwtb as CharcValueDescription,
+        CharacteristicValueDesc.aennr as ChangeNumber,
+        @Semantics.businessDate.from: true
+        CharacteristicValueDesc.datuv as ValidityStartDate,
+        @Semantics.businessDate.to: true
+        CharacteristicValueDesc.datub as ValidityEndDate,
+        CharacteristicValueDesc.lkenz as IsDeleted,
+        
+        _Language
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The result we could see like that (from &lt;STRONG&gt;SE16H&lt;/STRONG&gt;).&lt;/P&gt;&lt;P&gt;We could get &lt;EM&gt;values, uom (unit of measure), and data type description&lt;/EM&gt; for each characteristic from sales item configuration. We could use it for searching and data validations (during migration for example) also.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="OlegBash_0-1776928672763.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401717i75899A9D4423B30F/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="OlegBash_0-1776928672763.png" alt="OlegBash_0-1776928672763.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Figure 3 Sales Item Configuration Sample&lt;/P&gt;&lt;P&gt;It is useful and informative, but it could lead to changes of cardinality in CDS-joins because we could have multiple values for some characteristics, also we need to do cast in each report/application and in case data type of characteristics is changed we need to change application. So, it would be better, for some cases, to get all values from one field. And it is possible with table function, as &lt;STRONG&gt;STRING_AGG&lt;/STRONG&gt; is not working in CDS, but either in HANA SQL or ABAP.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Intervals could be like that (shown on figure)&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="OlegBash_1-1776928702454.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401718iDC0AE3DEE492365D/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="OlegBash_1-1776928702454.png" alt="OlegBash_1-1776928702454.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Figure 4 Different types of intervals in Sales Item Configuration&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1138061252"&gt;CDS with table function / amdp-procedure on HANA SQL&lt;/H3&gt;&lt;P&gt;In table function we need do the following:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Format values (especially numeric ones) to their format from master data&lt;/LI&gt;&lt;LI&gt;Concatenate values into one field&lt;/LI&gt;&lt;LI&gt;For intervals it is needed to put special symbols: prefix, delimeter and postfix.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;As in rows-oriented CDS it is using the following tables: &lt;STRONG&gt;VBAP, IBIN, IBINVALUES, IBSYMBOL, CABN, CABNT&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;The idea is simple:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Target output type is &lt;STRONG&gt;CHAR&lt;/STRONG&gt; with length &lt;STRONG&gt;120&lt;/STRONG&gt; (of course can be longer, but for my purposes it was more than enough). (pay attention to the field &lt;STRONG&gt;ATWRT_STR&lt;/STRONG&gt; in the table function below)&lt;/LI&gt;&lt;LI&gt;All values are selecting and casting to the target type depending on decimals in the characteristic’s master data.&lt;/LI&gt;&lt;LI&gt;If there are multiple values – it is concatenated in rows by function &lt;STRONG&gt;STRING_AGG&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;And for output purposes it is concatenated not only with values itself but with special sign (&lt;STRONG&gt;&lt;EM&gt;less (&amp;lt;), less or equal (&amp;lt;=), more or equal (=&amp;gt;), more&lt;/EM&gt;&lt;/STRONG&gt;) (pay attention to table declaration &lt;STRONG&gt;_t_interval_extstr&lt;/STRONG&gt; and filling) (see figure 2 with Hydrogen value)&lt;/LI&gt;&lt;LI&gt;The procedure returns sorted data – so it can be used in applications for binary search purposes without sorting on the application’s side&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Code sample for table function for sales configuration’s output&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'SOI - Conf Cls300 - AGG mode'
+@ClientHandling.type: #CLIENT_INDEPENDENT
+
+define table function ZI_SOI_CLS300_AGG
+returns {
+  slsh : vbeln_va;
+  slsi : posnr_va;
+  MATERIAL: matnr;
+  Plant: werks_d;
+  ItemDescr: arktx;
+  PRODUCTCONFIGURATION: cuobj_va;
+  
+  ORDERQUANTITY: kwmeng;
+  OrderQuantityUnit: vrkme;
+  
+  ATINN : atinn;
+  atnam : atnam;
+  ATWRT_STR: abap.char(120);
+  }
+implemented by method zcl_tf_soicls300_agg=&amp;gt;read_cls300_one_line;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Code sample for HANA SQL AMPD-procedure&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_tf_soicls300_agg DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+
+    CLASS-METHODS read_cls300_one_line
+        FOR TABLE FUNCTION ZI_SOI_CLS300_AGG
+      .
+
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_tf_soicls300_agg IMPLEMENTATION.
+
+  METHOD read_cls300_one_line BY DATABASE FUNCTION
+        FOR HDB
+        LANGUAGE SQLSCRIPT
+        OPTIONS READ-ONLY
+        USING vbap
+              ibin
+              ibinvalues
+              ibsymbol
+              cabn
+              .
+
+
+    -- https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-sqlscript-reference/
+    -- ... table-variable-type-definition?locale=en-us
+
+        declare _t_interval_extstr table(
+            atcod "$ABAP.type( ibvalcod )",
+            pre_fix "$ABAP.type( char2 )",
+            delim "$ABAP.type( char5 )",
+            post_fix "$ABAP.type( char2 )"
+        );
+
+        declare _mandt varchar(3) := session_context('CLIENT');
+
+* see data element  domanin: IBVALCOD
+*0   Empty Quantity (No Value Allowed)
+*1   = Lower limit
+*2   [ Lower limit, upper limit )
+*3   [ Lower limit, upper limit ]
+*4   ( Lower limit, upper limit )
+*5   ( Lower limit, upper limit ]
+*6   ( - Infinite, upper limit )
+*7   ( - Infinite , upper limit ]
+*8   ( Lower limit, infinite )
+*9   [ Lower limit, infinite )
+
+
+        _t_interval_extstr =
+            select '1' as atcod, '' as  pre_fix, '' as delim, '' as post_fix from dummy
+            union all
+            select '2' as atcod, '' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            union all
+            select '3' as atcod, '' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            union all
+            select '4' as atcod, '' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            union all
+            select '5' as atcod, '' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            union all
+            select '6' as atcod, '' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            union all
+            select '7' as atcod, '' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            union all
+            select '8' as atcod, '&amp;gt;= ' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            union all
+            select '9' as atcod, '&amp;gt;= ' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            ;
+
+
+          _single_n_intervals =
+        with _low_fromto_agg as (
+
+          select
+           ibval.mandt,
+           ibval.in_recno,
+           ibsym.atinn,
+           cabn.atnam,
+
+           cast( cabn.atfor as char(70) ) as atwrt,
+
+           case cabn.atfor
+              when 'CHAR' then
+                 cast(
+                    string_agg( ibsym.atwrt, '; ' )
+                    as char (120) )
+
+              WHEN 'NUM' then
+
+
+*    begin of num - case (it consists of two parts: with intervals and strict equal)
+
+               case -- ibsym.atcod
+*    no intervals
+                when ibsym.atcod = '1' or ibsym.atcod = '8' or ibsym.atcod = '9' then
+
+                 CASE cabn.anzdz
+
+                    when '0' then
+                         cast(
+                          string_agg(
+                            concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,0)) ),
+                            ';'
+                            )
+                          as CHAR (120) )
+
+                    WHEN '1' then
+
+                         cast(
+                          string_agg(
+                            concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,1)) ),
+                            ';'
+                            )
+                          as CHAR (120) )
+
+                    WHEN '2' then
+
+                         cast(
+                          string_agg(
+                            concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,2)) ),
+                            ';'
+                            )
+                          as CHAR (120) )
+
+                    WHEN '3' then
+
+                         cast(
+                          string_agg(
+                            concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,3)) ),
+                            ';'
+                            )
+                          as CHAR (120) )
+
+                    WHEN '4' then
+
+                         cast(
+                          string_agg(
+                            concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,4)) ),
+                            ';'
+                            )
+                          as CHAR (120) )
+
+                    WHEN '5' then
+
+                         cast(
+                          string_agg(
+                            concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,5)) ),
+                            ';'
+                            )
+                          as CHAR (120) )
+
+                    WHEN '10' then
+                         cast(
+                          string_agg(
+                            concat( interv.pre_fix, cast( ibval.dec_value_from as dec (21,10)) ),
+                            ';'
+                            )
+                          as CHAR (120) )
+
+                    ELSE
+                         cast( string_agg( ibval.dec_value_from, '+ ' ) as char (120) )
+
+                  END
+
+              else
+*    with intervals
+                 CASE cabn.anzdz
+
+                   when '0' then
+
+                        cast(
+                          string_agg(
+                            concat(
+                                concat(
+                                  concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,0)) ),
+                                  interv.delim
+                                  ),
+                                concat( cast( ibval.dec_value_to as dec (18,0)), interv.post_fix )
+                              )
+                              , '; ' )
+                            as CHAR (120) )
+
+                   WHEN '1' then
+
+                        cast(
+                          string_agg(
+                            concat(
+                                concat(
+                                  concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,1)) ),
+                                  interv.delim
+                                  ),
+                                concat( cast( ibval.dec_value_to as dec (18,1)), interv.post_fix )
+                              )
+                              , '; ' )
+                            as CHAR (120) )
+
+                   WHEN '2' then
+
+                        cast(
+                          string_agg(
+                            concat(
+                                concat(
+                                  concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,2)) ),
+                                  interv.delim
+                                  ),
+                                concat( cast( ibval.dec_value_to as dec (18,2)), interv.post_fix )
+                              )
+                              , '; ' )
+                            as CHAR (120) )
+
+                    WHEN '3' then
+                        cast(
+                          string_agg(
+                            concat(
+                                concat(
+                                  concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,3)) ),
+                                  interv.delim
+                                  ),
+                                concat( cast( ibval.dec_value_to as dec (18,3)), interv.post_fix )
+                              )
+                              , '; ' )
+                            as CHAR (120) )
+
+                    WHEN '4' then
+                            cast(
+                              string_agg(
+                                concat(
+                                    concat(
+                                      concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,4)) ),
+                                      interv.delim
+                                      ),
+                                    concat( cast( ibval.dec_value_to as dec (18,4)), interv.post_fix )
+                                  )
+                                  , '; ' )
+                                as CHAR (120) )
+
+                     WHEN '5' then
+
+                           cast(
+                              string_agg(
+                                concat(
+                                    concat(
+                                      concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,5)) ),
+                                      interv.delim
+                                      ),
+                                    concat( cast( ibval.dec_value_to as dec (18,5)), interv.post_fix )
+                                  )
+                                  , '; ' )
+                                as CHAR (120) )
+
+
+                     WHEN '10' then
+                           cast(
+                              string_agg(
+                                concat(
+                                    concat(
+                                      concat( interv.pre_fix, cast( ibval.dec_value_from as dec (21,10)) ),
+                                      interv.delim
+                                      ),
+                                    concat( cast( ibval.dec_value_to as dec (21,10)), interv.post_fix )
+                                  )
+                                  , '; ' )
+                                as CHAR (120) )
+
+
+                     ELSE
+                         cast( string_agg( ibval.dec_value_from, '+ ' ) as char (120) )
+                     END
+
+                 END
+
+
+                END as atwrt_str
+
+
+              from ibinvalues as ibval
+                join ibsymbol as ibsym
+             ON ibsym.symbol_id = ibval.symbol_id
+             and ibsym.mandt = ibval.mandt
+
+             join cabn as cabn
+              on cabn.atinn = ibsym.atinn
+              and cabn.adzhl = '0000'
+              and cabn.mandt = ibsym.mandt
+
+
+            join :_t_interval_extstr as interv
+                on interv.atcod = ibsym.atcod
+
+
+           where ibval.mandt = :_mandt
+
+          group by ibval.mandt, ibval.in_recno, ibsym.atinn, ibsym.atcod, cabn.atnam, cabn.atfor, cabn.anzst, cabn.anzdz
+
+        )
+
+        select
+          vbap.vbeln as slsh,
+          vbap.posnr as slsi,
+          vbap.matnr as material,
+          vbap.werks as plant,
+          vbap.arktx as itemdescr,
+         vbap.cuobj as productconfiguration,
+
+         vbap.kwmeng as orderquantity,
+         vbap.vrkme as orderquantityunit,
+
+         fromto_agg.atinn,
+         fromto_agg.atnam,
+         fromto_agg.atwrt_str
+
+            from vbap as vbap
+
+            inner join ibin       as ibh on vbap.cuobj = ibh.instance
+
+            inner join _low_fromto_agg as fromto_agg on fromto_agg.in_recno = ibh.in_recno
+
+            ;
+
+        RETURN
+            select * from :_single_n_intervals
+            ORDER BY slsh, slsi, atinn
+            ;
+
+  eNDMETHOD.
+
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;As a result we could see different types of values in one cell but with different formats (with taken into account decimals, multiple values, and interval type)&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="OlegBash_0-1776930129751.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401727i134A85E71AA98697/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="OlegBash_0-1776930129751.png" alt="OlegBash_0-1776930129751.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Figure 5 Result Output of HANA SQL procedure&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-812465028"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;In that blog I have used HANA SQL for data selecting and formatting for Sales Configuration data model. Comments / additions / recommendations are welcomed both as about sales configuration and HANA SQL itself. Thank you.&lt;/P&gt;&lt;P&gt;For contacting with me: &lt;A href="https://www.linkedin.com/in/olegbash/" target="_blank" rel="noopener nofollow noreferrer"&gt;my linked&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-sql-reference-guide/aggregate-functions?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;HANA SQL help for aggregate functions could be found here&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/sales-configuration-display-by-cds-with-table-function-hana-sql-for/ba-p/14381112"/>
+    <published>2026-04-23T09:28:19.160000+02:00</published>
   </entry>
 </feed>

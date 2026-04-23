@@ -2,141 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-HANA-Cloud-blog-posts.xml</id>
   <title>SAP Community - SAP HANA Cloud</title>
-  <updated>2026-04-23T05:01:05.213036+00:00</updated>
+  <updated>2026-04-23T08:01:11.421251+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP HANA Cloud/pd-p/73554900100800002881" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP HANA Cloud blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/artificial-intelligence-blogs-posts/langchain-hana-cache/ba-p/14345633</id>
-    <title>Langchain Hana Cache</title>
-    <updated>2026-03-18T07:36:35.841000+01:00</updated>
-    <author>
-      <name>david_diaz</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/799372</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-1791462501"&gt;Introduction&lt;/H2&gt;&lt;P&gt;When building AI agents your first priority is to make this bad boy work. Get the RAG pipeline properly aligned, check retrieval correctness and check the overall answer usefulness. The task is not an easy one when you work with clients that have thousands or millions of documents that must be ingested properly.&lt;/P&gt;&lt;P&gt;Eventually you reach the point where you deploy the agents in production. You enjoy the good engineering results until the next BTP invoice shows up. You check the token usage and realize you need to do something about it because, well, it is a lot.&lt;/P&gt;&lt;P&gt;So you check your traces, and discover that while there is a ton of interaction with the agent, a big portion of those calls are variations of the same questions. Different users, slightly different wording, but the same answer every time. "How do I reset my password", "password reset help", "I forgot my password." Three different prompts, three LLM calls, three times you pay. Same answer.&lt;/P&gt;&lt;P&gt;That's where I found myself after deploying LangGraph agents on SAP BTP with HANA Cloud. The pipeline worked well. The retrieval was solid (I'd already built &lt;A href="https://github.com/stubborncoder/langchain-hana-retriever" target="_blank" rel="noopener nofollow noreferrer"&gt;langchain-hana-retriever&lt;/A&gt; for hybrid search). The agent state was persisted (using &lt;A href="https://github.com/stubborncoder/langgraph-checkpoint-hana" target="_blank" rel="noopener nofollow noreferrer"&gt;langgraph-checkpoint-hana&lt;/A&gt;). But the token bill kept growing with every new user asking the same things in different words.&lt;/P&gt;&lt;P&gt;So I decided to also built a semantic cache for HANA Cloud, that will enhance the langchain/langraph solution that I'm using with my SAP clients and their rag Pipelines.&lt;/P&gt;&lt;H2 id="toc-hId-1594948996"&gt;The idea&lt;/H2&gt;&lt;P&gt;Pretty straightforward: before calling the LLM, embed the user's prompt and check HANA for a stored response to a similar prompt. If the similarity is high enough, return the cached answer and skip the API call entirely. If there's no match, call the LLM normally and cache the result for next time.&lt;/P&gt;&lt;P&gt;HANA Cloud already has COSINE_SIMILARITY for vector search. It's the same function that powers RAG retrieval. Here I'm just pointing it at prompts instead of documents.&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;User sends a prompt&lt;/LI&gt;&lt;LI&gt;Embed the prompt into a vector&lt;/LI&gt;&lt;LI&gt;Search HANA for cached entries using COSINE_SIMILARITY&lt;/LI&gt;&lt;LI&gt;If there's a match above the threshold, return the cached response. No LLM call.&lt;/LI&gt;&lt;LI&gt;If no match, call the LLM, store the prompt embedding + response in HANA, return the response&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="langchain-hana-cache-inphografic.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/381826i1A1981A8A2C34092/image-size/large?v=v2&amp;amp;px=999" role="button" title="langchain-hana-cache-inphografic.jpg" alt="langchain-hana-cache-inphografic.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1398435491"&gt;Installation and setup&lt;/H2&gt;&lt;P&gt;as usual pretty straight forward&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;pip install langchain-hana-cache&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;The package implements LangChain's BaseCache interface. You set it as the global cache and every LLM call in your application checks HANA first. You don't need to change anything else in your code:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;import hdbcli.dbapi
-from langchain_hana_cache import HANASemanticLLMCache
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_core.globals import set_llm_cache
-
-connection = hdbcli.dbapi.connect(
-    address="your-host.hanacloud.ondemand.com",
-    port=443,
-    user="DBADMIN",
-    password="your-password",
-    encrypt=True,
-)
-
-embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-
-cache = HANASemanticLLMCache(
-    connection=connection,
-    embedding=embeddings,
-    table_name="LLM_CACHE",
-    similarity_threshold=0.95,
-)
-
-set_llm_cache(cache)
-
-llm = ChatOpenAI(model="gpt-4o")
-
-# First call: hits the API, caches the result
-response1 = llm.invoke("What are the reporting requirements for article 12?")
-
-# Second call with similar wording: cache hit, no API call
-response2 = llm.invoke("Tell me about article 12 reporting requirements")&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;That second call comes back instantly. Same answer, zero tokens consumed.&lt;/P&gt;&lt;H2 id="toc-hId-1201921986"&gt;What I actually saw when I tested it&lt;/H2&gt;&lt;P&gt;I ran three consecutive calls against my HANA Cloud instance to see what happens. First a new question, then the same question but rephrased, then something completely different:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;     ======================================================================
-       HANASemanticLLMCache Demo
-     ======================================================================
-
-     [1] Connecting to SAP HANA Cloud...
-         ✓ Connected
-
-     [2] Creating semantic cache (table: LLM_CACHE_DEMO_85DFB4)...
-         ✓ Cache ready (vector dim auto-detected)
-
-     [3] First LLM call (cache MISS expected):
-         Prompt: "What are the three laws of thermodynamics? Explain briefly."
-         Response: The three laws of thermodynamics are fundamental principles...
-         ⏱  Time: 9.46s
-
-     [4] Second LLM call (cache HIT expected, similar prompt):
-         Prompt: "Explain the 3 laws of thermodynamics in a short summary"
-         Response: The three laws of thermodynamics are fundamental principles...
-         ⏱  Time: 0.41s
-
-     [5] Third LLM call (cache MISS expected, different topic):
-         Prompt: "What is the recipe for a classic French omelette?"
-         Response: A classic French omelette is simple yet elegant...
-         ⏱  Time: 8.16s
-
-     ======================================================================
-       Results Summary
-     ======================================================================
-       Call 1 (MISS):  9.46s  LLM called, response cached
-       Call 2 (HIT):   0.41s  served from HANA cache!
-       Call 3 (MISS):  8.16s  different topic, LLM called
-
-       Speedup on cache hit: 23.0x faster (96% latency reduction)
-     ======================================================================&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;9.46 seconds down to 0.41. That's 23x faster. And the omelette question correctly missed the cache because it has nothing to do with thermodynamics. The thing actually works.&lt;/P&gt;&lt;H2 id="toc-hId-1005408481"&gt;Tuning the similarity threshold&lt;/H2&gt;&lt;P&gt;This is the one knob you need to care about. The similarity_threshold controls how close two prompts need to be for a cache hit:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;0.98&lt;/STRONG&gt;: very strict. Only nearly identical prompts match. Safe, but you won't save much.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;0.95&lt;/STRONG&gt;: what I use. Catches rephrasings without being too loose.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;0.90&lt;/STRONG&gt;: aggressive. You save more, but you risk serving a wrong answer when two different questions happen to look similar to the model.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;I started with 0.95 and haven't needed to touch it. If your agent handles very repetitive questions (think support desk), you could try going lower and see what happens.&lt;/P&gt;&lt;H2 id="toc-hId-808894976"&gt;Dealing with stale answers&lt;/H2&gt;&lt;P&gt;Once this is running in production you'll think about the next problem: what if the source documents change? If someone updates a policy and a user asks about it, the cache might still serve the old answer. TTL (time-to-live) takes care of that:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;cache = HANASemanticLLMCache(
-    connection=connection,
-    embedding=embeddings,
-    table_name="LLM_CACHE",
-    similarity_threshold=0.95,
-    ttl_seconds=86400,  # entries expire after 24 hours
-)
-
-# Manual cleanup when you need it
-cache.evict_expired()
-cache.evict_lru(max_entries=1000)
-cache.clear()&lt;/CODE&gt;&lt;/PRE&gt;&lt;H2 id="toc-hId-612381471"&gt;What the cache table looks like&lt;/H2&gt;&lt;P&gt;Under the hood, the package creates a single table in HANA with:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;PROMPT_HASH&lt;/STRONG&gt;: SHA256 of the exact prompt to prevent storing duplicates&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;PROMPT_TEXT&lt;/STRONG&gt;: the original prompt text&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;PROMPT_EMBEDDING&lt;/STRONG&gt;: the vector for semantic matching (REAL_VECTOR column)&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;LLM_STRING&lt;/STRONG&gt;: which model generated the response. GPT-4o cache won't serve GPT-3.5 queries.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;RESPONSE&lt;/STRONG&gt;: the serialized LLM response&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;CREATED_AT, LAST_ACCESSED, HIT_COUNT&lt;/STRONG&gt;: for TTL and eviction&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The vector dimension is auto-detected from whatever embedding model you pass in. You don't have to think about it.&lt;/P&gt;&lt;H2 id="toc-hId-415867966"&gt;When all this makes sense?&lt;/H2&gt;&lt;P&gt;Well, this is not something you add on day one to a rag pipeline. As I told at the beginnig of this article, you add it after your agent is working and you're looking at how to make it sustainable, you have to also check whether you are making use the llm cache capabilities, taking care of cache invalidation, the agent making good use of the retrieval tools, etc... In my experience it pays off when:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Multiple users are hitting the agent with variations of the same questions&lt;/LI&gt;&lt;LI&gt;You're on an expensive model and the monthly bill reflects it&lt;/LI&gt;&lt;LI&gt;The answers stay valid for hours or days (policies, regulations, product docs, internal knowledge bases)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;It makes less sense when every query is truly unique, or when your data changes so fast that the cache is always stale.&lt;/P&gt;&lt;P&gt;Also one thing to keep in mind: every cache lookup needs an embedding call to compare the incoming prompt against stored ones. &lt;STRONG&gt;If your LLM is super cheap, the embedding might actually cost more than just calling the model&lt;/STRONG&gt;.&lt;/P&gt;&lt;H2 id="toc-hId-219354461"&gt;What's next&lt;/H2&gt;&lt;P&gt;This is v0.1.0, focused on LLM response caching. I'm working on two more pieces:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Retriever cache&lt;/STRONG&gt;: cache the retrieved document chunks so similar queries skip the embedding + vector search step entirely&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Pipeline cache&lt;/STRONG&gt;: cache the full pipeline result, retrieval + LLM together, for maximum savings on repeated queries&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Each one targets a different part of the cost. Together they should cover most of the optimization you'd want after getting a RAG pipeline into production.&lt;/P&gt;&lt;H2 id="toc-hId-22840956"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;Building the agent is the hard part. Making it affordable is the next challenge, and it's a much more tractable one. This cache lives in the same HANA instance as your business data. No extra infrastructure, just one more table. I saw 23x speedups on cache hits in my tests and the token savings add up fast once you have real users hitting the agent every day.&lt;/P&gt;&lt;P&gt;Give it a try and let me know how it goes.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;PyPI:&lt;/STRONG&gt; &lt;A href="https://pypi.org/project/langchain-hana-cache/" target="_blank" rel="noopener nofollow noreferrer"&gt;https://pypi.org/project/langchain-hana-cache/&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;GitHub:&lt;/STRONG&gt; &lt;A href="https://github.com/stubborncoder/langchain-hana-cache" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/stubborncoder/langchain-hana-cache&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/artificial-intelligence-blogs-posts/langchain-hana-cache/ba-p/14345633"/>
-    <published>2026-03-18T07:36:35.841000+01:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/a-use-case-for-hana-cloud-knowledge-graph-ai-driven-tender-analysis/ba-p/14352125</id>
-    <title>A Use Case for HANA Cloud Knowledge Graph: AI‑Driven Tender Analysis</title>
-    <updated>2026-03-19T16:08:09.126000+01:00</updated>
-    <author>
-      <name>giacomo_dantonio</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1957975</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-1792291815"&gt;Introduction&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Many companies face the same challenge: they need to match unstructured text, such as tenders, applications, or support tickets, with their internal data to make informed decisions. In our project, we tackled exactly this problem and worked on an application that connects text understanding, semantic search and structured data. Our primary objective was to acquire knowledge about the tools SAP offers for developing applications of this nature. We undertook this project as part of SAP’s Early Adopter Care program for the &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+HANA+Cloud/pd-p/73554900100800002881" class="lia-product-mention" data-product="22-1"&gt;SAP HANA Cloud&lt;/a&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;Knowledge Graph Engine.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Our concrete use case was an internal tender analysis scenario within our company, focusing on public-sector calls for tenders. Deciding about potential participation requires answering several questions: Does the topic fit our company's portfolio, which skills and experience are required and do the required skills exist in our organization, are the necessary resources available? Instead of manually searching for this information through documents and databases, we wanted to automate this process. The goal was to build a system that can read and interpret the tender text, understand the company's internal skill profiles, and combine both to produce a meaningful recommendation.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;To achieve this, we combined three capabilities:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;semantic structuring of employee data using a knowledge graph&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;semantic representation of competency descriptions and CVs using vector embeddings&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;LLM-powered analysis to interpret and connect both worlds&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;This architecture allowed us to bring together unstructured text and structured data enabling precise matching and explainable results, thus building a foundation that can be reused for many other AI scenarios.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;We implemented the application using &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Cloud+Application+Programming+Model/pd-p/9f13aee1-834c-4105-8e43-ee442775e5ce" class="lia-product-mention" data-product="100-1"&gt;SAP Cloud Application Programming Model&lt;/a&gt;&amp;nbsp;(CAP), a cloud-native framework that seamlessly integrates with &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+HANA+Cloud/pd-p/73554900100800002881" class="lia-product-mention" data-product="22-2"&gt;SAP HANA Cloud&lt;/a&gt;, &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+AI+Core/pd-p/73554900100800003641" class="lia-product-mention" data-product="405-1"&gt;SAP AI Core&lt;/a&gt;&amp;nbsp;and the Generative AI Hub (GenAI Hub). To give you a clear picture of how these components work together, the solution diagram below illustrates the overall flow, from data ingestion to semantic processing to the final application.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Solution Diagram" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/385478iFD6E80C0CCECD30D/image-size/large?v=v2&amp;amp;px=999" role="button" title="tech-blog-architecture.png" alt="Solution Diagram" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Solution Diagram&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1595778310"&gt;Provisioning the Resources&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;To implement this architecture, we provisioned a set of cloud resources in SAP BTP , each of which contribute a specific capability to the overall workflow.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;At the center of the setup is SAP HANA Cloud, which provides both the Knowledge Graph Engine (KGE) and the Vector Engine (VE), and in which the CAP application data is persisted. The KGE is not enabled by default; it must be activated when the HANA instance is created and comes with some technical requirements:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Triple Store activation: The KGE relies on the HANA Triple Store, which must be enabled as part of the instance configuration. Without this, RDF triples cannot be stored or queried.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Minimum memory requirement: The KGE requires a HANA instance with at least 48 GB memory. This is necessary because storing the graph, executing SPARQL and SQL statements, and inference processes such as subclass inference, domain/range inference, and transitive property expansion operate in-memory. Smaller instances cannot activate Triple Store at all.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;For the AI workflows, we provisioned AI Core which includes the GenAI Hub&lt;/SPAN&gt;. AI Core runs the embedding and LLM processing jobs, while the GenAI Hub provides access to the models used for these tasks. This allows the application to generate semantic representations of text documents (tenders and CVs in our use case)&lt;SPAN&gt; and to retrieve information of documents via prompts.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The application layer itself is deployed as a CAP service running in a Cloud Foundry environment. CAP binds to the HANA Cloud, AI Core, and GenAI Hub service instances through standard service bindings, i.e. by receiving all required credentials and endpoints through environment variables.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;This provisioning model keeps the architecture modular: each capability (knowledge graph, vector search, AI processing, and application logic) is provided as a separate cloud resource. It also makes the system easy to extend. &lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1399264805"&gt;Knowledge Graphs and Embeddings: The Semantic Foundation of Our Architecture&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Before diving into the SAP-specific components, it is useful to look at the two core concepts that shape our solution: knowledge graphs and embeddings. Both address the same challenge from different angles: turning human-readable meaning into structured, machine-interpretable representation.&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1331834019"&gt;Knowledge Graphs: Representing Relations between Data Entities&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;A knowledge graph stores information not as tables, but as entities and relationships. Instead of using foreign keys and joins, it forms an explicit network of connected facts. This makes it easier to express complex relationships, integrate data, and run queries that follow semantic structures rather than rigid schemas.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;At the heart of every knowledge graph is an ontology: a structured definition of entities, properties, and relationships that the graph represents. An ontology defines:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;classes (e.g., &lt;EM&gt;Person&lt;/EM&gt;, &lt;EM&gt;Skill&lt;/EM&gt;, &lt;EM&gt;Project&lt;/EM&gt;)&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;properties that connect them (e.g., &lt;EM&gt;hasSkill&lt;/EM&gt;, &lt;EM&gt;requiresSkill&lt;/EM&gt;)&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;hierarchies and subclasses (e.g., abstract classes or hierarchical organization units)&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;constraints and expected value types (e.g., each identifiable entity has exactly one ID of type int)&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;The ontology gives the graph its semantic structure. It tells the system what kinds of things exist in the domain and how they relate to each other. Without an ontology, a knowledge graph would be just a collection of disconnected triples.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Knowledge graphs are typically stored as RDF (Resource Description Framework) triples, with the following general structure:&lt;/SPAN&gt;&lt;/P&gt;&lt;PRE&gt;&lt;SPAN&gt;Subject – Predicate – Object&lt;/SPAN&gt;&lt;/PRE&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Subject: the thing we are talking about&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Predicate: the property or relationship&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Object: the value or another entity&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;For example:&lt;/SPAN&gt;&lt;/P&gt;&lt;PRE&gt;&lt;SPAN&gt;Person123 – hasSkill – Python&lt;/SPAN&gt;&lt;/PRE&gt;&lt;P&gt;&lt;SPAN&gt;This triple structure is simple but flexible and extensible. It is especially suitable for representing domains where the data model evolves over time.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;To query RDF data, we use SPARQL, a graph-oriented query language. Instead of specifying joins explicitly – as is required in SQL – SPARQL expresses patterns that should appear in the data. This approach is particularly powerful for dynamic or AI-generated queries, where the structure of the query may not be known in advance. While SQL’s traditional query optimization excels when working with predefined schemas and foreign keys, it becomes less flexible when relationships or entity types vary. SPARQL, by contrast, is built to operate on semantic relationships and can naturally accommodate evolving graph structures.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The conceptual difference becomes clear when comparing a typical SQL query—which depends on rigid tables and join conditions—with an equivalent SPARQL query, where relationships are expressed in a way that is closer to how users understand the domain. In SPARQL, entities and relationships are simply assumed to exist in the graph without requiring predefined foreign-key constraints.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;SQL-Query example&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;SELECT
-    u.UserID,
-    u.JobPosition,
-    u.OrgUnitID,
-    s.SkillName,
-    us.SkillLevel,
-    us.SkillLevelName,
-FROM Users u
-JOIN UserSkills us ON u.UserID = us.UserID
-JOIN Skills s ON us.SkillID = s.SkillID
-WHERE u.Active = 1&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;&lt;STRONG&gt;SPARQL-Query example&lt;/STRONG&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;PREFIX : &amp;lt;http://example.org/my-project#&amp;gt;
-PREFIX rdf: &amp;lt;http://www.w3.org/1999/02/22-rdf-syntax-ns#&amp;gt;
-PREFIX xsd: &amp;lt;http://www.w3.org/2001/XMLSchema#&amp;gt;
-
-SELECT ?person ?position ?skill ?skillName ?level
-WHERE {
-    ?person rdf:type :Person ;
-            :isActive true ;
-            :hasJobPosition ?position ;
-            :hasUserSkill ?userSkill .
-    ?userSkill :connectsToSkill ?skill ;
-               :hasSkillLevel ?level ;
-               :hasSkillLevelName ?levelName .
-    ?skill :hasSkillName ?skillName .   
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;SPAN&gt;In short:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;SQL is designed for handling stable, well-defined tabular schemas with fixed relationships.&lt;/LI&gt;&lt;LI&gt;SPARQL is designed for handling semantic relationships, flexible graph structures, and dynamically changing query shapes, making it well suited for AI-generated scenarios.&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1135320514"&gt;&lt;SPAN&gt;Embeddings: Encoding Text Semantics as Vectors&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;Embeddings take a different approach. Instead of modelling explicit relationships, they encode the semantic meaning of text as high-dimensional vectors. Similar texts end up close to each other in vector space while unrelated texts are far apart. This enables semantic search, similarity matching and clustering. Embeddings are essential when working with documents like tenders or CVs, where meaning is not explicitly structured but must be inferred.&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-938807009"&gt;&lt;SPAN&gt;How This Maps to the SAP World: KGE and VE&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;SAP HANA Cloud provides built-in components that implement these concepts directly inside the database:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;The Knowledge Graph Engine (KGE) stores RDF triples and executes SPARQL queries. It gives us explicit, queryable relationships between entities such as people, skills, and projects.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;The Vector Engine (VE) stores embeddings and provides functions for calculating the cosine similarity between embeddings, which simplifies similarity searches. It allows us to compare tender documents with CVs or skill profiles on a semantic level.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Together, KGE and VE combine explicit knowledge in the form of the knowledge graph structure with implicit meaning in the form of text embeddings. This dual representation enables our application to extract relevant information from tender documents and map it to our data model of employee competencies.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In the next section, we will look at how we designed the ontology and processed the data to populate both engines.&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId-613210785"&gt;&lt;SPAN&gt;Building the Knowledge Graph&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Creating the knowledge graph was a multi-step process that combined data engineering, domain modeling, and graph construction. While some parts of the pipeline can be automated, the core design work requires domain knowledge and deliberate modeling decisions. In our project we followed a three-stage approach.&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-545779999"&gt;&lt;SPAN&gt;Selecting and Structuring Relevant Data&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;The first step was to identify which data should become part of the knowledge graph and how these pieces of information relate to each other. This is a classic data engineering task: understanding the domain, exploring the available data sources, and deciding which entities and relationships are relevant for the scenario.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In our case, this meant analyzing the existing SQL-based data model (employees, skills, projects, roles, and assignments) and determining which parts of it contain meaningful information for matching tenders with internal capabilities. This step cannot be easily automated; it requires domain knowledge to decide which entities and relationships between them matter for the business question and which attributes are relevant for which entity type.&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-349266494"&gt;&lt;SPAN&gt;Creating An Ontology&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;Once the structure of the ontology has been decided on, it can be translated into classes, properties, hierarchies, and constraints that structure the graph. &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Our ontology is defined using Turtle (Terse RDF Triple Language), a human-readable syntax for expressing RDF data. Turtle is a W3C standard that provides a compact and intuitive way to describe semantic relationships. It is based on the following key syntax elements:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Prefixes&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;: Define namespace shortcuts for cleaner code&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;@prefix : &amp;lt;http://example.org/our-project#&amp;gt; .
-@prefix owl: &amp;lt;http://www.w3.org/2002/07/owl#&amp;gt; .
-@prefix rdfs: &amp;lt;http://www.w3.org/2000/01/rdf-schema#&amp;gt; .&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Classes&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;: Define entity types using &lt;/SPAN&gt;&lt;EM&gt;a owl:Class&lt;/EM&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;:Person a owl:Class ;
-    rdfs:label "Person" ;
-    rdfs:comment "Individual employee or consultant" .&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Properties&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;: Define relationships (ObjectProperty) or attributes (DatatypeProperty)&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;:possessesSkillWith a owl:ObjectProperty ;
-    rdfs:domain :Person ;
-    rdfs:range :UserSkill .&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;This links a person to their skill instances which include, e.g., proficiency levels and experience.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Triples&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;: The fundamental RDF structure (Subject-Predicate-Object)&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;:Person rdfs:subClassOf :IdentifiableEntity .&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;This reads as: "Person is a subclass of IdentifiableEntity"&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;The semicolon notation allows defining multiple properties of the same entity without repeating the subject. The following statement is equivalent to four separate triples, but much more readable:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;:Person a owl:Class ;
-    rdfs:label "Person" ;
-    rdfs:comment "Individual employee" ;
-    rdfs:subClassOf :IdentifiableEntity .&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;To organize related concepts, we introduced abstract classes. They reduce redundancy by collecting shared properties in one place instead of repeating them across many similar classes. This makes the ontology easier to maintain and ensures consistency because updates to shared properties only need to be made once.&lt;/P&gt;&lt;P&gt;In addition to structuring the model, the ontology also defines formal constraints that describe how data in the knowledge graph is expected to look. These constraints specify rules and cardinalities, such as requiring each person to have exactly one &lt;EM&gt;UserID&lt;/EM&gt; or ensuring that each project includes a start date. While SAP HANA Cloud cannot automatically enforce these constraints without a reasoner, they still serve as valuable documentation and help implementing validation checks using Shapes Constraint Language tools.&lt;/P&gt;&lt;H3 id="toc-hId-152752989"&gt;Creating Instances&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;The knowledge graph contains instances that are generated from data stored in a relational database. To connect both worlds, we defined a mapping that links SQL tables and columns to ontology properties. For example, the ontology property&lt;/SPAN&gt; &lt;EM&gt;hasUserID&lt;/EM&gt;&lt;SPAN&gt; corresponds to the column &lt;/SPAN&gt;&lt;EM&gt;UserID&lt;/EM&gt;&lt;SPAN&gt; in the table &lt;EM&gt;Users&lt;/EM&gt; in an SQL database. This declarative mapping makes it possible to extract relational data and convert it into semantic triples .&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Simple one‑to‑one and one‑to‑many relationships can be handled directly. For many‑to‑many relationships, we added an extended mapping layer that can follow junction tables in the relational schema.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Because SAP HANA Cloud’s RDF Store does not include a reasoner, inverse properties cannot be inferred automatically. They must be created explicitly during triple generation. To support this, our mapping configuration allows us to define inverse property pairs (e.g., &lt;/SPAN&gt;&lt;EM&gt;tagsProject&lt;/EM&gt; ↔ &lt;EM&gt;projectTaggedWith&lt;/EM&gt;), so the parser generates both directions of the relationship automatically&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The triple generation pipeline runs in several steps. First, it creates datatype property triples (literal attributes), automatically assigning the correct types based on the ontology. Then it generates object property triples (links between entities), using an in-memory index to quickly look up target URIs. For large datasets, the system uses chunked batch processing to load triples in bulk, which improves performance and reduces memory usage.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Each ontology class is written into its own RDF graph, allowing updates to specific entity types without reloading the entire knowledge base. Finally, the system serializes these graphs into Turtle (.ttl) files and uploads them to the SAP Knowledge Graph Engine (i.e., SAP HANA Cloud’s RDF Store).&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="toc-hId-174411122"&gt;&lt;SPAN&gt;Requirement Analysis and Evaluation&lt;/SPAN&gt;&lt;/H2&gt;&lt;H3 id="toc-hId--315505390"&gt;&lt;SPAN&gt;Extracting required skills and experience levels via Prompts&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;To extract information from tender documents, we developed an LLM‑based pipeline that first checks whether a tender fits the company’s domain. For tenders that match the business profile, the pipeline automatically generates a concise text summary and extracts the skills referenced in the document. For each identified skill, it captures the skill name, and its stated importance level in the tender — classified as &lt;EM&gt;must-have&lt;/EM&gt;, &lt;EM&gt;should-have,&lt;/EM&gt; or &lt;EM&gt;nice-to-have&lt;/EM&gt; (when explicitly indicated in the text). &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Skills and priorities" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/385520iC3C2C139CA19A929/image-size/large?v=v2&amp;amp;px=999" role="button" title="screenshot-skills.png" alt="Skills and priorities" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Skills and priorities&lt;/span&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId--512018895"&gt;Skill Matching&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;This structured extraction turns free&lt;/SPAN&gt;‑&lt;SPAN&gt;text requirements into machine&lt;/SPAN&gt;‑&lt;SPAN&gt;readable skill profiles that can be directly queried within our knowledge graph. For these queries, the system needs to match the skills extracted by the LLM&lt;/SPAN&gt; &lt;SPAN&gt;with the skill names stored in the employee database. These names rarely match exactly because of synonyms or different wording. We have implemented this matching by first looking up the top-k skills most similar in terms of word embedding using the Knowledge Graph Engine and subsequently filtering out entries that are unrelated to the skill mentioned in the tender via a prompt (for example, matching “Python” in the tender to entries like “Python 3” or “Python Programming” in the employee database).&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Once the skill mapping is complete, the matched skills are inserted into a predefined SPARQL query. This query returns all employees who have these skills, including their proficiency levels, enabling automated candidate identification for tender requirements.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;By combining embeddings with LLMs, the system can handle linguistic variations while still generating precise SPARQL queries.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Users matching" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/385521iC1B6CAC6380349CF/image-size/large?v=v2&amp;amp;px=999" role="button" title="screenshot-users.png" alt="Users matching" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Users matching&lt;/span&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--708532400"&gt;Requirement Evaluation&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;Once employees with the required skills are found through the SPARQL queries, the system calculates a skill score based on their proficiency levels. A skill receives a score of 1.0 if at least one employee is an expert, 0.8 for intermediate proficiency, 0.5 for beginner-level proficiency, and 0.0 if no one in the company has that skill. This gives an overall picture of how well the organization covers each required competency.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;The skill scores are aggregated within the importance levels (must‑have, should‑have, nice‑to‑have) using a simple average. The result is a score for each importance level that shows how well the company’s employees' competencies match the tender requirements at different levels of importance.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Aggregated scores" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/385522iD3DAABEACFA57E09/image-size/large?v=v2&amp;amp;px=999" role="button" title="screenshot-analysis.png" alt="Aggregated scores" /&gt;&lt;span class="lia-inline-image-caption" onclick="event.preventDefault();"&gt;Aggregated scores&lt;/span&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId--611642898"&gt;Supplementary Analysis: Comparing Employee CVs and Tender Text&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Beyond the structured skill matching outlined above, we added a second analysis pipeline which determines the suitability of candidates for a given tender document by evaluating the semantic similarity between employee CVs and tender text based on embeddings.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Employee CVs are split into meaningful chunks (up to 6,000 tokens each) so that related information about projects and skills stays together. Each chunk is then embedded using a suitable model deployed through the SAP AI Core and stored in SAP Vector Engine (i.e. SAP HANA Cloud’s vector database) for semantic search. Tender documents go through the same embedding process, turning unstructured text into dense vectors that capture meaning beyond simple keywords.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;To identify suitable candidates, the system compares CV embeddings with tender embeddings using cosine similarity, ranking employees according to how closely their experience aligns with the project requirements. By capturing semantic similarity rather than relying on exact keyword matches, this approach enables accurate matching even when different wording or terminology is used.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;By combining precise skill matching through the knowledge graph with semantic search across CV embeddings, the system provides a comprehensive way to find candidates based both on explicitly listed competencies and experience descriptions.&lt;/P&gt;&lt;H2 id="toc-hId--808156403"&gt;Outlook&lt;/H2&gt;&lt;P&gt;As a next step, we plan to enable fully automated tender analysis where LLMs generate SPARQL queries directly from the tender text, without relying on predefined templates. This means the LLM would translate project requirements into precise knowledge graph queries on its own. For example, if a tender asks for “three senior Java developers with cloud architecture experience and at least five years in the financial sector,” the LLM would automatically create a SPARQL query that filters employees by skill levels, domain experience, and project history, returning all candidates who meet these criteria in one step.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/a-use-case-for-hana-cloud-knowledge-graph-ai-driven-tender-analysis/ba-p/14352125"/>
-    <published>2026-03-19T16:08:09.126000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/introducing-performance-analyzer-in-sap-hana-cloud-central/ba-p/14356442</id>
     <title>Introducing Performance Analyzer in SAP HANA Cloud Central</title>
@@ -698,5 +567,500 @@ FROM DUMMY&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;So, .OUT_YEAR gives you the year, an
     <content>&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Unlocking custom AI use-cases with SAP HANA Cloud.png" style="width: 799px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400583i73EB9A35647ED10F/image-size/large?v=v2&amp;amp;px=999" role="button" title="Unlocking custom AI use-cases with SAP HANA Cloud.png" alt="Unlocking custom AI use-cases with SAP HANA Cloud.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;If you’re working with data in SAP landscapes, you already know the pressure to turn it into real outcomes. &amp;nbsp;The good news. &amp;nbsp;You don’t need to move your data or add complexity to start building AI use cases.&lt;/P&gt;&lt;P&gt;In this upcoming session, we’ll walk through how to use the built-in AI capabilities of SAP HANA Cloud to create practical, scalable solutions. &amp;nbsp;From AutoML with PAL to new Data and Discovery Agents, you’ll see how to go from raw data to actionable insights in a structured way.&lt;/P&gt;&lt;P&gt;Plus, we’ll share an early look at Tabular AI with SAP-RPT-1. &amp;nbsp;This is where things start to get interesting for partners building next-gen applications.&lt;/P&gt;&lt;P&gt;The focus is simple. &amp;nbsp;Clear steps. &amp;nbsp;Real examples. &amp;nbsp;Immediate value.&lt;/P&gt;&lt;P&gt;Join us and leave with a plan you can apply right away.&lt;/P&gt;&lt;P&gt;Register now.&amp;nbsp; &lt;A href="https://partneredge.sap.com/en/library/education/psd/2026/mar/e_oe_te_w_PSD_WEB_00013362.html" target="_blank" rel="noopener noreferrer"&gt;https://partneredge.sap.com/en/library/education/psd/2026/mar/e_oe_te_w_PSD_WEB_00013362.html&lt;/A&gt;&lt;/P&gt;&lt;P&gt;#SAP #SAPBTP #SAPPartners #SAPEcosystem #AI #DataAnalytics #MachineLearning&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/unlocking-custom-ai-use-cases-with-sap-hana-cloud/ba-p/14378902"/>
     <published>2026-04-21T09:00:00.016000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/sap-capm-project-lifecycle-from-development-to-fiori-preview/ba-p/14378158</id>
+    <title>SAP CAPM Project Lifecycle: From Development to Fiori Preview</title>
+    <updated>2026-04-23T08:35:14.493000+02:00</updated>
+    <author>
+      <name>IdaEvangelin</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2064307</uri>
+    </author>
+    <content>&lt;P&gt;Let's see an end&amp;nbsp; to end demonstration for creating the CAPM project, entity, service with annotations, create the entry via Post man tool and Preview the Application in Fiori.&lt;/P&gt;&lt;P&gt;Below mentioned detailed points covered in this Blog,&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;EM&gt;BTP Cockpit and its properties&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Creation of CAP Project&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Linkage of Entity to the HANA DB in the SAP HANA Cloud central&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Post man tool Authorization and Post Operation&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Preview in the Fiori Application&lt;/EM&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;BTP Cockpit and its properties:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Create a BTP Cock PIT Trial account and Sub Account.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_0-1776679820371.png" style="width: 443px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400085i82D17A97A497907E/image-dimensions/443x291/is-moderation-mode/true?v=v2" width="443" height="291" role="button" title="IdaEvangelin_0-1776679820371.png" alt="IdaEvangelin_0-1776679820371.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In the Instances and Subscription Add SAP HANA Cloud and SAP Business Application Studio.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_1-1776679820378.png" style="width: 441px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400083i154F205C6DA04F19/image-dimensions/441x96/is-moderation-mode/true?v=v2" width="441" height="96" role="button" title="IdaEvangelin_1-1776679820378.png" alt="IdaEvangelin_1-1776679820378.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Create a Space in the Cloud Foundry, which is a shared, isolated location with an organization (org) used to develop, deploy and manage application and services.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_2-1776679820383.png" style="width: 431px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400084i44450EB5D32F7F7D/image-dimensions/431x253/is-moderation-mode/true?v=v2" width="431" height="253" role="button" title="IdaEvangelin_2-1776679820383.png" alt="IdaEvangelin_2-1776679820383.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In SAP BTP Cockpit administrators navigate to &lt;STRONG&gt;security-&amp;gt;Role collections, &lt;/STRONG&gt;create or edit a collection, and add roles-derived from application templates-to define the granular access.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_3-1776679820388.png" style="width: 515px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400088iCB021C5757415306/image-dimensions/515x166/is-moderation-mode/true?v=v2" width="515" height="166" role="button" title="IdaEvangelin_3-1776679820388.png" alt="IdaEvangelin_3-1776679820388.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_4-1776679820393.png" style="width: 425px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400087iFD4B49DA7DE43522/image-dimensions/425x335/is-moderation-mode/true?v=v2" width="425" height="335" role="button" title="IdaEvangelin_4-1776679820393.png" alt="IdaEvangelin_4-1776679820393.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Creation of CAP Project:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In this Business Application studio create a Dev space and create a Project as mentioned below.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_5-1776679820398.png" style="width: 432px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400086iD08E360CC6593EAB/image-dimensions/432x293/is-moderation-mode/true?v=v2" width="432" height="293" role="button" title="IdaEvangelin_5-1776679820398.png" alt="IdaEvangelin_5-1776679820398.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_6-1776679820401.png" style="width: 439px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400089iB8D165FAF646FCBE/image-dimensions/439x238/is-moderation-mode/true?v=v2" width="439" height="238" role="button" title="IdaEvangelin_6-1776679820401.png" alt="IdaEvangelin_6-1776679820401.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_7-1776679820406.png" style="width: 434px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400090iCC83A608198FEF73/image-dimensions/434x331/is-moderation-mode/true?v=v2" width="434" height="331" role="button" title="IdaEvangelin_7-1776679820406.png" alt="IdaEvangelin_7-1776679820406.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_8-1776679820411.png" style="width: 427px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400091iE9C88ECFCA8DF296/image-dimensions/427x329/is-moderation-mode/true?v=v2" width="427" height="329" role="button" title="IdaEvangelin_8-1776679820411.png" alt="IdaEvangelin_8-1776679820411.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Once Project created a project with workspace created. Here I have created ENTITY_CRUD project. As per below image under DB Node we can create the entity and service for the entity create under SRV node.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;gen&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Auto-generated folder created during build; contains compiled artifacts from your CDS models. You normally don’t edit this manually.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;.vscode&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Holds VS Code-specific settings like launch configs and workspace preferences for development.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;app&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Used for UI/front-end apps (like SAP Fiori); contains HTML, UI5, or other frontend resources.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;db&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Defines your data model and database artifacts using CDS files (like itemrecordsdb.cds) and deployment configs (undeploy.json).&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;gen&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Another generated folder used during build/deploy; stores intermediate files created by CAP tools.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;mta_archives&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Contains packaged .mtar files used for deployment to SAP BTP (multi-target application archives).&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;node_modules&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Stores all installed npm dependencies required for your CAP project.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;srv&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Defines the service layer (business logic &amp;amp; APIs); CDS files like itemrecordssrv.cds expose entities as OData services.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;.cdsrc-private.json&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Local configuration file for CAP (like profiles, credentials); usually not committed to Git.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;.gitignore&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Specifies files/folders (like node_modules) that Git should ignore.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;eslint.config.mjs&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Configuration for code linting to maintain code quality and standards.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;mta.yaml&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Defines how the application is structured and deployed in SAP BTP (modules, resources, dependencies).&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;package.json&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Main project config file listing dependencies, scripts, and metadata.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;package-lock.json&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Locks exact versions of installed dependencies for consistent builds.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;STRONG&gt;README.md&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Documentation file describing the project, setup, and usage.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_9-1776679820413.png" style="width: 299px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400093i8F103C396CD814BD/image-dimensions/299x423/is-moderation-mode/true?v=v2" width="299" height="423" role="button" title="IdaEvangelin_9-1776679820413.png" alt="IdaEvangelin_9-1776679820413.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;An entity with Itemrecords created. Here I have used ‘manage, cuid’&amp;nbsp; &amp;nbsp;from @sap/cds/manage which will create a UUID key for every record creation.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_10-1776679820417.png" style="width: 442px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400094iF22CA83F0CD89F7B/image-dimensions/442x164/is-moderation-mode/true?v=v2" width="442" height="164" role="button" title="IdaEvangelin_10-1776679820417.png" alt="IdaEvangelin_10-1776679820417.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Create a service for itemrecords db which acts as an interface between your data models and outside the world like UI apps or external systems.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_11-1776679820419.png" style="width: 390px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400092i461BA03C1C968CB1/image-dimensions/390x433/is-moderation-mode/true?v=v2" width="390" height="433" role="button" title="IdaEvangelin_11-1776679820419.png" alt="IdaEvangelin_11-1776679820419.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_12-1776679820421.png" style="width: 647px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400096iF32E466E7C46038F/image-dimensions/647x110/is-moderation-mode/true?v=v2" width="647" height="110" role="button" title="IdaEvangelin_12-1776679820421.png" alt="IdaEvangelin_12-1776679820421.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Once entity and service generated in the project deploy the project using cf deploy mta_archives/&amp;lt;file&amp;gt;.mtar bash commands. After successful deployment we can see service instances created in the BTP cockpit as shown below.&lt;/P&gt;&lt;P&gt;To link the created entity in BAS to SAP HANA Cloud create a service key for the &amp;lt;entity&amp;gt;-db instance as shown from the below steps.&lt;/P&gt;&lt;P&gt;Choose Entity_CRUD-db and click on the navigation panel where service key need to create. In this illustration I have created as ENTITY_CRUD-db-key.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_13-1776679820426.png" style="width: 446px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400095i800574BD69D86EC1/image-dimensions/446x154/is-moderation-mode/true?v=v2" width="446" height="154" role="button" title="IdaEvangelin_13-1776679820426.png" alt="IdaEvangelin_13-1776679820426.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_14-1776679820431.png" style="width: 450px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400097iB43D4ECB35552625/image-dimensions/450x168/is-moderation-mode/true?v=v2" width="450" height="168" role="button" title="IdaEvangelin_14-1776679820431.png" alt="IdaEvangelin_14-1776679820431.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Once service key generated, we can see the JSON file in the view parameter. This JSON file needs to upload in the SAP HANA explorer to link the DB.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_15-1776679820433.png" style="width: 461px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400099i9675C1813CDBB866/image-dimensions/461x219/is-moderation-mode/true?v=v2" width="461" height="219" role="button" title="IdaEvangelin_15-1776679820433.png" alt="IdaEvangelin_15-1776679820433.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_16-1776679820439.png" style="width: 441px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400098i6D6E094D5AD1A893/image-dimensions/441x271/is-moderation-mode/true?v=v2" width="441" height="271" role="button" title="IdaEvangelin_16-1776679820439.png" alt="IdaEvangelin_16-1776679820439.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Linkage of Entity to the HANA DB in the SAP HANA Cloud central:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Navigate to Subscribed SAP HANA CLOUD and create instances which allows you to use in-memory computing for real-time transactional and analytical processing. Once instance is created it should be in Running status which indicates Active, available for SQL connections and able to perform data processing, backups and administrative tasks.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_17-1776679820446.png" style="width: 454px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400100i38F099CD39894A54/image-dimensions/454x227/is-moderation-mode/true?v=v2" width="454" height="227" role="button" title="IdaEvangelin_17-1776679820446.png" alt="IdaEvangelin_17-1776679820446.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Now, open the SAP HANA database Explorer in the SAP HANA cloud central, click on the + icon where instance type to be chosen as HDI container and choose Apply from JSON string where need to paste the JSON file from the service key entity in the BTP cockpit.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_18-1776679820454.png" style="width: 444px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400103i5C7D01418E6EF3EE/image-dimensions/444x275/is-moderation-mode/true?v=v2" width="444" height="275" role="button" title="IdaEvangelin_18-1776679820454.png" alt="IdaEvangelin_18-1776679820454.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_19-1776679820455.png" style="width: 424px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400101i4DA367569FA98631/image-dimensions/424x350/is-moderation-mode/true?v=v2" width="424" height="350" role="button" title="IdaEvangelin_19-1776679820455.png" alt="IdaEvangelin_19-1776679820455.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_20-1776679820466.png" style="width: 464px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400102iC553DC5541399726/image-dimensions/464x280/is-moderation-mode/true?v=v2" width="464" height="280" role="button" title="IdaEvangelin_20-1776679820466.png" alt="IdaEvangelin_20-1776679820466.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Once JSON file applied Entity from the BAS linked to the SAP HANA Cloud central.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_21-1776679820473.png" style="width: 506px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400105i36187AAC4C7EC19E/image-dimensions/506x217/is-moderation-mode/true?v=v2" width="506" height="217" role="button" title="IdaEvangelin_21-1776679820473.png" alt="IdaEvangelin_21-1776679820473.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Post man tool Authorization and Post Operation:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;To Authenticate authorization in the Post Man tool go to &amp;lt;entity&amp;gt;-auth in the BTP cockpit as shown below.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_22-1776679820478.png" style="width: 454px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400106iE442F1D7AC33904C/image-dimensions/454x236/is-moderation-mode/true?v=v2" width="454" height="236" role="button" title="IdaEvangelin_22-1776679820478.png" alt="IdaEvangelin_22-1776679820478.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Here I have navigated to the ENTITY_CRUD-auth where service key SK-ENTITY_CRUD is created once service key created a JSON file generated with client ID, client secret, URL.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_23-1776679820480.png" style="width: 446px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400104i460638C4620D44A3/image-dimensions/446x45/is-moderation-mode/true?v=v2" width="446" height="45" role="button" title="IdaEvangelin_23-1776679820480.png" alt="IdaEvangelin_23-1776679820480.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_24-1776679820482.png" style="width: 471px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400107i150A7B58A36207FC/image-dimensions/471x233/is-moderation-mode/true?v=v2" width="471" height="233" role="button" title="IdaEvangelin_24-1776679820482.png" alt="IdaEvangelin_24-1776679820482.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_25-1776679820487.png" style="width: 455px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400108i81DBCC9899AC0B7C/image-dimensions/455x293/is-moderation-mode/true?v=v2" width="455" height="293" role="button" title="IdaEvangelin_25-1776679820487.png" alt="IdaEvangelin_25-1776679820487.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Client ID, URL client secret mapped to the Authorization in the post man tool and generate the Access Token.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_26-1776679820491.png" style="width: 447px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400109i02B692ABFF0312B3/image-dimensions/447x209/is-moderation-mode/true?v=v2" width="447" height="209" role="button" title="IdaEvangelin_26-1776679820491.png" alt="IdaEvangelin_26-1776679820491.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_27-1776679820493.png" style="width: 485px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400110iFD41C8D9E409E205/image-dimensions/485x252/is-moderation-mode/true?v=v2" width="485" height="252" role="button" title="IdaEvangelin_27-1776679820493.png" alt="IdaEvangelin_27-1776679820493.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Using post operation can create a data to the entity in the CAP project.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_28-1776679820496.png" style="width: 444px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400112iC4BC45E8AD17D57E/image-dimensions/444x387/is-moderation-mode/true?v=v2" width="444" height="387" role="button" title="IdaEvangelin_28-1776679820496.png" alt="IdaEvangelin_28-1776679820496.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Successful created entries showing in the SAP HANA Cloud central.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_29-1776679820500.png" style="width: 450px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400111i2366F5AF163875FA/image-dimensions/450x95/is-moderation-mode/true?v=v2" width="450" height="95" role="button" title="IdaEvangelin_29-1776679820500.png" alt="IdaEvangelin_29-1776679820500.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;STRONG&gt;Preview in the Fiori Application:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;To Preview the data in the Fiori application, In the CAP project search with Open Application Generator and create a List Report page.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_30-1776679820501.png" style="width: 472px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400113i3C50E4AB8FC24555/image-dimensions/472x79/is-moderation-mode/true?v=v2" width="472" height="79" role="button" title="IdaEvangelin_30-1776679820501.png" alt="IdaEvangelin_30-1776679820501.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_31-1776679820505.png" style="width: 471px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400114iA686B05F26DCBFAF/image-dimensions/471x258/is-moderation-mode/true?v=v2" width="471" height="258" role="button" title="IdaEvangelin_31-1776679820505.png" alt="IdaEvangelin_31-1776679820505.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_32-1776679820509.png" style="width: 475px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400115i15215DBD148F2A01/image-dimensions/475x385/is-moderation-mode/true?v=v2" width="475" height="385" role="button" title="IdaEvangelin_32-1776679820509.png" alt="IdaEvangelin_32-1776679820509.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_33-1776679820510.png" style="width: 451px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400117iC7D79EBD15019914/image-dimensions/451x481/is-moderation-mode/true?v=v2" width="451" height="481" role="button" title="IdaEvangelin_33-1776679820510.png" alt="IdaEvangelin_33-1776679820510.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_34-1776679820512.png" style="width: 454px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400118i96607A7FAF4ECB38/image-dimensions/454x421/is-moderation-mode/true?v=v2" width="454" height="421" role="button" title="IdaEvangelin_34-1776679820512.png" alt="IdaEvangelin_34-1776679820512.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Once Application created, In the project terminal using Cds watch –profile hybrid can view the preview of the Application in Fiori&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_35-1776679820513.png" style="width: 468px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400116iE01EC0F7CB000DE2/image-dimensions/468x137/is-moderation-mode/true?v=v2" width="468" height="137" role="button" title="IdaEvangelin_35-1776679820513.png" alt="IdaEvangelin_35-1776679820513.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Required Annotations can use in the srv which will be reflect in the Fiori Application.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_36-1776679820518.png" style="width: 473px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400121i6A605FD4AC3C92DE/image-dimensions/473x228/is-moderation-mode/true?v=v2" width="473" height="228" role="button" title="IdaEvangelin_36-1776679820518.png" alt="IdaEvangelin_36-1776679820518.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_37-1776679820520.png" style="width: 452px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400119i2F316DC473947470/image-dimensions/452x102/is-moderation-mode/true?v=v2" width="452" height="102" role="button" title="IdaEvangelin_37-1776679820520.png" alt="IdaEvangelin_37-1776679820520.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_38-1776679820523.png" style="width: 467px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400120i3803C52152B65CA1/image-dimensions/467x161/is-moderation-mode/true?v=v2" width="467" height="161" role="button" title="IdaEvangelin_38-1776679820523.png" alt="IdaEvangelin_38-1776679820523.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="IdaEvangelin_39-1776679820525.png" style="width: 478px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400122iF9592D4D68B7BB56/image-dimensions/478x116/is-moderation-mode/true?v=v2" width="478" height="116" role="button" title="IdaEvangelin_39-1776679820525.png" alt="IdaEvangelin_39-1776679820525.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion&lt;BR /&gt;&lt;/STRONG&gt;&lt;SPAN&gt;This demonstration showcased the seamless integration between SAP Business Application Studio, SAP HANA Cloud, and the Fiori front-end. By leveraging annotations and the CAP service layer, we successfully created a functional CRUD application with automated UUID management and secure API access. You are now ready to extend this project with custom business logic or complex UI enhancements.&lt;/SPAN&gt;&lt;/P&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/sap-capm-project-lifecycle-from-development-to-fiori-preview/ba-p/14378158"/>
+    <published>2026-04-23T08:35:14.493000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/sales-configuration-display-by-cds-with-table-function-hana-sql-for/ba-p/14381112</id>
+    <title>Sales Configuration display by CDS with table function/HANA SQL for Embedded Analytics and Fiori RAP</title>
+    <updated>2026-04-23T09:28:19.160000+02:00</updated>
+    <author>
+      <name>OlegBash</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/632877</uri>
+    </author>
+    <content>&lt;P&gt;In that blog I want to share approach to display Sales Item Configuration in CDS-way. The approach could be used both in new reporting technology (like Fiori RAP-reporting (managed and unmanaged), Embedded Analytics) and in classical (ALV classic Dynpro, SE16N, SE16H etc.)&lt;/P&gt;&lt;P&gt;Technically, the approach is using the following:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Table Function with HANA SQL with &lt;EM&gt;scalar&lt;/EM&gt; and &lt;EM&gt;table&lt;/EM&gt; variable declaration&lt;/LI&gt;&lt;LI&gt;Functions &lt;STRONG&gt;STRING_AGG&lt;/STRONG&gt; for row concatenation, &lt;STRONG&gt;CAST&lt;/STRONG&gt; for casting to target type, &lt;STRONG&gt;CASE&lt;/STRONG&gt; for conditional logic in HANA SQL&lt;/LI&gt;&lt;LI&gt;Window function for grouping and splitting the logic inside SQL-procedure&lt;/LI&gt;&lt;LI&gt;Sorting inside database procedure&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;So, it can be used both for Sales Item Configuration and as a cheat-sheet for HANA SQL in AMDP-classes.&lt;/P&gt;&lt;P&gt;The blog is dedicated to &lt;A href="https://www.linkedin.com/in/natalia-yakimenko-a202a892/" target="_blank" rel="noopener nofollow noreferrer"&gt;Natalya Yakimenko&lt;/A&gt;; really encouraging and supportive person especially for Analytical Tools in Big Data / HANA.&lt;/P&gt;&lt;H2 id="toc-hId-1795032553"&gt;What is Sales Item Configuration?&lt;/H2&gt;&lt;P&gt;In sales order we can parametrize item (configure) with characteristics according to customer needs: width, length, color, chemicals, mechanicals and so on. The configuration – is what the customer wants; so, it could be not only exact values, but &lt;STRONG&gt;&lt;EM&gt;interval&lt;/EM&gt;&lt;/STRONG&gt; values also; &lt;EM&gt;for example, Carbon (C) between 1 and 2 %&lt;/EM&gt;. Also, it could be several values: &lt;EM&gt;for example, RED, YELLOW color&lt;/EM&gt;.&lt;/P&gt;&lt;P&gt;On the Figure 1 it is shown sample of exact and multiple values. LENGTH has exact value and Colour has multiple values.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="OlegBash_0-1776928374930.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401715i1C1E457F1BE0EC24/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="OlegBash_0-1776928374930.png" alt="OlegBash_0-1776928374930.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Figure 1 Exact value with UOM for LENGTH and multiple values for Colour&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;On the Figure 2 it is shown interval values in Sales Item Configuration. Carbon (C) has interval from 1 to 2 percents and Hydrogen (H) should be strictly more than 5% (also pay attention to different decimals part on the screenshot).&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="OlegBash_1-1776928374931.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401716iA905FBCB316FAAEF/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="OlegBash_1-1776928374931.png" alt="OlegBash_1-1776928374931.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Figure 2 Sample of Interval values in Sales Item Configuration&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1598519048"&gt;How to read the configuration programmatically for reporting purposes?&lt;/H2&gt;&lt;H3 id="toc-hId-1531088262"&gt;Classical approach with function&lt;/H3&gt;&lt;P&gt;In table VBAP (sales items) there is a special field (&lt;STRONG&gt;&lt;EM&gt;VBAP-CUOBJ&lt;/EM&gt;&lt;/STRONG&gt;, or CDS &lt;STRONG&gt;&lt;EM&gt;I_SalesDocumentItem-ProductConfiguration&lt;/EM&gt;&lt;/STRONG&gt; ) that links &lt;EM&gt;Sales Item Data Model&lt;/EM&gt; to &lt;EM&gt;Variant Configuration Data Model&lt;/EM&gt;.&lt;/P&gt;&lt;P&gt;For classical reporting very often the function &lt;STRONG&gt;VC_I_GET_CONFIGURATION_IBASE&lt;/STRONG&gt; was used. It is still good function, and can be used, however&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;it does not allow us to select by characteristics values&lt;/LI&gt;&lt;LI&gt;it hardly can be used inside new approaches like Embedded Analytics and Fiori RAP-reporting&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;    DATA lt_CONFIGURATION     TYPE STANDARD TABLE OF conf_out.
+    DATA lT_CONF_WITH_AUTHOR  TYPE STANDARD TABLE OF  api_value .
+
+    CALL FUNCTION 'VC_I_GET_CONFIGURATION_IBASE'
+      EXPORTING
+        instance            = iv_cuobj                 
+      TABLES
+        configuration       = lt_CONFIGURATION                  
+        et_conf_with_author = lT_CONF_WITH_AUTHOR               
+      EXCEPTIONS
+        instance_not_found  = 1
+        OTHERS              = 2.
+    IF sy-subrc &amp;lt;&amp;gt; 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+        WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO sy-msgli.
+    ENDIF.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;For Embedded Analytics and RAP-applications I decided to create two group of CDS (view entities):&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Sales Configuration in row-mode with specifying master info about characteristics itself: data type, single/multiple etc.&lt;/LI&gt;&lt;LI&gt;CDS with table function which present any char in the one line.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1334574757"&gt;CDS with values in each Row&lt;/H3&gt;&lt;P&gt;The CDS (view entity) for Sales Configuration in row-mode with master data is the following. We could see that core tables are: &lt;STRONG&gt;IBIN, IBINVALUES, IBSYMBOL, CABN, CABNT&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;The base part:&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;define view entity ZI_CUOBJ_CLS300
+  as select from ibin       as ibh
+    inner join   ibinvalues as ibv    on ibh.in_recno = ibv.in_recno
+    inner join   ibsymbol   as ibsymb on ibsymb.symbol_id = ibv.symbol_id
+    inner join   cabn       as CABN   on  cabn.atinn = ibsymb.atinn
+                                      and cabn.adzhl = '0000'
+
+
+  association [1] to I_ClfnCharcDesc         as _CharDescr  on  $projection.CHARCINTERNALID   = _CharDescr.CharcInternalID
+                                                            and _CharDescr.Language           = 'E'
+                                                            and _CharDescr.TimeIntervalNumber = '0000'
+
+  association [1] to ZI_CHARVALUE_MD as _CharValueH on  $projection.CHARCINTERNALID =  _CharValueH.CHARCINTERNALID
+                                                            and $projection.CharcValuestr      =  _CharValueH.CHARCVALUE
+                                                            and $projection.CharcValuestr      &amp;lt;&amp;gt; ''
+
+{
+  key ibh.instance                      as cuobj,
+  key ibh.in_recno                      as IN_RECNO,
+  key ibv.in_segmcnt                    as IN_SEGMCNT,
+
+      ibsymb.atinn                      as CHARCINTERNALID,
+      cabn.atnam                        as CharHure,
+      _CharDescr.CharcDescription       as CharcDescription,
+      cabn.atfor                        as dt_type,
+      cabn.anzst                        as NumOfChars,
+      cabn.anzdz                        as NumOfDecimals,
+      cabn.msehi                        as char_uom,
+      cabn.atein                        as Single_Mark,
+      ibsymb.atcod                      as IntervalType,
+
+      ibsymb.atwrt                      as CharcValuestr,
+      ibv.dec_value_from                as CHARCFROMDECIMALVALUE,
+      ibv.dec_value_to                  as CHARCUPTODECIMALVALUE,
+      ibv.date_from                     as CharcFromDate,
+      ibv.date_to                       as CharcUptoDate,
+      ibv.time_from                     as CharcFromTime,
+      ibv.time_to                       as CharcUptoTime,
+      _CharValueH.CHARCVALUEDESCRIPTION as CHARCVALUEDESCRIPTION,
+
+
+      /* associations */
+      _CharValueH
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Part:&amp;nbsp;ZI_CHARVALUE_MD&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'MasterData for Char Value'
+@Metadata.ignorePropagatedAnnotations: true
+@ObjectModel.usageType:{
+    serviceQuality: #X,
+    sizeCategory: #S,
+    dataClass: #MIXED
+}
+define view entity ZI CHARVALUE_MD
+  as select from I_ClfnCharcValue as ValID
+  association [0..1] to ZI_CharcValueDesc as _ValDesc     on  $projection.CHARCINTERNALID    = _ValDesc.CharcInternalID
+                                                                  and ValID.CharcValuePositionNumber = _ValDesc.CharcValuePositionNumber
+                                                                  and _ValDesc.Language              = 'E'
+                                                                  and _ValDesc.TimeIntervalNumber    = '0000'
+
+  association [1..1] to I_ClfnCharcBasic          as _ClasCharBsc on  $projection.CHARCINTERNALID     = _ClasCharBsc.CharcInternalID
+                                                                  and _ClasCharBsc.TimeIntervalNumber = '0000'
+{
+  key ValID.CharcInternalID          as CHARCINTERNALID,
+  key ValID.CharcValuePositionNumber as CharValuePos,
+      _ClasCharBsc.Characteristic    as CharNamHuRe, --Human Readable
+      ValID.CharcValue               as CHARCVALUE,
+      _ValDesc.CharcValueDescription as CHARCVALUEDESCRIPTION,
+      
+      ValID.CharcFromDecimalValue    as CHARC_DECVAL,
+      
+      _ValDesc,
+      _ClasCharBsc
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;part:&amp;nbsp;ZI_CharcValueDesc&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Characteristcis Value Desc'
+@Metadata.ignorePropagatedAnnotations: true
+@ObjectModel.usageType:{
+    serviceQuality: #X,
+    sizeCategory: #S,
+    dataClass: #MIXED
+}
+define view entity ZI_CharcValueDesc 
+    as select from cawnt as CharacteristicValueDesc
+  
+      association [0..1] to I_Language as _Language 
+        on $projection.Language = 'E'
+             
+{
+  key   cast ( CharacteristicValueDesc.atinn as atinn_no_conv preserving type ) as CharcInternalID,
+        @ObjectModel.foreignKey.association: null
+  key   CharacteristicValueDesc.atzhl as CharcValuePositionNumber,
+        @ObjectModel.foreignKey.association: '_Language'
+        @Semantics.language: true
+  key   CharacteristicValueDesc.spras as Language,
+        @ObjectModel.foreignKey.association: null
+  key   CharacteristicValueDesc.adzhl as TimeIntervalNumber,
+        @Semantics.text: true
+        CharacteristicValueDesc.atwtb as CharcValueDescription,
+        CharacteristicValueDesc.aennr as ChangeNumber,
+        @Semantics.businessDate.from: true
+        CharacteristicValueDesc.datuv as ValidityStartDate,
+        @Semantics.businessDate.to: true
+        CharacteristicValueDesc.datub as ValidityEndDate,
+        CharacteristicValueDesc.lkenz as IsDeleted,
+        
+        _Language
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The result we could see like that (from &lt;STRONG&gt;SE16H&lt;/STRONG&gt;).&lt;/P&gt;&lt;P&gt;We could get &lt;EM&gt;values, uom (unit of measure), and data type description&lt;/EM&gt; for each characteristic from sales item configuration. We could use it for searching and data validations (during migration for example) also.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="OlegBash_0-1776928672763.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401717i75899A9D4423B30F/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="OlegBash_0-1776928672763.png" alt="OlegBash_0-1776928672763.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Figure 3 Sales Item Configuration Sample&lt;/P&gt;&lt;P&gt;It is useful and informative, but it could lead to changes of cardinality in CDS-joins because we could have multiple values for some characteristics, also we need to do cast in each report/application and in case data type of characteristics is changed we need to change application. So, it would be better, for some cases, to get all values from one field. And it is possible with table function, as &lt;STRONG&gt;STRING_AGG&lt;/STRONG&gt; is not working in CDS, but either in HANA SQL or ABAP.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Intervals could be like that (shown on figure)&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="OlegBash_1-1776928702454.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401718iDC0AE3DEE492365D/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="OlegBash_1-1776928702454.png" alt="OlegBash_1-1776928702454.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Figure 4 Different types of intervals in Sales Item Configuration&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1138061252"&gt;CDS with table function / amdp-procedure on HANA SQL&lt;/H3&gt;&lt;P&gt;In table function we need do the following:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Format values (especially numeric ones) to their format from master data&lt;/LI&gt;&lt;LI&gt;Concatenate values into one field&lt;/LI&gt;&lt;LI&gt;For intervals it is needed to put special symbols: prefix, delimeter and postfix.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;As in rows-oriented CDS it is using the following tables: &lt;STRONG&gt;VBAP, IBIN, IBINVALUES, IBSYMBOL, CABN, CABNT&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;The idea is simple:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Target output type is &lt;STRONG&gt;CHAR&lt;/STRONG&gt; with length &lt;STRONG&gt;120&lt;/STRONG&gt; (of course can be longer, but for my purposes it was more than enough). (pay attention to the field &lt;STRONG&gt;ATWRT_STR&lt;/STRONG&gt; in the table function below)&lt;/LI&gt;&lt;LI&gt;All values are selecting and casting to the target type depending on decimals in the characteristic’s master data.&lt;/LI&gt;&lt;LI&gt;If there are multiple values – it is concatenated in rows by function &lt;STRONG&gt;STRING_AGG&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;And for output purposes it is concatenated not only with values itself but with special sign (&lt;STRONG&gt;&lt;EM&gt;less (&amp;lt;), less or equal (&amp;lt;=), more or equal (=&amp;gt;), more&lt;/EM&gt;&lt;/STRONG&gt;) (pay attention to table declaration &lt;STRONG&gt;_t_interval_extstr&lt;/STRONG&gt; and filling) (see figure 2 with Hydrogen value)&lt;/LI&gt;&lt;LI&gt;The procedure returns sorted data – so it can be used in applications for binary search purposes without sorting on the application’s side&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Code sample for table function for sales configuration’s output&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'SOI - Conf Cls300 - AGG mode'
+@ClientHandling.type: #CLIENT_INDEPENDENT
+
+define table function ZI_SOI_CLS300_AGG
+returns {
+  slsh : vbeln_va;
+  slsi : posnr_va;
+  MATERIAL: matnr;
+  Plant: werks_d;
+  ItemDescr: arktx;
+  PRODUCTCONFIGURATION: cuobj_va;
+  
+  ORDERQUANTITY: kwmeng;
+  OrderQuantityUnit: vrkme;
+  
+  ATINN : atinn;
+  atnam : atnam;
+  ATWRT_STR: abap.char(120);
+  }
+implemented by method zcl_tf_soicls300_agg=&amp;gt;read_cls300_one_line;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Code sample for HANA SQL AMPD-procedure&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_tf_soicls300_agg DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+
+    CLASS-METHODS read_cls300_one_line
+        FOR TABLE FUNCTION ZI_SOI_CLS300_AGG
+      .
+
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_tf_soicls300_agg IMPLEMENTATION.
+
+  METHOD read_cls300_one_line BY DATABASE FUNCTION
+        FOR HDB
+        LANGUAGE SQLSCRIPT
+        OPTIONS READ-ONLY
+        USING vbap
+              ibin
+              ibinvalues
+              ibsymbol
+              cabn
+              .
+
+
+    -- https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-sqlscript-reference/
+    -- ... table-variable-type-definition?locale=en-us
+
+        declare _t_interval_extstr table(
+            atcod "$ABAP.type( ibvalcod )",
+            pre_fix "$ABAP.type( char2 )",
+            delim "$ABAP.type( char5 )",
+            post_fix "$ABAP.type( char2 )"
+        );
+
+        declare _mandt varchar(3) := session_context('CLIENT');
+
+* see data element  domanin: IBVALCOD
+*0   Empty Quantity (No Value Allowed)
+*1   = Lower limit
+*2   [ Lower limit, upper limit )
+*3   [ Lower limit, upper limit ]
+*4   ( Lower limit, upper limit )
+*5   ( Lower limit, upper limit ]
+*6   ( - Infinite, upper limit )
+*7   ( - Infinite , upper limit ]
+*8   ( Lower limit, infinite )
+*9   [ Lower limit, infinite )
+
+
+        _t_interval_extstr =
+            select '1' as atcod, '' as  pre_fix, '' as delim, '' as post_fix from dummy
+            union all
+            select '2' as atcod, '' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            union all
+            select '3' as atcod, '' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            union all
+            select '4' as atcod, '' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            union all
+            select '5' as atcod, '' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            union all
+            select '6' as atcod, '' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            union all
+            select '7' as atcod, '' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            union all
+            select '8' as atcod, '&amp;gt;= ' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            union all
+            select '9' as atcod, '&amp;gt;= ' as  pre_fix, ' - ' as delim, '' as post_fix from dummy
+            ;
+
+
+          _single_n_intervals =
+        with _low_fromto_agg as (
+
+          select
+           ibval.mandt,
+           ibval.in_recno,
+           ibsym.atinn,
+           cabn.atnam,
+
+           cast( cabn.atfor as char(70) ) as atwrt,
+
+           case cabn.atfor
+              when 'CHAR' then
+                 cast(
+                    string_agg( ibsym.atwrt, '; ' )
+                    as char (120) )
+
+              WHEN 'NUM' then
+
+
+*    begin of num - case (it consists of two parts: with intervals and strict equal)
+
+               case -- ibsym.atcod
+*    no intervals
+                when ibsym.atcod = '1' or ibsym.atcod = '8' or ibsym.atcod = '9' then
+
+                 CASE cabn.anzdz
+
+                    when '0' then
+                         cast(
+                          string_agg(
+                            concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,0)) ),
+                            ';'
+                            )
+                          as CHAR (120) )
+
+                    WHEN '1' then
+
+                         cast(
+                          string_agg(
+                            concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,1)) ),
+                            ';'
+                            )
+                          as CHAR (120) )
+
+                    WHEN '2' then
+
+                         cast(
+                          string_agg(
+                            concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,2)) ),
+                            ';'
+                            )
+                          as CHAR (120) )
+
+                    WHEN '3' then
+
+                         cast(
+                          string_agg(
+                            concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,3)) ),
+                            ';'
+                            )
+                          as CHAR (120) )
+
+                    WHEN '4' then
+
+                         cast(
+                          string_agg(
+                            concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,4)) ),
+                            ';'
+                            )
+                          as CHAR (120) )
+
+                    WHEN '5' then
+
+                         cast(
+                          string_agg(
+                            concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,5)) ),
+                            ';'
+                            )
+                          as CHAR (120) )
+
+                    WHEN '10' then
+                         cast(
+                          string_agg(
+                            concat( interv.pre_fix, cast( ibval.dec_value_from as dec (21,10)) ),
+                            ';'
+                            )
+                          as CHAR (120) )
+
+                    ELSE
+                         cast( string_agg( ibval.dec_value_from, '+ ' ) as char (120) )
+
+                  END
+
+              else
+*    with intervals
+                 CASE cabn.anzdz
+
+                   when '0' then
+
+                        cast(
+                          string_agg(
+                            concat(
+                                concat(
+                                  concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,0)) ),
+                                  interv.delim
+                                  ),
+                                concat( cast( ibval.dec_value_to as dec (18,0)), interv.post_fix )
+                              )
+                              , '; ' )
+                            as CHAR (120) )
+
+                   WHEN '1' then
+
+                        cast(
+                          string_agg(
+                            concat(
+                                concat(
+                                  concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,1)) ),
+                                  interv.delim
+                                  ),
+                                concat( cast( ibval.dec_value_to as dec (18,1)), interv.post_fix )
+                              )
+                              , '; ' )
+                            as CHAR (120) )
+
+                   WHEN '2' then
+
+                        cast(
+                          string_agg(
+                            concat(
+                                concat(
+                                  concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,2)) ),
+                                  interv.delim
+                                  ),
+                                concat( cast( ibval.dec_value_to as dec (18,2)), interv.post_fix )
+                              )
+                              , '; ' )
+                            as CHAR (120) )
+
+                    WHEN '3' then
+                        cast(
+                          string_agg(
+                            concat(
+                                concat(
+                                  concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,3)) ),
+                                  interv.delim
+                                  ),
+                                concat( cast( ibval.dec_value_to as dec (18,3)), interv.post_fix )
+                              )
+                              , '; ' )
+                            as CHAR (120) )
+
+                    WHEN '4' then
+                            cast(
+                              string_agg(
+                                concat(
+                                    concat(
+                                      concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,4)) ),
+                                      interv.delim
+                                      ),
+                                    concat( cast( ibval.dec_value_to as dec (18,4)), interv.post_fix )
+                                  )
+                                  , '; ' )
+                                as CHAR (120) )
+
+                     WHEN '5' then
+
+                           cast(
+                              string_agg(
+                                concat(
+                                    concat(
+                                      concat( interv.pre_fix, cast( ibval.dec_value_from as dec (18,5)) ),
+                                      interv.delim
+                                      ),
+                                    concat( cast( ibval.dec_value_to as dec (18,5)), interv.post_fix )
+                                  )
+                                  , '; ' )
+                                as CHAR (120) )
+
+
+                     WHEN '10' then
+                           cast(
+                              string_agg(
+                                concat(
+                                    concat(
+                                      concat( interv.pre_fix, cast( ibval.dec_value_from as dec (21,10)) ),
+                                      interv.delim
+                                      ),
+                                    concat( cast( ibval.dec_value_to as dec (21,10)), interv.post_fix )
+                                  )
+                                  , '; ' )
+                                as CHAR (120) )
+
+
+                     ELSE
+                         cast( string_agg( ibval.dec_value_from, '+ ' ) as char (120) )
+                     END
+
+                 END
+
+
+                END as atwrt_str
+
+
+              from ibinvalues as ibval
+                join ibsymbol as ibsym
+             ON ibsym.symbol_id = ibval.symbol_id
+             and ibsym.mandt = ibval.mandt
+
+             join cabn as cabn
+              on cabn.atinn = ibsym.atinn
+              and cabn.adzhl = '0000'
+              and cabn.mandt = ibsym.mandt
+
+
+            join :_t_interval_extstr as interv
+                on interv.atcod = ibsym.atcod
+
+
+           where ibval.mandt = :_mandt
+
+          group by ibval.mandt, ibval.in_recno, ibsym.atinn, ibsym.atcod, cabn.atnam, cabn.atfor, cabn.anzst, cabn.anzdz
+
+        )
+
+        select
+          vbap.vbeln as slsh,
+          vbap.posnr as slsi,
+          vbap.matnr as material,
+          vbap.werks as plant,
+          vbap.arktx as itemdescr,
+         vbap.cuobj as productconfiguration,
+
+         vbap.kwmeng as orderquantity,
+         vbap.vrkme as orderquantityunit,
+
+         fromto_agg.atinn,
+         fromto_agg.atnam,
+         fromto_agg.atwrt_str
+
+            from vbap as vbap
+
+            inner join ibin       as ibh on vbap.cuobj = ibh.instance
+
+            inner join _low_fromto_agg as fromto_agg on fromto_agg.in_recno = ibh.in_recno
+
+            ;
+
+        RETURN
+            select * from :_single_n_intervals
+            ORDER BY slsh, slsi, atinn
+            ;
+
+  eNDMETHOD.
+
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;As a result we could see different types of values in one cell but with different formats (with taken into account decimals, multiple values, and interval type)&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="OlegBash_0-1776930129751.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401727i134A85E71AA98697/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="OlegBash_0-1776930129751.png" alt="OlegBash_0-1776930129751.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Figure 5 Result Output of HANA SQL procedure&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-812465028"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;In that blog I have used HANA SQL for data selecting and formatting for Sales Configuration data model. Comments / additions / recommendations are welcomed both as about sales configuration and HANA SQL itself. Thank you.&lt;/P&gt;&lt;P&gt;For contacting with me: &lt;A href="https://www.linkedin.com/in/olegbash/" target="_blank" rel="noopener nofollow noreferrer"&gt;my linked&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;&lt;A href="https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-sql-reference-guide/aggregate-functions?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;HANA SQL help for aggregate functions could be found here&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/sales-configuration-display-by-cds-with-table-function-hana-sql-for/ba-p/14381112"/>
+    <published>2026-04-23T09:28:19.160000+02:00</published>
   </entry>
 </feed>
