@@ -2,362 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2026-04-29T15:14:01.170046+00:00</updated>
+  <updated>2026-04-29T15:29:01.696780+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/sap-cpi-smart-jms-retry-with-exception-based-routing-in-sap-integration/ba-p/14322965</id>
-    <title>SAP CPI - Smart JMS Retry with Exception-Based Routing in SAP Integration Suite</title>
-    <updated>2026-04-29T12:23:54.472000+02:00</updated>
-    <author>
-      <name>rhviana</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/160570</uri>
-    </author>
-    <content>&lt;HR /&gt;&lt;H3 id="toc-hId-1918611783"&gt;Introduction&lt;/H3&gt;&lt;HR /&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&lt;DIV class=""&gt;&lt;P class=""&gt;SAP has released the Pipeline Concept for Cloud Integration as a robust solution for asynchronous message processing, bringing capabilities closer to what SAP PI/PO offered out of the box. It is an excellent resource — especially for complex ICO scenarios with multiple receivers, where it shines with receiver determination, interface splits, and sophisticated restart capabilities using Partner Directory and generic iFlows.&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&lt;DIV class=""&gt;&lt;P class=""&gt;However, when your scenario has a single or small number of receivers, adopting the Pipeline Concept may become overengineering. In many Pipeline Concept setups, even a simple scenario may require multiple generic iFlows, JMS queues, DLQ handling, Partner Directory entries, receiver determination logic, and additional operational governance. For point-to-point scenarios, this can introduce more overhead than the business case requires.&lt;/P&gt;&lt;P class=""&gt;For a simple point-to-point interface, this translates into a proliferation of artifacts, configurations in Partner Directory, XSLT mappings for receiver determination, and generic iFlows that add operational complexity without real business value.&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&lt;DIV class=""&gt;&lt;P class=""&gt;For point-to-point and async request-reply where a sender communicates with a single receiver, JMS is the ideal choice when Integration Suite already provides the necessary mediation and orchestration.&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1722098278"&gt;Choosing the right integration model&lt;/H3&gt;&lt;HR /&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Before jumping into any retry implementation, it is worth understanding the broader landscape of options available in SAP Integration Suite for asynchronous scenarios:&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;Pipeline Concept&lt;/STRONG&gt; — the right choice when you have complex ICO scenarios with multiple receivers, interface splits, and recipient list patterns. It brings PI/PO-style pipeline processing to Cloud Integration with centralized governance through Partner Directory. The trade-off is significant operational overhead: XSLT mappings, generic iFlows, Partner Directory configuration, and strict naming conventions that must be defined correctly from day one. Correcting a poorly designed Partner Profile setup after go-live is a painful and risky operation.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;Custom JMS per iFlow&lt;/STRONG&gt; — the approach described in this blog. Simple, direct, and fully controlled per scenario. Each interface owns its queue, its retry logic, and its DLQ. The trade-off here is a different kind of proliferation: JMS queues are not exclusive to a single iFlow by design, but in practice each iFlow should own its own queue to avoid cross-contamination between message flows. In a large landscape this can lead to a high number of queues. SAP Integration Suite has limits on the total number of JMS queues per tenant, so this model requires serious governance on queue naming conventions and ownership from the very beginning.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;HTTP Adapter Retry&lt;/STRONG&gt; — useful for short-lived transient HTTP failures, but not equivalent to persisted asynchronous retry. It is adapter-level, limited in configuration, and does not provide the same persistence and DLQ governance as a JMS-based design.. Suitable for low-criticality synchronous scenarios where persistence is not required.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;Data Store retry&lt;/STRONG&gt; — an alternative when JMS quota is a concern. Messages are persisted in the tenant database and retried via scheduled iFlows. More flexible for manual reprocessing but adds database overhead and is not designed for high-throughput messaging.&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1525584773"&gt;When to use this approach&lt;/H3&gt;&lt;HR /&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;This custom JMS retry pattern is valid and recommended for scenarios with &lt;STRONG&gt;high criticality and a single or small number of receivers&lt;/STRONG&gt;, where the overhead of the Pipeline Concept is not justified. However, it comes with clear prerequisites:&lt;/P&gt;&lt;UL class="lia-align-justify" style="text-align : justify;"&gt;&lt;LI&gt;A strict &lt;STRONG&gt;naming convention for JMS queues&lt;/STRONG&gt; must be defined before the first iFlow goes live. Example: &lt;CODE&gt;&amp;lt;SENDER&amp;gt;_&amp;lt;RECEIVER&amp;gt;_&amp;lt;INTERFACE&amp;gt;_Q&lt;/CODE&gt; and &lt;CODE&gt;&amp;lt;SENDER&amp;gt;_&amp;lt;RECEIVER&amp;gt;_&amp;lt;INTERFACE&amp;gt;_DLQ&lt;/CODE&gt;. Changing queue names after messages are in flight is disruptive.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Queue ownership must be documented&lt;/STRONG&gt; — one iFlow, one queue. Sharing queues between iFlows creates ordering and redelivery issues that are very difficult to debug.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Tenant queue limits must be monitored&lt;/STRONG&gt;. If your landscape grows, the number of queues can become a bottleneck and a migration to the Pipeline Concept may become necessary.&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;This blog presents a simpler, lightweight alternative — a custom JMS retry mechanism with one key differentiator: exception-based routing that decides whether a retry is actually worth attempting before wasting resources.&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1329071268"&gt;The Problem with Blind Retry&lt;/H3&gt;&lt;HR /&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Most JMS retry implementations available in the community retry the message regardless of what caused the failure. This works fine for transient errors like network timeouts or server unavailability — but it wastes resources and delays DLQ routing when the error is non-retryable, such as a missing credential, a SQL syntax error, or an HTTP 401.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Custom retry mechanisms should handle transient errors such as network issues and HTTP 503, while avoiding retries for persistent errors such as mapping issues or authorization failures.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;For large message payloads in particular, unnecessary retries consume JMS storage, worker node memory, and processing time — all for an error that will never resolve itself without a configuration fix.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;The goal is not to replace the Pipeline Concept. The goal is to avoid using a pipeline-grade architecture when the scenario only requires controlled asynchronous retry for a point-to-point integration.&lt;/P&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp;&lt;/DIV&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="rhviana_1-1777456610039.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/404420i12F6075FB931AA6A/image-size/large?v=v2&amp;amp;px=999" role="button" title="rhviana_1-1777456610039.png" alt="rhviana_1-1777456610039.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1132557763"&gt;The Solution — iFlow Architecture&lt;/H3&gt;&lt;HR /&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;The solution uses three iFlows and two JMS queues: one processing queue and one DLQ queue.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;IFlow 1&lt;/STRONG&gt; — Receives the message from the sender system and stores it in the JMS queue for asynchronous processing.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;IFlow 2&lt;/STRONG&gt; — Reads from the JMS queue, executes the business logic, and in case of failure delegates to a Local Integration Process that evaluates the exception type and decides between retry or DLQ routing.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;IFlow 3&lt;/STRONG&gt; — Reads from the DLQ queue using an exclusive JMS consumer with retries set to 0, attempts one controlled reprocessing step, and on failure triggers an alert via email, ServiceNow, or any monitoring tool. The flow should end with a normal End event to avoid creating another retry loop.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;Iflow 1 representation:&lt;/STRONG&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="rhviana_0-1777458575897.png" style="width: 765px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/404441iB91F64446C2945D1/image-dimensions/765x185?v=v2" width="765" height="185" role="button" title="rhviana_0-1777458575897.png" alt="rhviana_0-1777458575897.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;Iflow 2 representation: &lt;/STRONG&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="rhviana_1-1777458603190.png" style="width: 764px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/404442i6600F23D93A618B6/image-dimensions/764x252?v=v2" width="764" height="252" role="button" title="rhviana_1-1777458603190.png" alt="rhviana_1-1777458603190.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;Iflow 2 - Local Process representation:&lt;/STRONG&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="rhviana_2-1777458630819.png" style="width: 774px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/404443i130075057F185038/image-dimensions/774x549?v=v2" width="774" height="549" role="button" title="rhviana_2-1777458630819.png" alt="rhviana_2-1777458630819.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;STRONG&gt;Iflow 3 Representation:&lt;/STRONG&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="rhviana_3-1777458652587.png" style="width: 715px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/404444i512EDDE28588C4BE/image-dimensions/715x278?v=v2" width="715" height="278" role="button" title="rhviana_3-1777458652587.png" alt="rhviana_3-1777458652587.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-936044258"&gt;&lt;STRONG&gt;SAP CPI Representation:&lt;/STRONG&gt; &lt;/H3&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;The exception subprocess in iFlow 2 calls a Local Integration Process that first evaluates the exception type via a Groovy script, then routes to either an Error End event — keeping the message in the queue for JMS-native retry — or directly to the DLQ when the error is classified as non-retryable.&lt;/P&gt;&lt;DIV class="lia-align-justify" style="text-align : justify;"&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;H3 id="toc-hId-739530753"&gt;&amp;nbsp;&lt;/H3&gt;&lt;DIV class=""&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="rhviana_3-1777457086483.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/404431iBD818E0BDFEE6DD0/image-size/large?v=v2&amp;amp;px=999" role="button" title="rhviana_3-1777457086483.png" alt="rhviana_3-1777457086483.png" /&gt;&lt;/span&gt;&lt;/DIV&gt;&lt;H3 id="toc-hId-543017248"&gt;Routing decision for the retry:&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="rhviana_0-1777459174368.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/404449i7018EC1BE66AE98D/image-size/large?v=v2&amp;amp;px=999" role="button" title="rhviana_0-1777459174368.png" alt="rhviana_0-1777459174368.png" /&gt;&lt;/span&gt;&lt;/H3&gt;&lt;H3 id="toc-hId-346503743"&gt;Routing retry continue:&lt;/H3&gt;&lt;H3 id="toc-hId-149990238"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="rhviana_1-1777459198488.png" style="width: 850px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/404450i4E4EBE7BFED5EFFA/image-dimensions/850x357?v=v2" width="850" height="357" role="button" title="rhviana_1-1777459198488.png" alt="rhviana_1-1777459198488.png" /&gt;&lt;/span&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;Key points:&lt;/SPAN&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;CODE&gt;SAPJMSRetries&lt;/CODE&gt; header must be added to &lt;STRONG&gt;Allowed Header(s)&lt;/STRONG&gt; in Runtime Configuration and saved as a property in the first Groovy script at the beginning of the main flow.&lt;/LI&gt;&lt;LI&gt;&lt;CODE&gt;SAP_MarkMessageAsFailed = false&lt;/CODE&gt; is mandatory for non-retryable errors — without it, the End normal event is ignored and the JMS adapter still retries.&lt;/LI&gt;&lt;LI&gt;The &lt;STRONG&gt;DLQ iFlow&lt;/STRONG&gt; should have retries set to &lt;STRONG&gt;0&lt;/STRONG&gt;. Each company should implement their own alerting strategy — email, ServiceNow ticket, monitoring dashboard — since the DLQ message has already been classified as non-recoverable.&lt;/LI&gt;&lt;/UL&gt;&lt;/DIV&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-171648371"&gt;The Groovy — Exception Evaluator&lt;/H2&gt;&lt;HR /&gt;&lt;DIV&gt;&lt;DIV class=""&gt;&lt;P class=""&gt;The script below covers the most common exception types found in SAP Integration Suite scenarios. Each team should adapt the classification to their own environment — adding specific Oracle error codes, custom HTTP status patterns, BAPI return types, or internal application error signatures that are relevant to their landscape. The logic is intentionally straightforward: every exception either sets &lt;CODE&gt;RetryExceptionValid = true&lt;/CODE&gt; and allows the JMS retry cycle to continue, or sets &lt;CODE&gt;RetryExceptionValid = false&lt;/CODE&gt; combined with &lt;CODE&gt;SAP_MarkMessageAsFailed = false&lt;/CODE&gt; to route the message directly to the DLQ without further retry attempts.&lt;/P&gt;&lt;P class=""&gt;Covered out of the box:&lt;/P&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;STRONG&gt;JDBC&lt;/STRONG&gt; — connection failures, transient locks, pool exhaustion, credential store errors, SQL syntax errors, Oracle ORA codes&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;HTTPS&lt;/STRONG&gt; — connection refused, socket timeout, HTTP 4xx and 5xx status codes&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;SOAP&lt;/STRONG&gt; — fault classification by &lt;CODE&gt;env:Receiver&lt;/CODE&gt; (retryable) vs &lt;CODE&gt;env:Sender&lt;/CODE&gt; (non-retryable)&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;OData&lt;/STRONG&gt; — HTTP status-based classification, including 409 conflict&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;RFC / BAPI&lt;/STRONG&gt; — communication exceptions, logon timeout vs auth failure, ABAP exceptions, BAPI RETURN TYPE=E and TYPE=W&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Script / Groovy&lt;/STRONG&gt; — runtime exceptions, missing methods or properties, class cast errors, and NullPointerException (see note below)&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Mapping / XSLT / XPath&lt;/STRONG&gt; — transformation failures, invalid XSLT, and XPath evaluation errors&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;XML / JSON Parsing&lt;/STRONG&gt; — malformed payloads, unrecognised properties, and structural mismatches&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;&lt;STRONG&gt;A note on NullPointerException:&lt;/STRONG&gt; in most CPI scenarios this reflects a logic defect in a Groovy script and is classified as non-retryable by default. However, if your scripts access optional external dependencies that may be temporarily unavailable, review this classification per scenario before deploying.&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;Default behaviour:&lt;/STRONG&gt; any unrecognised exception is treated as retryable, assuming it may be transient. This is a safety net for unknown error patterns — not a permanent classification. As your landscape matures, review exceptions that consistently reach the DLQ without resolving and add them explicitly as non-retryable. Transformation, parsing, and script exceptions are always deterministic failures: a malformed payload or a broken XSLT will produce the same error on every retry attempt, so routing them directly to the DLQ reduces resource consumption and accelerates the feedback loop to the development team.&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;pre class="lia-code-sample language-java"&gt;&lt;code&gt;import com.sap.gateway.ip.core.customdev.util.Message
-
-def Message processData(Message message) {
-
-    def props     = message.getProperties()
-    def exception = props.get("CamelExceptionCaught")?.toString() ?: ""
-
-    // ─────────────────────────────────────────────────────────────
-    // JDBC
-    // ─────────────────────────────────────────────────────────────
-
-    if (exception.contains("JDBCConnectionException")) {
-        message.setProperty("RetryExceptionValid", "true")
-        return message
-    }
-
-    if (exception.contains("JDBCTransientException")) {
-        message.setProperty("RetryExceptionValid", "true")
-        return message
-    }
-
-    if (exception.contains("JDBCDataSourceException") &amp;amp;&amp;amp; !exception.contains("CredentialStore")) {
-        message.setProperty("RetryExceptionValid", "true")
-        return message
-    }
-
-    if (exception.contains("CredentialStoreCredentialNotFoundException")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    if (exception.contains("SQLSyntaxErrorException")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    if (exception.contains("JDBCCreatorException")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    if (exception.contains("ORA-00942") || exception.contains("ORA-00904")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // HTTPS
-    // ─────────────────────────────────────────────────────────────
-
-    if (exception.contains("ConnectException")) {
-        message.setProperty("RetryExceptionValid", "true")
-        return message
-    }
-
-    if (exception.contains("SocketTimeoutException")) {
-        message.setProperty("RetryExceptionValid", "true")
-        return message
-    }
-
-    if (exception.contains("Connection refused")) {
-        message.setProperty("RetryExceptionValid", "true")
-        return message
-    }
-
-    if (exception.contains("HTTP 500") ||
-        exception.contains("HTTP 502") ||
-        exception.contains("HTTP 503") ||
-        exception.contains("HTTP 504")) {
-        message.setProperty("RetryExceptionValid", "true")
-        return message
-    }
-
-    if (exception.contains("HTTP 401") || exception.contains("HTTP 403")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    if (exception.contains("HTTP 400") ||
-        exception.contains("HTTP 404") ||
-        exception.contains("HTTP 422")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // SOAP
-    // ─────────────────────────────────────────────────────────────
-
-    if (exception.contains("SOAPFaultException")) {
-
-        if (exception.contains("env:Receiver") || exception.contains(":Server")) {
-            message.setProperty("RetryExceptionValid", "true")
-            return message
-        }
-
-        if (exception.contains("env:Sender") || exception.contains(":Client")) {
-            message.setProperty("RetryExceptionValid",      "false")
-            message.setProperty("SAP_MarkMessageAsFailed",  "false")
-            return message
-        }
-
-        // Unknown SOAP fault — treat as retryable by default
-        message.setProperty("RetryExceptionValid", "true")
-        return message
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // OData
-    // ─────────────────────────────────────────────────────────────
-
-    if (exception.contains("ODataException")) {
-
-        if (exception.contains("500") || exception.contains("503")) {
-            message.setProperty("RetryExceptionValid", "true")
-            return message
-        }
-
-        if (exception.contains("401") ||
-            exception.contains("403") ||
-            exception.contains("400") ||
-            exception.contains("404") ||
-            exception.contains("409")) {
-            message.setProperty("RetryExceptionValid",      "false")
-            message.setProperty("SAP_MarkMessageAsFailed",  "false")
-            return message
-        }
-
-        // Unknown OData error — treat as retryable by default
-        message.setProperty("RetryExceptionValid", "true")
-        return message
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // RFC / BAPI
-    // ─────────────────────────────────────────────────────────────
-
-    if (exception.contains("RfcCommunicationException")) {
-        message.setProperty("RetryExceptionValid", "true")
-        return message
-    }
-
-    if (exception.contains("RfcLogonException")) {
-
-        if (exception.contains("timeout") || exception.contains("Timeout")) {
-            message.setProperty("RetryExceptionValid", "true")
-            return message
-        }
-
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    if (exception.contains("AbapException")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    if (exception.contains("BAPI") &amp;amp;&amp;amp; exception.contains("TYPE=E")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    if (exception.contains("BAPI") &amp;amp;&amp;amp; exception.contains("TYPE=W")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Script / Groovy
-    // ─────────────────────────────────────────────────────────────
-
-    if (exception.contains("ScriptException")        ||
-        exception.contains("GroovyRuntimeException") ||
-        exception.contains("MissingMethodException") ||
-        exception.contains("MissingPropertyException") ||
-        exception.contains("ClassCastException")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    // NullPointerException: non-retryable by default in CPI context.
-    // If your scripts access optional external dependencies that may be
-    // temporarily unavailable, review this classification per scenario.
-    if (exception.contains("NullPointerException")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Mapping / XSLT / XPath
-    // ─────────────────────────────────────────────────────────────
-
-    if (exception.contains("MappingException") ||
-        exception.contains("com.sap.it.api.mapping")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    if (exception.contains("TransformerException") ||
-        exception.contains("XSLTException")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    if (exception.contains("XPathException")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // XML / JSON Parsing
-    // ─────────────────────────────────────────────────────────────
-
-    if (exception.contains("SAXParseException") ||
-        exception.contains("SAXException")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    if (exception.contains("JsonParseException")          ||
-        exception.contains("JsonMappingException")         ||
-        exception.contains("UnrecognizedPropertyException")) {
-        message.setProperty("RetryExceptionValid",      "false")
-        message.setProperty("SAP_MarkMessageAsFailed",  "false")
-        return message
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Default: retryable
-    //
-    // Any unrecognised exception is treated as retryable, assuming
-    // it may be transient. This is a safety net — not a permanent
-    // classification. As your landscape matures, review exceptions
-    // that consistently reach the DLQ without resolving and add
-    // them explicitly as non-retryable above.
-    // ─────────────────────────────────────────────────────────────
-
-    message.setProperty("RetryExceptionValid", "true")
-    return message
-}&lt;/code&gt;&lt;/pre&gt;&lt;HR /&gt;&lt;H3 id="toc-hId--318268141"&gt;&lt;SPAN&gt;DLQ Strategy&lt;/SPAN&gt;&lt;/H3&gt;&lt;DIV class=""&gt;&lt;HR /&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;The DLQ iFlow should be treated as a &lt;STRONG&gt;notification and manual review&lt;/STRONG&gt; mechanism, not as another retry loop. Configure the JMS Sender of the DLQ queue with &lt;STRONG&gt;0 retries&lt;/STRONG&gt;. In the Exception Subprocess, send an alert email with the error details and end with a &lt;STRONG&gt;normal End event&lt;/STRONG&gt; — this removes the message from the DLQ as completed, avoiding any infinite loop. Each team should implement the alert strategy that fits their operations model.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;The DLQ consumer should also be validated against the selected JMS queue access type, since exclusive and non-exclusive queues can behave differently regarding retry, ordering, and error handling.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&amp;nbsp;&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId--514781646"&gt;References&lt;/H3&gt;&lt;HR /&gt;&lt;UL class="lia-align-justify" style="text-align : justify;"&gt;&lt;LI&gt;&lt;A class="" href="https://community.sap.com/t5/technology-blog-posts-by-sap/introducing-the-new-pipeline-concept-in-cloud-integration/ba-p/13639651" target="_blank"&gt;Introducing the new pipeline concept in Cloud Integration&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A class="" href="https://community.sap.com/t5/integration-blog-posts/cloud-integration-configure-asynchronous-messaging-with-retry-using-jms/ba-p/13315669" target="_blank"&gt;Configure Asynchronous Messaging with Retry Using JMS Adapter&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A class="" href="https://community.sap.com/t5/technology-blog-posts-by-members/retry-failed-messages-in-cpi-with-automatic-and-manual-reprocessing/ba-p/13890655" target="_blank"&gt;Retry failed messages in CPI with automatic and manual reprocessing&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A class="" href="https://community.sap.com/t5/technology-blog-posts-by-members/handling-connectivity-and-recoverable-errors-in-sap-cpi-with-jms-queues/ba-p/14137974" target="_blank"&gt;Handling Connectivity and Recoverable Errors in SAP CPI with JMS Queues&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A class="" href="https://community.sap.com/t5/technology-blog-posts-by-sap/cloud-integration-configure-dead-letter-handling-in-jms-adapter/ba-p/13325734" target="_blank"&gt;Configure Dead Letter Handling in JMS Adapter&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A class="" href="https://community.sap.com/t5/integration-blog-posts/jms-mastery-series-part-3-jms-in-production/ba-p/14300416" target="_blank"&gt;JMS Mastery Series Part 3 — JMS in Production&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Thank you.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Kind regards,&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Viana.&lt;/P&gt;&lt;/DIV&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/sap-cpi-smart-jms-retry-with-exception-based-routing-in-sap-integration/ba-p/14322965"/>
-    <published>2026-04-29T12:23:54.472000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/badi-to-update-inbound-purchase-requisition-from-ibp-to-ecc/qaq-p/14386042</id>
-    <title>BADI to update inbound Purchase Requisition from IBP to ECC</title>
-    <updated>2026-04-29T12:24:54.755000+02:00</updated>
-    <author>
-      <name>Sats9</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1654946</uri>
-    </author>
-    <content>&lt;P&gt;We need to update fields Creation Indicator "EBAN-ESTKZ" and Processing status of purchase requisition "EBAN-STATU" when an Purchase Requisition is created from SAP IBP and is transferred to ECC (R/3) system.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Can you please help us in identifying any BADI/User Exit, that can update these fields? CIF_RESERVATION_MAP_IBP, CIF_ORDER_MAP_IBP and CIF_PO_MAP_IBP does not contains the above mentioned fields.&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/badi-to-update-inbound-purchase-requisition-from-ibp-to-ecc/qaq-p/14386042"/>
-    <published>2026-04-29T12:24:54.755000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/hana-cockpit-retention-not-deleting-old-systemdb-backup-generations/qaa-p/14386043#M4941295</id>
-    <title>Re: HANA Cockpit retention not deleting old SYSTEMDB back...</title>
-    <updated>2026-04-29T12:28:24.272000+02:00</updated>
-    <author>
-      <name>FPT</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/54172</uri>
-    </author>
-    <content>Thank you for the clarification.</content>
-    <link href="https://community.sap.com/t5/technology-q-a/hana-cockpit-retention-not-deleting-old-systemdb-backup-generations/qaa-p/14386043#M4941295"/>
-    <published>2026-04-29T12:28:24.272000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/supply-chain-management-q-a/documentry-batch/qaa-p/14386045#M210642</id>
-    <title>Re: Documentry batch</title>
-    <updated>2026-04-29T12:29:14.959000+02:00</updated>
-    <author>
-      <name>Dominik_Tylczynski</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/141029</uri>
-    </author>
-    <content>&lt;P&gt;Hello&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2253502"&gt;@arturo_suarez&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;SAP Help on Documentary Batches&amp;nbsp;&lt;A href="https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/4eb099dbc8a6435c9b36a854a7e05522/a7fdb753128eb44ce10000000a174cb4.html?locale=en-US&amp;amp;version=LATEST" target="_blank" rel="noopener noreferrer"&gt;Prerequisites/Customizing&lt;/A&gt;&lt;/P&gt;&lt;P&gt;In general documentary batches are entered during goods movements, not on production or purchase orders - SAP Help&amp;nbsp;&lt;A href="https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/4eb099dbc8a6435c9b36a854a7e05522/12ffb753128eb44ce10000000a174cb4.html?locale=en-US&amp;amp;version=LATEST" target="_blank" rel="noopener noreferrer"&gt;Where Can You Enter Documentary Batches?&lt;/A&gt;&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;You can enter documentary batches in the following process steps:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Goods receipt for external procurement&lt;/LI&gt;&lt;LI&gt;Goods receipt for subcontracting&lt;/LI&gt;&lt;LI&gt;Goods issue for subcontracting&lt;/LI&gt;&lt;LI&gt;Goods receipt for order&lt;/LI&gt;&lt;LI&gt;Goods issue for order and network&lt;/LI&gt;&lt;LI&gt;Picking delivery to customer&lt;/LI&gt;&lt;LI&gt;Goods receipt for stock transport order&lt;/LI&gt;&lt;LI&gt;Picking outbound delivery for stock transport order&lt;/LI&gt;&lt;LI&gt;Goods receipt for return delivery&lt;/LI&gt;&lt;LI&gt;Goods issue for returns stock transport order&lt;/LI&gt;&lt;LI&gt;Goods receipt for return delivery for stock transport order&lt;/LI&gt;&lt;/UL&gt;&lt;/BLOCKQUOTE&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="loioef7487570fc2a96be10000000a4450e5_LowRes" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/404440iD35E51C4C241E3C0/image-size/large?v=v2&amp;amp;px=999" role="button" title="loioef7487570fc2a96be10000000a4450e5_LowRes" alt="loioef7487570fc2a96be10000000a4450e5_LowRes" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Best regards&lt;/P&gt;&lt;P&gt;Dominik Tylczynski&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/supply-chain-management-q-a/documentry-batch/qaa-p/14386045#M210642"/>
-    <published>2026-04-29T12:29:14.959000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/how-to-change-the-rescheduling-date-in-md04-by-using-the-factory-calendar/qaq-p/14386046</id>
-    <title>How to change the rescheduling date in MD04  by using the factory calendar</title>
-    <updated>2026-04-29T12:29:15.348000+02:00</updated>
-    <author>
-      <name>SUDHEER_29</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1887132</uri>
-    </author>
-    <content>&lt;P&gt;There is an requirement to change the RESCHEDULING date in MD04 need to use the planned calendar and propose the date . Is this feasible ? Let me know if anyone done the enhancement related to this .. Headsup&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thanks&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/how-to-change-the-rescheduling-date-in-md04-by-using-the-factory-calendar/qaq-p/14386046"/>
-    <published>2026-04-29T12:29:15.348000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/simplifying-abap-proxy-migration-from-sap-po-to-integration-suite-no-mdr/ba-p/14379787</id>
-    <title>Simplifying ABAP Proxy Migration: From SAP PO to Integration Suite (No MDR Required)</title>
-    <updated>2026-04-29T12:30:28.417000+02:00</updated>
-    <author>
-      <name>naveen_kanagaraj</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/653404</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-1665270629"&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;This blog presents a complete walkthrough for migrating both outbound and inbound ABAP proxy configurations from SAP PO to SAP Integration Suite (Cloud Integration – CI). It is based on real project experience and focuses on the most direct and efficient path, leveraging SAP’s latest enhancements in ABAP proxy support within Integration Suite.&lt;/P&gt;&lt;P&gt;If you have explored other approaches involving MDR (Metadata Repository), SPXNMIG, or full redesign strategies, this method offers a clear alternative. When the objective is to transition existing proxy scenarios from PO to Integration Suite with minimal disruption, the approach outlined here is both streamlined and practical.&lt;/P&gt;&lt;H2 id="toc-hId-1597839843"&gt;Why this approach — and how it differs from other approaches&lt;/H2&gt;&lt;P&gt;There is already substantial guidance available on ABAP proxies, covering areas such as greenfield implementations, MDR-based migrations, OAuth configurations, and pipeline-based architectures in CI. Each of these serves specific use cases effectively.&lt;/P&gt;&lt;P&gt;This blog takes a focused, migration-centric perspective. It outlines a straightforward, end-to-end approach to moving existing proxy scenarios from SAP PO to Integration Suite using SAP’s current ABAP proxy generation capabilities. Both outbound and inbound configurations are addressed together, without introducing MDR or requiring a full pipeline setup. The emphasis is on simplicity, clarity, and direct applicability in migration projects.&lt;/P&gt;&lt;H2 id="toc-hId-1401326338"&gt;Quick Comparison: What Changes, What Stays the Same&lt;/H2&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;This table shows exactly what changes and what the equivalent looks like after migration:&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="23.96842482956584%"&gt;Aspect&lt;/TD&gt;&lt;TD width="31.395766056691784%"&gt;SAP PO (Before)&lt;/TD&gt;&lt;TD width="44.63580911374238%"&gt;SAP Integration Suite (After)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="23.96842482956584%"&gt;Proxy Generation (SAP_PROXY_ESR)&lt;/TD&gt;&lt;TD width="31.395766056691784%"&gt;Points to SAP PO Enterprise Repository (ESR)&lt;/TD&gt;&lt;TD width="44.63580911374238%"&gt;Points to host from Process Integration Runtime service key (plan: API) via path prefix /rest/api/v1/workspace/sproxy&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="23.96842482956584%"&gt;Message Routing&lt;/TD&gt;&lt;TD width="31.395766056691784%"&gt;RFC destination &amp;gt; SAP PO&lt;/TD&gt;&lt;TD width="44.63580911374238%"&gt;RFC destination &amp;gt; CI (XI Sender iFlow endpoint)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="23.96842482956584%"&gt;Proxy Visibility in SPROXY&lt;/TD&gt;&lt;TD width="31.395766056691784%"&gt;Service Interfaces from ESR visible&lt;/TD&gt;&lt;TD width="44.63580911374238%"&gt;Service Interfaces from Cloud Integration packages visible&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="23.96842482956584%"&gt;Dependency&lt;/TD&gt;&lt;TD width="31.395766056691784%"&gt;ESR + SAP PO landscape required&lt;/TD&gt;&lt;TD width="44.63580911374238%"&gt;Only SAP Integration Suite required&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="23.96842482956584%"&gt;MDR Required?&lt;/TD&gt;&lt;TD width="31.395766056691784%"&gt;No (ESR is the source)&lt;/TD&gt;&lt;TD width="44.63580911374238%"&gt;No - new RFC (path prefix) update removes MDR need&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="23.96842482956584%"&gt;Inbound Endpoint&lt;/TD&gt;&lt;TD width="31.395766056691784%"&gt;PO routes to ABAP via internal engine&lt;/TD&gt;&lt;TD width="44.63580911374238%"&gt;CI &amp;gt; Cloud Connector &amp;gt; /sap/xi/engine in ABAP&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;H2 id="toc-hId-1204812833"&gt;Before You Begin — Prerequisites&lt;/H2&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;Ensure the following are in place before starting:&lt;/P&gt;&lt;UL class="lia-align-left" style="text-align : left;"&gt;&lt;LI&gt;Service Interface(s) already imported inside a Cloud Integration Design package (this is what SAP_PROXY_ESR will read from)&lt;/LI&gt;&lt;LI&gt;SAP Cloud Connector (SCC) configured and connected to your BTP subaccount&lt;/LI&gt;&lt;LI&gt;The user for the RFC destination must have the PI_Integration_Developer role collection assigned. For OAuth setup, a Process Integration Runtime service instance (plan: API) with AuthGroup_IntegrationDeveloper role is needed in BTP Cockpit.&lt;/LI&gt;&lt;LI&gt;S/4HANA or ECC system with sufficient basis access to configure SM59, SXMB_ADM, SMICM, SICF, and SPROXY&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-879216609"&gt;Part 1: Outbound Proxy Migration&lt;/H1&gt;&lt;H2 id="toc-hId-811785823"&gt;Recalling how Outbound Proxy Worked in SAP PO&lt;/H2&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;In SAP PO, outbound proxy communication is handled through two RFC destinations. Understanding both is important, as they map directly to their CI equivalents—only the targets change.&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;The first RFC destination, typically named SAP_PROXY_ESR, pointed to SAP PO's Enterprise Repository (ESR). Transaction SPROXY used this to browse available Service Interfaces and generate Proxy classes in the ABAP system.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_0-1776786987953.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401098iF9B5AC21EF50B956/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_0-1776786987953.png" alt="naveen_kanagaraj_0-1776786987953.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 1: SAP_PROXY_ESR RFC destination pointing to SAP PO's Enterprise Repository (SM59)&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;The second RFC destination will be configured in SXMB_ADM and handled the actual runtime message routing - every outbound proxy call from ECC/S4 was sent to SAP PO through this destination.&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_1-1776786987956.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401099i38B47C9F66D6204F/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_1-1776786987956.png" alt="naveen_kanagaraj_1-1776786987956.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 2: Mapping RFC destination for outbound message routing to SAP PO (SXMB_ADM – Config)&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&lt;FONT size="2"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_2-1776786987959.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401100iDD33C8B9ECAF8E11/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_2-1776786987959.png" alt="naveen_kanagaraj_2-1776786987959.png" /&gt;&lt;/span&gt;&lt;/FONT&gt;&lt;FONT size="2"&gt;&lt;EM&gt;&lt;FONT size="2"&gt;Figure 3: HT&lt;/FONT&gt;TP_PO1 RFC destination — routing messages from S4 to SAP PO (SM59)&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H2 id="toc-hId-615272318"&gt;Setting Up Outbound Proxy in SAP Integration Suite&lt;/H2&gt;&lt;H3 id="toc-hId-547841532"&gt;What the new setup looks like&lt;/H3&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;The concept is identical in CI — same two RFC destinations, same SXMB_ADM configuration. What changes is only where they point. Let's go through each one.&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_3-1776786987977.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401102i6FB98601B74E1B61/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_3-1776786987977.png" alt="naveen_kanagaraj_3-1776786987977.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 4: The outbound Service Interface in SAP PO ESR — this is what we are migrating to CI&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;Use SAP’s migration tooling (or a third-party alternative) to migrate the Integration Configuration Object (ICO) from PO to CI. After migration, configure the XI Sender adapter address in the iFlow—this becomes the target endpoint for the RFC destination in S/4.&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="100%"&gt;Note:&amp;nbsp;&lt;EM&gt;The Service Interface must be added manually to the iFlow after ICO migration (Add &amp;gt; Service Interface). It is not included automatically.&lt;/EM&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;H3 id="toc-hId-351328027"&gt;Step 1 - RFC Destination for Runtime Message Routing&lt;/H3&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;Create an RFC destination of type G (HTTP connection) in SM59. This destination routes outbound proxy messages from S/4 to the XI Sender endpoint in CI. The path prefix must exactly match the address configured in the XI Sender adapter of the iFlow.&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_4-1776786987980.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401101iB1494CE0A4443C65/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_4-1776786987980.png" alt="naveen_kanagaraj_4-1776786987980.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 5: RFC destination for routing outbound messages from S4 to CI (SM59)&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_5-1776786987984.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401103iEA4C0AC700B4549B/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_5-1776786987984.png" alt="naveen_kanagaraj_5-1776786987984.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 6: The iFlow in CI showing the XI Sender adapter address — this must match the RFC path prefix&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="100%"&gt;Best Practice — Centralized Approach:&amp;nbsp;&lt;EM&gt;While a direct 1:1 iFlow setup is useful for clarity, a pipeline-based pattern is generally recommended. A single XI Sender iFlow can receive all outbound proxy calls and route them internally using ProcessDirect to interface-specific iFlows. This enables a single RFC destination to serve multiple proxies, significantly reducing configuration overhead.&lt;/EM&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;H3 id="toc-hId-154814522"&gt;Step 2 - RFC Destination for Proxy Generation (SAP_PROXY_ESR) — The Key Change&lt;/H3&gt;&lt;P&gt;With recent SAP updates, ABAP proxy generation can now be performed directly by connecting the backend system (ECC or S/4) to the SAP Integration Suite tenant.&lt;/P&gt;&lt;P&gt;Once configured, SPROXY reads Service Interfaces directly from CI design packages, enabled via the SAP_PROXY_ESR connection—eliminating the need for MDR or redesign.&lt;/P&gt;&lt;P&gt;Configure the RFC destination in SM59 with:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Connection Type: G (HTTP connection)&lt;/LI&gt;&lt;LI&gt;Target Host:&amp;nbsp;Host from the Process Integration Runtime service key (plan type: API) — not the CI tenant host directly&lt;/LI&gt;&lt;LI&gt;Path Prefix: /rest/api/v1/workspace/sproxy&lt;/LI&gt;&lt;LI&gt;SSL: Active (Port 443)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_6-1776786987987.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401105i3AFD897DAD36B129/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_6-1776786987987.png" alt="naveen_kanagaraj_6-1776786987987.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 7: SAP_PROXY_ESR RFC destination now pointing to SAP Integration Suite (SM59)&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H3 id="toc-hId--116930352"&gt;Step 3 - Authentication for SAP_PROXY_ESR&lt;/H3&gt;&lt;P class=""&gt;Before setting up the RFC destination, make sure your user has the PI_Integration_Developer role collection assigned in BTP&amp;gt;users. we have two ways to authenticate and for this blog we're using Basic Auth to keep it simple.&lt;/P&gt;&lt;P class=""&gt;Basic Auth — straightforward, just put the S-User credentials in the Logon &amp;amp; Security tab in SM59. This is what we used in our project.&lt;/P&gt;&lt;P class=""&gt;OAuth — you'll need to first go into BTP Cockpit, create a Process Integration Runtime service instance with plan API, and pick AuthGroup_IntegrationDeveloper during setup. That generates a service key which has everything you need — clientid, clientsecret and token URL. Detailed steps are covered in blog (referred at the end of this blog) on this topic, so I won't repeat it here.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_7-1776786987988.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401104iE4B0254292B62751/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_7-1776786987988.png" alt="naveen_kanagaraj_7-1776786987988.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 8: Logon &amp;amp; Security tab — Basic Auth configured with PI_Integration_Developer role (SM59)&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_8-1776786987989.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401106i410909B5D7BBF064/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_8-1776786987989.png" alt="naveen_kanagaraj_8-1776786987989.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 9: RFC destination connection settings — SSL active, port 443 (SM59)&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Run the connection test. A response of HTTP 200 confirms the RFC destination is working correctly. Once this is in place, SPROXY will reflect the Service Interfaces available in CI packages.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_9-1776786987995.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401108i25D4D5155C7CF0F4/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_9-1776786987995.png" alt="naveen_kanagaraj_9-1776786987995.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 10: Service Interface from CI is now visible and ready for proxy generation (SPROXY)&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;TABLE width="930"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="624"&gt;Note:&amp;nbsp;&lt;EM&gt;Only the package with Service Interfaces within will appear in SPROXY.&lt;/EM&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;H3 id="toc-hId--313443857"&gt;Step 4 - Configuring Sender/Receiver IDs and IS_URL in SXMB_ADM&lt;/H3&gt;&lt;P&gt;In SXMB_ADM, create the Sender and Receiver IDs that identify the participating systems. These IDs are then referenced in the IS_URL entry, which maps each outbound proxy to its target RFC destination.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_10-1776786987997.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401109iA86867CBB43E183D/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_10-1776786987997.png" alt="naveen_kanagaraj_10-1776786987997.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 11: SXMB_ADM — Creating Sender/Receiver IDs for the outbound proxy&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Configure the IS_URL entry pointing to the RFC destination that routes to CI (e.g., XIMessage_toCI). The Sender/Receiver ID created above is entered as the sub-parameter.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_11-1776786987998.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401107i2E35190D8234FACD/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_11-1776786987998.png" alt="naveen_kanagaraj_11-1776786987998.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 12: Configure Destination (SXMB_ADM)&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_12-1776786988002.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401112i66FDE1E930FC4602/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_12-1776786988002.png" alt="naveen_kanagaraj_12-1776786988002.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 13: IS_URL entry pointing to the CI RFC destination&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Once this is configured, trigger a test message from your ABAP program or test tool and confirm it flows correctly through to CI.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="100%"&gt;Tip -&amp;nbsp;&lt;EM&gt;If your landscape still has both SAP PO and CI running during the migration phase, each outbound proxy will still need its own Sender/Receiver ID to enable selective routing — some proxies going to PO, others to CI.&amp;nbsp;&lt;/EM&gt;&lt;P&gt;&lt;EM&gt;However, all proxies destined for CI can point to a single RFC destination — no need to create one per interface.&amp;nbsp;&lt;/EM&gt;&lt;EM&gt;This works best with a centralized pipeline iFlow, where one XI Sender iFlow receives all outbound proxy calls and routes them internally via ProcessDirect. Individual iFlows per interface would work too, but adds RFC destination or Sender/Receiver ID overhead as interface count grows.&lt;/EM&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-76848652"&gt;Part 2: Inbound Proxy Migration&lt;/H1&gt;&lt;P&gt;Inbound proxy scenarios operate in reverse—CI sends messages to the ABAP system, where the inbound proxy processes them. Since the ABAP system is on-premise, secure exposure is handled via SAP Cloud Connector.&lt;/P&gt;&lt;H2 id="toc-hId--413067860"&gt;Step 1 — Retrieve the ABAP System Hostname (SMICM)&lt;/H2&gt;&lt;P&gt;In SMICM → Goto → Services, note the HTTPS hostname and port. This internal host will be mapped in Cloud Connector.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_13-1776786988004.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401111i81593DDBB66314D9/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_13-1776786988004.png" alt="naveen_kanagaraj_13-1776786988004.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 14: SMICM — Collecting the ABAP system hostname and port for Cloud Connector mapping&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H2 id="toc-hId--609581365"&gt;Step 2 — Configure Virtual Host Mapping in SAP Cloud Connector&lt;/H2&gt;&lt;P&gt;In the Cloud Connector administration portal:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Define a Virtual Host (e.g., s4host.internal)&lt;/LI&gt;&lt;LI&gt;Map it to the internal host from SMICM&lt;/LI&gt;&lt;LI&gt;Use HTTPS protocol&lt;/LI&gt;&lt;LI&gt;Set system type as ABAP System&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Add resource access:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;/ (full access), or&lt;/LI&gt;&lt;LI&gt;/sap/xi/engine (restricted access)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Then add the resource. For this blog's scenario, access to all paths is granted (resource: /), but for tighter security you can restrict it to /sap/xi/engine specifically.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_14-1776786988013.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401113i0DABCA89F6635203/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_14-1776786988013.png" alt="naveen_kanagaraj_14-1776786988013.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 15: SAP Cloud Connector — virtual host mapped to the ABAP system&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H2 id="toc-hId--806094870"&gt;Step 3 — Activate /sap/xi/engine in SICF&lt;/H2&gt;&lt;P&gt;In transaction SICF, navigate to the path /sap/xi/engine and check whether the service is active. If it shows as inactive, right-click and activate it.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_15-1776786988014.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401114i3B9EEDA6A6C49082/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_15-1776786988014.png" alt="naveen_kanagaraj_15-1776786988014.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 16: SICF — /sap/xi/engine confirmed active&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="100%"&gt;Watch out - Multi-Client Systems: &lt;EM&gt;If your ABAP system has more than one client, the /sap/xi/engine service will default to calling the default client regardless of the URL parameter. To fix this: in SICF, open the /sap/xi/engine service &amp;gt; Logon Data tab &amp;gt; set the Client explicitly to your target client. This is a common gotcha that causes hard-to-diagnose errors.&lt;/EM&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;H2 id="toc-hId--1002608375"&gt;Step 4 — Construct the Receiver XI Adapter URL in CI&lt;/H2&gt;&lt;P&gt;The endpoint URL to be used in the CI Receiver XI Adapter should follows this pattern:&lt;/P&gt;&lt;P&gt;https://&amp;lt;VirtualHost&amp;gt;:&amp;lt;Port&amp;gt;/sap/xi/engine?type=receiver&amp;amp;sap-client=&amp;lt;CLIENT&amp;gt;&lt;/P&gt;&lt;P&gt;Use the virtual host name defined in Cloud Connector (not the internal hostname). This is the URL CI will call to deliver the message to the ABAP system.&lt;/P&gt;&lt;H2 id="toc-hId--1199121880"&gt;Step 5 — Migrate the ICO and Update the Inbound iFlow&lt;/H2&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_16-1776786988028.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401116i6A4B20ED33E8FC59/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_16-1776786988028.png" alt="naveen_kanagaraj_16-1776786988028.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 17: The inbound Service Interface in SAP PO ESR — this is what we are migrating to CI&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Migrate the ICO from PO to CI using your preferred approach. After migration, open the iFlow and update the Receiver XI Adapter with the URL constructed above. The On-Premise connectivity should be set with the Cloud Connector Location ID.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_17-1776786988031.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401115iEC92A4963715A39E/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_17-1776786988031.png" alt="naveen_kanagaraj_17-1776786988031.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 18: Migrated iFlow — Receiver XI Adapter updated with the ABAP system URL via Cloud Connector&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;The Inbound Service Interface also needs to be added to the iFlow separately. It is not pulled in automatically as part of ICO migration.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_18-1776786988034.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401117iFFA466BAFEA9BE90/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_18-1776786988034.png" alt="naveen_kanagaraj_18-1776786988034.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 19: Inbound Service Interface added separately to the iFlow after migration&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Configure the delivery assurance and Quality of Service in the XI adapter based on your scenario requirements.&lt;/P&gt;&lt;H2 id="toc-hId--1395635385"&gt;Step 6 — Activate the Service Interface in SPROXY&lt;/H2&gt;&lt;P&gt;Open SPROXY in S/4HANA. The inbound Service Interface will now be visible via SAP_PROXY_ESR. Activate it to generate the corresponding ABAP proxy class.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="naveen_kanagaraj_19-1776786988037.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/401118i9C00032F28DC47CA/image-size/large?v=v2&amp;amp;px=999" role="button" title="naveen_kanagaraj_19-1776786988037.png" alt="naveen_kanagaraj_19-1776786988037.png" /&gt;&lt;/span&gt;&lt;FONT size="2"&gt;&lt;EM&gt;Figure 20: SPROXY — Inbound Service Interface visible from CI, activated for proxy generation&lt;/EM&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;Once activated, test the end-to-end flow: send a test message from CI and verify it is received and processed by the ABAP inbound proxy. Check SXMB_MONI in the ABAP system for message status.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--1298745883"&gt;Troubleshooting Guide&lt;/H1&gt;&lt;P&gt;Below are the most common issues encountered during proxy migration, along with their root causes and fixes. This is based on real project experience and commonly reported issues in the community&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%" height="30px"&gt;Symptom&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="30px"&gt;Likely Cause&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="30px"&gt;Fix&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%" height="139px"&gt;Connection test on SAP_PROXY_ESR returns HTTP 404&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="139px"&gt;using CI endpoint or wrong path prefix (path prefix is case sensitive)&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="139px"&gt;Verify the path prefix is correct. Also ensure the target host in the service key is the host from the Process Integration Runtime (plan: API) and not the CI tenant host directly.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%" height="85px"&gt;Service Interface not showing up in SPROXY&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="85px"&gt;Service Interface not inside a CI package, missed manual import of Service Interface after IFlow migration&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="85px"&gt;Check Service Interface is inside CI package&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%" height="85px"&gt;Outbound proxy message not reaching CI&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="85px"&gt;IS_URL entry in SXMB_ADM pointing to wrong destination or Sender/Receiver ID mismatch&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="85px"&gt;Cross check the IS_URL mapping — namespace in Sender/Receiver ID must exactly match the proxy namespace&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%" height="57px"&gt;Inbound message from CI hitting wrong client&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="57px"&gt;/sap/xi/engine defaulting to system default client&lt;/TD&gt;&lt;TD width="33.333333333333336%" height="57px"&gt;In SICF, set the explicit Logon Data client on /sap/xi/engine service&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--1327075697"&gt;&lt;STRONG&gt;Summary&lt;/STRONG&gt;&lt;/H1&gt;&lt;P&gt;Migrating ABAP proxy scenarios from SAP PO to SAP Integration Suite does not have to be complicated. Here is the core of what this blog covers:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The SAP_PROXY_ESR RFC destination is the linchpin of this approach. By pointing it to Integration Suite instead of the ESR, SPROXY automatically reads Service Interfaces from CI packages — no MDR, no SPXNMIG, no inline type conversion needed.&lt;/LI&gt;&lt;LI&gt;For Outbound Proxy: update two RFC destinations (SAP_PROXY_ESR and the message routing destination in SXMB_ADM) to point to CI instead of PO. The rest of the SXMB_ADM Sender/Receiver ID and IS_URL config works the same way.&lt;/LI&gt;&lt;LI&gt;For Inbound Proxy: expose the ABAP system's /sap/xi/engine endpoint via Cloud Connector, configure the Receiver XI Adapter in your CI iFlow, and activate the Service Interface in SPROXY.&lt;/LI&gt;&lt;LI&gt;Watch out for: wrong client in SICF (multi-client systems), the target host for RFC: SAP_PROXY_ESR is from the Process Integration Runtime service key and not the CI tenant URL directly, and Service Interface not appearing in SPROXY (package not imported into CI).&lt;/LI&gt;&lt;/UL&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="100%"&gt;&lt;STRONG&gt;Related Reading:&amp;nbsp;&lt;/STRONG&gt;&lt;EM&gt;For OAuth 2.0 setup with SAP_PROXY_ESR: "&lt;/EM&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/abap-proxy-generation-support-with-sap-integration-suite/ba-p/14221791" target="_blank"&gt;&lt;EM&gt;ABAP Proxy generation support with SAP Integration Suite&lt;/EM&gt;&lt;/A&gt;&lt;EM&gt;" on SAP Community &amp;amp; &lt;/EM&gt;&lt;A href="https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/684cffda9cbc4187ad7dad790b03b983/e5004f22192b444ab0bac1364d73ea6f.html" target="_blank" rel="noopener noreferrer"&gt;&lt;EM&gt;ABAP Proxy Generation - General Procedure | SAP Help Portal&lt;/EM&gt;&lt;/A&gt;&lt;EM&gt; on SAP Help Portal. For MDR-based migration: "&lt;/EM&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/efficient-abap-proxy-migration-from-sap-po-to-integration-suite/ba-p/13573809" target="_blank"&gt;&lt;EM&gt;Efficient ABAP Proxy Migration from SAP PO to Integration Suite&lt;/EM&gt;&lt;/A&gt;&lt;EM&gt;" on SAP Community.&lt;/EM&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;Thanks for reading.&amp;nbsp;Questions or corrections — drop them in the comments, I'll do my best to help.&lt;/EM&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/simplifying-abap-proxy-migration-from-sap-po-to-integration-suite-no-mdr/ba-p/14379787"/>
-    <published>2026-04-29T12:30:28.417000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/financial-management-q-a/foreign-exchange-adjustments-for-cash-g-l-accounts-mixed-currencies/qaa-p/14386056#M259071</id>
-    <title>Re: Foreign Exchange Adjustments for Cash G/L Accounts (M...</title>
-    <updated>2026-04-29T12:35:38.538000+02:00</updated>
-    <author>
-      <name>ElenaPuica</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2270342</uri>
-    </author>
-    <content>&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;Hello!&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;In SAP S/4HANA Cloud Public Edition, the standard and automated process to calculate and post unrealized FX differences is Foreign Currency Valuation.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;This process:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Revalues foreign currency balances at period-end&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Calculates unrealized gains and losses automatically&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Posts adjustment entries based on maintained exchange rates&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Why it’s challenging this case based on current setup:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;G/L accounts contain multiple currencies in the same account&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Some balances are not a “true” reflection of FX exposure (due to clearing or mixed postings)&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Profit center inconsistencies lead to unwanted or noisy postings&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;The limitation is not the FCV tool itself, but rather how the accounts and transactions are structured.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Possible options going forward:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Option 1 — Improve G/L structure &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The most robust solution would be to gradually:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Separate accounts based on currency or business purpose&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Ensure transactions reflect true FX exposure&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Improve consistency in profit center postings&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;This would allow you to fully leverage FCV&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Enables automation and reduces manual work&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Option 2 — Use FCV Selectively&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;If a full redesign is not feasible:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Apply FCV only to clean and well-structured accounts&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Exclude complex or mixed-use accounts&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Provides partial automation and reduces overall manual effort&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Option 3 — continue manual adjustments&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The current approach using the Verify Currency Adjustment app:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Remains valid for complex or exceptional cases&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Provides flexibility where automation cannot be applied&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Option 4 — Hybrid Approach &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;A common and practical setup is:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Use Foreign Currency Valuation for standard, clean accounts&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Use manual adjustments only where necessary&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Option 5 — External Calculation + Upload&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;If more automation is needed without changing SAP setup:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Perform the FX calculation externally (e.g., Excel or another system)&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Upload/post results into SAP using standard journal entry tools &lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;!!!&amp;nbsp;The calculation logic remains outside SAP&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Important to note:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;SAP does not provide an alternative automated solution beyond Foreign Currency Valuation&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/financial-management-q-a/foreign-exchange-adjustments-for-cash-g-l-accounts-mixed-currencies/qaa-p/14386056#M259071"/>
-    <published>2026-04-29T12:35:38.538000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/dqm-address-validation-how-to-stop-address-validation-from-via-interface/qaa-p/14386060#M4941296</id>
-    <title>Re: DQM Address Validation - How to stop address validati...</title>
-    <updated>2026-04-29T12:41:06.600000+02:00</updated>
-    <author>
-      <name>NicoMa</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1599764</uri>
-    </author>
-    <content>&lt;P&gt;Hello &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/183968"&gt;@mike_reader3&lt;/a&gt;&amp;nbsp;,&lt;/P&gt;&lt;P&gt;Did you ever receive an answer to this? I am currently facing the same issue.&lt;/P&gt;&lt;P&gt;We want to validate the address data when user is using Fiori/GUI App, however, we do not want the data being checked when they are received via an interface.&lt;/P&gt;&lt;P&gt;Thanks, Nico&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/dqm-address-validation-how-to-stop-address-validation-from-via-interface/qaa-p/14386060#M4941296"/>
-    <published>2026-04-29T12:41:06.600000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/why-attachment-option-is-not-there-during-create-incoming-invoice/qaq-p/14386063</id>
     <title>Why attachment option is not there during create incoming invoice</title>
@@ -1170,6 +818,18 @@ jobs:
     <published>2026-04-29T15:21:05.075000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/pspnr-is-not-a-permitted-target-field-in-kedr-copa-derivation/qaa-p/14386220#M4240073</id>
+    <title>Re: PSPNR is not a permitted Target field in KEDR COPA De...</title>
+    <updated>2026-04-29T15:24:42.030000+02:00</updated>
+    <author>
+      <name>Ulf_H</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1399226</uri>
+    </author>
+    <content>&lt;P&gt;Hello,&lt;/P&gt;&lt;P&gt;you could post the relevant accounts via Substitution to the WBS-element and then settle it to CO-PA.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/pspnr-is-not-a-permitted-target-field-in-kedr-copa-derivation/qaa-p/14386220#M4240073"/>
+    <published>2026-04-29T15:24:42.030000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/yaai-amp-yaai-ui-open-source-ai-tools-for-abap-developers/bc-p/14386221#M178621</id>
     <title>Re: yaai &amp; yaai_ui – Open-Source AI Tools for ABAP Developers</title>
     <updated>2026-04-29T15:26:51.543000+02:00</updated>
@@ -1266,6 +926,42 @@ jobs:
     <published>2026-04-29T15:40:47.543000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/ordrsp-orders05-idoc-not-validating-plant-werks-in-e1edp01-segment/qaq-p/14386235</id>
+    <title>ORDRSP/ORDERS05 IDoc Not Validating Plant (WERKS) in E1EDP01 Segment</title>
+    <updated>2026-04-29T15:47:38.095000+02:00</updated>
+    <author>
+      <name>vijay_suryawanshi01</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/384325</uri>
+    </author>
+    <content>&lt;P&gt;We are using inbound ORDRSP / ORDERS05 (process code: ORDR) to update order confirmations for delivery schedules. However, the plant (WERKS) in segment E1EDP01 is not being validated. Even if an incorrect plant is sent, the IDoc is processed successfully.&amp;nbsp; Is there an option in standard SAP functionally to validate the plant code on the IDOC for ORDRSP / ORDERS05 ?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/ordrsp-orders05-idoc-not-validating-plant-werks-in-e1edp01-segment/qaq-p/14386235"/>
+    <published>2026-04-29T15:47:38.095000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/link-rule-ac20000020-planner-group-with-bus2038-notificationpm/qaq-p/14386236</id>
+    <title>Link Rule AC20000020 (Planner Group) with BUS2038 (NotificationPM)</title>
+    <updated>2026-04-29T15:48:28.202000+02:00</updated>
+    <author>
+      <name>MOHAND</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1609110</uri>
+    </author>
+    <content>&lt;P&gt;Hello everyone,&lt;/P&gt;&lt;P&gt;Could someone please assist me with the following point?&lt;/P&gt;&lt;P&gt;I need to create a workflow for processing PM notifications by agents defined in the Planner Group.&lt;BR /&gt;The objective is to link object &lt;STRONG&gt;BUS2038 (PM Notification)&lt;/STRONG&gt; with rule &lt;STRONG&gt;AC2000020&lt;/STRONG&gt; in order to automatically determine the responsible agents.&lt;/P&gt;&lt;P&gt;Thank you very much for your support.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/link-rule-ac20000020-planner-group-with-bus2038-notificationpm/qaq-p/14386236"/>
+    <published>2026-04-29T15:48:28.202000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/mr11-change-layout-grid-is-not-working/qaa-p/14386238#M4240077</id>
+    <title>Re: MR11 change layout (grid) is not working</title>
+    <updated>2026-04-29T15:49:19.557000+02:00</updated>
+    <author>
+      <name>bill94</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1880930</uri>
+    </author>
+    <content>The problem persists. MR11SHOW does the same. The layout is the default.</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/mr11-change-layout-grid-is-not-working/qaa-p/14386238#M4240077"/>
+    <published>2026-04-29T15:49:19.557000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/financial-management-q-a/can-reporting-fs-item-rept-be-used-in-the-standard-fs-item-hierarchy/qaa-p/14386240#M259075</id>
     <title>Re: Can reporting FS item REPT be used in the standard FS...</title>
     <updated>2026-04-29T15:50:21.232000+02:00</updated>
@@ -1300,6 +996,42 @@ jobs:
     <content>&lt;P&gt;Hi &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/132064"&gt;@Shubham_Srivastava1&lt;/a&gt;&amp;nbsp;,&lt;/P&gt;&lt;P&gt;I hope you are doing well.&lt;/P&gt;&lt;P&gt;I wanted to clarify whether it is truly necessary to use the S/4HANA RISE edition in this scenario. Could you please elaborate on the main reasons for not proceeding with S/4HANA Private Edition instead?&lt;/P&gt;&lt;P&gt;From our perspective, it seems feasible to install SAP Cloud Connector and establish a secure trust relationship between the systems. Based on this, we would like to better understand the constraints or considerations that make RISE the preferred option.&lt;/P&gt;&lt;P&gt;Zafer&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/setup-and-activation-guide-joule-in-sap-s-4hana-private-cloud/bc-p/14386243#M64144"/>
     <published>2026-04-29T15:57:20.696000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/extension-stock-multiple-materials-app-f1595-for-field-aggregation/qaa-p/14386245#M4240080</id>
+    <title>Re: [Extension]-Stock - Multiple Materials App [F1595]  for field aggregation</title>
+    <updated>2026-04-29T15:59:30.161000+02:00</updated>
+    <author>
+      <name>ppienkowski</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1602693</uri>
+    </author>
+    <content>Hello is there a method that seemed to work for anyone (i.e. CDS view extensions, custom Z app, modifying MPC_EXT / DPC_EXT)? My team has a requirement to add alternative UOM functionality (add custom filter field for AUOM, convert stock quantities into selected AUOM and populate custom fields). I was able to get this working in our sandbox system with appending custom fields to structure MMIM_MATERIAL_MULTI_STOCK. After that create new properties for the fields in the MPC_EXT. Added logic to convert base UOM qauntities of each material to selected alternative UOM. Created local annotation file to display value help which is the same as the base UOM filter in the app but with single selection only. Created controller extension to send selected UOM back to the DPC_EXT for conversions, and additional logic in the controller for grand totals. Everything works fine in our sandbox. We've moved the project over to our development system where we now get errors on the front-end and a dump on the backend in ST22. Our Sandbox has recently been upgraded but not our sandbox. Is this issue related to the versions being different? Again, everything works with no errors / dumps in Sandbox, but not the case in our development system. Any help would be greatly appreciated! Thanks, Patrick P.</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/extension-stock-multiple-materials-app-f1595-for-field-aggregation/qaa-p/14386245#M4240080"/>
+    <published>2026-04-29T15:59:30.161000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/supply-chain-management-q-a/sap-sd-output-type-triggering/qaq-p/14386248</id>
+    <title>SAP - SD Output type triggering</title>
+    <updated>2026-04-29T16:04:28.294000+02:00</updated>
+    <author>
+      <name>andrea_cod3f77a</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2297830</uri>
+    </author>
+    <content>&lt;P&gt;Hello Everybody&lt;/P&gt;&lt;P&gt;Is there a way to exclude the determination of an output type without adding a Requirement?&lt;/P&gt;&lt;P&gt;I need to prevent emails linked to a specific output type from being sent to certain customers&lt;/P&gt;&lt;P&gt;This condition applies only to table 901, which is triggered regardless of the customer&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="andrea_cod3f77a_0-1777471079858.png" style="width: 732px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/404547i815534C9F910DCAF/image-dimensions/732x130/is-moderation-mode/true?v=v2" width="732" height="130" role="button" title="andrea_cod3f77a_0-1777471079858.png" alt="andrea_cod3f77a_0-1777471079858.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Thanks a lot for any suggestion&amp;nbsp;&lt;/P&gt;&lt;P&gt;Andrea&lt;/P&gt;&lt;P&gt;&amp;nbsp; &amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/supply-chain-management-q-a/sap-sd-output-type-triggering/qaq-p/14386248"/>
+    <published>2026-04-29T16:04:28.294000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/client-role-quot-pre-prod-quot-in-landscape-management-of-sap-cloud-alm/qaq-p/14386249</id>
+    <title>Client role "pre-prod" in Landscape management of SAP Cloud ALM</title>
+    <updated>2026-04-29T16:06:55.049000+02:00</updated>
+    <author>
+      <name>shivakul54</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/882570</uri>
+    </author>
+    <content>&lt;P&gt;Hello Team,&amp;nbsp;&lt;/P&gt;&lt;P&gt;We do not see Client role as "Pre-prod" available in CALM --&amp;gt; Landscape Management. Is it possible to get this role in SAP Cloud ALM? If not currently, then any plans to add this role?&lt;/P&gt;&lt;P&gt;Thanks and Regards,&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/client-role-quot-pre-prod-quot-in-landscape-management-of-sap-cloud-alm/qaq-p/14386249"/>
+    <published>2026-04-29T16:06:55.049000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/human-capital-management-blog-posts-by-sap/how-to-avoid-latency-in-the-compensation-module/bc-p/14386257#M9999</id>
@@ -1603,5 +1335,17 @@ Authorization: Bearer &lt;SPAN class=""&gt;{{IASAccessToken}}&lt;/SPAN&gt;&lt;/P
     <content>&lt;P&gt;Dear colleagues,&lt;/P&gt;&lt;P&gt;My customer wants to send to an external system, the information of creation and changes of SEPA Mandate in FI-AR.&lt;/P&gt;&lt;P&gt;Events exist in FI-CA, those can be used in SAP Advanced Events Mesh. But I am not able to find the same for FI-AR.&lt;/P&gt;&lt;P&gt;Did you already encounter such request?&lt;/P&gt;&lt;P&gt;Thank you,&lt;/P&gt;&lt;P&gt;Christine&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/sepa-mandate-fi-ar-sending-events-from-sap-to-external-system/qaq-p/14386320"/>
     <published>2026-04-29T17:12:44.354000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-platform-learning-group-blog-posts/new-dates-for-get-certified-sap-btp-administrator-live-sessions/bc-p/14386323#M9</id>
+    <title>Re: New Dates for Get Certified: SAP BTP Administrator Live Sessions</title>
+    <updated>2026-04-29T17:22:01.228000+02:00</updated>
+    <author>
+      <name>mts2605</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/998</uri>
+    </author>
+    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/4321"&gt;@StefanFell&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thanks for a reply.&lt;/P&gt;&lt;P&gt;But I have to insist that, after trying it again and again, the naming, subdomains, etc, are correct. (I can send documentation for that to you - believe this is not the place &lt;span class="lia-unicode-emoji" title=":winking_face:"&gt;😉&lt;/span&gt; )&lt;BR /&gt;Unfortunately I read your answer as a lost certification try for me. And that there are no technical problems. Is that correct?&lt;/P&gt;&lt;P&gt;If only a human could use 5-10 minutes to verify that the validation tool is working correctly. Please&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-platform-learning-group-blog-posts/new-dates-for-get-certified-sap-btp-administrator-live-sessions/bc-p/14386323#M9"/>
+    <published>2026-04-29T17:22:01.228000+02:00</published>
   </entry>
 </feed>
