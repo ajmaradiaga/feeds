@@ -2,469 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2026-04-30T11:00:02.739440+00:00</updated>
+  <updated>2026-04-30T14:00:03.508747+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/triggering-background-jobs-from-rap-actions-a-practical-guide/ba-p/14371274</id>
-    <title>Triggering Background Jobs from RAP Actions – A Practical Guide</title>
-    <updated>2026-04-15T11:24:21.616000+02:00</updated>
-    <author>
-      <name>Arshiya2</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1912702</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-1794110181"&gt;&lt;STRONG&gt;Introduction:&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;In the SAP ABAP RESTful Application Programming Model (RAP), actions are typically executed within a single transactional request. However, resource-intensive operations are not suitable for synchronous execution as they impact performance and user experience. To handle this, background job processing can be used to execute heavy logic asynchronously. This blog demonstrates how a RAP action can trigger a background job to keep the main transaction lightweight.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;What is a RAP Action?&lt;/STRONG&gt;&lt;BR /&gt;An action in RAP is a non-standard operation used to change data or trigger specific business logic. By default, these are synchronous, meaning the UI waits for the logic to finish before the user can continue.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;What is Background Processing (BG)?&lt;/STRONG&gt;&lt;BR /&gt;Background processing allows the system to run tasks in a separate session without user interaction. It is ideal for "fire-and-forget" scenarios or resource-intensive tasks that would otherwise cause a timeout in a web session.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Scenario: Bulk Asynchronous Processing in RAP&lt;/STRONG&gt;&lt;BR /&gt;A business user needs to process multiple records simultaneously in a SAP Fiori application—such as updating statuses for a large batch of background job entries. While a simple status change is quick, the underlying business logic (like complex data validation or external system integration) is resource-intensive and long-running.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Problem Statement&lt;/STRONG&gt;&lt;BR /&gt;Executing heavy synchronous logic directly within RAP actions causes poor user experience, performance degradation, and potential transaction timeouts.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Solution&lt;/STRONG&gt;&lt;BR /&gt;Trigger an asynchronous background job from the RAP action. The action marks the records as "In Progress," and the Saver Class calls a Function Module IN BACKGROUND TASK to schedule a background report. This offloads the processing to a separate session, allowing the main UI transaction to remain lightweight and responsive.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-810796794" id="toc-hId-1597596676"&gt;Implementation Steps&lt;/H2&gt;&lt;H4 id="toc-hId-872448727" id="toc-hId-1659248609"&gt;Step 1: Create a database table&lt;/H4&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'DATABASE TABLE FOR BACKGROUND JOB' 
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE 
-@AbapCatalog.tableCategory : #TRANSPARENT 
-@AbapCatalog.deliveryClass : #A 
-@AbapCatalog.dataMaintenance : #RESTRICTED 
-
-define table zaf_dt_backjob { 
-
-key id : uuid not null; 
-description : abap.char(50); 
-status : abap.char(10); 
-job_name : abap.char(32); 
-job_count : abap.char(10); 
-start_time : timestampl; 
-end_time : timestampl; 
-error_message : abap.char(255); 
-created_by : abap.char(12);
-created_at : abp_creation_tstmpl; 
-last_changed_at : abp_lastchange_tstmpl; 
-
-} &lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-546852503" id="toc-hId-1333652385"&gt;Step 2: Create a interface view on top of database table.&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE] 
-@AccessControl.authorizationCheck: #NOT_REQUIRED 
-@EndUserText.label: 'BACKGROUND job interface view' 
-@Metadata.ignorePropagatedAnnotations: true 
-
-define root view entity zi_AF_backjob as select from zaf_dt_backjob 
-
-{ 
-key id as Id, 
-description as Description, 
-status as Status, 
-job_name as JobName, 
-job_count as JobCount, 
-start_time as StartTime, 
-end_time as EndTime, 
-error_message as ErrorMessage, 
-created_by as CreatedBy, 
-created_at as CreatedAt, 
-last_changed_at as LastChangedAt, 
-case status 
-when 'DONE' then 3 
-when 'INPR' then 2 
-when 'NEW' then 1 
-when 'ERR' then 4 
-else 0 
-end as StatusCriticality 
-
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId-1137138880"&gt;&amp;nbsp;Step 3: Create a Consumption view&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Background job projection view'
-@Metadata.ignorePropagatedAnnotations: true
-@Metadata.allowExtensions: true
-@UI.headerInfo: {
-  typeName: 'Background Job',
-  typeNamePlural: 'Background Jobs',
-  title: { type: #STANDARD, value: 'Description' }
-}
-define root view entity zc_af_backjob
-provider contract transactional_query
-as projection on zi_AF_backjob
-{
-
-key Id,
-  Description,
-  Status,
-  JobName,
-  JobCount,
-  StartTime,
-  EndTime,
-  ErrorMessage,
-  CreatedAt,
-  LastChangedAt,
-  StatusCriticality
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId-940625375"&gt;Step 4: Metadata Extension file&amp;nbsp;&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CORE
-annotate entity zc_af_backjob with 
-{
-  .facet: [
-    {
-      id: 'General',
-      purpose: #STANDARD,
-      type: #IDENTIFICATION_REFERENCE,
-      label: 'General Information',
-      position: 10
-    }
-  ]
-
-  .lineItem: [{ position: 10, label: 'UUID' }]
-  .identification: [{ position: 10, label: 'UUID' }]
-  .selectionField: [{ position: 10 }]
-  Id;
-
-  .lineItem: [{ position: 20, label: 'Description' }]
-  .identification: [{ position: 20, label: 'Description' }]
-  Description;
-
-  .lineItem: [
-    { position: 30, label: 'Status' },
-    { type: #FOR_ACTION, dataAction: 'StartProcessing', label: 'Start Job' }
-  ]
-  .identification: [{ position: 30, label: 'Status' }]
-  .selectionField: [{ position: 30 }]
-  .dataPoint: {
-    title: 'Status',
-    criticality: 'StatusCriticality'
-  }
-  Status;
-
-  .lineItem: [{ position: 40, label: 'Job Name' }]
-  .identification: [{ position: 40, label: 'Job Name' }]
-  .selectionField: [{ position: 40 }]
-  JobName;
-
-  .lineItem: [{ position: 50, label: 'Job Count' }]
-  .identification: [{ position: 50, label: 'Job Count' }]
-  JobCount;
-
-  .lineItem: [{ position: 60, label: 'Start Time' }]
-  .identification: [{ position: 60, label: 'Start Time' }]
-  StartTime;
-
-  .lineItem: [{ position: 70, label: 'End Time' }]
-  .identification: [{ position: 70, label: 'End Time' }]
-  EndTime;
-
-  .lineItem: [{ position: 80, label: 'Error Message' }]
-  .identification: [{ position: 80, label: 'Error Message' }]
-  ErrorMessage;
-
-  .hidden: true
-  CreatedAt;
-
-  .hidden: true
-  LastChangedAt;
-
-  .hidden: true
-  StatusCriticality;
-}&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId-744111870"&gt;Step 5:&amp;nbsp; Create a Behavior Definition on top of interface View&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;unmanaged implementation in class zbp_i_af_backjob unique;
-strict ( 2 );
-with draft;
-
-define behavior for zi_AF_backjob 
-lock master
-total etag LastChangedAt
-draft table zaf_draft_bg
-authorization master ( instance )
-early numbering
-
-{
-  create;
-  update;
-  delete;
-
-     draft action activate optimized;
-     draft action resume;
-     draft action Edit;
-     draft action Discard;
-     draft determine action Prepare;
-
-    action StartProcessing result [1] $self;
-
-  determination SetInitialStatus on modify { create; }
-
- field ( readonly ) Id;
-  field ( readonly ) Status, JobName, JobCount, StartTime, EndTime, ErrorMessage;
-  field ( readonly ) CreatedAt, LastChangedAt, CreatedBy;
-
-  field ( mandatory ) Description;
-
-
-mapping for zaf_dt_backjob{
-
-CreatedAt = created_at;
-CreatedBy = created_by;
-Description = description;
-EndTime = end_time;
-ErrorMessage = error_message;
-Id = id;
-JobCount = job_count;
-JobName = job_name;
-LastChangedAt = last_changed_at;
-StartTime = start_time;
-Status = status;
-
-}
-}&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId-547598365"&gt;Step 6: Create implementation class&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_zi_af_backjob DEFINITION INHERITING FROM cl_abap_behavior_handler.
-
-  PUBLIC SECTION.
-    TYPES: tt_backjob_db TYPE STANDARD TABLE OF zaf_dt_backjob WITH EMPTY KEY.
-
-    " Buffer for CRUD and Job Scheduling
-    CLASS-DATA: mt_buffer_upsert TYPE tt_backjob_db,
-                mt_buffer_delete TYPE tt_backjob_db,
-                gt_jobs          TYPE STANDARD TABLE OF zaf_dt_backjob-id.
-
-  PRIVATE SECTION.
-    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-      IMPORTING keys REQUEST requested_authorizations FOR zi_af_backjob RESULT result.
-
-    METHODS earlynumbering_create FOR NUMBERING
-      IMPORTING entities FOR CREATE zi_af_backjob.
-
-    METHODS create FOR MODIFY
-      IMPORTING entities FOR CREATE zi_af_backjob.
-
-    METHODS update FOR MODIFY
-      IMPORTING entities FOR UPDATE zi_af_backjob.
-
-    METHODS delete FOR MODIFY
-      IMPORTING keys FOR DELETE zi_af_backjob.
-
-    METHODS read FOR READ
-      IMPORTING keys FOR READ zi_af_backjob RESULT result.
-
-    METHODS lock FOR LOCK
-      IMPORTING keys FOR LOCK zi_af_backjob.
-
-    METHODS StartProcessing FOR MODIFY
-      IMPORTING keys FOR ACTION zi_af_backjob~StartProcessing RESULT result.
-
-    METHODS SetInitialStatus FOR DETERMINE ON MODIFY
-      IMPORTING keys FOR zi_af_backjob~SetInitialStatus.
-
-ENDCLASS.
-
-CLASS lhc_zi_af_backjob IMPLEMENTATION.
-
-  METHOD get_instance_authorizations.
-  ENDMETHOD.
-
-  METHOD earlynumbering_create.
-    LOOP AT entities INTO DATA(ls_entity).
-      IF ls_entity-id IS NOT INITIAL.
-        CONTINUE.
-      ENDIF.
-
-      DATA(lv_uuid) = cl_system_uuid=&amp;gt;create_uuid_x16_static( ).
-
-      APPEND VALUE #(
-        %cid      = ls_entity-%cid
-        %is_draft = ls_entity-%is_draft
-        id        = lv_uuid
-      ) TO mapped-zi_af_backjob.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD create.
-    LOOP AT entities INTO DATA(ls_entity).
-      APPEND VALUE #(
-        id          = ls_entity-id
-        description = ls_entity-Description
-        status      = 'NEW'
-        created_by  = sy-uname
-      ) TO mt_buffer_upsert.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD update.
-    LOOP AT entities INTO DATA(ls_entity).
-      " In unmanaged, we must fetch current state to apply partial updates
-      SELECT SINGLE * FROM zaf_dt_backjob WHERE id = _entity-id INTO (ls_db).
-
-      IF ls_entity-%control-Description = if_abap_behv=&amp;gt;mk-on.
-         ls_db-description = ls_entity-Description.
-      ENDIF.
-
-      IF ls_entity-%control-Status = if_abap_behv=&amp;gt;mk-on.
-         ls_db-status = ls_entity-Status.
-      ENDIF.
-
-      GET TIME STAMP FIELD ls_db-last_changed_at.
-      APPEND ls_db TO mt_buffer_upsert.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD delete.
-    LOOP AT keys INTO DATA(ls_key).
-      APPEND VALUE #( id = ls_key-id ) TO mt_buffer_delete.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD read.
-    IF keys IS INITIAL. RETURN. ENDIF.
-    SELECT * FROM zaf_dt_backjob FOR ALL ENTRIES IN  WHERE id = -id INTO TABLE (lt_data).
-
-    result = CORRESPONDING #( lt_data MAPPING
-      Id = id Description = description Status = status JobName = job_name
-      JobCount = job_count StartTime = start_time EndTime = end_time
-      ErrorMessage = error_message CreatedBy = created_by CreatedAt = created_at
-      LastChangedAt = last_changed_at ).
-  ENDMETHOD.
-
-  METHOD lock.
-    
-  ENDMETHOD.
-
-  METHOD StartProcessing.
-    LOOP AT keys INTO DATA(ls_key).
-      " 1. Mark status as 'INPR' immediately in the database
-      UPDATE zaf_dt_backjob SET status = 'INPR' WHERE id = _key-id.
-
-      " 2. Add to global job queue for the SAVE phase
-      INSERT ls_key-id INTO TABLE gt_jobs.
-    ENDLOOP.
-
-    result = VALUE #( FOR key IN keys ( Id = key-id %param = CORRESPONDING #( key ) ) ).
-  ENDMETHOD.
-
-  METHOD SetInitialStatus.
-    LOOP AT keys INTO DATA(ls_key).
-      SELECT SINGLE * FROM zaf_dt_backjob WHERE id = _key-id INTO (ls_db).
-      IF ls_db-status IS INITIAL.
-        ls_db-status = 'NEW'.
-        APPEND ls_db TO mt_buffer_upsert.
-      ENDIF.
-    ENDLOOP.
-  ENDMETHOD.
-
-ENDCLASS.
-
-" --- Saver Class Implementation ---
-CLASS lsc_zi_af_backjob DEFINITION INHERITING FROM cl_abap_behavior_saver.
-  PROTECTED SECTION.
-    METHODS finalize REDEFINITION.
-    METHODS check_before_save REDEFINITION.
-    METHODS save REDEFINITION.
-    METHODS cleanup REDEFINITION.
-    METHODS cleanup_finalize REDEFINITION.
-ENDCLASS.
-
-CLASS lsc_zi_af_backjob IMPLEMENTATION.
-
-  METHOD finalize.
-  ENDMETHOD.
-
-  METHOD check_before_save.
-  ENDMETHOD.
-
-  METHOD save.
-    " 1. Standard DB Persistence
-    IF lhc_zi_af_backjob=&amp;gt;mt_buffer_delete IS NOT INITIAL.
-      DELETE zaf_dt_backjob FROM TABLE @lhc_zi_af_backjob=&amp;gt;mt_buffer_delete.
-    ENDIF.
-
-    IF lhc_zi_af_backjob=&amp;gt;mt_buffer_upsert IS NOT INITIAL.
-      MODIFY zaf_dt_backjob FROM TABLE @lhc_zi_af_backjob=&amp;gt;mt_buffer_upsert.
-    ENDIF.
-
-    " 2. Trigger Async logic using the reference pattern
-    LOOP AT lhc_zi_af_backjob=&amp;gt;gt_jobs INTO DATA(lv_id).
-      CALL FUNCTION 'ZAF_FM_BACKJOB'
-        IN BACKGROUND TASK
-        DESTINATION 'NONE'  " Critical for separate LUW execution
-        EXPORTING
-          iv_id = lv_id.
-    ENDLOOP.
-  ENDMETHOD.
-
-  METHOD cleanup.
-    " Clear all buffers after the LUW is complete
-    CLEAR: lhc_zi_af_backjob=&amp;gt;mt_buffer_upsert,
-           lhc_zi_af_backjob=&amp;gt;mt_buffer_delete,
-           lhc_zi_af_backjob=&amp;gt;gt_jobs.
-  ENDMETHOD.
-
-  METHOD cleanup_finalize.
-  ENDMETHOD.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId-351084860"&gt;Step 7: Create behavior definition on Consumption view&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection;
-strict ( 2 );
-use draft;
-
-define behavior for zc_af_backjob //alias &amp;lt;alias_name&amp;gt;
-{
-  use create;
-  use update;
-  use delete;
-
-  use action StartProcessing;
-
-  use action activate;
-  use action resume;
-  use action Edit;
-  use action Discard;
-  use action Prepare;
-}&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId-154571355"&gt;Step 8: Create service Definition on top of Consumption view&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'service defination for background job'
-define service Zsevd_bg_job {
-  expose zc_af_backjob;
-}&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId--117173519"&gt;Step 9: Create service binding on top of service defination&lt;/H3&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Arshiya2_0-1775890344719.png" style="width: 723px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/396279iB45CDAC61736EFBC/image-dimensions/723x270?v=v2" width="723" height="270" role="button" title="Arshiya2_0-1775890344719.png" alt="Arshiya2_0-1775890344719.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId--313687024"&gt;Step 10: Create Function Module&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;FUNCTION zaf_fm_backjob.
-*"----------------------------------------------------------------------
-*"  IMPORTING VALUE(IV_ID) TYPE ZAF_DT_BACKJOB-ID
-*"----------------------------------------------------------------------
-  DATA: lv_jobname   TYPE tbtcjob-jobname,
-        lv_jobcount  TYPE tbtcjob-jobcount,
-        lv_timestamp TYPE timestampl.
-
-  " 1. Dynamic Job Name for better monitoring in SM37
-  lv_jobname = |ZAF_BG_{ iv_id+0(8) }|.
-
-  CALL FUNCTION 'JOB_OPEN'
-    EXPORTING jobname = lv_jobname
-    IMPORTING jobcount = lv_jobcount.
-
-  IF sy-subrc = 0.
-    GET TIME STAMP FIELD lv_timestamp.
-
-    " 2. Update DB with system metadata immediately
-    UPDATE zaf_dt_backjob
-      SET job_name   = _jobname,
-          job_count  = _jobcount,
-          status     = 'INPR',
-          start_time = _timestamp
-      WHERE id = _id.
-
-    " 3. Push data to UI so it's visible while report processes
-    COMMIT WORK.
-  ENDIF.
-
-  " 4. Schedule the report
-  SUBMIT zaf_bg_job_report WITH p_id = iv_id
-    VIA JOB lv_jobname NUMBER lv_jobcount AND RETURN.
-
-  " 5. Release job
-  CALL FUNCTION 'JOB_CLOSE'
-    EXPORTING jobname = lv_jobname jobcount = lv_jobcount strtimmed = 'X'.
-ENDFUNCTION.&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-350338998" id="toc-hId--510200529"&gt;Step 11: Create a Report Program&lt;/H3&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;REPORT zaf_bg_job_report.
-
-PARAMETERS: p_id TYPE zaf_dt_backjob-id.
-
-DATA: lv_timestamp TYPE timestampl.
-
-START-OF-SELECTION.
-
-  IF p_id IS INITIAL.
-    RETURN.
-  ENDIF.
-
-  WAIT UP TO 5 SECONDS.
-
-  GET TIME STAMP FIELD lv_timestamp.
-
-  " Update final status to match the reference 'DONE'
-  UPDATE zaf_dt_backjob
-    SET status        = 'DONE',
-        end_time      = _timestamp,
-        error_message = ''
-    WHERE id = @p_id.
-
-  COMMIT WORK.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Result :&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Arshiya2_1-1775891590814.png" style="width: 756px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/396284iFDBDB624975EBC0E/image-dimensions/756x238?v=v2" width="756" height="238" role="button" title="Arshiya2_1-1775891590814.png" alt="Arshiya2_1-1775891590814.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Select&lt;STRONG&gt; Multiple Records&lt;/STRONG&gt; then click Action Button &lt;STRONG&gt;Start Job&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Arshiya2_3-1775891777189.png" style="width: 759px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/396287iC7D568C508521124/image-dimensions/759x205?v=v2" width="759" height="205" role="button" title="Arshiya2_3-1775891777189.png" alt="Arshiya2_3-1775891777189.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Arshiya2_4-1775891833126.png" style="width: 763px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/396288i28F7193F5FE702AE/image-dimensions/763x246?v=v2" width="763" height="246" role="button" title="Arshiya2_4-1775891833126.png" alt="Arshiya2_4-1775891833126.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId--413311027"&gt;&lt;STRONG&gt;Conclusion :&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;&lt;FONT size="4"&gt;This approach demonstrates how the SAP ABAP RESTful Application Programming Model (RAP) can be extended beyond standard transactional processing to meet demanding real-world requirements. By leveraging the Saver Class to trigger asynchronous background jobs, you ensure that resource-intensive operations—such as bulk status updates in SD or MM—are executed efficiently without affecting the performance of the main transaction.&lt;/FONT&gt;&lt;/P&gt;&lt;H3 id="toc-hId--903227539"&gt;&amp;nbsp;&lt;/H3&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/triggering-background-jobs-from-rap-actions-a-practical-guide/ba-p/14371274"/>
-    <published>2026-04-15T11:24:21.616000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/from-idea-to-app-in-minutes-generating-sap-fiori-elements-applications-with/ba-p/14373342</id>
     <title>From Idea to App in Minutes: Generating SAP Fiori Elements Applications with the Project Accelerator</title>
@@ -2365,5 +1906,1162 @@ log-&amp;gt;stop_timer( 'Invoice posting' )
    -&amp;gt;save_application_log( ).&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId--902216506" id="toc-hId-155582388"&gt;Conclusion&lt;/H3&gt;&lt;P&gt;Logging is the kind of code nobody notices when it works. The whole point of this class was to stop solving the same problem on every project and have something I can drop in and forget about. Fluent API, multiton, sticky context, timing, JSON dumps for the weird requirements — all the stuff I kept rebuilding by hand.&lt;/P&gt;&lt;P&gt;The project is open source, MIT-licensed and runs in ABAP Cloud. I've worked through some bugs to get it stable, and it's now in real use. If you give it a try, tell me what's missing. Feel free to open an issue,pull request or just send me a message.Find it on&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A class="" href="https://github.com/greltel/abap-cloud-logger" target="_blank" rel="noopener nofollow noreferrer"&gt;GitHub.&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
     <link href="https://community.sap.com/t5/abap-blog-posts/abap-cloud-logger/ba-p/14384093"/>
     <published>2026-04-30T12:03:44.242000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/abap-blog-posts/functional-programming-in-abap-part-ii-design-strategies-and-practical/ba-p/14383956</id>
+    <title>Functional Programming in ABAP – Part II: Design Strategies and Practical Patterns</title>
+    <updated>2026-04-30T13:09:01.825000+02:00</updated>
+    <author>
+      <name>radenhaidaraji</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/163511</uri>
+    </author>
+    <content>&lt;P&gt;&lt;SPAN&gt;In the&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://community.sap.com/t5/application-development-and-automation-blog-posts/functional-programming-in-abap-series-part-i-introduction/ba-p/13573511" target="_self"&gt;first part&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;of this series, we explored the fundamental concepts of functional programming and how they can be interpreted in the ABAP world. In this second part, we take a step further, from theory to practice, focusing on how functional programming principles can influence design strategies and patterns in Object-Oriented ABAP. The goal is simple: write code that is not only correct, but also cleaner, more expressive, and easier to evolve.&amp;nbsp;In this section, we focus on design strategies and patterns that align with a functional programming style.&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1924180591" id="toc-hId-1924182670"&gt;&lt;FONT size="3"&gt;What defines functional programming?&lt;/FONT&gt;&lt;/H3&gt;&lt;P&gt;&lt;FONT size="3"&gt;In the first part, we briefly introduced functional programming. In this section, we take a deeper look at the key characteristics that define whether a programming language can be considered a functional programming paradigm.&amp;nbsp;&lt;SPAN&gt;Let’s look at a few.&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H5 id="toc-hId-1985832524" id="toc-hId-1985834603"&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;The theoretical underpinnings&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H5&gt;&lt;P&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;The strictest possible definition would be based on the theoretical foundation of the language. In short, if a language uses lambda calculus as its theoretical framework, it’s a functional language.&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H5 id="toc-hId-1789319019" id="toc-hId-1789321098"&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;First-class functions&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H5&gt;&lt;P&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;A widely accepted definition of a functional programming language supports first-class functions. In practice, this means functions can be treated like any other value: they can be passed as arguments, returned from other functions, and stored in variables.&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H5 id="toc-hId-1592805514" id="toc-hId-1592807593"&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;Immutability&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H5&gt;&lt;P&gt;Immutability is one of the most commonly cited characteristics of functional programming. In simple terms, it means that data does not change after it is created. For example, instead of modifying an existing structure or internal table, we create a new structure or internal table with the desired changes. The original data remains unchanged.&amp;nbsp;In functional programming, values are bound to names, and once assigned, they do not change. Rather than updating a value, we create a new one. In the new ABAP syntax, it can be achieved using the following technique&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;FINAL(greeting) = `Hello, World!`.&lt;/code&gt;&lt;/pre&gt;&lt;H5 id="toc-hId-1396292009" id="toc-hId-1396294088"&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;Functional Purity&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H5&gt;&lt;P&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;Functional purity refers to the property of functions, which, to be pure, must not have side effects. That is, functions are functions in the strict mathematical sense: they map inputs to outputs, but nothing else — they don’t mutate memory, they don’t perform I/O, etc.&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H5 id="toc-hId-1199778504" id="toc-hId-1199780583"&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;Referential Transparency&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H5&gt;&lt;P&gt;Referential transparency is a natural result of pure functions and immutability. In simple terms, it means that a value can always be replaced with its result without changing the program's behavior. For example, if a function always produces the same output for the same input, you can safely replace the function call with its result. This makes the code easier to read and reason about, because you don’t need to track every possible execution path to understand what a value represents.&lt;/P&gt;&lt;H5 id="toc-hId-1003264999" id="toc-hId-1003267078"&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;Higher-Order Functions&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H5&gt;&lt;P&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;Higher-order functions are functions that accept other functions as arguments.&amp;nbsp;This is a natural consequence of first-class functions.&amp;nbsp;In the context of SAP ABAP, I have published&amp;nbsp;&lt;A href="https://community.sap.com/t5/application-development-and-automation-blog-posts/higher-order-function-is-dependency-injection-in-sap-abap/ba-p/13576412" target="_self"&gt;a post&lt;/A&gt;&amp;nbsp;explaining higher-order functions using an object-oriented approach.&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H5 id="toc-hId-806751494" id="toc-hId-806753573"&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;Parametric polymorphism&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H5&gt;&lt;P&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;Parametric polymorphism allows us to use so-called type variables in the type signature. At the use site, type variables are instantiated to concrete types. The implementation must be the same regardless of the specific instantiation. This last part makes it distinct from ad-hoc polymorphism, a.k.a. function overloading, which has unique implementations for each specific instantiation, and thus isn’t universal, i.e., doesn’t allow calling the overloaded function with&amp;nbsp;&lt;EM&gt;any&lt;/EM&gt;&amp;nbsp;type, only the types the function has overloads for.&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD handle_parallel IMPORTING param1 TYPE ANY
+                                 param2 TYPE REF TO DATA
+                       RETURNING VALUE(result) TYPE REF TO DATA.&lt;/code&gt;&lt;/pre&gt;&lt;H5 id="toc-hId-610237989" id="toc-hId-610240068"&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;Algebraic datatypes&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H5&gt;&lt;P&gt;Algebraic datatypes usually refer to the language support for product types (i.e. tuples and records), which most languages have, and sum types (a.k.a. data-carrying enums, a.k.a. discriminated unions), which are somewhat rare. They’re called algebraic because they correspond to structures in abstract algebra, but that’s mostly irrelevant to the discussion at hand — “a rose by any other name” and all that.&lt;/P&gt;&lt;P&gt;ADTs are indeed a prominent feature of languages like Haskell and ML. However, ultimately, it has little bearing on whether a language can be considered functional or not – it’s easy enough to imagine an imperative language with ADTs or a functional one without them. Nice to have, though.&lt;/P&gt;&lt;P&gt;ADTs usually come in a package with pattern matching.&lt;/P&gt;&lt;H5 id="toc-hId-413724484" id="toc-hId-413726563"&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;Pattern matching&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H5&gt;&lt;P&gt;Pattern matching is also called “destructuring assignment” in some contexts — usually in languages that don’t have proper sum types, and thus pattern matching essentially boils down to syntactic sugar for extracting fields out of records.&lt;/P&gt;&lt;P&gt;There’s also a kind of pattern matching in OOP languages like Java and C# nowadays. However, there it’s closely intertwined with classes and inheritance, rather than ADTs, so similar, but different, and confusingly called the same.&lt;/P&gt;&lt;P&gt;Usually, in its basic form, pattern matching (at least the one we’re interested in here) comes as a&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;case&lt;/CODE&gt;,&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;match&lt;/CODE&gt;, &amp;amp;c, expression, which allows matching on specific variants of a sum type.&lt;/P&gt;&lt;P&gt;Is a bit of a necessity with ADTs, as an eliminator for sum types (i.e., how else would one get the value out of, say, an&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;Option&lt;/CODE&gt;?).&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;result = SWITCH #( num
+                  WHEN 0 THEN 1
+                  WHEN 1 THEN 1
+                  ELSE num * go_fact( num - 1 ) ).&lt;/code&gt;&lt;/pre&gt;&lt;H5 id="toc-hId--702991842" id="toc-hId--702989763"&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;Recursion&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H5&gt;&lt;P&gt;As a reminder, recursion refers to the ability of a function to call itself (directly or indirectly).&lt;/P&gt;&lt;P&gt;It is more or less mandatory, as functional languages generally don’t have structured constructs like loops. This directly follows from immutability and purity: indeed, updating a loop counter is a side effect. The implication is that the only way to achieve looping is recursion.&lt;/P&gt;&lt;P&gt;This has an important consequence, namely, a functional language has to support tail call elimination and/or guarded recursion, so as not to blow out the stack in long loops.&lt;/P&gt;&lt;H6 id="toc-hId--1192908354" id="toc-hId--1192906275"&gt;&lt;FONT size="3"&gt;&lt;SPAN&gt;Expression-oriented syntax&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H6&gt;&lt;P&gt;Basically, everything is either a declaration or an expression; there are no “statements” in the traditional imperative sense, per se.&lt;/P&gt;&lt;P&gt;This is mostly a feature of using lambda calculus as a guiding principle, if not outright as a formal foundation of the language. Again, more of a consequence than a prerequisite, really, but it has some useful consequences, like the lack of the need for the dreaded ternary operator.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;DATA(result) = REDUCE type(
+  INIT var = value
+  FOR ... [THEN ...] [UNTIL ...]
+  NEXT var = calculation
+).
+
+DATA(lt_target) = VALUE type( ( ... ) ( ... ) ).
+" With FOR
+DATA(lt_target) = VALUE type( FOR ... IN ... ( ... ) ).&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId--509212838" id="toc-hId--509210759"&gt;Design Strategy &amp;amp; Design Pattern&lt;/H3&gt;&lt;P&gt;A practical way to apply functional programming principles in SAP ABAP is to clearly separate&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;pure logic&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;from&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;impure operations&lt;/STRONG&gt;.&lt;/P&gt;&lt;H5 id="toc-hId--1292532357" id="toc-hId--1292530278"&gt;Design Strategy: Separating Pure and Impure Functions&lt;/H5&gt;&lt;P&gt;At the core of this approach is a simple idea: not all functions are equal. Some functions perform calculations and do not have any side effects, like mathematical functions, while others interact with external systems, databases, or I/O. Mixing these responsibilities often leads to code that is difficult to understand, test, and maintain.&lt;/P&gt;&lt;P&gt;In this design strategy, we divide functions into two categories:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Pure functions&lt;/STRONG&gt;&lt;BR /&gt;These behave like mathematical functions. Given the same input, they always produce the same output and do not cause any side effects. They do not modify global state, perform database operations, or call external services. Their responsibility is purely to transform data.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Impure functions&amp;nbsp;&lt;BR /&gt;&lt;/STRONG&gt;These functions interact with the outside world (outside the application layer at least). This includes database access, API calls, file operations, or any form of persistence. Because they depend on the external state, their behavior may vary, and they may produce side effects.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;By separating these two concerns, we gain several advantages. Pure functions become easy to test, reason about, and reuse. Impure functions, on the other hand, are isolated and controlled, making the overall system more predictable.&lt;/P&gt;&lt;H5 id="toc-hId--1489045862" id="toc-hId--1489043783"&gt;Design Pattern: Repository + Data Service&lt;/H5&gt;&lt;P&gt;To implement this strategy in ABAP, we can adopt a design pattern inspired by the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;Repository pattern&lt;/STRONG&gt;, combined with a clear separation of responsibilities.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;Repository class&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;represents the impure function.&lt;BR /&gt;It is responsible for all interactions with external systems, such as reading from or writing to the database, calling APIs, or I/O.&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;The&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;Data Service class&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;represents the pure function.&lt;BR /&gt;It contains the business logic and data transformations. It receives data as input, processes it, and returns the result—without performing any side effects.&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId--1098753353" id="toc-hId--1098751274"&gt;Hands-on Example: Applying The Design Pattern&lt;/H3&gt;&lt;P&gt;Let's walk through a simple example.&lt;/P&gt;&lt;H5 id="toc-hId--1882072872" id="toc-hId--1882070793"&gt;Use case: Extract Customer Master Data&lt;/H5&gt;&lt;UL&gt;&lt;LI&gt;Retrieve customer master data based on user input, supporting both&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;full load&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;delta load&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;scenarios.&lt;/LI&gt;&lt;LI&gt;Based on the selected execution mode, the system can:&lt;UL&gt;&lt;LI&gt;Display the data in ALV&lt;/LI&gt;&lt;LI&gt;Download the data to a local file&lt;/LI&gt;&lt;LI&gt;Download the data to the application server (AL11)&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H5 id="toc-hId--2078586377" id="toc-hId--2078584298"&gt;Step 1: Define the interfaces&lt;/H5&gt;&lt;P&gt;Design principle: Code to Abstraction, Not Implementation.&lt;/P&gt;&lt;P&gt;In practice, this means we depend on&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;interfaces&lt;/STRONG&gt;, not concrete classes. Instead of tightly coupling our logic to a specific implementation, we define contracts that can be implemented in different ways. This principle becomes especially important when separating&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;pure&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;impure&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;components:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;impure function (repository)&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;can have multiple implementations&lt;BR /&gt;(e.g., database, API, mock for testing)&lt;/LI&gt;&lt;LI&gt;The&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;pure function (data service)&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;should not depend on how the data is retrieved and can have multiple implementations.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This is the implementation of&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://www.geeksforgeeks.org/dsa/ad-hoc-inclusion-parametric-coercion-polymorphisms/" target="_self" rel="nofollow noopener noreferrer"&gt;Inclusion Polymorphism&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;Define the repository interface. This interface abstracts data access and is responsible for retrieving data from the database, either through Open SQL or BAPI calls.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;INTERFACE zif_zgxxs_crdt_master_repo
+  PUBLIC .
+  TYPES: gty_t_company_code_range       TYPE RANGE OF bukrs,
+         gty_t_customer_number_range    TYPE RANGE OF kunnr,
+         gty_t_credit_ctrl_area_range   TYPE RANGE OF kkber,
+         gty_t_credit_acct_range        TYPE RANGE OF knkli,
+         gty_t_acct_assignment_grp_cust TYPE RANGE OF ktokd,
+         gty_t_change_date_range        TYPE RANGE OF cddatum.
+
+  TYPES: BEGIN OF gty_s_crdt_master,
+           syst_id          TYPE syst_sysid,
+           company_code     TYPE bukrs,
+           customer_number  TYPE kunnr,
+           customer_name    TYPE text100,
+           credit_ctrl_area TYPE kkber,
+           credit_acct      TYPE knkli,
+           credit_acct_name TYPE text100,
+           risk_categ       TYPE ctlpc_cm,
+           term             TYPE dzterm,
+           credit_limit     TYPE klimk,
+           currency         TYPE waers,
+           credit_blocked   TYPE crblb_cm,
+           status_cust      TYPE char10,
+         END OF gty_s_crdt_master,
+
+         gty_t_crdt_master TYPE STANDARD TABLE OF gty_s_crdt_master WITH EMPTY KEY.
+
+  METHODS find_all IMPORTING it_company_code_range       TYPE gty_t_company_code_range
+                             it_customer_number_range    TYPE gty_t_customer_number_range
+                             it_acct_assignment_grp_cust TYPE gty_t_acct_assignment_grp_cust
+                             it_credit_ctrl_area_range   TYPE gty_t_credit_ctrl_area_range
+                             it_credit_acct_range        TYPE gty_t_credit_acct_range
+                             iv_credit_blocked           TYPE crblb_cm
+                   RETURNING VALUE(result)               TYPE gty_t_crdt_master.
+
+  METHODS find_delta IMPORTING it_company_code_range       TYPE gty_t_company_code_range
+                               it_customer_number_range    TYPE gty_t_customer_number_range
+                               it_acct_assignment_grp_cust TYPE gty_t_acct_assignment_grp_cust
+                               it_credit_ctrl_area_range   TYPE gty_t_credit_ctrl_area_range
+                               it_credit_acct_range        TYPE gty_t_credit_acct_range
+                               it_change_date_range        TYPE gty_t_change_date_range
+                               iv_credit_blocked           TYPE crblb_cm
+                     RETURNING VALUE(result)               TYPE gty_t_crdt_master.
+
+  METHODS find_new_cust IMPORTING it_company_code_range       TYPE gty_t_company_code_range
+                                  it_customer_number_range    TYPE gty_t_customer_number_range
+                                  it_acct_assignment_grp_cust TYPE gty_t_acct_assignment_grp_cust
+                        RETURNING VALUE(result)               TYPE gty_t_crdt_master.
+
+ENDINTERFACE.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;Next, define two data service interfaces. These interfaces are responsible for handling data transformation and mapping.&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;INTERFACE zif_zgxxs_parser
+  PUBLIC .
+
+  METHODS parse IMPORTING iv_separator TYPE char1
+                          iv_delimiter TYPE char1 OPTIONAL
+                          it_source_data TYPE ANY TABLE
+                          iv_include_header TYPE abap_bool DEFAULT abap_true
+                RETURNING VALUE(result) TYPE stringtab.
+
+  METHODS parse_binary IMPORTING iv_separator TYPE char1
+                          iv_delimiter TYPE char1 OPTIONAL
+                          it_source_data TYPE ANY TABLE
+                          iv_include_header TYPE abap_bool DEFAULT abap_true
+                RETURNING VALUE(result) TYPE xstringtab.
+
+ENDINTERFACE.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;EM&gt;zif_zgxxs_parser&lt;/EM&gt;&lt;SPAN&gt;&amp;nbsp;defines an abstraction for parsing data from internal table format into a text-based file format.&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;INTERFACE zif_zgxxs_crdt_master_data_ser
+  PUBLIC .
+
+  TYPES: BEGIN OF lty_s_objectid,
+           objectid TYPE cdobjectv,
+         END OF lty_s_objectid,
+
+         lty_t_objectid TYPE HASHED TABLE OF lty_s_objectid WITH UNIQUE KEY primary_key COMPONENTS objectid.
+
+  METHODS get_updated_customer IMPORTING it_changed_docs TYPE cdredcd_tab
+                               RETURNING VALUE(result)   TYPE zif_zgxxs_crdt_master_repo=&amp;gt;gty_t_customer_number_range.
+
+  METHODS get_key_tabs IMPORTING it_changed_docs TYPE cdredcd_tab
+                       RETURNING VALUE(result)   TYPE REF TO data.
+
+ENDINTERFACE.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;EM&gt;zif_zgxxs_crdt_master_data_ser&amp;nbsp;&lt;/EM&gt;This interface abstracts the pure function responsible for mapping data.&lt;/P&gt;&lt;H5 id="toc-hId-2019867414" id="toc-hId-2019869493"&gt;Step 2: Write the Class Implementation&lt;/H5&gt;&lt;P&gt;We now move on to the class implementation.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_zgxxs_crdt_master_repo DEFINITION
+  PUBLIC
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    INTERFACES zif_zgxxs_crdt_master_repo.
+  PROTECTED SECTION.
+
+    TYPES: lty_t_udate_range TYPE RANGE OF cddatum,
+           lty_t_objectid_range TYPE RANGE OF cdobjectv,
+           lty_t_tabname_range TYPE RANGE OF tabname,
+           lty_t_fname_range TYPE RANGE OF fieldname.
+
+    TYPES: lty_t_crdt_master TYPE SORTED TABLE OF zif_zgxxs_crdt_master_repo=&amp;gt;gty_s_crdt_master WITH NON-UNIQUE KEY PRIMARY_KEY COMPONENTS status_cust.
+
+    CONSTANTS: BEGIN OF lc_tvarv_name,
+                objclass TYPE rvari_vnam VALUE 'ZGXXS_INT_CRED_MAST_OBJCLASS',
+                tabname TYPE rvari_vnam VALUE 'ZGXXS_INT_CRED_MAST_TABNAME',
+                fname TYPE rvari_vnam VALUE 'ZGXXS_INT_CRED_MAST_FNAME',
+                tcode TYPE rvari_vnam VALUE 'ZGXXS_INT_CRED_MAST_TCODE',
+               END OF lc_tvarv_name.
+
+    DATA go_service TYPE REF TO zif_zgxxs_crdt_master_data_ser.
+
+    METHODS get_updated_customers IMPORTING it_udate_range    TYPE zif_zgxxs_crdt_master_repo=&amp;gt;gty_t_change_date_range
+                                            it_objectid_range TYPE lty_t_objectid_range
+                                  RETURNING VALUE(result)     TYPE zif_zgxxs_crdt_master_repo=&amp;gt;gty_t_customer_number_range.
+
+    METHODS get_changed_documents IMPORTING it_udate_range TYPE zif_zgxxs_crdt_master_repo=&amp;gt;gty_t_change_date_range
+                                            it_objectid    TYPE cdobjectv_range_tab
+                                  RETURNING VALUE(result)  TYPE cdredcd_tab.
+
+    METHODS get_variant_variables IMPORTING iv_name TYPE rvari_vnam
+                                  RETURNING VALUE(result) TYPE tvarvc_t.
+  PRIVATE SECTION.
+ENDCLASS.
+
+
+
+CLASS ZCL_ZGXXS_CRDT_MASTER_REPO IMPLEMENTATION.
+
+  METHOD get_changed_documents.
+    DATA lt_cdred TYPE cdredcd_tab.
+    DATA ls_result LIKE LINE OF result.
+    DATA lt_objectid TYPE zif_zgxxs_crdt_master_data_ser=&amp;gt;lty_t_objectid.
+
+
+    DATA(lt_objclass_range) = VALUE cdobjectcl_range_tab( FOR ls_obj IN get_variant_variables( lc_tvarv_name-objclass )
+                                                          ( sign = ls_obj-sign option = ls_obj-opti
+                                                            low = ls_obj-low high = ls_obj-high ) ).
+
+
+    DATA(lt_tabname_range) = VALUE lty_t_tabname_range( FOR ls_tabname IN get_variant_variables( lc_tvarv_name-tabname )
+                                                          ( sign = ls_tabname-sign option = ls_tabname-opti
+                                                            low = ls_tabname-low high = ls_tabname-high ) ).
+
+
+    DATA(lt_fname_range) = VALUE lty_t_fname_range( FOR ls_fname IN get_variant_variables( lc_tvarv_name-fname )
+                                                    ( sign = ls_fname-sign option = ls_fname-opti
+                                                      low = ls_fname-low high = ls_fname-high ) ).
+
+    DATA(lt_tcode_range) = VALUE cdtcode_range_tab( FOR ls_tcode IN get_variant_variables( lc_tvarv_name-tcode )
+                                                    ( sign = ls_tcode-sign option = ls_tcode-opti
+                                                      low = ls_tcode-low high = ls_tcode-high ) ).
+
+    ASSIGN it_udate_range[ 1 ] TO FIELD-SYMBOL(&amp;lt;fs_l_udate&amp;gt;).
+    IF &amp;lt;fs_l_udate&amp;gt; IS NOT ASSIGNED.
+      RETURN.
+
+    ENDIF.
+
+    DATA(lv_date_until) = COND cddatum( WHEN &amp;lt;fs_l_udate&amp;gt;-high IS INITIAL
+                                        THEN &amp;lt;fs_l_udate&amp;gt;-low
+                                        ELSE &amp;lt;fs_l_udate&amp;gt;-high ).
+
+    CALL FUNCTION 'CHANGEDOCUMENT_READ_ALL'
+      EXPORTING
+        i_date_of_change           = &amp;lt;fs_l_udate&amp;gt;-low    " From-change date for search
+*       i_time_of_change           = '000000'    " From-change time for search
+        i_date_until               = lv_date_until    " Change date up to which you want to search
+*       i_time_until               = '235959'    " Latest change time in search
+        it_objectclass             = lt_objclass_range    " Range Table Type for CDOBJECTCL for Function Module Interface
+        it_objectid                = it_objectid
+        it_tcode                   = lt_tcode_range    " Range table type for TCODE for function module interface
+        it_tablename               = lt_tabname_range   " Range Table Type for CDTABNAME f. Function Module Interface
+      IMPORTING
+        et_cdred                   = lt_cdred    " Formatted change documents with header data
+      EXCEPTIONS
+        missing_input_objectclass  = 1
+        missing_input_header       = 2
+        no_position_found          = 3
+        wrong_access_to_archive    = 4
+        time_zone_conversion_error = 5
+        read_too_many_entries      = 6
+        OTHERS                     = 7.
+    IF sy-subrc &amp;lt;&amp;gt; 0.
+*     MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+*                WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      RETURN.
+    ENDIF.
+
+    result = VALUE #( FOR line IN lt_cdred
+                      WHERE ( fname IN lt_fname_range )
+                     ( line ) ).
+
+  ENDMETHOD.
+
+  METHOD get_updated_customers.
+  ...
+  ENDMETHOD.
+
+  METHOD get_variant_variables.
+
+    SELECT *
+      FROM tvarvc
+      WHERE name eq _name
+    INTO TABLE @result.
+
+  ENDMETHOD.
+
+  METHOD zif_zgxxs_crdt_master_repo~find_all.
+    DATA result_tmp TYPE lty_t_crdt_master.
+
+    " include new customer
+    IF it_credit_ctrl_area_range IS INITIAL
+      AND it_credit_acct_range IS INITIAL.
+
+      SELECT -sysid AS syst_id
+             , b~bukrs AS company_code
+             , k~kunnr AS customer_number
+             , a~name1 &amp;amp;&amp;amp;  &amp;amp;&amp;amp; a~name2 AS customer_name
+             , k~kkber AS credit_ctrl_area
+             , k~knkli AS credit_acct
+             , CASE k~knkli
+                WHEN ' ' THEN 
+                ELSE n~name1 &amp;amp;&amp;amp;  &amp;amp;&amp;amp; n~name2
+               END AS credit_acct_name
+             , k~ctlpc AS risk_categ
+             , b~zterm AS term
+             , k~klimk AS credit_limit
+            " Begin of changes RH0001
+             , t~waers AS currency
+             " End of changes RH0001
+             , k~crblb AS credit_blocked
+             , CASE WHEN a~sperr EQ  AND a~loevm EQ 
+                    THEN 'ACTIVE'
+                    ELSE 'INACTIVE'
+               END AS status_cust
+      FROM knb1 AS b
+        INNER JOIN t001cm AS c ON b~bukrs = c~bukrs
+        INNER JOIN kna1 AS a ON b~kunnr = a~kunnr
+        INNER JOIN knkk AS k ON a~kunnr = k~kunnr
+                            AND c~kkber = k~kkber
+        LEFT OUTER JOIN t014 AS t ON k~kkber = t~kkber "#EC CI_BUFFJOIN
+        LEFT OUTER JOIN kna1 AS n ON n~kunnr = k~knkli
+      WHERE b~bukrs IN _company_code_range
+        AND b~kunnr IN _customer_number_range
+        AND a~ktokd IN _acct_assignment_grp_cust
+        AND k~kkber IN _credit_ctrl_area_range
+        AND k~knkli IN _credit_acct_range
+      INTO TABLE @result_tmp.
+
+      LOOP AT zif_zgxxs_crdt_master_repo~find_new_cust(
+            it_company_code_range       = it_company_code_range
+            it_customer_number_range    = it_customer_number_range
+            it_acct_assignment_grp_cust = it_acct_assignment_grp_cust
+        ) INTO DATA(ls_new_cust).
+
+        INSERT ls_new_cust INTO TABLE result_tmp.
+
+      ENDLOOP.
+
+
+    ELSE.
+
+      SELECT -sysid AS syst_id
+             , b~bukrs AS company_code
+             , k~kunnr AS customer_number
+             , a~name1 &amp;amp;&amp;amp;  &amp;amp;&amp;amp; a~name2 AS customer_name
+             , k~kkber AS credit_ctrl_area
+             , k~knkli AS credit_acct
+             , CASE k~knkli
+                WHEN ' ' THEN 
+                ELSE n~name1 &amp;amp;&amp;amp;  &amp;amp;&amp;amp; n~name2
+               END AS credit_acct_name
+             , k~ctlpc AS risk_categ
+             , b~zterm AS term
+             , k~klimk AS credit_limit
+             , t~waers AS currency
+             , k~crblb AS credit_blocked
+             , CASE WHEN a~sperr EQ  AND a~loevm EQ 
+                    THEN 'ACTIVE'
+                    ELSE 'INACTIVE'
+               END AS status_cust
+      FROM knb1 AS b
+        INNER JOIN t001cm AS c ON b~bukrs = c~bukrs
+        INNER JOIN kna1 AS a ON b~kunnr = a~kunnr
+        INNER JOIN knkk AS k ON a~kunnr = k~kunnr
+                            AND c~kkber = k~kkber
+        LEFT OUTER JOIN t014 AS t ON k~kkber = t~kkber "#EC CI_BUFFJOIN
+        LEFT OUTER JOIN kna1 AS n ON n~kunnr = k~knkli
+      WHERE b~bukrs IN _company_code_range
+        AND b~kunnr IN _customer_number_range
+        AND a~ktokd IN _acct_assignment_grp_cust
+        AND k~kkber IN _credit_ctrl_area_range
+        AND k~knkli IN _credit_acct_range
+      INTO TABLE @result_tmp.
+
+    ENDIF.
+
+    result = SWITCH #( iv_active_cust_only
+                       WHEN abap_false THEN CORRESPONDING #( result_tmp )
+                       ELSE FILTER #( result_tmp USING KEY primary_key
+                                      WHERE status_cust = CONV #( 'ACTIVE' ) ) ).
+
+
+  ENDMETHOD.
+
+  METHOD zif_zgxxs_crdt_master_repo~find_delta.
+
+    DATA lt_result TYPE SORTED TABLE OF zif_zgxxs_crdt_master_repo=&amp;gt;gty_s_crdt_master WITH NON-UNIQUE KEY primary_key
+                                                                                      COMPONENTS customer_number company_code credit_ctrl_area.
+    DATA lt_result_kna1 TYPE zif_zgxxs_crdt_master_repo=&amp;gt;gty_t_crdt_master.
+    DATA lt_result_knb1 TYPE zif_zgxxs_crdt_master_repo=&amp;gt;gty_t_crdt_master.
+    DATA lt_result_knkk TYPE zif_zgxxs_crdt_master_repo=&amp;gt;gty_t_crdt_master.
+    DATA lt_result_merge TYPE SORTED TABLE OF zif_zgxxs_crdt_master_repo=&amp;gt;gty_s_crdt_master WITH NON-UNIQUE KEY primary_key
+                                                                                      COMPONENTS customer_number company_code credit_ctrl_area.
+    FIELD-SYMBOLS &amp;lt;lfs_t_keytab&amp;gt; TYPE zcl_zgxxs_crdt_master_service=&amp;gt;gty_t_keytab.
+    FIELD-SYMBOLS &amp;lt;lfs_t_keytab_kna1&amp;gt; TYPE zcl_zgxxs_crdt_mast_serv_kna1=&amp;gt;gty_t_keytab_kna1.
+    FIELD-SYMBOLS &amp;lt;lfs_t_keytab_knb1&amp;gt; TYPE zcl_zgxxs_crdt_mast_serv_knb1=&amp;gt;gty_t_keytab_knb1.
+    go_service = NEW zcl_zgxxs_crdt_master_service( ).
+    " get changed documents
+    DATA(lt_changed_docs) = get_changed_documents(
+                            it_udate_range = it_change_date_range
+                            it_objectid    = VALUE #( FOR line IN it_customer_number_range
+                                                      ( sign = line-sign option = line-option low = line-low high = line-high ) )
+                        ).
+    IF lt_changed_docs IS INITIAL.
+      RETURN.
+
+    ENDIF.
+
+    " get updated customers
+    DATA(lt_updated_customers) = go_service-&amp;gt;get_updated_customer( lt_changed_docs ).
+    IF lt_updated_customers IS INITIAL.
+      RETURN.
+
+    ENDIF.
+
+    " extract data
+    lt_result = CORRESPONDING #( zif_zgxxs_crdt_master_repo~find_all(
+       EXPORTING
+         it_company_code_range       = it_company_code_range
+         it_customer_number_range    = lt_updated_customers
+         it_acct_assignment_grp_cust = it_acct_assignment_grp_cust
+         it_credit_ctrl_area_range   = it_credit_ctrl_area_range
+         it_credit_acct_range        = it_credit_acct_range
+         iv_active_cust_only         = iv_active_cust_only
+     ) ).
+    IF lt_result IS INITIAL.
+      RETURN.
+
+    ENDIF.
+
+    DATA(lo_keytab) = go_service-&amp;gt;get_key_tabs( lt_changed_docs ).
+    ASSIGN lo_keytab-&amp;gt;* TO &amp;lt;lfs_t_keytab&amp;gt;.
+    IF &amp;lt;lfs_t_keytab&amp;gt; IS ASSIGNED
+      AND &amp;lt;lfs_t_keytab&amp;gt; IS NOT INITIAL.
+
+      lt_result_knkk = FILTER #( lt_result IN &amp;lt;lfs_t_keytab&amp;gt; USING KEY primary_key
+                          WHERE customer_number = kunnr
+                            AND credit_ctrl_area = kkber ).
+
+    ENDIF.
+
+    go_service = NEW zcl_zgxxs_crdt_mast_serv_kna1( ).
+    DATA(lo_keytab_kna1) = go_service-&amp;gt;get_key_tabs( lt_changed_docs ).
+    ASSIGN lo_keytab_kna1-&amp;gt;* TO &amp;lt;lfs_t_keytab_kna1&amp;gt;.
+    IF &amp;lt;lfs_t_keytab_kna1&amp;gt; IS ASSIGNED
+      AND &amp;lt;lfs_t_keytab_kna1&amp;gt; IS NOT INITIAL.
+
+      lt_result_kna1 = FILTER #( lt_result IN &amp;lt;lfs_t_keytab_kna1&amp;gt; USING KEY primary_key
+                                 WHERE customer_number = kunnr ).
+
+    ENDIF.
+
+    go_service = NEW zcl_zgxxs_crdt_mast_serv_knb1( ).
+    DATA(lo_keytab_knb1) = go_service-&amp;gt;get_key_tabs( lt_changed_docs ).
+    ASSIGN lo_keytab_knb1-&amp;gt;* TO &amp;lt;lfs_t_keytab_knb1&amp;gt;.
+    IF &amp;lt;lfs_t_keytab_knb1&amp;gt; IS ASSIGNED
+      AND &amp;lt;lfs_t_keytab_knb1&amp;gt; IS NOT INITIAL.
+
+      lt_result_knb1 = FILTER #( lt_result IN &amp;lt;lfs_t_keytab_knb1&amp;gt; USING KEY primary_key
+                                 WHERE customer_number = kunnr
+                                   AND company_code = bukrs ).
+
+    ENDIF.
+
+    lt_result_merge = CORRESPONDING #( lt_result_kna1 ).
+
+    LOOP AT lt_result_knb1 INTO DATA(ls_result_knb1).
+      IF NOT line_exists( lt_result_merge[ KEY primary_key
+                                           COMPONENTS customer_number = ls_result_knb1-customer_number
+                                                      company_code = ls_result_knb1-company_code
+                                                      credit_ctrl_area = ls_result_knb1-credit_ctrl_area ] ).
+
+        INSERT ls_result_knb1 INTO TABLE lt_result_merge.
+
+      ENDIF.
+
+    ENDLOOP.
+
+    LOOP AT lt_result_knkk INTO DATA(ls_result_knkk).
+      IF NOT line_exists( lt_result_merge[ KEY primary_key
+                                           COMPONENTS customer_number = ls_result_knkk-customer_number
+                                                      company_code = ls_result_knkk-company_code
+                                                      credit_ctrl_area = ls_result_knb1-credit_ctrl_area ] ).
+
+        INSERT ls_result_knkk INTO TABLE lt_result_merge.
+
+      ENDIF.
+
+    ENDLOOP.
+
+    result = CORRESPONDING #( lt_result_merge ).
+
+
+  ENDMETHOD.
+
+  METHOD zif_zgxxs_crdt_master_repo~find_new_cust.
+
+    SELECT -sysid AS syst_id
+           , b~bukrs AS company_code
+           , b~kunnr AS customer_number
+           , a~name1 &amp;amp;&amp;amp;  &amp;amp;&amp;amp; a~name2 AS customer_name
+           , b~zterm AS term
+           , CASE WHEN a~sperr EQ  AND a~loevm EQ 
+                  THEN 'ACTIVE'
+                  ELSE 'INACTIVE'
+             END AS status_cust
+    FROM knb1 AS b
+      INNER JOIN t001cm AS c ON b~bukrs = c~bukrs
+      INNER JOIN kna1 AS a ON b~kunnr = a~kunnr
+    WHERE b~bukrs IN _company_code_range
+      AND b~kunnr IN _customer_number_range
+      AND NOT EXISTS ( SELECT kunnr
+                        FROM knkk AS kn  "#EC CI_BUFFSUBQ
+                        WHERE kn~kunnr eq b~kunnr
+              )
+      AND a~ktokd IN _acct_assignment_grp_cust
+      INTO CORRESPONDING FIELDS OF TABLE @result.
+
+  ENDMETHOD.
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The class&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;zcl_zgxxs_crdt_master_repo&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;implements the interface&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;zif_zgxxs_crdt_master_repo&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and is responsible for retrieving data from the database. As it performs data access operations, this class represents the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;impure function&lt;/STRONG&gt;, where side effects are introduced. In addition to data retrieval, this class depends on the interface&lt;CODE&gt;zif_zgxxs_crdt_master_data_ser&lt;/CODE&gt;, which serves as the abstraction of the data service.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Next, we move on to the implementation of the parser class.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_zgxxs_dat_parser DEFINITION
+  PUBLIC
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+    INTERFACES zif_zgxxs_parser .
+  PROTECTED SECTION.
+    DATA gt_components TYPE cl_abap_structdescr=&amp;gt;component_table.
+    METHODS build_header_line IMPORTING iv_separator   TYPE char1
+                                        iv_delimiter   TYPE char1 OPTIONAL
+                                        is_source_data TYPE any
+                              RETURNING VALUE(result)  TYPE string.
+
+    METHODS build_data_line IMPORTING iv_separator   TYPE char1
+                                      iv_delimiter   TYPE char1 OPTIONAL
+                                      is_source_data TYPE any
+                            RETURNING VALUE(result)  TYPE string.
+  PRIVATE SECTION.
+ENDCLASS.
+
+CLASS ZCL_ZGXXS_DAT_PARSER IMPLEMENTATION.
+
+  METHOD build_data_line.
+    DATA lv_separator TYPE char1.
+    DATA lv_delimiter TYPE char1.
+
+    LOOP AT gt_components INTO DATA(ls_component).
+      ASSIGN COMPONENT ls_component-name OF STRUCTURE is_source_data TO FIELD-SYMBOL(&amp;lt;fs_l_data&amp;gt;).
+      IF &amp;lt;fs_l_data&amp;gt; IS ASSIGNED.
+        result = |{ result }{ lv_separator }{ lv_delimiter }| &amp;amp;&amp;amp;
+                 |{ &amp;lt;fs_l_data&amp;gt; }{ lv_delimiter }|.
+        lv_separator = iv_separator.
+        lv_delimiter = iv_delimiter.
+
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD build_header_line.
+
+    result = REDUCE #( INIT file_data TYPE string
+                       sep = ''
+                       delimit = ''
+                       FOR line IN gt_components
+                       NEXT
+                       file_data = |{ file_data }{ sep }{ delimit }{ line-name }{ delimit }|
+                       sep = iv_separator
+                       delimit = iv_delimiter ).
+
+  ENDMETHOD.
+
+  METHOD zif_zgxxs_parser~parse.
+
+    IF it_source_data IS INITIAL.
+      RETURN.
+
+    ENDIF.
+
+    " get the components
+    gt_components = CAST cl_abap_structdescr( CAST cl_abap_tabledescr( cl_abap_tabledescr=&amp;gt;describe_by_data( it_source_data )
+      )-&amp;gt;get_table_line_type( ) )-&amp;gt;get_components( ).
+
+    LOOP AT it_source_data ASSIGNING FIELD-SYMBOL(&amp;lt;fs_l_line&amp;gt;).
+      IF sy-tabix EQ 1
+        AND iv_include_header EQ abap_true.
+
+        INSERT build_header_line(
+             iv_separator   = iv_separator
+             iv_delimiter   = iv_delimiter
+             is_source_data = &amp;lt;fs_l_line&amp;gt; ) INTO TABLE result.
+
+      ENDIF.
+
+      INSERT build_data_line(
+           iv_separator   = iv_separator
+           iv_delimiter   = iv_delimiter
+           is_source_data = &amp;lt;fs_l_line&amp;gt; ) INTO TABLE result.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD zif_zgxxs_parser~parse_binary.
+
+    DATA lv_result TYPE xstring.
+
+    IF it_source_data IS INITIAL.
+      RETURN.
+
+    ENDIF.
+
+    " get the components
+    gt_components = CAST cl_abap_structdescr( CAST cl_abap_tabledescr( cl_abap_tabledescr=&amp;gt;describe_by_data( it_source_data )
+      )-&amp;gt;get_table_line_type( ) )-&amp;gt;get_components( ).
+
+    DATA(lo_converter) = cl_abap_conv_out_ce=&amp;gt;create( encoding = 'UTF-8' ).
+
+    LOOP AT it_source_data ASSIGNING FIELD-SYMBOL(&amp;lt;fs_l_line&amp;gt;).
+
+      IF sy-tabix EQ 1
+        AND iv_include_header EQ abap_true.
+
+        CLEAR lv_result.
+
+        lo_converter-&amp;gt;convert(
+        EXPORTING
+          data                          = build_header_line( iv_separator   = iv_separator
+                                                             iv_delimiter   = iv_delimiter
+                                                             is_source_data = &amp;lt;fs_l_line&amp;gt; ) &amp;amp;&amp;amp; cl_abap_char_utilities=&amp;gt;newline " Field to Be Converted
+        IMPORTING
+          buffer                        = lv_result    " Converted Data
+        ).
+
+        INSERT lv_result INTO TABLE result.
+
+      ENDIF.
+
+      CLEAR lv_result.
+
+      lo_converter-&amp;gt;convert(
+        EXPORTING
+          data                          = build_data_line( iv_separator   = iv_separator
+                                                           iv_delimiter   = iv_delimiter
+                                                           is_source_data = &amp;lt;fs_l_line&amp;gt; ) &amp;amp;&amp;amp; cl_abap_char_utilities=&amp;gt;newline " Field to Be Converted
+        IMPORTING
+          buffer                        = lv_result    " Converted Data
+      ).
+*        CATCH cx_sy_codepage_converter_init.    "
+*        CATCH cx_sy_conversion_codepage.    "
+*        CATCH cx_parameter_invalid_type.    "
+      INSERT lv_result INTO TABLE result.
+
+    ENDLOOP.
+
+
+  ENDMETHOD.
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_zgxxs_dat_parser_cred_mast DEFINITION
+  PUBLIC
+  INHERITING FROM zcl_zgxxs_dat_parser
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+  PROTECTED SECTION.
+    METHODS build_header_line REDEFINITION.
+    METHODS build_data_line REDEFINITION.
+  PRIVATE SECTION.
+    METHODS get_currency  IMPORTING is_source_data TYPE any
+                          RETURNING VALUE(result)  TYPE waers.
+ENDCLASS.
+
+
+
+CLASS ZCL_ZGXXS_DAT_PARSER_CRED_MAST IMPLEMENTATION.
+
+  METHOD build_data_line.
+    DATA lv_separator TYPE char1.
+    DATA lv_delimiter TYPE char1.
+    DATA lv_output TYPE c LENGTH 20.
+    DATA lv_source_val TYPE string. " RH0001
+
+    DATA(lv_waers) = get_currency( is_source_data ).
+
+    LOOP AT gt_components INTO DATA(ls_component).
+      ASSIGN COMPONENT ls_component-name OF STRUCTURE is_source_data TO FIELD-SYMBOL(&amp;lt;fs_l_data&amp;gt;).
+      IF &amp;lt;fs_l_data&amp;gt; IS ASSIGNED.
+        DATA(lt_ddic_obj) = ls_component-type-&amp;gt;get_ddic_object( ).
+        ASSIGN lt_ddic_obj[ 1 ]-dtyp TO FIELD-SYMBOL(&amp;lt;fs_l_dtyp&amp;gt;).
+        ASSIGN lt_ddic_obj[ 1 ]-tabname TO FIELD-SYMBOL(&amp;lt;fs_l_tabname&amp;gt;).
+
+        " Begin of change RH0001
+        IF &amp;lt;fs_l_dtyp&amp;gt; IS ASSIGNED.
+          IF &amp;lt;fs_l_dtyp&amp;gt; EQ 'CURR'.
+            WRITE &amp;lt;fs_l_data&amp;gt; TO lv_output NO-GROUPING CURRENCY lv_waers.
+            CONDENSE lv_output NO-GAPS.
+            result = |{ result }{ lv_separator }{ lv_delimiter }| &amp;amp;&amp;amp;
+                   |{ lv_output }{ lv_delimiter }|.
+
+            CONTINUE.
+
+          ENDIF.
+
+
+        ENDIF.
+
+        IF &amp;lt;fs_l_tabname&amp;gt; IS ASSIGNED.
+          IF &amp;lt;fs_l_tabname&amp;gt; EQ 'KUNNR'
+            OR &amp;lt;fs_l_tabname&amp;gt; EQ 'KNKLI'.
+            lv_source_val = &amp;lt;fs_l_data&amp;gt;.
+            DATA(lv_ext_number) = |{ lv_source_val ALPHA = OUT }|.
+            CONDENSE lv_ext_number NO-GAPS.
+            result = |{ result }{ lv_separator }{ lv_delimiter }| &amp;amp;&amp;amp;
+                   |{ lv_ext_number }{ lv_delimiter }|.
+            CONTINUE.
+
+          ENDIF.
+
+        ENDIF.
+
+        result = |{ result }{ lv_separator }{ lv_delimiter }| &amp;amp;&amp;amp;
+                 |{ &amp;lt;fs_l_data&amp;gt; }{ lv_delimiter }|.
+        " End of change RH0001
+
+        lv_separator = iv_separator.
+        lv_delimiter = iv_delimiter.
+
+        UNASSIGN: &amp;lt;fs_l_dtyp&amp;gt;, &amp;lt;fs_l_tabname&amp;gt;. " RH0001
+
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD build_header_line.
+
+    DATA(lt_header_map) = VALUE lty_t_header_map(
+      ( name = 'SYST_ID' description = 'SAP System' ) ##NO_TEXT
+      ( name = 'COMPANY_CODE' description = 'Company Code' ) ##NO_TEXT
+      ( name = 'CUSTOMER_NUMBER' description = 'Customer Number' ) ##NO_TEXT
+      ( name = 'CUSTOMER_NAME' description = 'Customer Name' ) ##NO_TEXT
+      ( name = 'CREDIT_CTRL_AREA' description = 'Credit Control Area' ) ##NO_TEXT
+      ( name = 'CREDIT_ACCT' description = 'Credit Account' ) ##NO_TEXT
+      ( name = 'CREDIT_ACCT_NAME' description = 'Credit Account Name' ) ##NO_TEXT
+      ( name = 'RISK_CATEG' description = 'Risk Category' ) ##NO_TEXT
+      ( name = 'TERM' description = 'Terms of Payment' ) ##NO_TEXT
+      ( name = 'CREDIT_LIMIT' description = 'Credit Limit' ) ##NO_TEXT
+      ( name = 'CURRENCY' description = 'Currency' ) ##NO_TEXT
+      ( name = 'CREDIT_BLOCKED' description = 'Credit Blocked Remark' ) ##NO_TEXT
+      ( name = 'STATUS_CUST' description = 'Status Customer' ) ##NO_TEXT
+       ).
+
+    result = REDUCE #( INIT file_data TYPE string
+                       sep = ''
+                       delimit = ''
+                       FOR line IN gt_components
+                       LET desc = VALUE string( lt_header_map[ name = line-name ]-description DEFAULT line-name )
+                       IN
+                       NEXT
+                       file_data = |{ file_data }{ sep }{ delimit }{ desc }{ delimit }|
+                       sep = iv_separator
+                       delimit = iv_delimiter ).
+
+
+  ENDMETHOD.
+
+  METHOD get_currency.
+
+    LOOP AT gt_components INTO DATA(ls_component).
+      ASSIGN COMPONENT ls_component-name OF STRUCTURE is_source_data TO FIELD-SYMBOL(&amp;lt;fs_l_data&amp;gt;).
+      IF &amp;lt;fs_l_data&amp;gt; IS ASSIGNED.
+        DATA(lt_ddic_obj) = ls_component-type-&amp;gt;get_ddic_object( ).
+        ASSIGN lt_ddic_obj[ 1 ]-dtyp TO FIELD-SYMBOL(&amp;lt;fs_l_dtyp&amp;gt;).
+        IF &amp;lt;fs_l_dtyp&amp;gt; IS ASSIGNED.
+          IF &amp;lt;fs_l_dtyp&amp;gt; EQ 'CUKY'.
+            result = &amp;lt;fs_l_data&amp;gt;.
+
+          ENDIF.
+
+        ENDIF.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;There are two implementation classes, organized using a parent–child (inheritance) relationship:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;CODE&gt;zcl_zgxxs_dat_parser&lt;/CODE&gt;&lt;BR /&gt;Acts as the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;base (parent) class&lt;/STRONG&gt;, providing common parsing logic.&lt;/LI&gt;&lt;LI&gt;&lt;CODE&gt;zcl_zgxxs_dat_parser_cred_mast&lt;/CODE&gt;&lt;BR /&gt;A&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;specialized parser&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;for credit master data, implemented as a child class of the base parser.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;To demonstrate that this design is easy to test, we will present a test class for the parser functionality.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;*"* use this source file for your ABAP unit test classes
+CLASS ltcl_parser DEFINITION FOR TESTING
+                  RISK LEVEL HARMLESS
+                  DURATION SHORT.
+
+  PRIVATE SECTION.
+    DATA cut TYPE REF TO zcl_zgxxs_dat_parser_cred_mast.
+    METHODS: setup,
+             test_initial FOR TESTING RAISING cx_static_check,
+             test_cust_leading_zero FOR TESTING RAISING cx_static_check,
+             test_crcdt_leading_zero FOR TESTING RAISING cx_static_check.
+
+ENDCLASS.
+
+CLASS ltcl_parser IMPLEMENTATION.
+
+  METHOD setup.
+    cut = NEW #( ).
+
+  ENDMETHOD.
+
+  METHOD test_initial.
+
+    " given
+    DATA(lt_source) = VALUE zif_zgxxs_crdt_master_repo=&amp;gt;gty_t_crdt_master(
+                      ( syst_id = 'DUM'
+                        company_code = '1687'
+                        customer_number = '10199751'
+                        customer_name = 'FREECHOICE BYRON BAY'
+                        credit_ctrl_area = 'DUM01'
+                        credit_acct = '10199751'
+                        credit_acct_name = 'FREECHOICE BYRON BAY'
+                        risk_categ = 'RC1'
+                        term = 'TERM01'
+                        credit_limit = 34000
+                        currency = 'AUD' ) ).
+
+    " when
+    DATA(act) = cut-&amp;gt;zif_zgxxs_parser~parse(
+                iv_separator      = '|'
+                it_source_data    = lt_source ).
+
+    " then
+    cl_abap_unit_assert=&amp;gt;assert_not_initial( act = act ).
+
+  ENDMETHOD.
+
+  METHOD test_cust_leading_zero.
+
+    " given
+    DATA(lt_source) = VALUE zif_zgxxs_crdt_master_repo=&amp;gt;gty_t_crdt_master(
+                      ( syst_id = 'DUM'
+                        company_code = '1687'
+                        customer_number = '0000102723'
+                        customer_name = 'FREECHOICE BYRON BAY'
+                        credit_ctrl_area = 'CCT01'
+                        credit_acct = '10199751'
+                        credit_acct_name = 'FREECHOICE BYRON BAY'
+                        risk_categ = 'RC1'
+                        term = 'TERM01'
+                        credit_limit = 34000
+                        currency = 'AUD' ) ).
+
+    " when
+    DATA(act) = cut-&amp;gt;zif_zgxxs_parser~parse(
+                iv_separator      = '|'
+                it_source_data    = lt_source ).
+
+    " then
+    cl_abap_unit_assert=&amp;gt;assert_equals(
+      EXPORTING
+        act                  = act[ 2 ]    " Data object with current value
+        exp                  = `DUM|1687|102723|FREECHOICE BYRON BAY|CCT01|10199751|FREECHOICE BYRON BAY|RC1|TERM01|34000.00|AUD||`
+        msg                  = 'Customer Number without leading zeros'    " Description
+    ).
+
+  ENDMETHOD.
+
+  METHOD test_crcdt_leading_zero.
+
+    " given
+    DATA(lt_source) = VALUE zif_zgxxs_crdt_master_repo=&amp;gt;gty_t_crdt_master(
+                      ( syst_id = 'DUM'
+                        company_code = '1687'
+                        customer_number = '0000102723'
+                        customer_name = 'FREECHOICE BYRON BAY'
+                        credit_ctrl_area = 'CCT01'
+                        credit_acct = '0000100300'
+                        credit_acct_name = 'FREECHOICE BYRON BAY'
+                        risk_categ = 'RC1'
+                        term = 'TERM02'
+                        currency = 'AUD' ) ).
+
+    " when
+    DATA(act) = cut-&amp;gt;zif_zgxxs_parser~parse(
+                iv_separator      = '|'
+                it_source_data    = lt_source ).
+
+    " then
+    cl_abap_unit_assert=&amp;gt;assert_equals(
+      EXPORTING
+        act                  = act[ 2 ]    " Data object with current value
+        exp                  = `DUM|1687|102723|FREECHOICE BYRON BAY|CCT01|100300|FREECHOICE BYRON BAY|RC1|TERM02|0.00|AUD||`
+        msg                  = 'Customer Number without leading zeros'    " Description
+    ).
+
+  ENDMETHOD.
+
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;Next, we move on to another pure function implementation.&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_zgxxs_crdt_master_service DEFINITION
+  PUBLIC
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+    INTERFACES zif_zgxxs_crdt_master_data_ser.
+
+    TYPES: BEGIN OF gty_s_keytab,
+            kunnr TYPE kunnr,
+            kkber TYPE kkber,
+           END OF gty_s_keytab,
+
+           gty_t_keytab TYPE HASHED TABLE OF gty_s_keytab WITH UNIQUE KEY PRIMARY_KEY COMPONENTS kunnr kkber.
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+ENDCLASS.
+
+
+
+CLASS ZCL_ZGXXS_CRDT_MASTER_SERVICE IMPLEMENTATION.
+
+  METHOD zif_zgxxs_crdt_master_data_ser~get_key_tabs.
+    FIELD-SYMBOLS &amp;lt;lfs_t_keytab&amp;gt; TYPE gty_t_keytab.
+
+    result = NEW gty_t_keytab( ).
+    ASSIGN result-&amp;gt;* TO &amp;lt;lfs_t_keytab&amp;gt;.
+    IF &amp;lt;lfs_t_keytab&amp;gt; IS NOT ASSIGNED.
+      RETURN.
+
+    ENDIF.
+
+    LOOP AT it_changed_docs INTO DATA(ls_changed_doc)
+      WHERE tabname EQ 'KNKK'.
+
+      IF ls_changed_doc-tabkey IS NOT INITIAL.
+        DATA(lv_kunnr) = ls_changed_doc-tabkey+3(10).
+        DATA(lv_kkber) = ls_changed_doc-tabkey+13(4).
+        IF NOT line_exists( &amp;lt;lfs_t_keytab&amp;gt;[ KEY primary_key
+                                             COMPONENTS kunnr = lv_kunnr
+                                                        kkber = lv_kkber ] ).
+
+          INSERT VALUE gty_s_keytab( kunnr = lv_kunnr
+                                     kkber = lv_kkber ) INTO TABLE &amp;lt;lfs_t_keytab&amp;gt;.
+
+        ENDIF.
+
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD zif_zgxxs_crdt_master_data_ser~get_updated_customer.
+    DATA lt_objectid TYPE zif_zgxxs_crdt_master_data_ser=&amp;gt;lty_t_objectid.
+    DATA ls_result LIKE LINE OF result.
+
+    LOOP AT it_changed_docs INTO DATA(ls_cdred).
+
+      IF ls_cdred-objectid IS NOT INITIAL
+        AND NOT line_exists( lt_objectid[ KEY primary_key
+                                          COMPONENTS objectid = ls_cdred-objectid ] ).
+
+        ls_result = VALUE #( sign = 'I' option = 'EQ' low = ls_cdred-objectid ).
+        INSERT ls_result INTO TABLE result.
+        INSERT VALUE zif_zgxxs_crdt_master_data_ser=&amp;gt;lty_s_objectid( objectid = ls_cdred-objectid ) INTO TABLE lt_objectid.
+
+        CLEAR ls_result.
+
+      ENDIF.
+
+
+    ENDLOOP.
+
+  ENDMETHOD.
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_zgxxs_crdt_mast_serv_kna1 DEFINITION
+  PUBLIC
+  INHERITING FROM zcl_zgxxs_crdt_master_service
+  FINAL
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+
+    TYPES: BEGIN OF gty_s_keytab_kna1,
+            kunnr TYPE kunnr,
+           END OF gty_s_keytab_kna1,
+
+           gty_t_keytab_kna1 TYPE HASHED TABLE OF gty_s_keytab_kna1 WITH UNIQUE KEY PRIMARY_KEY COMPONENTS kunnr.
+
+    METHODS zif_zgxxs_crdt_master_data_ser~get_key_tabs REDEFINITION.
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+ENDCLASS.
+
+
+
+CLASS ZCL_ZGXXS_CRDT_MAST_SERV_KNA1 IMPLEMENTATION.
+
+  METHOD zif_zgxxs_crdt_master_data_ser~get_key_tabs.
+    FIELD-SYMBOLS &amp;lt;lfs_t_keytab&amp;gt; TYPE gty_t_keytab_kna1.
+
+    result = NEW gty_t_keytab_kna1( ).
+    ASSIGN result-&amp;gt;* TO &amp;lt;lfs_t_keytab&amp;gt;.
+    IF &amp;lt;lfs_t_keytab&amp;gt; IS NOT ASSIGNED.
+      RETURN.
+
+    ENDIF.
+
+    LOOP AT it_changed_docs INTO DATA(ls_changed_doc)
+      WHERE tabname EQ 'KNA1'.
+
+      IF ls_changed_doc-tabkey IS NOT INITIAL.
+        DATA(lv_kunnr) = ls_changed_doc-tabkey+3(10).
+        IF NOT line_exists( &amp;lt;lfs_t_keytab&amp;gt;[ KEY primary_key
+                                             COMPONENTS kunnr = lv_kunnr ] ).
+
+          INSERT VALUE gty_s_keytab_kna1( kunnr = lv_kunnr ) INTO TABLE &amp;lt;lfs_t_keytab&amp;gt;.
+
+        ENDIF.
+
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_zgxxs_crdt_mast_serv_knb1 DEFINITION
+  PUBLIC
+  INHERITING FROM zcl_zgxxs_crdt_master_service
+  FINAL
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+
+    TYPES: BEGIN OF gty_s_keytab_knb1,
+            kunnr TYPE kunnr,
+            bukrs TYPE bukrs,
+           END OF gty_s_keytab_knb1,
+
+           gty_t_keytab_knb1 TYPE HASHED TABLE OF gty_s_keytab_knb1 WITH UNIQUE KEY PRIMARY_KEY COMPONENTS kunnr bukrs.
+
+    METHODS zif_zgxxs_crdt_master_data_ser~get_key_tabs REDEFINITION.
+
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+ENDCLASS.
+
+
+
+CLASS ZCL_ZGXXS_CRDT_MAST_SERV_KNB1 IMPLEMENTATION.
+
+  METHOD zif_zgxxs_crdt_master_data_ser~get_key_tabs.
+    FIELD-SYMBOLS &amp;lt;lfs_t_keytab&amp;gt; TYPE gty_t_keytab_knb1.
+
+    result = NEW gty_t_keytab_knb1( ).
+    ASSIGN result-&amp;gt;* TO &amp;lt;lfs_t_keytab&amp;gt;.
+    IF &amp;lt;lfs_t_keytab&amp;gt; IS NOT ASSIGNED.
+      RETURN.
+
+    ENDIF.
+
+    LOOP AT it_changed_docs INTO DATA(ls_changed_doc)
+      WHERE tabname EQ 'KNB1'.
+
+      IF ls_changed_doc-tabkey IS NOT INITIAL.
+        DATA(lv_kunnr) = ls_changed_doc-tabkey+3(10).
+        DATA(lv_bukrs) = ls_changed_doc-tabkey+13(4).
+        IF NOT line_exists( &amp;lt;lfs_t_keytab&amp;gt;[ KEY primary_key
+                                             COMPONENTS kunnr = lv_kunnr
+                                                        bukrs = lv_bukrs ] ).
+
+          INSERT VALUE gty_s_keytab_knb1( kunnr = lv_kunnr
+                                     bukrs = lv_bukrs ) INTO TABLE &amp;lt;lfs_t_keytab&amp;gt;.
+
+        ENDIF.
+
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;We follow the same approach as in the parser implementation by using inheritance.&lt;/P&gt;&lt;P&gt;In this case, we define one base (parent) class and two child classes. The base class contains the common logic, while each child class handles table-specific logic for getting the table keys.&lt;/P&gt;&lt;P&gt;As discussed earlier, the repository class depends on the data service layer, and these implementations are invoked within the repository class. However, with this design, the data service class can be tested independently and deterministically. For repository testing, the data service dependency can be mocked via dependency injection, enabling isolated unit tests without coupling to the actual implementation.&lt;/P&gt;&lt;H5 id="toc-hId-1823353909" id="toc-hId-1823355988"&gt;Step 3: Process Orchestration&lt;/H5&gt;&lt;P&gt;At this stage, we move on to the main program, where the overall process flow is orchestrated, and the different components are brought together.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;START-OF-SELECTION.
+  lcl_main=&amp;gt;create_instance( )-&amp;gt;run(
+    EXPORTING
+      iv_run_type   = SWITCH #( p_disp
+                                WHEN abap_true THEN lcl_main=&amp;gt;gc_run_type-display
+                                ELSE lcl_main=&amp;gt;gc_run_type-interface )
+      iv_data_type  = COND #( WHEN rb_delta EQ abap_true
+                              THEN lcl_main=&amp;gt;gc_data_type-delta
+                              ELSE lcl_main=&amp;gt;gc_data_type-full )
+      iv_target_system = SWITCH #( p_local
+                                  WHEN abap_true THEN lcl_main=&amp;gt;gc_target_system-local
+                                  ELSE lcl_main=&amp;gt;gc_target_system-server )
+      it_company_code_range = so_cocd[]
+      . . .
+  ).&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  METHOD run.
+    DATA lt_split_credit_master TYPE zif_zgxxs_crdt_master_repo=&amp;gt;gty_t_crdt_master.
+    DATA lt_download_return TYPE bapiret2_t.
+    DATA ls_down_ret TYPE bapiret2.
+
+    DATA(lv_tcode) = SWITCH tcode( sy-batch
+                                        WHEN abap_true THEN gc_transaction
+                                        ELSE sy-tcode ).
+
+    CALL FUNCTION 'AUTHORITY_CHECK_TCODE'
+      EXPORTING
+        tcode  = lv_tcode    " Transaction Code
+      EXCEPTIONS
+        ok     = 1
+        not_ok = 2
+        others = 3.
+    IF sy-subrc NE 1.
+      MESSAGE |User: { sy-uname } not authorized to execute the tcode| TYPE 'S' DISPLAY LIKE 'E'.
+      RETURN.
+
+    ENDIF.
+
+
+    DATA(ls_validate_ret) = validate_input(
+                            iv_run_type                 = iv_run_type
+                            iv_data_type                = iv_data_type
+                            iv_target_system            = iv_target_system
+                            it_company_code_range       = it_company_code_range
+                            it_customer_number_range    = it_customer_number_range
+                            it_acct_assignment_grp_cust = it_acct_assignment_grp_cust
+                            it_credit_ctrl_area_range   = it_credit_ctrl_area_range
+                            it_credit_acct_range        = it_credit_acct_range
+                            it_udate_range              = it_udate_range
+                            iv_local_file               = iv_local_file
+                            iv_server_path              = iv_server_path
+                            iv_blocked                  = iv_blocked
+                            iv_max_data                 = iv_max_data
+                        ).
+    IF ls_validate_ret IS NOT INITIAL.
+      MESSAGE ls_validate_ret-message TYPE 'S' DISPLAY LIKE ls_validate_ret-type.
+      RETURN.
+
+    ENDIF.
+
+    " get data
+    go_credit_master_repo = NEW zcl_zgxxs_crdt_master_repo02( ). 
+    DATA(lt_credit_master) = SWITCH zif_zgxxs_crdt_master_repo=&amp;gt;gty_t_crdt_master( iv_data_type
+                                       WHEN gc_data_type-full THEN go_credit_master_repo-&amp;gt;find_all_act(
+                                                                       it_company_code_range     = it_company_code_range
+                                                                       it_customer_number_range  = it_customer_number_range
+                                                                       it_acct_assignment_grp_cust = it_acct_assignment_grp_cust
+                                                                       it_credit_ctrl_area_range = it_credit_ctrl_area_range
+                                                                       it_credit_acct_range      = it_credit_acct_range
+                                                                       iv_active_cust_only       = iv_active_cust_only )
+                                       ELSE go_credit_master_repo-&amp;gt;find_delta_act(
+                                                                       it_company_code_range     = it_company_code_range
+                                                                       it_customer_number_range  = it_customer_number_range
+                                                                       it_acct_assignment_grp_cust = it_acct_assignment_grp_cust
+                                                                       it_credit_ctrl_area_range = it_credit_ctrl_area_range
+                                                                       it_credit_acct_range      = it_credit_acct_range
+                                                                       it_change_date_range      = it_udate_range
+                                                                       iv_active_cust_only       = iv_active_cust_only ) ).
+
+    IF lt_credit_master IS INITIAL.
+      MESSAGE TEXT-E01
+      TYPE 'S' DISPLAY LIKE 'E'.
+      RETURN.
+
+    ENDIF.
+
+    IF iv_run_type EQ gc_run_type-interface.
+
+      DATA(lv_counter) = 0.
+      LOOP AT lt_credit_master INTO DATA(ls_credit_mast).
+        lv_counter = lv_counter + 1.
+        INSERT ls_credit_mast INTO TABLE lt_split_credit_master.
+
+        IF lv_counter EQ iv_max_data.
+          CLEAR lv_counter.
+
+          INSERT download( it_source_data = lt_split_credit_master
+                          iv_target_system = iv_target_system
+                          iv_local_file  = iv_local_file
+                          iv_server_path = iv_server_path ) INTO TABLE lt_download_return.
+
+          CLEAR lt_split_credit_master.
+
+        ENDIF.
+
+      ENDLOOP.
+
+      IF lt_split_credit_master IS NOT INITIAL.
+        INSERT download( it_source_data = lt_split_credit_master
+                          iv_target_system = iv_target_system
+                          iv_local_file  = iv_local_file
+                          iv_server_path = iv_server_path ) INTO TABLE lt_download_return.
+
+      ENDIF.
+
+
+      IF line_exists( lt_download_return[ type = 'S' ] ).
+
+        WRITE / TEXT-M01
+        .
+
+        LOOP AT lt_download_return INTO ls_down_ret.
+          WRITE / ls_down_ret-message.
+
+        ENDLOOP.
+
+      ENDIF.
+
+      IF line_exists( lt_download_return[ type = 'E' ] ).
+
+        WRITE / TEXT-M02
+        .
+
+        LOOP AT lt_download_return INTO ls_down_ret.
+          WRITE / ls_down_ret-message.
+
+        ENDLOOP.
+
+      ENDIF.
+
+    ELSE.
+      " display alv
+      go_alv = NEW lcl_salv( ).
+      go_alv-&amp;gt;display_alv( lt_credit_master ).
+
+
+    ENDIF.
+
+
+  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId--1913137187" id="toc-hId--1913135108"&gt;Conclusion&lt;/H3&gt;&lt;P&gt;This post focuses on the design approach rather than detailed implementation or specific syntax. The goal is to illustrate how functional programming principles can be applied in SAP ABAP at an architectural/ design level.&lt;/P&gt;&lt;P&gt;The sequence of steps presented is not mandatory; it is structured this way to make this blog post easier to follow. In practice, the development approach may vary—developers may choose a top-down or bottom-up approach depending on their preferences.&lt;/P&gt;&lt;P&gt;While every effort has been made to present the concepts clearly, some areas may benefit from further refinement or clarification. Feedback and discussion are always welcome to improve and deepen the understanding of this approach.&lt;/P&gt;&lt;H3 id="toc-hId--2109650692" id="toc-hId--2109648613"&gt;References&lt;/H3&gt;&lt;OL&gt;&lt;LI&gt;Serokell —&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;EM&gt;Rust Is Not a Functional Language&lt;/EM&gt;&lt;BR /&gt;A discussion on what defines functional programming and why certain languages only partially adopt its principles.&lt;BR /&gt;&lt;A class="" href="https://serokell.io/blog/rust-is-not-a-functional-language" target="_new" rel="noopener nofollow noreferrer"&gt;https://serokell.io/blog/rust-is-not-a-functional-language&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;John Carmack —&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;EM&gt;Carmack on Inlined Code&lt;/EM&gt;&lt;BR /&gt;Insights on code structure, simplicity, and performance trade-offs in software design.&lt;BR /&gt;&lt;A class="" href="http://number-none.com/blow/blog/programming/2014/09/26/carmack-on-inlined-code.html" target="_new" rel="noopener nofollow noreferrer"&gt;http://number-none.com/blow/blog/programming/2014/09/26/carmack-on-inlined-code.html&lt;/A&gt;&lt;/LI&gt;&lt;/OL&gt;</content>
+    <link href="https://community.sap.com/t5/abap-blog-posts/functional-programming-in-abap-part-ii-design-strategies-and-practical/ba-p/14383956"/>
+    <published>2026-04-30T13:09:01.825000+02:00</published>
   </entry>
 </feed>
