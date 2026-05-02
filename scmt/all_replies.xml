@@ -2,190 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2026-05-02T12:44:01.518952+00:00</updated>
+  <updated>2026-05-02T12:59:02.018793+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/cl-abap-parallel-parallel-processing-without-the-arfc-enable-function/ba-p/14387500</id>
-    <title>CL_ABAP_PARALLEL: Parallel Processing Without the aRFC Enable Function Modules</title>
-    <updated>2026-05-01T15:36:09.752000+02:00</updated>
-    <author>
-      <name>akmal1216</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/120805</uri>
-    </author>
-    <content>&lt;H3 id="toc-hId-1924297829"&gt;The Problem Every ABAP Developer Knows Too Well&lt;/H3&gt;&lt;P class=""&gt;You're running a year-end reconciliation report that loops through 80,000 vendor invoices, validates them against GL postings, and stamps each record with an approval status. In a test system with 500 entries it finishes in under a minute. In production it runs for four hours — and the business is calling.&lt;/P&gt;&lt;P class=""&gt;The knee-jerk fix most developers reach for is raw asynchronous RFC (aRFC): sprinkle &lt;CODE&gt;CALL FUNCTION … STARTING NEW TASK … DESTINATION IN GROUP&lt;/CODE&gt;, wire up callback handlers, manage semaphore flags, and pray that your RFC server group is configured correctly across all application servers. It works — eventually — but the resulting code is fragile, hard to test, and nearly impossible for the next developer to maintain without a war story attached.&lt;/P&gt;&lt;P class=""&gt;There is a better way: &lt;STRONG&gt;&lt;CODE&gt;CL_ABAP_PARALLEL&lt;/CODE&gt;&lt;/STRONG&gt;.&lt;/P&gt;&lt;H3 id="toc-hId-1727784324"&gt;What Is CL_ABAP_PARALLEL?&lt;/H3&gt;&lt;P class=""&gt;&lt;CODE&gt;CL_ABAP_PARALLEL&lt;/CODE&gt; is a standard SAP class (available from SAP Basis 7.54 and fully released in ABAP Cloud) that wraps the complexity of aRFC-based parallel dispatch behind a clean, object-oriented interface. Instead of orchestrating raw function module calls, RFC groups, and callback patterns yourself, you define &lt;EM&gt;what&lt;/EM&gt; each unit of work should do, hand the instances over to the framework, and let it handle the rest — process allocation, dispatching, timeout management, and result collection.&lt;/P&gt;&lt;P class=""&gt;Under the hood, the framework still uses &lt;CODE&gt;RS_ABAP_PARALLEL&lt;/CODE&gt; and the server dispatch class &lt;CODE&gt;CL_SSI_DISPATCH&lt;/CODE&gt;, so the performance characteristics are identical to hand-rolled aRFC. The difference is in developer experience and maintainability.&lt;/P&gt;&lt;H3 id="toc-hId-1531270819"&gt;Two Ways to Implement: Choose Your Pattern&lt;/H3&gt;&lt;P class=""&gt;SAP provides two distinct implementation strategies. Pick the one that fits your team's style and the complexity of your data contracts.&lt;/P&gt;&lt;H4 id="toc-hId-1463840033"&gt;Pattern 1 — Interface Implementation (&lt;CODE&gt;IF_ABAP_PARALLEL&lt;/CODE&gt;)&lt;/H4&gt;&lt;P class=""&gt;This is the &lt;STRONG&gt;recommended modern approach&lt;/STRONG&gt;, particularly for ABAP Cloud and clean-core projects. Your processing class implements the &lt;CODE&gt;IF_ABAP_PARALLEL&lt;/CODE&gt; interface and carries its own typed input data as instance attributes. No serialization gymnastics required.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;"---------------------------------------------------------------------
-" Step 1: Define the processing task class
-"---------------------------------------------------------------------
-CLASS zcl_invoice_validation_task DEFINITION
-  PUBLIC FINAL CREATE PUBLIC.
-
-  PUBLIC SECTION.
-    INTERFACES if_abap_parallel.
-    INTERFACES if_serializable_object.
-
-    TYPES: BEGIN OF ty_result,
-             invoice_id  TYPE vbeln,
-             is_valid    TYPE abap_bool,
-             error_msg   TYPE string,
-           END OF ty_result.
-
-    METHODS constructor
-      IMPORTING
-        is_invoice TYPE rbkp.           " MIRO invoice header
-
-    METHODS get_result
-      RETURNING VALUE(rs_result) TYPE ty_result.
-
-  PRIVATE SECTION.
-    DATA ms_invoice TYPE rbkp.
-    DATA ms_result  TYPE ty_result.
-ENDCLASS.
-
-CLASS zcl_invoice_validation_task IMPLEMENTATION.
-
-  METHOD constructor.
-    ms_invoice = is_invoice.
-  ENDMETHOD.
-
-  METHOD if_abap_parallel~do.
-    " All validation logic lives here — runs in a separate dialog WP
-    ms_result-invoice_id = ms_invoice-belnr.
-
-    " Example: Cross-check the invoice amount against the PO tolerance
-    DATA(lv_tolerance) = CONV dec15_5( '0.05' ).   " 5 % tolerance
-    DATA lv_po_net TYPE wrbtr.
-
-    SELECT SINGLE netwr INTO lv_po_net
-      FROM ekko
-      WHERE ebeln = ms_invoice-xblnr.  " vendor doc nr maps to PO
-
-    IF lv_po_net IS NOT INITIAL.
-      DATA(lv_deviation) = abs( ms_invoice-rwbtr - lv_po_net ) / lv_po_net.
-      IF lv_deviation &amp;lt;= lv_tolerance.
-        ms_result-is_valid = abap_true.
-      ELSE.
-        ms_result-is_valid  = abap_false.
-        ms_result-error_msg = |Deviation { lv_deviation * 100 } % exceeds tolerance|.
-      ENDIF.
-    ELSE.
-      ms_result-is_valid  = abap_false.
-      ms_result-error_msg = 'No matching purchase order found'.
-    ENDIF.
-  ENDMETHOD.
-
-  METHOD get_result.
-    rs_result = ms_result.
-  ENDMETHOD.
-
-ENDCLASS.
-
-
-"---------------------------------------------------------------------
-" Step 2: Orchestrate the parallel run from your main program / method
-"---------------------------------------------------------------------
-CLASS zcl_invoice_processor DEFINITION
-  PUBLIC FINAL CREATE PUBLIC.
-  PUBLIC SECTION.
-    CLASS-METHODS run_validation.
-ENDCLASS.
-
-CLASS zcl_invoice_processor IMPLEMENTATION.
-
-  METHOD run_validation.
-
-    " Fetch the raw invoice headers to validate
-    DATA lt_invoices TYPE TABLE OF rbkp.
-    SELECT * FROM rbkp
-      INTO TABLE &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1398638"&gt;@LT&lt;/a&gt;_invoices
-      WHERE bukrs = '1000'
-        AND bldat &amp;gt;= @( cl_abap_context_info=&amp;gt;get_system_date( ) - 30 ).
-
-    " Build one task object per invoice
-    DATA lt_tasks TYPE cl_abap_parallel=&amp;gt;t_in_inst_tab.
-    LOOP AT lt_invoices ASSIGNING FIELD-SYMBOL(&amp;lt;invoice&amp;gt;).
-      DATA(lo_task) = NEW zcl_invoice_validation_task( &amp;lt;invoice&amp;gt; ).
-      APPEND lo_task TO lt_tasks.
-    ENDLOOP.
-
-    " Instantiate the framework — use 40 % of available dialog processes
-    DATA(lo_parallel) = NEW cl_abap_parallel(
-      p_percentage = 40
-      p_timeout    = 300   " seconds per task
-    ).
-
-    " Fire!
-    DATA lt_results TYPE cl_abap_parallel=&amp;gt;t_out_inst_tab.
-    lo_parallel-&amp;gt;run_inst(
-      EXPORTING p_in_tab  = lt_tasks
-      IMPORTING p_out_tab = lt_results
-    ).
-
-    " Harvest results
-    LOOP AT lt_results ASSIGNING FIELD-SYMBOL(&amp;lt;res&amp;gt;).
-
-      " Check for framework-level errors first (timeouts, system failures)
-      IF &amp;lt;res&amp;gt;-message IS NOT INITIAL.
-        MESSAGE &amp;lt;res&amp;gt;-message TYPE 'W'.
-        CONTINUE.
-      ENDIF.
-
-      " Cast the generic reference back to our concrete task class
-      DATA(lo_finished_task) = CAST zcl_invoice_validation_task( &amp;lt;res&amp;gt;-instance ).
-      DATA(ls_val_result)    = lo_finished_task-&amp;gt;get_result( ).
-
-      IF ls_val_result-is_valid = abap_false.
-        " Write rejection log, trigger workflow, etc.
-        cl_demo_output=&amp;gt;write( |Invoice { ls_val_result-invoice_id }: { ls_val_result-error_msg }| ).
-      ENDIF.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The key advantage here is &lt;STRONG&gt;type safety&lt;/STRONG&gt;. Your invoice data lives in a properly typed class attribute (&lt;CODE&gt;ms_invoice TYPE rbkp&lt;/CODE&gt;) — no intermediate XSTRING packing or XML transformation. When you cast &lt;CODE&gt;&amp;lt;res&amp;gt;-instance&lt;/CODE&gt; back to &lt;CODE&gt;zcl_invoice_validation_task&lt;/CODE&gt;, you get full IntelliSense and compile-time checks in ADT.&lt;/P&gt;&lt;H4 id="toc-hId-1267326528"&gt;Pattern 2 — Inheritance from &lt;CODE&gt;CL_ABAP_PARALLEL&lt;/CODE&gt; (Classic Style)&lt;/H4&gt;&lt;P class=""&gt;In this variant your task class &lt;STRONG&gt;inherits&lt;/STRONG&gt; from &lt;CODE&gt;CL_ABAP_PARALLEL&lt;/CODE&gt; and redefines the &lt;CODE&gt;DO&lt;/CODE&gt; method. Input and output are exchanged via the inherited &lt;CODE&gt;P_IN&lt;/CODE&gt; / &lt;CODE&gt;P_OUT&lt;/CODE&gt; XSTRING parameters, which you serialize and deserialize yourself using &lt;CODE&gt;EXPORT … TO DATA BUFFER&lt;/CODE&gt; / &lt;CODE&gt;IMPORT … FROM DATA BUFFER&lt;/CODE&gt;.&lt;/P&gt;&lt;P class=""&gt;This pattern is occasionally useful when working on older Basis releases or when you need to carry a heterogeneous shared payload (&lt;CODE&gt;P_IN_ALL&lt;/CODE&gt;) across all tasks without repeating it for every record.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_material_enrichment DEFINITION
-  PUBLIC INHERITING FROM cl_abap_parallel
-  FINAL CREATE PUBLIC.
-
-  PUBLIC SECTION.
-    METHODS do REDEFINITION.
-ENDCLASS.
-
-CLASS zcl_material_enrichment IMPLEMENTATION.
-  METHOD do.
-    " Deserialize per-task input
-    TYPES: BEGIN OF ty_input,
-             matnr TYPE matnr,
-             werks TYPE werks_d,
-           END OF ty_input.
-    DATA ls_input TYPE ty_input.
-    IMPORT task_data = ls_input FROM DATA BUFFER p_in.
-
-    " Do the heavy lifting — e.g. call an external pricing API
-    DATA lv_price TYPE p LENGTH 10 DECIMALS 2.
-    " ... your logic here ...
-
-    " Serialize the result back
-    TYPES: BEGIN OF ty_output,
-             matnr TYPE matnr,
-             price TYPE p LENGTH 10 DECIMALS 2,
-           END OF ty_output.
-    DATA ls_output TYPE ty_output.
-    ls_output-matnr = ls_input-matnr.
-    ls_output-price = lv_price.
-    EXPORT result_data = ls_output TO DATA BUFFER p_out.
-  ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P class=""&gt;&lt;STRONG&gt;Practical tip:&lt;/STRONG&gt; Prefer Pattern 1 (interface) for all new development. Reserve Pattern 2 for legacy codebases where you need XSTRING-based data exchange with an existing framework or where shared read-only context (&lt;CODE&gt;P_IN_ALL&lt;/CODE&gt;) can meaningfully reduce payload size.&lt;/P&gt;&lt;H3 id="toc-hId-941730304"&gt;Constructor Parameters — What They Mean and How They Interact&lt;/H3&gt;&lt;P class=""&gt;One of the most common sources of confusion with &lt;CODE&gt;CL_ABAP_PARALLEL&lt;/CODE&gt; is the interplay between its four resource-control parameters. Here is a clear breakdown:&lt;/P&gt;&lt;DIV class=""&gt;Parameter Type Effect &lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;CODE&gt;P_PERCENTAGE&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;I&lt;/CODE&gt; (0–100)&lt;/TD&gt;&lt;TD&gt;Use &lt;EM&gt;X %&lt;/EM&gt; of the dialog processes that the system deems available at startup. &lt;STRONG&gt;Takes precedence over &lt;CODE&gt;P_NUM_TASKS&lt;/CODE&gt; if both are supplied.&lt;/STRONG&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;CODE&gt;P_NUM_TASKS&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;I&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;Request a fixed number of parallel slots. Ignored if &lt;CODE&gt;P_PERCENTAGE&lt;/CODE&gt; is also set or if the value exceeds the system maximum.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;CODE&gt;P_NUM_PROCESSES&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;I&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;Hard cap on the total simultaneous processes across all app servers. A safeguard against monopolizing the system.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;CODE&gt;P_TIMEOUT&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;I&lt;/CODE&gt; (seconds)&lt;/TD&gt;&lt;TD&gt;Maximum wall-clock time a single task may run before the framework marks it as failed and populates &lt;CODE&gt;&amp;lt;res&amp;gt;-message&lt;/CODE&gt;.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;CODE&gt;P_LOCAL_SERVER&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;Flag&lt;/TD&gt;&lt;TD&gt;When set, all tasks run on the same application server as the calling program. Useful for debugging; avoid in production.&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;H3 id="toc-hId-745216799"&gt;Error Handling You Cannot Ignore&lt;/H3&gt;&lt;P class=""&gt;Every entry in &lt;CODE&gt;p_out_tab&lt;/CODE&gt; (or &lt;CODE&gt;p_out_inst_tab&lt;/CODE&gt;) has a &lt;CODE&gt;MESSAGE&lt;/CODE&gt; field. &lt;STRONG&gt;This is not optional to check.&lt;/STRONG&gt; If a task times out, encounters a system failure, or the framework cannot dispatch it, the result record will have a non-initial &lt;CODE&gt;MESSAGE&lt;/CODE&gt; and a &lt;EM&gt;blank&lt;/EM&gt; result. Silently skipping that check means silently dropping data.&lt;/P&gt;&lt;/DIV&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;LOOP AT lt_results ASSIGNING FIELD-SYMBOL(&amp;lt;r&amp;gt;).
-  IF &amp;lt;r&amp;gt;-message IS NOT INITIAL.
-    " Log to application log (SLG1) instead of just writing to screen
-    cl_bali_log=&amp;gt;...   " or your preferred logging utility
-    CONTINUE.
-  ENDIF.
-  " ... process normal result ...
-ENDLOOP.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Additionally, wrap your entire &lt;CODE&gt;run_inst&lt;/CODE&gt; call in a &lt;CODE&gt;TRY … CATCH&lt;/CODE&gt; block for &lt;CODE&gt;cx_sy_parallel_processing&lt;/CODE&gt; to handle catastrophic dispatch failures gracefully.&lt;/P&gt;&lt;H3 id="toc-hId-548703294"&gt;Quick Comparison: Before and After&lt;/H3&gt;&lt;DIV class=""&gt;Aspect Raw aRFC Pattern CL_ABAP_PARALLEL &lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;Boilerplate&lt;/TD&gt;&lt;TD&gt;RFC function module + callback handler + semaphore flags&lt;/TD&gt;&lt;TD&gt;One class implementing &lt;CODE&gt;IF_ABAP_PARALLEL&lt;/CODE&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Type safety&lt;/TD&gt;&lt;TD&gt;EXPORT/IMPORT tables, generic&lt;/TD&gt;&lt;TD&gt;Typed class attributes (Pattern 1)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Error handling&lt;/TD&gt;&lt;TD&gt;Manual &lt;CODE&gt;SYSTEM-EXCEPTIONS&lt;/CODE&gt; per call&lt;/TD&gt;&lt;TD&gt;Built-in &lt;CODE&gt;MESSAGE&lt;/CODE&gt; field per result&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Testability&lt;/TD&gt;&lt;TD&gt;Difficult (requires RFC infrastructure)&lt;/TD&gt;&lt;TD&gt;Standard class — full unit-test coverage possible&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;ABAP Cloud compatible&lt;/TD&gt;&lt;TD&gt;No (aRFC not available in Cloud)&lt;/TD&gt;&lt;TD&gt;Yes (&lt;CODE&gt;CL_ABAP_PARALLEL&lt;/CODE&gt; is released)&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;/DIV&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-223107070"&gt;Closing Thoughts&lt;/H2&gt;&lt;P class=""&gt;&lt;CODE&gt;CL_ABAP_PARALLEL&lt;/CODE&gt; does not do anything fundamentally new — parallel dialog dispatch has been in ABAP for decades. What it does is remove all the ceremony that made developers avoid it. With the interface-based pattern, adding parallelism to an existing data-processing class is often a matter of implementing one interface, one constructor, and adjusting a handful of lines in the orchestrating method.&lt;/P&gt;&lt;P class=""&gt;If your team has been avoiding parallel processing because the old aRFC boilerplate felt too risky or too expensive to maintain, it is time to revisit that decision. Your business users — and the developers who come after you — will thank you.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/cl-abap-parallel-parallel-processing-without-the-arfc-enable-function/ba-p/14387500"/>
-    <published>2026-05-01T15:36:09.752000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/sfm-ccf-dynamically-distribute-emissions-to-product-level-without-planned/qaa-p/14387501#M4941423</id>
     <title>Re: SFM CCF - Dynamically distribute emissions to product...</title>
@@ -1398,5 +1218,17 @@ get_maintenance_order_operations&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;At runtime, Cl
     <content>Thank you for your response. I am able to see the MDK: Open Mobile Editor. But it is giving an error when I try to execute the command</content>
     <link href="https://community.sap.com/t5/technology-q-a/vs-code-command-mdk-open-mobile-app-editor-not-found-when-working-with-sap/qaa-p/14387799#M4941445"/>
     <published>2026-05-02T13:56:04.485000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/supply-chain-management-q-a/billing-document-created-but-no-edocument-appears-in-manage-electronic/qaa-p/14387824#M210668</id>
+    <title>Re: Billing Document created but no eDocument appears in...</title>
+    <updated>2026-05-02T14:58:10.385000+02:00</updated>
+    <author>
+      <name>ElenaPuica</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2270342</uri>
+    </author>
+    <content>&lt;P&gt;Hello!&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;An eDocument is supposed to be created automatically, but only if specific country and master‑data conditions are met.&lt;/P&gt;&lt;P&gt;In SAP S/4HANA Public Cloud, an eDocument instance is created automatically at the moment the billing document is posted, only when the billing document qualifies for a country‑specific e‑invoicing scenario delivered by SAP.&lt;/P&gt;&lt;P&gt;If those conditions are not met, the billing document is still posted successfully, but no eDocument is created at all. In that case, nothing appears in:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Manage Electronic Documents (F4306)&lt;/LI&gt;&lt;LI&gt;eDocument Cockpit (EDOC_COCKPIT)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This is standard SAP behavior and explains why there are no records or error messages for the invoice.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;The Central Business Configuration (CBC) activities you completed are necessary, but they are only technical enablers. They do not by themselves trigger eDocument creation. For an eDocument to be created, SAP also evaluates:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The company code country&lt;/LI&gt;&lt;LI&gt;Whether that country has SAP‑delivered e‑invoicing localization&lt;/LI&gt;&lt;LI&gt;Whether company and customer master data meet the country‑specific requirements&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;If any of these conditions are not satisfied, the document is considered out of scope for eDocument processing and is skipped silently.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In the vast majority of similar cases, the root cause is missing or incorrect country‑specific identification data, specifically:&lt;/P&gt;&lt;P&gt;Company Code:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Must belong to a country supported by SAP e‑invoicing localization&lt;/LI&gt;&lt;LI&gt;Must have the required Party Identification Type (for example, VAT) assigned&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Customer (Business Partner)&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Must have a valid country‑specific identification (for example, VAT number)&lt;/LI&gt;&lt;LI&gt;The identification type must match what SAP expects for that country&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;If either the company or the customer does not have the correct party ID maintained, SAP will not create an eDocument, even though:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The billing document is posted successfully&lt;/LI&gt;&lt;LI&gt;CBC configuration is complete&lt;/LI&gt;&lt;LI&gt;eDocument types are assigned in CBC&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;In SAP S/4HANA Public Cloud:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;If an eDocument is created, errors are visible in Error Analysis&lt;/LI&gt;&lt;LI&gt;If an eDocument is not eligible, no record is created at all&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;That is why no errors are shown, no logs are visible - the document is absent from the eDocument app.&lt;/P&gt;&lt;P&gt;To fix the issue is recommended to validate the followings:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Company code&lt;UL class="lia-list-style-type-disc"&gt;&lt;LI&gt;Country is supported for SAP e‑invoicing&lt;/LI&gt;&lt;LI&gt;Correct party identification type is assigned&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;OL&gt;&lt;LI&gt;Customer master data&lt;/LI&gt;&lt;/OL&gt;&lt;UL&gt;&lt;LI&gt;Valid country‑specific VAT / registration number maintained&lt;/LI&gt;&lt;LI&gt;Correct identification type used&lt;/LI&gt;&lt;/UL&gt;&lt;OL&gt;&lt;LI&gt;Billing document&lt;/LI&gt;&lt;/OL&gt;&lt;UL&gt;&lt;LI&gt;Billing type is mapped to the correct country‑specific eDocument type&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Additional documentation:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;At the following link you will find a SAP course about the Creating Electronic Document and Legal Report:&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;A href="https://learning.sap.com/courses/applying-localization-as-a-self-service-for-sap-s-4hana-cloud-public-edition/creating-electronic-document-and-legal-report" target="_blank" rel="noopener noreferrer"&gt;https://learning.sap.com/courses/applying-localization-as-a-self-service-for-sap-s-4hana-cloud-public-edition/creating-electronic-document-and-legal-report&lt;/A&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;At the following link you will find a similar question addressed on SAP Community:&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;A href="https://community.sap.com/t5/technology-q-a/no-edocument-created-in-ecockpit-sap-public-cloud/qaq-p/14278671" target="_blank"&gt;https://community.sap.com/t5/technology-q-a/no-edocument-created-in-ecockpit-sap-public-cloud/qaq-p/14278671&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/supply-chain-management-q-a/billing-document-created-but-no-edocument-appears-in-manage-electronic/qaa-p/14387824#M210668"/>
+    <published>2026-05-02T14:58:10.385000+02:00</published>
   </entry>
 </feed>
