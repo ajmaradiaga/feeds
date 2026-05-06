@@ -2,271 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2026-05-06T08:00:02.901706+00:00</updated>
+  <updated>2026-05-06T11:00:03.567111+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/handling-cross-business-object-transactions-in-rap-using-actions/ba-p/14373581</id>
-    <title>Handling Cross Business Object Transactions in RAP Using Actions</title>
-    <updated>2026-04-16T12:34:56.887000+02:00</updated>
-    <author>
-      <name>Tejashree__K</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2293605</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-1794172674"&gt;Introduction&lt;/H2&gt;&lt;P&gt;In the &lt;SPAN class=""&gt;&lt;SPAN class=""&gt;SAP RAP&lt;/SPAN&gt;&lt;/SPAN&gt;, most examples focus on single Business Object (BO) operations. However, real-world enterprise applications rarely operate in isolation. A single business transaction often impacts multiple BOs—for example, creating a Delivery should trigger Billing, updating inventory, and possibly financial postings.&lt;BR /&gt;In this blog, we explore how to implement &lt;STRONG&gt;cross-BO interaction using RAP Actions&lt;/STRONG&gt;, where:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;A &lt;STRONG&gt;Delivery BO&lt;/STRONG&gt; triggers creation in a &lt;STRONG&gt;Billing BO&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;Both operations are executed within the same &lt;STRONG&gt;LUW (Logical Unit of Work)&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;Data consistency is preserved using RAP’s transactional buffer&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1726741888"&gt;Business Scenario&lt;/H3&gt;&lt;P&gt;Consider a typical &lt;STRONG&gt;Order-to-Cash process&lt;/STRONG&gt;:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;A &lt;STRONG&gt;Delivery&lt;/STRONG&gt; is created for a customer.&lt;/LI&gt;&lt;LI&gt;Once the delivery is confirmed, a &lt;STRONG&gt;Billing document&lt;/STRONG&gt; must be generated.&lt;/LI&gt;&lt;LI&gt;The system should:&lt;UL&gt;&lt;LI&gt;Automatically create a Billing record&lt;/LI&gt;&lt;LI&gt;Update the Delivery status to &lt;EM&gt;DELIVERED&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;Ensure both operations succeed or fail together&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;H4 id="toc-hId-1659311102"&gt;Implementation Steps&lt;/H4&gt;&lt;P&gt;&lt;SPAN&gt;STEP 1:&amp;nbsp;Create a Data base Table&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Data base&amp;nbsp; table For Delivery Details&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'delivery details' 
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE 
-@AbapCatalog.tableCategory : #TRANSPARENT 
-@AbapCatalog.deliveryClass : #A 
-@AbapCatalog.dataMaintenance : #RESTRICTED 
-define table zte_t_delivery_s { 
-key delivery_id : abap.char(10) not null; 
-customer_id : abap.char(5); 
-material : abap.char(20); 
-price : abap.char(10); 
-delivery_date : abap.dats; 
-delivery_status : abap.char(15); 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Data Base table for Billing Details&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Billing Details' 
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE 
-@AbapCatalog.tableCategory : #TRANSPARENT 
-@AbapCatalog.deliveryClass : #A 
-@AbapCatalog.dataMaintenance : #RESTRICTED 
-define table zte_t_billing_s { 
-key billing_id : abap.char(10) not null; 
-customer_id : abap.char(5); 
-delivery_id : abap.char(10); 
-material : abap.char(20); 
-price : abap.char(10); 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;STEP 2: Create root CDS views for both tables&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Root view For Delivery Details&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED 
-@EndUserText.label: 'Delivery Details' 
-@Metadata.ignorePropagatedAnnotations: true 
-define root view entity ZI_T_DELIVERY_S as select from zte_t_delivery_s 
-{ 
-key delivery_id as DeliveryId, 
-customer_id as CustomerId, 
-material as Material, 
-price as Price, 
-delivery_date as DeliveryDate, 
-delivery_status as DeliveryStatus 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;SPAN&gt;Root view For Billing Details&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED 
-@EndUserText.label: 'Billing Details' 
-@Metadata.ignorePropagatedAnnotations: true 
-define root view entity ZI_T_BILLING_S as select from zte_t_billing_s 
-{ 
-key billing_id as BillingId, 
-customer_id as CustomerId, 
-delivery_id as DeliveryId, 
-material as Material, 
-price as Price 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;STEP 3: Create Projection View&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Add UI Annotations&lt;/LI&gt;&lt;LI&gt;Add Action Button In Delivery Projection&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Projection View For Delivery Details&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED 
-@EndUserText.label: 'Delivery Details' 
-@Metadata.ignorePropagatedAnnotations: true 
-define root view entity ZC_T_DELIVERY_S 
-provider contract transactional_query as projection on ZI_T_DELIVERY_S 
-{ 
-@UI.facet: [{ id: 'deliverdetails',  
-position: 1,  
-label: 'Order Details',  
-type: #IDENTIFICATION_REFERENCE  
-} ] 
-@UI.lineItem: [ 
-{ importance: #MEDIUM}, 
-{ position: 10, type : #FOR_ACTION, label : 'Available', dataAction : 'create_delivery' }, 
-{ position: 1, label : 'Delivery ID' }]  
-@UI.identification: [{ position: 1, label : 'Delivery ID' }] 
-key DeliveryId, 
-@UI.lineItem: [{ position: 2, label : 'Customer ID' }]  
-@UI.identification: [{ position: 2, label : 'Customer ID' }] 
-CustomerId, 
-@UI.lineItem: [{ position: 3, label : 'Material' }]  
-@UI.identification: [{ position: 3, label : 'Material' }] 
-Material, 
-@UI.lineItem: [{ position: 4, label : 'Price' }]  
-@UI.identification: [{ position: 4, label : 'Price' }] 
-Price, 
-@UI.lineItem: [{ position: 5, label : 'Delivery Date' }]  
-@UI.identification: [{ position: 5, label : 'Delivery Date' }] 
-DeliveryDate, 
-@UI.lineItem: [{ position: 6, label : 'Delivery Status' }]  
-@UI.identification: [{ position: 6, label : 'Delivery Status' }] 
-DeliveryStatus 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Projection View for Billing Details&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED 
-@EndUserText.label: 'Billing Details' 
-@Metadata.ignorePropagatedAnnotations: true 
-define root view entity ZC_T_BILLING_S 
-provider contract transactional_query as projection on ZI_T_BILLING_S 
-{ 
-@UI.facet: [{ id: 'Billingdetails',  
-position: 1,  
-label: 'Billing Details',  
-type: #IDENTIFICATION_REFERENCE  
-} ] 
-@UI.lineItem: [{ position: 1, label : 'Billing Id' }]  
-@UI.identification: [{ position: 1, label : 'Billing Id' }] 
-key BillingId, 
-@UI.lineItem: [{ position: 2, label : 'Customer Id' }]  
-@UI.identification: [{ position: 2, label : 'Custoomer Id' }] 
-CustomerId, 
-@UI.lineItem: [{ position: 3, label : 'Delivery Id' }]  
-@UI.identification: [{ position: 3, label : 'Delivery Id' }] 
-DeliveryId, 
-@UI.lineItem: [{ position: 4, label : 'Material' }]  
-@UI.identification: [{ position: 4, label : 'Material' }] 
-Material, 
-@UI.lineItem: [{ position: 5, label : 'Price' }]  
-@UI.identification: [{ position: 5, label : 'Price' }] 
-Price 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;STEP 4: Define Behavior Definitions&lt;BR /&gt;&amp;nbsp;Delivery BO behavior&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Enable CRUD operation&lt;/LI&gt;&lt;LI&gt;Declare a non-factory action&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This Action is responsible for creating Billing data and updating delivery status&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed implementation in class zbp_i_t_delivery_s unique; 
-strict ( 2 ); 
-define behavior for ZI_T_DELIVERY_S //alias &amp;lt;alias_name&amp;gt; 
-persistent table zte_t_delivery_s 
-lock master 
-authorization master ( instance ) 
-//etag master &amp;lt;field_name&amp;gt; 
-{ 
-create; 
-update; 
-delete; 
-action create_delivery result [1] $self; 
-mapping for zte_t_delivery_s 
-{ 
-DeliveryId = delivery_id; 
-CustomerId = customer_id; 
-Material = material; 
-Price = price; 
-DeliveryDate = delivery_date; 
-DeliveryStatus = delivery_status; 
-} 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Billing BO behavior&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Enable CRUD operations&lt;/LI&gt;&lt;LI&gt;use Late Numbering for auto-generating Billing Id&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed implementation in class zbp_i_t_billing_s unique; 
-strict ( 2 ); 
-define behavior for ZI_T_BILLING_S //alias &amp;lt;alias_name&amp;gt; 
-persistent table zte_t_billing_s 
-lock master 
-authorization master ( instance ) 
-late numbering 
-//etag master &amp;lt;field_name&amp;gt; 
-{ 
-create; 
-update; 
-delete; 
-
-mapping for zte_t_billing_s 
-{ 
-BillingId = billing_id; 
-DeliveryId = delivery_id; 
-CustomerId = customer_id; 
-Material = material; 
-Price = price; 
-} 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;STEP 5: Define Projection behavior&amp;nbsp;&lt;/P&gt;&lt;P&gt;Delivery BO projection behavior&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection; 
-strict ( 2 ); 
-define behavior for ZC_T_DELIVERY_S //alias &amp;lt;alias_name&amp;gt; 
-{ 
-use create; 
-use update; 
-use delete; 
-use action create_delivery; 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Billing BO projection behavior&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection; 
-strict ( 2 ); 
-define behavior for ZC_T_BILLING_S //alias &amp;lt;alias_name&amp;gt; 
-{ 
-use create; 
-use update; 
-use delete; 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;STEP 6:&amp;nbsp;&amp;nbsp;Implement Behavior Logic&lt;/P&gt;&lt;P&gt;Delivery Class&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_ZI_T_DELIVERY_S DEFINITION INHERITING FROM cl_abap_behavior_handler. 
-
-PRIVATE SECTION. 
-METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION 
-IMPORTING keys REQUEST requested_authorizations FOR zi_t_delivery_s RESULT result. 
-
-METHODS create_delivery FOR MODIFY 
-IMPORTING keys FOR ACTION zi_t_delivery_s~create_delivery RESULT result. 
-ENDCLASS.
- 
-CLASS lhc_ZI_T_DELIVERY_S IMPLEMENTATION. 
-METHOD get_instance_authorizations. 
-ENDMETHOD. 
-
-METHOD create_delivery. 
-READ ENTITIES OF ZI_T_DELIVERY_S 
-IN LOCAL MODE 
-ENTITY ZI_T_DELIVERY_S 
-FIELDS ( DeliveryId CustomerId Material Price ) 
-WITH CORRESPONDING #( keys ) 
-RESULT DATA(lt_delivery). 
-LOOP AT lt_delivery INTO DATA(ls_delivery). 
-
-"Create Billing Entry 
-MODIFY ENTITIES OF ZI_T_BILLING_S 
-ENTITY ZI_T_BILLING_S 
-CREATE 
-FIELDS ( DeliveryId CustomerId Material Price ) 
-WITH VALUE #( 
-( 
-%cid = 'BILL1' 
-DeliveryId = ls_delivery-DeliveryId 
-CustomerId = ls_delivery-CustomerId 
-Material = ls_delivery-Material 
-Price = ls_delivery-Price 
-) 
-) 
-FAILED DATA(ls_failed) 
-REPORTED DATA(ls_reported). 
-
-IF ls_failed IS NOT INITIAL. 
-reported = CORRESPONDING #( ls_reported ). 
-RETURN. 
-ENDIF. 
-
-"Update Delivery Status 
-MODIFY ENTITIES OF ZI_T_DELIVERY_S 
-IN LOCAL MODE 
-ENTITY ZI_T_DELIVERY_S 
-UPDATE FIELDS ( DeliveryStatus ) 
-WITH VALUE #( 
-( 
-DeliveryId = ls_delivery-DeliveryId 
-DeliveryStatus = 'DELIVERED' 
-) 
-). 
-ENDLOOP.
-ENDMETHOD. 
-ENDCLASS. &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Billing Class&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_ZI_T_BILLING_S DEFINITION INHERITING FROM cl_abap_behavior_handler. 
-PRIVATE SECTION. 
-METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION 
-IMPORTING keys REQUEST requested_authorizations FOR zi_t_billing_s RESULT result. 
-ENDCLASS. 
-
-CLASS lhc_ZI_T_BILLING_S IMPLEMENTATION. 
-METHOD get_instance_authorizations. 
-ENDMETHOD. 
-ENDCLASS. 
-
-CLASS lsc_ZI_T_BILLING_S DEFINITION INHERITING FROM cl_abap_behavior_saver. 
-PROTECTED SECTION. 
-METHODS adjust_numbers REDEFINITION. 
-METHODS cleanup_finalize REDEFINITION. 
-ENDCLASS. 
-
-CLASS lsc_ZI_T_BILLING_S IMPLEMENTATION. 
-METHOD adjust_numbers. 
-SELECT FROM ZTE_T_Billing_S FIELDS MAX( billing_id ) INTO (ls_mat_num). 
-DATA(lv_num) = ls_mat_num+3(4). 
-LOOP AT mapped-zi_t_billing_s ASSIGNING FIELD-SYMBOL(&amp;lt;fs_material&amp;gt;). 
-lv_num += 1. 
-&amp;lt;fs_material&amp;gt;-BillingId = |BIL{ lv_num ALPHA = IN WIDTH = 4 }|. 
-ENDLOOP. 
-ENDMETHOD. 
-METHOD cleanup_finalize. 
-ENDMETHOD. 
-ENDCLASS. &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;STEP 7: Service Defination&lt;/P&gt;&lt;P&gt;Expose Both Behavior objects&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Delivery and billing details' 
-define service ZSD_T_DETAILS { 
-expose ZC_T_DELIVERY_S; 
-expose ZC_T_BILLING_S; 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;STEP 8 : Service Binding&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;create service binding&lt;/LI&gt;&lt;LI&gt;Activate and publish&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2026-04-14 111025.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397823i8476A4E2AE84645F/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2026-04-14 111025.png" alt="Screenshot 2026-04-14 111025.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;STEP 9: RESULT&lt;/P&gt;&lt;P&gt;Create a record and click on the Action Button the delivery Status will be updated and Billing records will be created&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2026-04-14 111910.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397825iA4D9E2B07A2155B9/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2026-04-14 111910.png" alt="Screenshot 2026-04-14 111910.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Billing details when Action is trigged and Delivery status updated to Delivery&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2026-04-14 112132.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397826i0200461ABD756B77/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2026-04-14 112132.png" alt="Screenshot 2026-04-14 112132.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;H2 id="toc-hId-1204632159"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;Cross Business Object operations in RAP are essential for building real-world enterprise applications. While RAP abstracts much of the complexity, designing such interactions requires a clear understanding of:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Transactional behavior&lt;/LI&gt;&lt;LI&gt;BO independence vs coordination&lt;/LI&gt;&lt;LI&gt;Framework-driven data consistency By leveraging RAP Actions and EML, we can safely orchestrate multi-BO updates without compromising on clean architecture or data integrity.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This example demonstrates how a simple Delivery trigger can drive Billing creation, showcasing a scalable pattern that can be extended to more complex business processes.&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/handling-cross-business-object-transactions-in-rap-using-actions/ba-p/14373581"/>
-    <published>2026-04-16T12:34:56.887000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/observer-design-pattern-real-time-use-cases/ba-p/14376317</id>
     <title>Observer Design Pattern – Real-Time  Use Cases</title>
@@ -3129,5 +2868,350 @@ ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="5"&gt;&lt;
     ) ).&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Final Flow&amp;nbsp;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="5"&gt;&lt;FONT size="4"&gt;Main Action&lt;/FONT&gt;&lt;FONT size="4"&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;(create Delivery&lt;/SPAN&gt;&lt;SPAN class=""&gt;)&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&amp;nbsp;↓&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;EXECUTE action1 (Validation-&lt;/SPAN&gt;&lt;SPAN class=""&gt;checkBeforeDelivery&lt;/SPAN&gt;&lt;SPAN class=""&gt;)&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&amp;nbsp;↓&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;EXECUTE action2 (&lt;/SPAN&gt;&lt;SPAN class=""&gt;GenerateBill&lt;/SPAN&gt;&lt;SPAN class=""&gt;)&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&amp;nbsp;↓&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Final MODIFY (Update Fields)&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&amp;nbsp;↓&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;BR /&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;SAVE → DB&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Output:&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-left" image-alt="ChatGPT Image Apr 28, 2026, 04_24_11 PM.png" style="width: 718px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/403916i286748E45226EB73/image-dimensions/718x479?v=v2" width="718" height="479" role="button" title="ChatGPT Image Apr 28, 2026, 04_24_11 PM.png" alt="ChatGPT Image Apr 28, 2026, 04_24_11 PM.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Chain actions in RAP provide a clean and structured way to execute multiple steps within a single transactional flow. By orchestrating actions through EML, you can&amp;nbsp;break&amp;nbsp;complex logic into smaller, manageable units while still&amp;nbsp;maintaining&amp;nbsp;consistency.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;The architecture ensures that all steps run inside the&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;same transactional buffer&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;, and only the final state&amp;nbsp;persists&amp;nbsp;through a single update and save sequence. This avoids common issues like buffer overwrites and inconsistent data.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/abap-blog-posts/implementing-chained-actions-in-unmanaged-sap-rap/ba-p/14385022"/>
     <published>2026-05-04T08:55:39.536000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/pessimistic-concurrency-control-locking-using-unmanaged-scenario-in-rap/ba-p/14389690</id>
+    <title>Pessimistic Concurrency Control (Locking) using Unmanaged Scenario in RAP</title>
+    <updated>2026-05-06T12:11:29.747000+02:00</updated>
+    <author>
+      <name>Vismaya</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1451092</uri>
+    </author>
+    <content>&lt;H3 id="toc-hId-1924358651"&gt;&lt;SPAN&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Introduction:&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;SAP RESTful Application Programming Model (RAP)&lt;/SPAN&gt;&lt;SPAN&gt;,&amp;nbsp;locking has a major impact because&amp;nbsp;if multiple users can update the same record simultaneously, it leads to data inconsistencies or overwrites.&amp;nbsp;To work on this concurrency control, we have two different approaches-&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;SPAN&gt;Pessimistic concurrency control (locking).&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Optimistic concurrency control (Etag&amp;nbsp;or&amp;nbsp;Odata&amp;nbsp;Etag).&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;SPAN&gt;In a&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;RAP unmanaged scenario&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;,&amp;nbsp;pessimistic concurrency control (locking) is&amp;nbsp;particularly useful&amp;nbsp;because it assumes conflicts are likely and prevents them upfront by locking the record as soon as a user starts editing&amp;nbsp;(like&amp;nbsp;delete,&amp;nbsp;update&amp;nbsp;or&amp;nbsp;modify&amp;nbsp;operations)&amp;nbsp;it.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;In an unmanaged scenario, the RAP framework does not automatically handle locking. Developers&amp;nbsp;are responsible for&amp;nbsp;implementing the entire locking mechanism manually.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN&gt;Pessimistic Concurrency Control (Locking):&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;In RAP business objects, enqueue locks are used for pessimistic concurrency control.&amp;nbsp;Exclusive&amp;nbsp;locking happens on data.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&lt;STRONG&gt;Exclusive Locking:&lt;/STRONG&gt;&amp;nbsp;Before an operation (like an&amp;nbsp;UPDATE&amp;nbsp;or&amp;nbsp;DELETE) is executed, the RAP framework&amp;nbsp;acquires&amp;nbsp;an exclusive lock on the specific data instance in a global lock table.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Every time a lock is requested, the system checks the lock table. If another user already holds a lock on that specific record, the new request is rejected&amp;nbsp;immediately&amp;nbsp;by throwing an error message.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;&amp;nbsp;The lock is&amp;nbsp;released in the scenarios like,&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;OL&gt;&lt;LI&gt;&lt;SPAN&gt;ABAP session gets&amp;nbsp;terminated.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&amp;nbsp;LUW gets&amp;nbsp;terminated&amp;nbsp;by calling commit&amp;nbsp;or&amp;nbsp;Rollback.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;&amp;nbsp;Draft scenario is discarded or&amp;nbsp;expired.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;H3 id="toc-hId-1727845146"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Scenario:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/H3&gt;&lt;P&gt;&lt;SPAN&gt;In this application, we have a Sales (Header) table (ZDB_SALES_HDR) and Sales (Item) table (ZDB_SALES_ITEM) linked through&amp;nbsp;so_id.&amp;nbsp;Need&amp;nbsp;to&amp;nbsp;set the actual database lock&amp;nbsp;by explicitly calling the standard&amp;nbsp;Enqueue Object&amp;nbsp;inside the&amp;nbsp;FOR LOCK&amp;nbsp;method.&amp;nbsp;Users should also be able to save incomplete data as draft and complete it later. To handle custom&amp;nbsp;logic&amp;nbsp;and manual persistence, an unmanaged RAP approach is used.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;1.&amp;nbsp;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Database tables:&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Header sales table' 
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE 
+@AbapCatalog.tableCategory : #TRANSPARENT 
+@AbapCatalog.deliveryClass : #A 
+@AbapCatalog.dataMaintenance : #RESTRICTED 
+define table zdb_sales_hdr { 
+
+key client  : abap.clnt not null; 
+key so_id   : abap.char(10) not null; 
+customer_id : abap.char(10); 
+order_date  : sydatum; 
+@Semantics.amount.currencyCode : 'zdb_sales_hdr.currency' 
+total_amount: abap.curr(10,2); 
+currency    : abap.cuky; 
+@Semantics.amount.currencyCode : ' zdb_sales_hdr.currency' 
+discount_pct: abap.curr(10,2); 
+status      : zde_or_status; 
+created_by  : syuname; 
+created_on  : timestampl; 
+approved_by : syuname; 
+approved_on : sydatum; 
+} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Item sales table' 
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE 
+@AbapCatalog.tableCategory : #TRANSPARENT 
+@AbapCatalog.deliveryClass : #A 
+@AbapCatalog.dataMaintenance : #RESTRICTED 
+
+define table zdb_sales_item { 
+key client  : abap.clnt not null; 
+key so_id   : abap.char(10) not null; 
+item_no     : abap.char(10); 
+material_id : abap.char(10); 
+@Semantics.quantity.unitOfMeasure : ' zdb_sales_item.uom' 
+quantity    : abap.quan(5,2); 
+uom         : meins; 
+@Semantics.amount.currencyCode : ' zdb_sales_item.currency' 
+price       : abap.curr(10,2); 
+currency    : abap.cuky; 
+plant       : werks_d; 
+} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;2.&amp;nbsp;Created draft tables for both Sales (Header) and Sales (Item) entities to support draft functionality. These tables store intermediate data, allowing users to save incomplete records and activate them later.&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Draft table for entity ZI_HDR_SALES'
+@AbapCatalog.enhancement.category : #EXTENSIBLE_ANY
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #RESTRICTED
+define table zdb_header_draft {
+
+  key mandt     : mandt not null;
+  key soid      : abap.char(10) not null;
+  key draftuuid : sdraft_uuid not null;
+  customerid    : abap.char(10);
+  orderdate     : sydatum;
+  @Semantics.amount.currencyCode : 'zdb_header_draft.currency'
+  totalamount   : abap.curr(10,2);
+  currency      : abap.cuky;
+  @Semantics.amount.currencyCode : 'zdb_header_draft.currency'
+  discountpct   : abap.curr(10,2);
+  status        : abap.char(10);
+  createdby     : syuname;
+  createdon     : timestampl;
+  approvedby    : syuname;
+  approvedon    : sydatum;
+  "%admin"      : include sych_bdl_draft_admin_inc;
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Draft table for entity ZI_ITEM_SALES'
+@AbapCatalog.enhancement.category : #EXTENSIBLE_ANY
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #RESTRICTED
+define table zdb_item_draft {
+
+  key mandt       : mandt not null;
+  key soid        : abap.char(10) not null;
+  key draftuuid   : sdraft_uuid not null;
+  parentdraftuuid : sdraft_uuid;
+  itemno          : abap.char(10);
+  materialid      : abap.char(10);
+  @Semantics.quantity.unitOfMeasure : 'zdb_item_draft.uom'
+  quantity        : abap.quan(5,2);
+  uom             : meins;
+  @Semantics.amount.currencyCode : 'zdb_item_draft.currency'
+  price           : abap.curr(10,2);
+  currency        : abap.cuky;
+  plant           : werks_d;
+  "%admin"        : include sych_bdl_draft_admin_inc;
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;3. Created an Interface view on top of these&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN class=""&gt;two database&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;table. Defined a proper association between Sales (Header) and Sales (Item) using&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN class=""&gt;so_id&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;to&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN class=""&gt;establish&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;the relationship.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #CHECK 
+@EndUserText.label: 'Interface view for sales header table' 
+@Metadata.ignorePropagatedAnnotations: true 
+
+define root view entity ZI_HDR_SALES  
+as select from zdb_sales_hdr 
+composition [1..*] of ZI_ITEM_SALES as _salesitem 
+{ 
+key so_id    as SoId, 
+customer_id  as CustomerId, 
+order_date   as OrderDate, 
+@Semantics.amount.currencyCode: 'Currency' 
+total_amount as TotalAmount, 
+currency     as Currency, 
+@Semantics.amount.currencyCode: 'Currency' 
+discount_pct as DiscountPct, 
+status       as Status, 
+created_by   as CreatedBy, 
+created_on   as CreatedOn, 
+approved_by  as ApprovedBy, 
+approved_on  as ApprovedOn, 
+_salesitem 
+} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE] 
+@AccessControl.authorizationCheck: #NOT_REQUIRED 
+@EndUserText.label: 'Interface view for sales item table' 
+@Metadata.ignorePropagatedAnnotations: true 
+@ObjectModel.usageType:{ 
+serviceQuality: #X, 
+sizeCategory: #S, 
+dataClass: #MIXED 
+} 
+define view entity ZI_ITEM_SALES  
+as select from zdb_sales_item 
+association to parent ZI_HDR_SALES as _header 
+on $projection.SoId = _header.SoId 
+{ 
+key so_id   as SoId, 
+item_no     as ItemNo, 
+material_id as MaterialId, 
+@Semantics.quantity.unitOfMeasure: 'Uom' 
+quantity    as Quantity, 
+uom         as Uom, 
+@Semantics.amount.currencyCode: 'Currency' 
+price       as Price, 
+currency    as Currency, 
+plant       as Plant, 
+_header 
+} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;4. Created a consumption CDS view on top of the interface views to expose the data for UI usage. Instead of using metadata extensions, all required UI annotations were directly&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;maintained&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;within the consumption view for simplicity.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #CHECK 
+@EndUserText.label: 'Projection view for sales header table' 
+@Metadata.ignorePropagatedAnnotations: true 
+@Metadata.allowExtensions: true 
+
+define root view entity ZC_HDR_SALES  
+provider contract transactional_query 
+as projection on ZI_HDR_SALES 
+{ 
+@UI.facet: [ 
+{ position: 10, label: 'Sales Header', purpose: #STANDARD, type: #IDENTIFICATION_REFERENCE }, 
+{ position: 20, label: 'Sales Item', purpose: #STANDARD, type: #LINEITEM_REFERENCE, targetElement: '_salesitem' } 
+] 
+
+@UI: { 
+lineItem: [{ position: 10, label: 'Sales Id' }], 
+identification: [{ position: 10, label: 'Sales Id' }] 
+} 
+SoId; 
+
+@UI: { 
+lineItem: [{ position: 20, label: 'Customer Id' }], 
+identification: [{ position: 20, label: 'Customer Id' }] 
+} 
+CustomerId; 
+
+@UI: { 
+lineItem: [{ position: 30, label: 'Order date' }], 
+identification: [{ position: 30, label: 'Order date' }] 
+} 
+OrderDate; 
+
+@UI: { 
+lineItem: [{ position: 40, label: 'Total amount' }], 
+identification: [{ position: 40, label: 'Total Amount' }] 
+} 
+TotalAmount; 
+
+@UI: { 
+lineItem: [{ position: 50, label: 'Currency' }], 
+identification: [{ position: 50, label: 'Currency' }] 
+} 
+Currency; 
+
+@UI: { 
+lineItem: [{ position: 60 }], 
+identification: [{ position: 60, label: 'Discount price' }] 
+} 
+
+@UI.hidden: true 
+DiscountPct; 
+
+@UI: { 
+lineItem: [{ position: 70, label: 'Order Status' }], 
+identification: [{ position: 70, label: 'Status' }] 
+} 
+
+@Consumption.valueHelpDefinition: [{  
+entity:{  
+name : 'ZI_NK_STATUS_VH', 
+element: 'Status' 
+} 
+}] 
+Status; 
+
+@UI: { 
+lineItem: [{ position: 80, label: 'Created by' }], 
+identification: [{ position: 80, label: 'Created by' }] 
+} 
+CreatedBy; 
+
+@UI: { 
+lineItem: [{ position: 90, label: 'Created on' }], 
+identification: [{ position: 90, label: 'Created on' }] 
+} 
+CreatedOn; 
+
+@UI: { 
+lineItem: [{ position: 100 }], 
+identification: [{ position: 100, label: 'Approved by' }] 
+} 
+
+@UI.hidden: true 
+ApprovedBy; 
+
+@UI: { 
+lineItem: [{ position: 110 }], 
+identification: [{ position: 110, label: 'Approved on' }] 
+} 
+
+@UI.hidden: true 
+ApprovedOn; 
+_salesitem : redirected to composition child ZC_ITEM_SALES 
+} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED 
+@EndUserText.label: 'Projection view for sales itemtable' 
+@Metadata.ignorePropagatedAnnotations: true 
+@Metadata.allowExtensions: true 
+
+define view entity ZC_ITEM_SALES  
+as projection on ZI_ITEM_SALES 
+{ 
+@UI.facet: [{ position: 10, label: 'Sales Item', purpose: #STANDARD, type: #IDENTIFICATION_REFERENCE }] 
+
+@UI:{ 
+lineItem: [{ position: 10, label: 'Sales Id' }], 
+identification: [{ position: 10, label: 'Sales Id' }] 
+} 
+SoId; 
+
+@UI:{ 
+lineItem: [{ position: 20, label: 'Item no'}], 
+identification: [{ position: 20, label: 'Item no' }] 
+} 
+ItemNo; 
+
+@UI:{ 
+lineItem: [{ position: 30, label: 'Material Id' }], 
+identification: [{ position: 30, label: 'Material id' }] 
+} 
+MaterialId; 
+
+@UI:{ 
+lineItem: [{ position: 40, label: 'Quantity' }], 
+identification: [{ position: 40, label: 'Quantity' }] 
+} 
+Quantity; 
+
+@UI:{ 
+lineItem: [{ position: 50, label: 'Unit' }], 
+identification: [{ position: 50, label: 'Unit of measure' }] 
+} 
+
+@UI.hidden: true 
+Uom; 
+
+@UI:{ 
+lineItem: [{ position: 60, label: 'Price'}], 
+identification: [{ position: 60, label: 'Price' }] 
+} 
+Price; 
+
+@UI:{ 
+lineItem: [{ position: 70 }], 
+identification: [{ position: 70, label: 'Currency' }] 
+} 
+Currency; 
+
+@UI:{ 
+lineItem: [{ position: 80, label: 'Plant'}], 
+identification: [{ position: 80, label: 'Plant' }] 
+} 
+Plant; 
+_header : redirected to parent ZC_HDR_SALES 
+} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;5.&amp;nbsp;&lt;SPAN&gt;Created behavior definitions on top of the&amp;nbsp;Sales (Header)&amp;nbsp;interface&amp;nbsp;view.&amp;nbsp;Defined the required operations and enabled features like draft handling, associations,&amp;nbsp;specified&amp;nbsp;lock master&amp;nbsp;(for the root entity)&amp;nbsp;and&amp;nbsp;lock dependent&amp;nbsp;(for child entity) to tell the framework that locking is&amp;nbsp;required&amp;nbsp;as per our requirements.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Specify lock master (for the root entity).&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;define behavior for ZI_HDR_SALES //alias &amp;lt;alias_name&amp;gt; 
+draft table zdb_header_draft 
+late numbering 
+lock master 
+total etag CreatedBy 
+authorization master ( instance ) 
+{ 
+create; 
+update ( features : instance ); 
+delete ( features : instance ); 
+field ( readonly ) SoId; 
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Specify lock dependent (for child entity).&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;define behavior for ZI_ITEM_SALES //alias &amp;lt;alias_name&amp;gt; 
+draft table zdb_item_draft 
+late numbering 
+lock dependent by _header 
+authorization dependent by _header 
+{ 
+update; 
+delete; 
+field ( readonly ) SoId; 
+association _header { with draft; } 
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;5.&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;Created&lt;/SPAN&gt;&lt;SPAN class=""&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;a lock object by providing Sales (Header) as Primary table.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Vismaya_2-1777983449748.png" style="width: 483px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/406494i374084C6936CF39F/image-dimensions/483x448?v=v2" width="483" height="448" role="button" title="Vismaya_2-1777983449748.png" alt="Vismaya_2-1777983449748.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Selected&amp;nbsp;lock mode&amp;nbsp;as&amp;nbsp;write&amp;nbsp;lock.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Vismaya_1-1777980151251.png" style="width: 544px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/406444i0CB643E7FEB9AEBD/image-dimensions/544x234?v=v2" width="544" height="234" role="button" title="Vismaya_1-1777980151251.png" alt="Vismaya_1-1777980151251.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Activated, Generated Enqueue and Dequeue Objects.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Vismaya_2-1777980151252.png" style="width: 538px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/406446iC392161598AF86E7/image-dimensions/538x222?v=v2" width="538" height="222" role="button" title="Vismaya_2-1777980151252.png" alt="Vismaya_2-1777980151252.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;6. Implemented the required business logic in the behavior pool class using a helper class. This includes handling calculations, and manual data persistence for both Sales entities.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Inside the&amp;nbsp;FOR LOCK&amp;nbsp;method in the behavior pool class, must explicitly call the&amp;nbsp;created lock&amp;nbsp;object(&amp;nbsp;‘&lt;/SPAN&gt;&lt;SPAN&gt;EZLOCK_SALES'&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;)&amp;nbsp;to&amp;nbsp;set the actual database lock.&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD lock. 
+TRY. 
+DATA(lock) = cl_abap_lock_object_factory=&amp;gt;get_instance( iv_name = 'EZLOCK_SALES' ). 
+CATCH cx_abap_lock_failure INTO DATA(exception). 
+RAISE SHORTDUMP exception. 
+ENDTRY. 
+
+LOOP AT keys ASSIGNING FIELD-SYMBOL(&amp;lt;fs_data&amp;gt;). 
+TRY. 
+lock-&amp;gt;enqueue( 
+it_parameter = VALUE #( ( name = 'Sales Id' value = REF #( &amp;lt;fs_data&amp;gt;-SoId ) ) ) 
+). 
+CATCH cx_abap_foreign_lock INTO DATA(foreign_lock). 
+
+APPEND VALUE #( 
+SoId = keys[ 1 ]-SoId 
+%msg = new_message_with_text( 
+severity = if_abap_behv_message=&amp;gt;severity-error 
+text = 'Record is locked by ' &amp;amp;&amp;amp; foreign_lock-&amp;gt;user_name 
+) 
+) TO reported-zi_hdr_sales. 
+
+APPEND VALUE #( 
+SoId = keys[ 1 ]-SoId 
+) TO failed-zi_hdr_sales. 
+CATCH cx_abap_lock_failure INTO exception. 
+RAISE SHORTDUMP exception. 
+ENDTRY. 
+ENDLOOP. 
+ENDMETHOD. &lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId-1660414360"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Output:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/H4&gt;&lt;P&gt;&lt;SPAN&gt;If&amp;nbsp;both the users&amp;nbsp;are accessing&amp;nbsp;the same application then,&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;First&amp;nbsp;user&amp;nbsp;opens&amp;nbsp;the record in edit mode.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Trigger the operation that calls the&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;lock method&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;(e.g., Edit action).&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;If the second user try to edit the same record.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;System should&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;prevent editing&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;by throwing Error&amp;nbsp;message like:&amp;nbsp;&lt;/SPAN&gt;&lt;I&gt;&lt;SPAN&gt;“Record is locked by another user”.&lt;/SPAN&gt;&lt;/I&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Vismaya_1-1777983007167.png" style="width: 655px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/406486i497E438E01EE66CD/image-dimensions/655x177?v=v2" width="655" height="177" role="button" title="Vismaya_1-1777983007167.png" alt="Vismaya_1-1777983007167.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Vismaya_0-1777982978394.png" style="width: 468px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/406485iF2E12F9F8E9CA77A/image-dimensions/468x219?v=v2" width="468" height="219" role="button" title="Vismaya_0-1777982978394.png" alt="Vismaya_0-1777982978394.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN class=""&gt;&lt;SPAN class=""&gt;Pessimistic concurrency control (locking) in an unmanaged RAP scenario is fundamental to safeguarding business-critical data by preventing concurrent modifications at the source. It shifts control entirely to the developer, making correct lock design essential for ensuring consistency, reliability, and transactional integrity. While it may introduce contention and affect performance if misused, a well-implemented locking strategy delivers predictable system behavior and&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN class=""&gt;eliminates&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;costly data conflicts.&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN class=""&gt;Ultimately, it&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;is a key pillar for building robust, enterprise-grade RAP applications where data accuracy cannot be compromised.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;SPAN class=""&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/pessimistic-concurrency-control-locking-using-unmanaged-scenario-in-rap/ba-p/14389690"/>
+    <published>2026-05-06T12:11:29.747000+02:00</published>
   </entry>
 </feed>
