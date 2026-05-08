@@ -2,131 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/OData-blog-posts.xml</id>
   <title>SAP Community - OData</title>
-  <updated>2026-05-07T23:11:20.602561+00:00</updated>
+  <updated>2026-05-08T11:11:10.879901+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/OData/pd-p/551580658536717501828021060147962" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>OData blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/abap-blog-posts/how-to-consume-external-apis-in-s-4hana-private-cloud-edition-pce-2023-via/ba-p/14297278</id>
-    <title>How To Consume External APIs in S/4HANA Private Cloud Edition (PCE) 2023 via RAP Framework</title>
-    <updated>2026-01-08T14:08:04.222000+01:00</updated>
-    <author>
-      <name>shasankgupta024</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/877731</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Scenario:&lt;/STRONG&gt;&lt;BR /&gt;Suppose we need to expose images related to a "PickTicket" from an external system, making them available in SAP via a custom OData service.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Steps Overview&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;1. Create a Custom Entity CDS View&lt;BR /&gt;2. Create Service Definition&lt;BR /&gt;3. Create Service Binding&lt;BR /&gt;4. Implement ABAP Class to Consume the External API&lt;BR /&gt;5. Test the OData Service&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;1. Create a Custom Entity (CDS View)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Start by defining a **custom entity** to represent the data structure for the API response:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Custom Entity for Image Data'
-@ObjectModel: {
-query: {
-implementedBy: 'ABAP:ZCL_IMAGESET'
-}
-}
-define root custom entity ZCE_IMAGESET
-{
-key pickticketid : abap.char(20);
-key urlshortlivedthumbnail : abap.char(255);
-trigger_ : abap.char(20);
-source : abap.char(40);
-imageid : abap.char(20);
-urlthumbnail : abap.char(255);
-urlshortlived : abap.char(255);
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This entity acts as a **virtual view**—data retrieval is handled by an ABAP class (see `implementedBy` above).&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;2. Create a Service Definition&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Expose the custom entity in your service definition:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'zsd_imageset'
-define service Zsd_imageset {
-expose ZCE_IMAGESET;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;3. Create a Service Binding&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Next, create a **service binding**—for example, `ZSB_IMAGESET` for OData V4—which generates the OData endpoint for your application.&amp;nbsp;&lt;EM&gt;*Use the standard RAP tools in Eclipse or ADT to create this binding from the CDS service definition.*&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;4. Implement the ABAP Class to Handle API Call&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Define the ABAP class (`zcl_imageset`) to fetch and provide data from the external API.&lt;BR /&gt;Use the **RAP Query Provider Interface** (`if_rap_query_provider`) for custom data provisioning:&lt;/P&gt;&lt;P&gt;&lt;U&gt;Class Definition&lt;/U&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_imageset DEFINITION
-PUBLIC
-FINAL
-CREATE PUBLIC .
-
-PUBLIC SECTION.
-
-TYPES: BEGIN OF ty_imageset,
-trigger TYPE char20,
-pickticketid TYPE char20,
-source TYPE char40,
-imageid TYPE char20,
-urlthumbnail TYPE char255,
-urlshortlived TYPE char255,
-urlshortlivedthumbnail TYPE char255,
-END OF ty_imageset.
-
-TYPES: tt_imageset TYPE STANDARD TABLE OF ty_imageset WITH EMPTY KEY.
-
-INTERFACES if_rap_query_provider.
-PROTECTED SECTION.
-PRIVATE SECTION.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;U&gt;Class Implementation&lt;/U&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS ZCL_IMAGESET IMPLEMENTATION.
-
-METHOD if_rap_query_provider~select.
-
-DATA lt_images TYPE tt_imageset.
-DATA lv_pickticketid TYPE string.
-
-" Get filter (PickTicketId)
-
-DATA(lo_filter) = io_request-&amp;gt;get_filter( )-&amp;gt;get_as_sql_string( ).
-DATA(lv_offset) = io_request-&amp;gt;get_paging( )-&amp;gt;get_offset( ).
-DATA(lv_page_size) = io_request-&amp;gt;get_paging( )-&amp;gt;get_page_size( ).
-DATA(lv_max_rows) = COND #( WHEN lv_page_size = if_rap_query_paging=&amp;gt;page_size_unlimited THEN 0
-ELSE lv_page_size ).
-DATA(lt_sort_table) = VALUE string_table( FOR ls_sort_element IN io_request-&amp;gt;get_sort_elements( )
-( ls_sort_element-element_name &amp;amp;&amp;amp; COND #( WHEN ls_sort_element-descending = abap_true THEN ` descending` ELSE ` ascending` ) ) ).
-CONCATENATE 'PICKTICKETID ' 'SOURCE'
-INTO DATA(lv_default_sort) SEPARATED BY ',' .
-DATA(lv_sort_string) = COND #( WHEN lt_sort_table IS INITIAL THEN lv_default_sort
-ELSE concat_lines_of( table = lt_sort_table sep = ',' ) ).
-
-
-IF io_request IS BOUND.
-DATA(lt_expressions) = io_request-&amp;gt;get_filter( )-&amp;gt;get_as_ranges( ).
-
-
-LOOP AT lt_expressions INTO DATA(ls_expr).
-IF ls_expr-name = 'PICKTICKETID'.
-LOOP AT ls_expr-range INTO DATA(ls_range).
-IF ls_range-option = 'EQ'.
-lv_pickticketid = ls_range-low.
-EXIT.
-ENDIF.
-ENDLOOP.
-EXIT.
-ENDIF.
-ENDLOOP.
-
-ENDIF.
-
-" Build target URL for the external request
-DATA(lv_url) = |https://&amp;lt;external domain url&amp;gt;/pickTickets/{ lv_pickticketid }/images|.
-
-" Create HTTP client and set headers
-DATA lo_http_client TYPE REF TO if_http_client.
-cl_http_client=&amp;gt;create_by_url(
-EXPORTING url = lv_url
-IMPORTING client = lo_http_client
-).
-lo_http_client-&amp;gt;request-&amp;gt;set_header_field( name = 'client_id' value = '&amp;lt;your_client_id&amp;gt;' ).
-lo_http_client-&amp;gt;request-&amp;gt;set_header_field( name = 'client_secret' value = '&amp;lt;your_client_secret&amp;gt;' ).
-lo_http_client-&amp;gt;send( ).
-lo_http_client-&amp;gt;receive( ).
-DATA(lv_response) = lo_http_client-&amp;gt;response-&amp;gt;get_cdata( ).
-lo_http_client-&amp;gt;close( ).
-
-" Parse JSON response to ABAP table
-DATA(lo_json) = NEW /ui2/cl_json( ).
-lo_json-&amp;gt;deserialize(
-EXPORTING json = lv_response
-CHANGING data = lt_images
-).
-
-" Return the data
-io_response-&amp;gt;set_total_number_of_records( lines( lt_images ) ).
-io_response-&amp;gt;set_data( lt_images ).
-
-ENDMETHOD.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;U&gt;&lt;EM&gt;*Replace* `&amp;lt;external domain url&amp;gt;`, `&amp;lt;your_client_id&amp;gt;`, and `&amp;lt;your_client_secret&amp;gt;` *with real values.*&lt;/EM&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;5. Publish and Test Your OData Service&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Use `/IWFND/MAINT_SERVICE` or the service binding UI in Eclipse/ADT to publish your OData service.&lt;/LI&gt;&lt;LI&gt;Test the endpoint with a filter on `PickTicketId`:&lt;BR /&gt;Example:&amp;nbsp;&lt;SPAN&gt;/sap/opu/odata/sap/ZSB_IMAGESET/ZCE_IMAGESET?$filter= pickticketid eq '123456'&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;Key Takeaways&lt;/STRONG&gt;&lt;/U&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Custom Entities in RAP allow you to virtualize data from external sources as standard OData.&lt;/LI&gt;&lt;LI&gt;You can leverage the **HTTP client functionalities** in ABAP to fetch data from any REST API.&lt;/LI&gt;&lt;LI&gt;RAP and ABAP Cloud stack are open for API-driven architectures.&lt;/LI&gt;&lt;LI&gt;Make sure to treat secrets and API credentials securely—avoid hardcoding in productive code.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;You now have a **custom OData service** in SAP S/4HANA PCE, powered by the RAP framework, which brings in dynamic data from an **external API**. You can enhance, secure, and extend this pattern for many integration use cases—be it analytics dashboards, mobile apps, or UI5/Fiori apps!&lt;/P&gt;&lt;P&gt;Let me know your feedback, or reach out for specific questions.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-blog-posts/how-to-consume-external-apis-in-s-4hana-private-cloud-edition-pce-2023-via/ba-p/14297278"/>
-    <published>2026-01-08T14:08:04.222000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/integration-blog-posts/sap-ecc-vs-s-4hana-integration-capabilities-a-practical-guide-for/ba-p/14306910</id>
     <title>SAP ECC vs S/4HANA Integration Capabilities: A Practical Guide for Integration Architects</title>
@@ -2111,5 +1990,17 @@ DELETE zakBasicSet(SupplierNumber='S0038') HTTP/1.1
 --batch--&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Abhi_0118_4-1776077399190.png" style="width: 820px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397073i9EE6832B7624CBA6/image-dimensions/820x281?v=v2" width="820" height="281" role="button" title="Abhi_0118_4-1776077399190.png" alt="Abhi_0118_4-1776077399190.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;Conclusion:&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Once the &lt;STRONG&gt;$batch request is received&lt;/STRONG&gt;, SAP Gateway identifies the &lt;STRONG&gt;changeset&lt;/STRONG&gt; and starts processing it as a single &lt;STRONG&gt;transaction (LUW)&lt;/STRONG&gt;.&lt;/LI&gt;&lt;LI&gt;The framework then reads each operation inside the changeset and &lt;STRONG&gt;calls the respective method.&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;All operations inside the changeset are executed &lt;STRONG&gt;sequentially (one by one)&lt;/STRONG&gt; but within the &lt;STRONG&gt;same transaction context&lt;/STRONG&gt;.&lt;/LI&gt;&lt;LI&gt;The backend logic performs &lt;STRONG&gt;all related table deletions&lt;/STRONG&gt;, but no database commit happens immediately during execution.&lt;/LI&gt;&lt;LI&gt;After all operations are successfully completed, &lt;STRONG&gt;COMMIT WORK is triggered automatically&lt;/STRONG&gt;; if any operation fails, the &lt;STRONG&gt;entire changeset is rolled back&lt;/STRONG&gt;, ensuring no partial data is saved.&lt;/LI&gt;&lt;/OL&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/odata-batch-deleting-records-across-multiple-tables-in-single-transaction/ba-p/14372058"/>
     <published>2026-04-17T08:09:34.656000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/integration-blog-posts/automating-mpl-and-payload-retrieval-in-sap-integration-suite-for-enhanced/ba-p/14379418</id>
+    <title>Automating MPL and Payload Retrieval in SAP Integration Suite for Enhanced Monitoring</title>
+    <updated>2026-05-08T09:15:42.180000+02:00</updated>
+    <author>
+      <name>VenkatGiri_VG</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2073872</uri>
+    </author>
+    <content>&lt;P&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;Why we build this solution,&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;The primary objective is to design a centralized and automated Monitoring solution capable of dynamically retrieving MPL Logs, extracting payload attachment and provide a reusable framework for alerting through Mails or other channel for Integration support activities.&lt;/P&gt;&lt;P&gt;If there is a specific &lt;STRONG&gt;requirement&lt;/STRONG&gt; to identify the failed interfaces with &lt;STRONG&gt;Status Message&lt;/STRONG&gt;, its&amp;nbsp;&lt;STRONG&gt;Payloads&lt;/STRONG&gt; with the &lt;STRONG&gt;exact error information&lt;/STRONG&gt; across the Multiple packages within in the required&lt;STRONG&gt; Date and Time range.&lt;/STRONG&gt;&amp;nbsp;That required navigation through several monitoring. Now we can &lt;STRONG&gt;achieve&lt;/STRONG&gt; this without going to the Monitoring page.&lt;/P&gt;&lt;H3 id="toc-hId-1923432968"&gt;&lt;FONT face="tahoma,arial,helvetica,sans-serif" size="5"&gt;Introduction&lt;/FONT&gt;&lt;/H3&gt;&lt;P class=""&gt;&lt;FONT size="3"&gt;Monitoring and troubleshooting integration flows in SAP Integration Suite can become complex when dealing with multiple packages and interfaces. &lt;STRONG&gt;Accessing Message processing Logs (MPL)&lt;/STRONG&gt; and their &lt;STRONG&gt;Payload attachments&lt;/STRONG&gt; is essential for debugging, Auditing, and Reporting.&lt;/FONT&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;FONT size="3"&gt;This Blog demonstrates a fully Automated Approach to:&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="3"&gt;Fetch the MPL logs dynamically&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;Filter logs based on Time range and integration flow Name&amp;nbsp;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;Retrieve payload attachments &lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;Process and store Payload data&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1726919463"&gt;&lt;FONT size="3"&gt;&lt;STRONG&gt;Step 1: Create OAuth2 client Credentials&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/H3&gt;&lt;P&gt;&lt;FONT size="3"&gt;Navigate to&amp;nbsp;&lt;STRONG&gt;Monitor→ Integration and APIs→ Manage Security→ Security Material&amp;nbsp;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="3"&gt;create a new credential of type&lt;STRONG&gt; OAuth 2 client credentials&lt;BR /&gt;&lt;/STRONG&gt;Maintain: &lt;/FONT&gt;&lt;/P&gt;&lt;UL class="lia-list-style-type-circle"&gt;&lt;LI&gt;&lt;FONT size="3"&gt;Client Id&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;Client secret&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3"&gt;Token Service URL&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT size="3"&gt;OAuth2 client credentials to securely connect to the SAP APIs.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="3"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="VenkatGiri_VG_6-1776763086402.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400751i1C1F3F6F9A7EE2F0/image-size/medium?v=v2&amp;amp;px=400" role="button" title="VenkatGiri_VG_6-1776763086402.png" alt="VenkatGiri_VG_6-1776763086402.png" /&gt;&lt;/span&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H1 id="toc-hId-1272240520"&gt;&lt;FONT size="3"&gt;Step 2: Implementation in Sap Integration Suite&lt;/FONT&gt;&lt;/H1&gt;&lt;P&gt;&lt;FONT size="3"&gt;Design an Integration Flow by using a Timer Trigger and then configure all the necessary content Modifier, this is where we need to set the control filtering Parameters for MPL Logs.&amp;nbsp;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="I flow 1.jpg" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/402320i94AFCB9F3A069C03/image-size/medium?v=v2&amp;amp;px=400" role="button" title="I flow 1.jpg" alt="I flow 1.jpg" /&gt;&lt;/span&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1204809734"&gt;&lt;FONT size="4"&gt;Step 3: configure Http Receiver (MPL ODATA&amp;nbsp; API)&lt;/FONT&gt;&lt;/H2&gt;&lt;P&gt;&lt;FONT size="3"&gt;Configure HTTP Adapter:&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="3"&gt;&lt;STRONG&gt;Method&lt;/STRONG&gt;:&amp;nbsp; GET&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;URL&lt;/STRONG&gt;:&lt;/LI&gt;&lt;LI&gt;https://&amp;lt;tenant&amp;gt;/api/V1/MessageProcessingLogs&amp;nbsp;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Headers&lt;/STRONG&gt;: Accept: application/Json&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="API att.jpg" style="width: 990px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400843i6C07B33A71A605C3/image-size/large?v=v2&amp;amp;px=999" role="button" title="API att.jpg" alt="API att.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 4: Extract Message GUID&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Parse the MPL response which we get from the &lt;STRONG&gt;O DATA API&lt;/STRONG&gt; Call and extract the &lt;STRONG&gt;Message GUID (MPL_ID)&lt;/STRONG&gt; for the further processing.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="CM.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/400845iACEB56C2974BB370/image-size/large?v=v2&amp;amp;px=999" role="button" title="CM.jpg" alt="CM.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In the similar way we can configure the HTTP Adapter to call ODATA APIs to retrieve the attachments and its corresponding value.&amp;nbsp;&lt;/P&gt;&lt;P&gt;During the Implementation we were also able to extract the Failed Interfaces error Information for specific MPL ID and send the error logs for Monitoring.&amp;nbsp; Can be used for Error handling in the later stage of development.&lt;/P&gt;&lt;H3 id="toc-hId-1137378948"&gt;&amp;nbsp;&lt;/H3&gt;&lt;H3 id="toc-hId-940865443"&gt;&lt;STRONG&gt;Challenges faced during Implementation&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;One of the key challenges during the implementation was to handle the dynamic retrieval of payload attachment using SAP Integration OData APIs. Since the attachments, Metadata and the Payloads are retrieved through multiple APIs calls, designing the flow dynamically without hardcoded package name required careful handling of the MPL properties.&lt;/P&gt;&lt;P&gt;Another challenge we came across was managing the &lt;STRONG&gt;Namespace handling&lt;/STRONG&gt; and the Splitter configuration while processing the &lt;STRONG&gt;XML&lt;/STRONG&gt; response from APIs. Proper &lt;STRONG&gt;XPath handling &lt;/STRONG&gt;and &lt;STRONG&gt;dynamically routing logic&lt;/STRONG&gt; were essential to ensure the reliable payload extraction. And throughout the Designing and Execution of this particular Integration flow I have gained a deeper Learning and insight into SAP Integration suite Monitoring APIs and Dynamic I flow filtering.&lt;/P&gt;&lt;H1 id="toc-hId-486186500"&gt;&amp;nbsp;&lt;/H1&gt;&lt;H1 id="toc-hId-289672995"&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;&lt;SPAN&gt;Conclusion:&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/H1&gt;&lt;P&gt;This&amp;nbsp;Approach demonstrate how SAP Integration Suite Monitoring capabilities can be significantly Enhanced using automated MPL and payload retrieving mechanism to build a &lt;STRONG&gt;R&lt;SPAN&gt;&lt;STRONG&gt;obust&lt;/STRONG&gt; monitoring solution&lt;/SPAN&gt;&lt;/STRONG&gt;&amp;nbsp;in SAP Integration Suite, this can be further Enhanced to&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Integrate with Monitoring Dashboards&lt;/LI&gt;&lt;LI&gt;Automated&amp;nbsp;Alert Mechanism detection&lt;/LI&gt;&lt;LI&gt;Dynamically retrieves MPL logs&lt;/LI&gt;&lt;LI&gt;Fetches payload Attachments&lt;/LI&gt;&lt;LI&gt;Supports audit and Analytics&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This approach significantly improves &lt;STRONG&gt;&lt;SPAN&gt;visibility, automation, &lt;/SPAN&gt;&lt;/STRONG&gt;&lt;STRONG&gt;&lt;SPAN&gt;reduces downtime, and enhance operational efficiency&lt;/SPAN&gt;&lt;/STRONG&gt;&amp;nbsp;in enterprise integrations.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/integration-blog-posts/automating-mpl-and-payload-retrieval-in-sap-integration-suite-for-enhanced/ba-p/14379418"/>
+    <published>2026-05-08T09:15:42.180000+02:00</published>
   </entry>
 </feed>
