@@ -2,190 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2026-05-21T11:00:02.613027+00:00</updated>
+  <updated>2026-05-21T14:00:03.970113+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/cl-abap-parallel-parallel-processing-without-the-arfc-enable-function/ba-p/14387500</id>
-    <title>CL_ABAP_PARALLEL: Parallel Processing Without the aRFC Enable Function Modules</title>
-    <updated>2026-05-01T15:36:09.752000+02:00</updated>
-    <author>
-      <name>akmal1216</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/120805</uri>
-    </author>
-    <content>&lt;H3 id="toc-hId-1924297829"&gt;The Problem Every ABAP Developer Knows Too Well&lt;/H3&gt;&lt;P class=""&gt;You're running a year-end reconciliation report that loops through 80,000 vendor invoices, validates them against GL postings, and stamps each record with an approval status. In a test system with 500 entries it finishes in under a minute. In production it runs for four hours — and the business is calling.&lt;/P&gt;&lt;P class=""&gt;The knee-jerk fix most developers reach for is raw asynchronous RFC (aRFC): sprinkle &lt;CODE&gt;CALL FUNCTION … STARTING NEW TASK … DESTINATION IN GROUP&lt;/CODE&gt;, wire up callback handlers, manage semaphore flags, and pray that your RFC server group is configured correctly across all application servers. It works — eventually — but the resulting code is fragile, hard to test, and nearly impossible for the next developer to maintain without a war story attached.&lt;/P&gt;&lt;P class=""&gt;There is a better way: &lt;STRONG&gt;&lt;CODE&gt;CL_ABAP_PARALLEL&lt;/CODE&gt;&lt;/STRONG&gt;.&lt;/P&gt;&lt;H3 id="toc-hId-1727784324"&gt;What Is CL_ABAP_PARALLEL?&lt;/H3&gt;&lt;P class=""&gt;&lt;CODE&gt;CL_ABAP_PARALLEL&lt;/CODE&gt; is a standard SAP class (available from SAP Basis 7.54 and fully released in ABAP Cloud) that wraps the complexity of aRFC-based parallel dispatch behind a clean, object-oriented interface. Instead of orchestrating raw function module calls, RFC groups, and callback patterns yourself, you define &lt;EM&gt;what&lt;/EM&gt; each unit of work should do, hand the instances over to the framework, and let it handle the rest — process allocation, dispatching, timeout management, and result collection.&lt;/P&gt;&lt;P class=""&gt;Under the hood, the framework still uses &lt;CODE&gt;RS_ABAP_PARALLEL&lt;/CODE&gt; and the server dispatch class &lt;CODE&gt;CL_SSI_DISPATCH&lt;/CODE&gt;, so the performance characteristics are identical to hand-rolled aRFC. The difference is in developer experience and maintainability.&lt;/P&gt;&lt;H3 id="toc-hId-1531270819"&gt;Two Ways to Implement: Choose Your Pattern&lt;/H3&gt;&lt;P class=""&gt;SAP provides two distinct implementation strategies. Pick the one that fits your team's style and the complexity of your data contracts.&lt;/P&gt;&lt;H4 id="toc-hId-1463840033"&gt;Pattern 1 — Interface Implementation (&lt;CODE&gt;IF_ABAP_PARALLEL&lt;/CODE&gt;)&lt;/H4&gt;&lt;P class=""&gt;This is the &lt;STRONG&gt;recommended modern approach&lt;/STRONG&gt;, particularly for ABAP Cloud and clean-core projects. Your processing class implements the &lt;CODE&gt;IF_ABAP_PARALLEL&lt;/CODE&gt; interface and carries its own typed input data as instance attributes. No serialization gymnastics required.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;"---------------------------------------------------------------------
-" Step 1: Define the processing task class
-"---------------------------------------------------------------------
-CLASS zcl_invoice_validation_task DEFINITION
-  PUBLIC FINAL CREATE PUBLIC.
-
-  PUBLIC SECTION.
-    INTERFACES if_abap_parallel.
-    INTERFACES if_serializable_object.
-
-    TYPES: BEGIN OF ty_result,
-             invoice_id  TYPE vbeln,
-             is_valid    TYPE abap_bool,
-             error_msg   TYPE string,
-           END OF ty_result.
-
-    METHODS constructor
-      IMPORTING
-        is_invoice TYPE rbkp.           " MIRO invoice header
-
-    METHODS get_result
-      RETURNING VALUE(rs_result) TYPE ty_result.
-
-  PRIVATE SECTION.
-    DATA ms_invoice TYPE rbkp.
-    DATA ms_result  TYPE ty_result.
-ENDCLASS.
-
-CLASS zcl_invoice_validation_task IMPLEMENTATION.
-
-  METHOD constructor.
-    ms_invoice = is_invoice.
-  ENDMETHOD.
-
-  METHOD if_abap_parallel~do.
-    " All validation logic lives here — runs in a separate dialog WP
-    ms_result-invoice_id = ms_invoice-belnr.
-
-    " Example: Cross-check the invoice amount against the PO tolerance
-    DATA(lv_tolerance) = CONV dec15_5( '0.05' ).   " 5 % tolerance
-    DATA lv_po_net TYPE wrbtr.
-
-    SELECT SINGLE netwr INTO lv_po_net
-      FROM ekko
-      WHERE ebeln = ms_invoice-xblnr.  " vendor doc nr maps to PO
-
-    IF lv_po_net IS NOT INITIAL.
-      DATA(lv_deviation) = abs( ms_invoice-rwbtr - lv_po_net ) / lv_po_net.
-      IF lv_deviation &amp;lt;= lv_tolerance.
-        ms_result-is_valid = abap_true.
-      ELSE.
-        ms_result-is_valid  = abap_false.
-        ms_result-error_msg = |Deviation { lv_deviation * 100 } % exceeds tolerance|.
-      ENDIF.
-    ELSE.
-      ms_result-is_valid  = abap_false.
-      ms_result-error_msg = 'No matching purchase order found'.
-    ENDIF.
-  ENDMETHOD.
-
-  METHOD get_result.
-    rs_result = ms_result.
-  ENDMETHOD.
-
-ENDCLASS.
-
-
-"---------------------------------------------------------------------
-" Step 2: Orchestrate the parallel run from your main program / method
-"---------------------------------------------------------------------
-CLASS zcl_invoice_processor DEFINITION
-  PUBLIC FINAL CREATE PUBLIC.
-  PUBLIC SECTION.
-    CLASS-METHODS run_validation.
-ENDCLASS.
-
-CLASS zcl_invoice_processor IMPLEMENTATION.
-
-  METHOD run_validation.
-
-    " Fetch the raw invoice headers to validate
-    DATA lt_invoices TYPE TABLE OF rbkp.
-    SELECT * FROM rbkp
-      INTO TABLE &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1398638"&gt;@LT&lt;/a&gt;_invoices
-      WHERE bukrs = '1000'
-        AND bldat &amp;gt;= @( cl_abap_context_info=&amp;gt;get_system_date( ) - 30 ).
-
-    " Build one task object per invoice
-    DATA lt_tasks TYPE cl_abap_parallel=&amp;gt;t_in_inst_tab.
-    LOOP AT lt_invoices ASSIGNING FIELD-SYMBOL(&amp;lt;invoice&amp;gt;).
-      DATA(lo_task) = NEW zcl_invoice_validation_task( &amp;lt;invoice&amp;gt; ).
-      APPEND lo_task TO lt_tasks.
-    ENDLOOP.
-
-    " Instantiate the framework — use 40 % of available dialog processes
-    DATA(lo_parallel) = NEW cl_abap_parallel(
-      p_percentage = 40
-      p_timeout    = 300   " seconds per task
-    ).
-
-    " Fire!
-    DATA lt_results TYPE cl_abap_parallel=&amp;gt;t_out_inst_tab.
-    lo_parallel-&amp;gt;run_inst(
-      EXPORTING p_in_tab  = lt_tasks
-      IMPORTING p_out_tab = lt_results
-    ).
-
-    " Harvest results
-    LOOP AT lt_results ASSIGNING FIELD-SYMBOL(&amp;lt;res&amp;gt;).
-
-      " Check for framework-level errors first (timeouts, system failures)
-      IF &amp;lt;res&amp;gt;-message IS NOT INITIAL.
-        MESSAGE &amp;lt;res&amp;gt;-message TYPE 'W'.
-        CONTINUE.
-      ENDIF.
-
-      " Cast the generic reference back to our concrete task class
-      DATA(lo_finished_task) = CAST zcl_invoice_validation_task( &amp;lt;res&amp;gt;-instance ).
-      DATA(ls_val_result)    = lo_finished_task-&amp;gt;get_result( ).
-
-      IF ls_val_result-is_valid = abap_false.
-        " Write rejection log, trigger workflow, etc.
-        cl_demo_output=&amp;gt;write( |Invoice { ls_val_result-invoice_id }: { ls_val_result-error_msg }| ).
-      ENDIF.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The key advantage here is &lt;STRONG&gt;type safety&lt;/STRONG&gt;. Your invoice data lives in a properly typed class attribute (&lt;CODE&gt;ms_invoice TYPE rbkp&lt;/CODE&gt;) — no intermediate XSTRING packing or XML transformation. When you cast &lt;CODE&gt;&amp;lt;res&amp;gt;-instance&lt;/CODE&gt; back to &lt;CODE&gt;zcl_invoice_validation_task&lt;/CODE&gt;, you get full IntelliSense and compile-time checks in ADT.&lt;/P&gt;&lt;H4 id="toc-hId-1267326528"&gt;Pattern 2 — Inheritance from &lt;CODE&gt;CL_ABAP_PARALLEL&lt;/CODE&gt; (Classic Style)&lt;/H4&gt;&lt;P class=""&gt;In this variant your task class &lt;STRONG&gt;inherits&lt;/STRONG&gt; from &lt;CODE&gt;CL_ABAP_PARALLEL&lt;/CODE&gt; and redefines the &lt;CODE&gt;DO&lt;/CODE&gt; method. Input and output are exchanged via the inherited &lt;CODE&gt;P_IN&lt;/CODE&gt; / &lt;CODE&gt;P_OUT&lt;/CODE&gt; XSTRING parameters, which you serialize and deserialize yourself using &lt;CODE&gt;EXPORT … TO DATA BUFFER&lt;/CODE&gt; / &lt;CODE&gt;IMPORT … FROM DATA BUFFER&lt;/CODE&gt;.&lt;/P&gt;&lt;P class=""&gt;This pattern is occasionally useful when working on older Basis releases or when you need to carry a heterogeneous shared payload (&lt;CODE&gt;P_IN_ALL&lt;/CODE&gt;) across all tasks without repeating it for every record.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zcl_material_enrichment DEFINITION
-  PUBLIC INHERITING FROM cl_abap_parallel
-  FINAL CREATE PUBLIC.
-
-  PUBLIC SECTION.
-    METHODS do REDEFINITION.
-ENDCLASS.
-
-CLASS zcl_material_enrichment IMPLEMENTATION.
-  METHOD do.
-    " Deserialize per-task input
-    TYPES: BEGIN OF ty_input,
-             matnr TYPE matnr,
-             werks TYPE werks_d,
-           END OF ty_input.
-    DATA ls_input TYPE ty_input.
-    IMPORT task_data = ls_input FROM DATA BUFFER p_in.
-
-    " Do the heavy lifting — e.g. call an external pricing API
-    DATA lv_price TYPE p LENGTH 10 DECIMALS 2.
-    " ... your logic here ...
-
-    " Serialize the result back
-    TYPES: BEGIN OF ty_output,
-             matnr TYPE matnr,
-             price TYPE p LENGTH 10 DECIMALS 2,
-           END OF ty_output.
-    DATA ls_output TYPE ty_output.
-    ls_output-matnr = ls_input-matnr.
-    ls_output-price = lv_price.
-    EXPORT result_data = ls_output TO DATA BUFFER p_out.
-  ENDMETHOD.
-ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P class=""&gt;&lt;STRONG&gt;Practical tip:&lt;/STRONG&gt; Prefer Pattern 1 (interface) for all new development. Reserve Pattern 2 for legacy codebases where you need XSTRING-based data exchange with an existing framework or where shared read-only context (&lt;CODE&gt;P_IN_ALL&lt;/CODE&gt;) can meaningfully reduce payload size.&lt;/P&gt;&lt;H3 id="toc-hId-941730304"&gt;Constructor Parameters — What They Mean and How They Interact&lt;/H3&gt;&lt;P class=""&gt;One of the most common sources of confusion with &lt;CODE&gt;CL_ABAP_PARALLEL&lt;/CODE&gt; is the interplay between its four resource-control parameters. Here is a clear breakdown:&lt;/P&gt;&lt;DIV class=""&gt;Parameter Type Effect &lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;CODE&gt;P_PERCENTAGE&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;I&lt;/CODE&gt; (0–100)&lt;/TD&gt;&lt;TD&gt;Use &lt;EM&gt;X %&lt;/EM&gt; of the dialog processes that the system deems available at startup. &lt;STRONG&gt;Takes precedence over &lt;CODE&gt;P_NUM_TASKS&lt;/CODE&gt; if both are supplied.&lt;/STRONG&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;CODE&gt;P_NUM_TASKS&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;I&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;Request a fixed number of parallel slots. Ignored if &lt;CODE&gt;P_PERCENTAGE&lt;/CODE&gt; is also set or if the value exceeds the system maximum.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;CODE&gt;P_NUM_PROCESSES&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;I&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;Hard cap on the total simultaneous processes across all app servers. A safeguard against monopolizing the system.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;CODE&gt;P_TIMEOUT&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;I&lt;/CODE&gt; (seconds)&lt;/TD&gt;&lt;TD&gt;Maximum wall-clock time a single task may run before the framework marks it as failed and populates &lt;CODE&gt;&amp;lt;res&amp;gt;-message&lt;/CODE&gt;.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;CODE&gt;P_LOCAL_SERVER&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;Flag&lt;/TD&gt;&lt;TD&gt;When set, all tasks run on the same application server as the calling program. Useful for debugging; avoid in production.&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;H3 id="toc-hId-745216799"&gt;Error Handling You Cannot Ignore&lt;/H3&gt;&lt;P class=""&gt;Every entry in &lt;CODE&gt;p_out_tab&lt;/CODE&gt; (or &lt;CODE&gt;p_out_inst_tab&lt;/CODE&gt;) has a &lt;CODE&gt;MESSAGE&lt;/CODE&gt; field. &lt;STRONG&gt;This is not optional to check.&lt;/STRONG&gt; If a task times out, encounters a system failure, or the framework cannot dispatch it, the result record will have a non-initial &lt;CODE&gt;MESSAGE&lt;/CODE&gt; and a &lt;EM&gt;blank&lt;/EM&gt; result. Silently skipping that check means silently dropping data.&lt;/P&gt;&lt;/DIV&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;LOOP AT lt_results ASSIGNING FIELD-SYMBOL(&amp;lt;r&amp;gt;).
-  IF &amp;lt;r&amp;gt;-message IS NOT INITIAL.
-    " Log to application log (SLG1) instead of just writing to screen
-    cl_bali_log=&amp;gt;...   " or your preferred logging utility
-    CONTINUE.
-  ENDIF.
-  " ... process normal result ...
-ENDLOOP.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Additionally, wrap your entire &lt;CODE&gt;run_inst&lt;/CODE&gt; call in a &lt;CODE&gt;TRY … CATCH&lt;/CODE&gt; block for &lt;CODE&gt;cx_sy_parallel_processing&lt;/CODE&gt; to handle catastrophic dispatch failures gracefully.&lt;/P&gt;&lt;H3 id="toc-hId-548703294"&gt;Quick Comparison: Before and After&lt;/H3&gt;&lt;DIV class=""&gt;Aspect Raw aRFC Pattern CL_ABAP_PARALLEL &lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;Boilerplate&lt;/TD&gt;&lt;TD&gt;RFC function module + callback handler + semaphore flags&lt;/TD&gt;&lt;TD&gt;One class implementing &lt;CODE&gt;IF_ABAP_PARALLEL&lt;/CODE&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Type safety&lt;/TD&gt;&lt;TD&gt;EXPORT/IMPORT tables, generic&lt;/TD&gt;&lt;TD&gt;Typed class attributes (Pattern 1)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Error handling&lt;/TD&gt;&lt;TD&gt;Manual &lt;CODE&gt;SYSTEM-EXCEPTIONS&lt;/CODE&gt; per call&lt;/TD&gt;&lt;TD&gt;Built-in &lt;CODE&gt;MESSAGE&lt;/CODE&gt; field per result&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Testability&lt;/TD&gt;&lt;TD&gt;Difficult (requires RFC infrastructure)&lt;/TD&gt;&lt;TD&gt;Standard class — full unit-test coverage possible&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;ABAP Cloud compatible&lt;/TD&gt;&lt;TD&gt;No (aRFC not available in Cloud)&lt;/TD&gt;&lt;TD&gt;Yes (&lt;CODE&gt;CL_ABAP_PARALLEL&lt;/CODE&gt; is released)&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;/DIV&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-223107070"&gt;Closing Thoughts&lt;/H2&gt;&lt;P class=""&gt;&lt;CODE&gt;CL_ABAP_PARALLEL&lt;/CODE&gt; does not do anything fundamentally new — parallel dialog dispatch has been in ABAP for decades. What it does is remove all the ceremony that made developers avoid it. With the interface-based pattern, adding parallelism to an existing data-processing class is often a matter of implementing one interface, one constructor, and adjusting a handful of lines in the orchestrating method.&lt;/P&gt;&lt;P class=""&gt;If your team has been avoiding parallel processing because the old aRFC boilerplate felt too risky or too expensive to maintain, it is time to revisit that decision. Your business users — and the developers who come after you — will thank you.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/cl-abap-parallel-parallel-processing-without-the-arfc-enable-function/ba-p/14387500"/>
-    <published>2026-05-01T15:36:09.752000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/s-4hana-cds-view-dependency-navigator/ba-p/14386564</id>
     <title>S/4HANA CDS View Dependency Navigator</title>
@@ -1715,5 +1535,20 @@ appr_resp_config-&amp;gt;save( ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This code cre
 				CREATE …&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Read Access can be done using the underlying CDS of the BO in a SELECT statement.&lt;/P&gt;&lt;P&gt;See a good example for &lt;STRONG&gt;Purchase Order&lt;/STRONG&gt; &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/bo-interface-apis-an-alternative-to-bapis-and-traditional-fms/ba-p/14137359" target="_blank"&gt;here&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;You will find the released BOs in the already mentioned &lt;A href="https://sap.github.io/abap-atc-cr-cv-s4hc/?objectTypes=BDEF&amp;amp;states=released" target="_blank" rel="noopener nofollow noreferrer"&gt;&lt;STRONG&gt;Cloudification Repository&lt;/STRONG&gt;&lt;/A&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Very helpful because of the structure of the methods and the object as well as ABAP EML code snippets is the &lt;A href="https://api.sap.com/products/SAPS4HANACloudPrivateEdition/onstackextensibility/bointerface" target="_blank" rel="noopener noreferrer"&gt;&lt;STRONG&gt;Business Accelerator Hub&lt;/STRONG&gt;&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;A missing piece is the link from BAPI to RAP BO even it is obvious in many cases because the BAPI has the naming pattern BAPI_&amp;lt;BOR object&amp;gt;_&amp;lt;Method&amp;gt;. &amp;nbsp;The BOR object name is a semantic name (Business Partner) as is the RAP object name.&lt;/P&gt;&lt;P&gt;Nevertheless, it would be helpful that the successor information is added for the Classic APIs as well to the Coudification Repo as it is for many other not released objects.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1274030120"&gt;A small example: Bank Master&lt;/H1&gt;&lt;P&gt;The RAP BO for the Bank Master is described in the Business Accelerator Hub &lt;A href="https://api.sap.com/bointerface/PCE_I_BANKTP" target="_blank" rel="noopener noreferrer"&gt;here&lt;/A&gt;.&lt;/P&gt;&lt;P&gt;If we compare the Bank Master BAPIs (already being created some time ago in SAP ECC) with the new BO we get the following:&lt;/P&gt;&lt;TABLE border="1" width="75.08055853920516%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="25.02685284640172%"&gt;&lt;P&gt;&lt;STRONG&gt;BAPI (Level Classic APIs)&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="25.02685284640172%"&gt;&lt;P&gt;&lt;STRONG&gt;Corresponding BO replacement&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="25.02685284640172%"&gt;&lt;P&gt;&lt;STRONG&gt;Semantics&lt;/STRONG&gt;&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25.02685284640172%"&gt;&lt;P&gt;BAPI_BANK_CHANGE&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="25.02685284640172%"&gt;MODIFY ENTITIES OF i_banktp ENTITY bank UPDATE FIELDS …&lt;BR /&gt;MODIFY ENTITIES OF i_banktp ENTITY bankaddress UPDATE FIELDS&lt;/TD&gt;&lt;TD width="25.02685284640172%"&gt;Updates a Bank Master and its address&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25.02685284640172%"&gt;&lt;P&gt;BAPI_BANK_CREATE&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="25.02685284640172%"&gt;MODIFY ENTITIES OF i_banktp ENTITY bank CREATE FIELDS …&lt;BR /&gt;MODIFY ENTITIES OF i_banktp ENTITY bankaddress UPDATE FIELDS&lt;/TD&gt;&lt;TD width="25.02685284640172%"&gt;Creates a Bank Master and its address&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25.02685284640172%"&gt;&lt;P&gt;BAPI_BANK_GETDETAIL&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="25.02685284640172%"&gt;SELECT SINGLE FROM i_banktp FIELDS …&lt;/TD&gt;&lt;TD width="25.02685284640172%"&gt;Reads a single Bank Master record&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25.02685284640172%"&gt;&lt;P&gt;BAPI_BANK_GETLIST&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="25.02685284640172%"&gt;SELECT FROM i_banktp FIELDS …&lt;/TD&gt;&lt;TD width="25.02685284640172%"&gt;Reads several Bank Master records&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25.02685284640172%"&gt;&lt;P&gt;BAPI_BANK_SAVEREPLICA&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="25.02685284640172%"&gt;MODIFY ENTITIES OF i_banktp ENTITY bank UPDATE FIELDS … MODIFY ENTITIES OF i_banktp ENTITY bankaddress UPDATE FIELDS&lt;/TD&gt;&lt;TD width="25.02685284640172%"&gt;Updates/ or Creates a Bank Master and its address&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25.02685284640172%"&gt;&lt;P&gt;&lt;FONT color="#FF0000"&gt;&amp;lt;! No BAPI exists !&amp;gt;&lt;/FONT&gt;&lt;/P&gt;&lt;/TD&gt;&lt;TD width="25.02685284640172%"&gt;MODIFY ENTITIES OF i_banktp ENTITY bankaddress CREATE BY \_bankscriptvariant … FIELDS ( … ) WITH VALUE #( … %target = VALUE #( ( addressrepresentationcode = … )) )&lt;/TD&gt;&lt;TD width="25.02685284640172%"&gt;Create an international address version (e.q. Chinese)&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;For the international address version no BAPI was ever created by SAP in the past but it is now part of the RAP BO.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1077516615"&gt;Summary: when is it necessary or recommended to move from Classic BAPIs to RAP BOs?&lt;/H1&gt;&lt;P&gt;In case you want to be &lt;STRONG&gt;SAP Public Cloud&lt;/STRONG&gt; ready, or you are already on Public Cloud where only Level A / released objects can be used you have no choice but to move to RAP BOs.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;For the &lt;STRONG&gt;SAP Private Cloud / On Premise&lt;/STRONG&gt; installations the old BAPIs of level B/ classic API will continue to run.&lt;/P&gt;&lt;P&gt;But there are some points to consider where a change from BAPI to BO is recommended:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The old BAPIs might not be enhanced further: If there is a &lt;STRONG&gt;new functionality&lt;/STRONG&gt; or a new data segment for the concerning application, it might &lt;STRONG&gt;not become part of the BAPI&lt;/STRONG&gt;. One example could be the draft enabling whose application progresses with each release in new S/4 Fiori applications and which is not supported in the BAPIs. Another more specific is the international address version in our Bank Master example above.&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;LI&gt;The &lt;STRONG&gt;validations&lt;/STRONG&gt; and checks in the BAPI might be &lt;STRONG&gt;not 100% equal&lt;/STRONG&gt; to the behaviour of the corresponding S/4HANA Fiori App: You might notice that the validations and checks of the RAP BO are developed newly and in parallel to the existing ones of the corresponding BAPI. You remember may be a similar situation in the past in ECC at the time when the BAPIs were introduced in parallel to an existing transaction and the error messages were slightly different …&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;New developments&lt;/STRONG&gt;: Here it is recommended using modern ABAP, modern technologies and thus RAP BOs and trying to stay on &lt;STRONG&gt;Level A&lt;/STRONG&gt; right from the beginning.&lt;BR /&gt;&lt;BR /&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;New possibilities&lt;/STRONG&gt;&lt;SPAN&gt; in S/4HANA: For some objects there were never BAPIs introduced or the “BAPI coverage” of the objects was never complete. There might now be RAP BOs for that.&lt;BR /&gt;&lt;/SPAN&gt;An example is &lt;A href="https://api.sap.com/bointerface/PCE_I_MEASUREMENTDOCUMENTTP_2" target="_blank" rel="noopener noreferrer"&gt;Measurement Document&lt;/A&gt;&amp;nbsp;&lt;SPAN&gt;where developers were forced to write a Batch Input for the underlying transaction IK11 in the past because there was no BAPI available.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/abap-development-under-the-clean-core-paradigm-from-bapis-to-bo-and-cds/ba-p/14397689"/>
     <published>2026-05-21T09:46:27.210000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/working-smarter-with-date-functions-in-sap-s-4hana-public-cloud-and-btp/ba-p/14401066</id>
+    <title>Working Smarter with Date Functions in SAP S/4HANA Public Cloud and BTP ABAP Environment (Steampunk)</title>
+    <updated>2026-05-21T15:19:05.375000+02:00</updated>
+    <author>
+      <name>murthy_v</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/343378</uri>
+    </author>
+    <content>&lt;H2 id="toc-hId-1816272734"&gt;Introduction&lt;/H2&gt;&lt;P class=""&gt;If you've ever hardcoded a date in a SELECT statement or asked a user to manually key in a date range every time they run a report, you'll appreciate what Date Functions bring to the table.&lt;/P&gt;&lt;P class=""&gt;Date Functions in SAP S/4HANA Public Cloud and the SAP BTP ABAP Environment (Steampunk) let you define &lt;STRONG&gt;dynamic, human-readable date definitions&lt;/STRONG&gt; — think &lt;CODE&gt;FirstDayOfCurrentMonth&lt;/CODE&gt;&amp;nbsp;or &lt;CODE&gt;LastDayOfCurrentYear&amp;nbsp;&lt;/CODE&gt;or &lt;CODE&gt;CURRENT_QUARTER&amp;nbsp;&lt;/CODE&gt;&amp;nbsp;or &lt;CODE&gt;Next30DaysFromToday or&lt;/CODE&gt;&lt;CODE&gt;TOMORROW&lt;/CODE&gt;, &lt;CODE&gt;CURRENT_QUARTER&lt;/CODE&gt;, or &lt;CODE&gt;LAST_FISCAL_YEAR&lt;/CODE&gt; — that automatically resolve to the correct calendar values at runtime. No hardcoding. No manual input. Just clean, reusable date logic that works across analytical queries, ABAP code, and CDS views.&lt;/P&gt;&lt;P class=""&gt;In this post, I'll walk through what Date Functions are, who uses them, and how developers and key users can leverage them across the stack.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1619759229"&gt;What Are Date Functions?&lt;/H2&gt;&lt;P class=""&gt;A Date Function is a named, dynamic date or date range definition. Instead of storing a fixed date, you define a rule — and the system calculates the actual value at runtime based on the current system date.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="murthy_v_1-1779365968791.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/412397iA9CEA46F01711EE5/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="murthy_v_1-1779365968791.png" alt="murthy_v_1-1779365968791.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId-1552328443"&gt;Supported Combinations&lt;/H3&gt;&lt;P class=""&gt;SAP supports three types of Date Function definitions:&lt;/P&gt;&lt;UL class=""&gt;&lt;LI&gt;&lt;STRONG&gt;Single Date&lt;/STRONG&gt; — A dynamic single-date definition. For example, a Date Function defined as &lt;CODE&gt;TOMORROW&lt;/CODE&gt; will always return the date for tomorrow. If today is 21st May 2026, the function returns 22nd May 2026 — automatically, every time.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Relative to Base Date Range&lt;/STRONG&gt; — A date range defined with an offset (days, weeks, months, quarters, or years) relative to a single dynamic base date.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Configured Range&lt;/STRONG&gt; — A date range with both a dynamic start date and a dynamic end date, giving full flexibility for complex time window definitions.&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;SAP has delivered &lt;STRONG&gt;more than 40 predefined Date Functions&lt;/STRONG&gt; out of the box, and the &lt;CODE&gt;Manage Date Functions&lt;/CODE&gt; app has been available to key users since &lt;STRONG&gt;2017&lt;/STRONG&gt;.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1226732219"&gt;The Three Personas — Who Uses Date Functions and How&lt;/H2&gt;&lt;P class=""&gt;Date Functions are designed to serve three distinct personas, each interacting with them differently.&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1159301433"&gt;1. Key User — Define and Manage&lt;/H3&gt;&lt;P class=""&gt;The &lt;STRONG&gt;Key User&lt;/STRONG&gt; is the starting point. Using the &lt;STRONG&gt;Manage Date Functions&lt;/STRONG&gt; application, key users can:&lt;/P&gt;&lt;UL class=""&gt;&lt;LI&gt;Browse and explore SAP's 40+ predefined Date Functions&lt;/LI&gt;&lt;LI&gt;Create &lt;STRONG&gt;custom Date Functions&lt;/STRONG&gt; tailored to their business calendar or reporting needs&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Simulate&lt;/STRONG&gt; the dynamic values a Date Function will return, before it goes live&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Transport&lt;/STRONG&gt; Date Functions from development through to quality and production systems&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;This is a no-code capability — no developer involvement needed to define or adjust Date Functions. It puts time-intelligence directly in the hands of functional consultants and power users.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="murthy_v_2-1779366010527.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/412398i1C2CB67FBA10460C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="murthy_v_2-1779366010527.png" alt="murthy_v_2-1779366010527.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-962787928"&gt;2. Developer — Use in CDS Views&lt;/H3&gt;&lt;P class=""&gt;The &lt;STRONG&gt;Developer&lt;/STRONG&gt; persona integrates Date Functions directly into CDS view source code.&lt;/P&gt;&lt;P class=""&gt;A developer can declare a &lt;STRONG&gt;Date Function parameter&lt;/STRONG&gt; in a CDS view with a default value. This makes the CDS view inherently time-aware — the date range it operates on is no longer hardcoded but driven by a named, maintainable definition.&lt;/P&gt;&lt;P class=""&gt;Key users can then further customise Date Function parameters through apps like &lt;STRONG&gt;Custom Analytical Queries&lt;/STRONG&gt;, without touching the underlying code.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="murthy_v_5-1779366415336.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/412401i23C39FB83DDD79C9/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="murthy_v_5-1779366415336.png" alt="murthy_v_5-1779366415336.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;P class=""&gt;&lt;STRONG&gt;Coming soon:&lt;/STRONG&gt; SAP is also working on enabling developers to define Date Functions directly within &lt;STRONG&gt;ABAP Development Tools (ADT)&lt;/STRONG&gt; — using the same development environment as CDS views, with a form-based UI and simulate/test capabilities built in. This is currently in progress (WIP) and subject to change, but it will further unify the developer experience.&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-766274423"&gt;3. Business User — Consume in Analytical Reports&lt;/H3&gt;&lt;P class=""&gt;The &lt;STRONG&gt;Business User&lt;/STRONG&gt; benefits from Date Functions through Analytical Reporting tools built on Date-Function-enabled CDS views.&lt;/P&gt;&lt;P class=""&gt;Instead of entering raw date values, users:&lt;/P&gt;&lt;UL class=""&gt;&lt;LI&gt;Select from a &lt;STRONG&gt;value help&lt;/STRONG&gt; showing all available Date Functions with their human-readable names&lt;/LI&gt;&lt;LI&gt;Easily &lt;STRONG&gt;toggle between different Date Functions&lt;/STRONG&gt; to shift the analysis window — for example, switching from &lt;CODE&gt;CURRENT_MONTH&lt;/CODE&gt; to &lt;CODE&gt;PREVIOUS_MONTH&lt;/CODE&gt; with a single selection&lt;/LI&gt;&lt;LI&gt;Get results that are always &lt;STRONG&gt;current and accurate&lt;/STRONG&gt;, because the date range resolves at query execution time&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;This dramatically simplifies the reporting experience and reduces the chance of user error when specifying time periods.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="murthy_v_4-1779366355140.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/412400i7FFC95C939256A13/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="murthy_v_4-1779366355140.png" alt="murthy_v_4-1779366355140.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-569760918"&gt;4. ABAP Developer — Consume via API&lt;/H3&gt;&lt;P class=""&gt;For developers who need to use dynamic date logic in ABAP programs, reports, or classes, Date Functions are accessible via a &lt;STRONG&gt;C1-released CDS view API&lt;/STRONG&gt;.&lt;/P&gt;&lt;P class=""&gt;This API returns the resolved dynamic date or date range for a given Date Function — which the developer can then use directly in &lt;CODE&gt;SELECT&lt;/CODE&gt; statements or any time-based processing logic.&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;" Example: Use the Date Function API to resolve a dynamic date range
+" and filter records within that time frame
+SELECT * FROM your_cds_view
+  WHERE posting_date BETWEEN &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1419942"&gt;@LV&lt;/a&gt;_start_date AND &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1419942"&gt;@LV&lt;/a&gt;_end_date.&lt;/code&gt;&lt;/pre&gt;&lt;P class=""&gt;The value help integration also works in ABAP contexts, making it easy to discover and reference available Date Functions programmatically.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="murthy_v_3-1779366322295.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/412399i7E36E2E36EA05122/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="murthy_v_3-1779366322295.png" alt="murthy_v_3-1779366322295.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;P class=""&gt;&lt;STRONG&gt;Coming soon:&lt;/STRONG&gt; SAP is also working on enabling developers to define Date Functions directly within &lt;STRONG&gt;ABAP Development Tools (ADT)&lt;/STRONG&gt; — using the same development environment as CDS views, with a form-based UI and simulate/test capabilities built in. This is currently in progress (WIP) and subject to change, but it will further unify the developer experience.&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;HR /&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-244164694"&gt;Why This Matters for Steampunk / BTP ABAP Cloud Environment&lt;/H2&gt;&lt;P class=""&gt;If you're building on the &lt;STRONG&gt;SAP BTP ABAP Environment (Steampunk)&lt;/STRONG&gt;, Date Functions are particularly valuable because:&lt;/P&gt;&lt;UL class=""&gt;&lt;LI&gt;They align with the &lt;STRONG&gt;clean core&lt;/STRONG&gt; philosophy — time logic lives in a maintainable, transportable definition rather than scattered across code&lt;/LI&gt;&lt;LI&gt;They support &lt;STRONG&gt;extensibility without modification&lt;/STRONG&gt; — key users can evolve date definitions independently of developer cycles&lt;/LI&gt;&lt;LI&gt;The CDS parameter approach keeps analytical views &lt;STRONG&gt;flexible and reusable&lt;/STRONG&gt; across multiple time horizons&lt;/LI&gt;&lt;LI&gt;The upcoming ADT integration will make Date Functions a first-class citizen of the developer toolchain, consistent with how other CDS artefacts are managed&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-47651189"&gt;Summary&lt;/H2&gt;&lt;DIV class=""&gt;Persona Tool Capability &lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;Key User&lt;/TD&gt;&lt;TD&gt;Manage Date Functions app&lt;/TD&gt;&lt;TD&gt;Define, simulate, and transport Date Functions&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Developer&lt;/TD&gt;&lt;TD&gt;CDS Views&lt;/TD&gt;&lt;TD&gt;Declare Date Function parameters with defaults&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Business User&lt;/TD&gt;&lt;TD&gt;Analytical Reports&lt;/TD&gt;&lt;TD&gt;Select Date Functions via value help at runtime&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;ABAP Developer&lt;/TD&gt;&lt;TD&gt;ABAP Development Tool Kit (ADT)&lt;/TD&gt;&lt;TD&gt;Resolve dynamic dates for use in ABAP logic (WIP)&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;P class=""&gt;&lt;STRONG&gt;Coming soon:&lt;/STRONG&gt; SAP is also working on enabling developers to define Date Functions directly within &lt;STRONG&gt;ABAP Development Tools (ADT)&lt;/STRONG&gt; — using the same development environment as CDS views, with a form-based UI and simulate/test capabilities built in. This is currently in progress (WIP) and subject to change, but it will further unify the developer experience.&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;HR /&gt;&lt;/DIV&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-198392041"&gt;ABAP Developer Define and Consume Custom Date Function in ADT (Development User)&lt;/H2&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="murthy_v_6-1779367607687.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/412402iD18F93B290997643/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="murthy_v_6-1779367607687.png" alt="murthy_v_6-1779367607687.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;High-Impact Use Cases&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Dynamic Financial Period Reporting&lt;/STRONG&gt;: Instead of hard-coding dates, developers can use the&amp;nbsp;PREVIOUSMONTH&amp;nbsp;or&amp;nbsp;Fiscal Year conversion&amp;nbsp;reuse functions. This allows an analytical dashboard to automatically adjust its data range based on the system's current date without any code changes.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;SLA and Deadline Tracking&lt;/STRONG&gt;: Partners can leverage standardized functions like&amp;nbsp;DATN_DAYS_BETWEEN&amp;nbsp;or&amp;nbsp;utcl_add_seconds&amp;nbsp;to calculate service level agreement (SLA) breaches or invoice due dates in real-time. This ensures that "Time to Resolve" calculations are identical whether they run on-stack in S/4HANA or side-by-side on BTP.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Time-Zone Aware Global Operations&lt;/STRONG&gt;: For apps serving users in different regions, reuse components like&amp;nbsp;abap_system_timezone&amp;nbsp;or&amp;nbsp;utcl_to_local&amp;nbsp;automatically handle daylight savings and regional conversions. This is critical for logistics or workforce management apps where a "Requested Delivery Date" must be accurately localized for warehouses worldwide.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Key Benefits of Adoption&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Zero-Downtime Upgrades&lt;/STRONG&gt;: Because these components are "Released APIs" (C1 contract), they are guaranteed to remain stable during automated SAP cloud upgrades.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Performance Optimization&lt;/STRONG&gt;: Date Functions is significantly faster than fetching data into the application layer for manual date math.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Reduced Development Maintenance&lt;/STRONG&gt;: By using Date Functions partners offload the maintenance.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1878536"&gt;&lt;SPAN&gt;&amp;nbsp;&lt;EM&gt;&lt;span class="lia-unicode-emoji" title=":backhand_index_pointing_right:"&gt;👉&lt;/span&gt; &lt;/EM&gt;&lt;FONT color="#FF0000"&gt;Please let us know if you have any busines case / functional usecase in which you would like to use the Custom Date Function in ABAP Development Tool Kit (ADT)&amp;nbsp;&lt;/FONT&gt;&lt;/SPAN&gt;&lt;/H2&gt;&lt;H2 id="toc-hId--194634969"&gt;&lt;SPAN&gt;&lt;EM&gt;&lt;span class="lia-unicode-emoji" title=":backhand_index_pointing_right:"&gt;👉&lt;/span&gt;&amp;nbsp;&lt;/EM&gt;&lt;/SPAN&gt;&lt;SPAN&gt;&lt;FONT color="#FF0000"&gt;&lt;EM&gt;Drop your experience or questions in the comments — always happy to discuss!&lt;/EM&gt;&lt;/FONT&gt;&lt;/SPAN&gt;&lt;/H2&gt;&lt;H2 id="toc-hId--391148474"&gt;&lt;SPAN&gt;&lt;EM&gt;&lt;span class="lia-unicode-emoji" title=":backhand_index_pointing_right:"&gt;👉&lt;/span&gt;reach out to &lt;A href="mailto:murthy.v@sap.com" target="_blank" rel="noopener nofollow noreferrer"&gt;murthy.v@sap.com&lt;/A&gt;&amp;nbsp;&lt;A href="mailto:achim.clemens@sap.com" target="_blank" rel="noopener nofollow noreferrer"&gt;achim.clemens@sap.com&lt;/A&gt;&amp;nbsp;&lt;A href="mailto:nitin.padmanabhan@sap.com" target="_blank" rel="noopener nofollow noreferrer"&gt;nitin.padmanabhan@sap.com&lt;/A&gt;&amp;nbsp;&lt;A href="mailto:ashwin.k.s@sap.com" target="_blank" rel="noopener nofollow noreferrer"&gt;ashwin.k.s@sap.com&lt;/A&gt;&amp;nbsp;&lt;/EM&gt;&lt;/SPAN&gt;&lt;/H2&gt;&lt;HR /&gt;&lt;P class=""&gt;&lt;EM&gt;&lt;span class="lia-unicode-emoji" title=":backhand_index_pointing_right:"&gt;👉&lt;/span&gt;Have you used Date Functions in your projects? Drop your experience or questions in the comments — always happy to discuss!&lt;/EM&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/working-smarter-with-date-functions-in-sap-s-4hana-public-cloud-and-btp/ba-p/14401066"/>
+    <published>2026-05-21T15:19:05.375000+02:00</published>
   </entry>
 </feed>
