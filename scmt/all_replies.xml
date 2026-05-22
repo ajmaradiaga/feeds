@@ -2,22 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2026-05-22T17:29:01.381173+00:00</updated>
+  <updated>2026-05-22T17:44:01.418575+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/sap-learning-q-a/can-not-complete-quiz-of-the-learning-journey-putting-ai-ethics-into/qaa-p/14401905#M20555</id>
-    <title>Re: Can not complete quiz of the learning journey 'Puttin...</title>
-    <updated>2026-05-22T14:12:55.878000+02:00</updated>
-    <author>
-      <name>Humaid_-22</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2304622</uri>
-    </author>
-    <content>Struggling with this as well, is there a solution for this?</content>
-    <link href="https://community.sap.com/t5/sap-learning-q-a/can-not-complete-quiz-of-the-learning-journey-putting-ai-ethics-into/qaa-p/14401905#M20555"/>
-    <published>2026-05-22T14:12:55.878000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/sap-university-alliances-program-blog-posts/celebrate-your-sap-academic-community-conference-experience-earn-your/bc-p/14401908#M250</id>
     <title>Re: Celebrate Your SAP Academic Community Conference experience: Earn Your Exclusive Conference Badg</title>
@@ -1655,5 +1643,687 @@ lot of governance problems in your company.&lt;/code&gt;&lt;/pre&gt;&lt;HR /&gt;
     <content>&lt;DIV&gt;It was a great experience to volunteer at SAP ACC LAC, especially at the beginning of my SAP journey. I hope to be part of more events like this and continue enjoying great moments with such kind and dedicated people who inspire me. Thank you all!&lt;/DIV&gt;</content>
     <link href="https://community.sap.com/t5/sap-university-alliances-program-blog-posts/celebrate-your-sap-academic-community-conference-experience-earn-your/bc-p/14402192#M252"/>
     <published>2026-05-22T19:12:46.429000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/automating-sap-hana-system-replication-on-aws-with-terraform-and-ansible/ba-p/14401977</id>
+    <title>Automating SAP HANA System Replication on AWS with Terraform and Ansible</title>
+    <updated>2026-05-22T19:34:31.949000+02:00</updated>
+    <author>
+      <name>neilaspin</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/167493</uri>
+    </author>
+    <content>&lt;H1 id="toc-hId-1687198696"&gt;Automating SAP HANA System Replication on AWS with Terraform and Ansible&lt;/H1&gt;&lt;H2 id="toc-hId-1619767910"&gt;Introduction&lt;/H2&gt;&lt;P&gt;This is a follow-up to my earlier post on deploying SAP HANA 2.0 on AWS with Terraform and Ansible. That covered a single-node installation.&lt;/P&gt;&lt;P&gt;SAP HANA System Replication (HSR) paid my mortgage for about 12 / 13 years, but I don't get to play with it much anymore, which is a shame. This post automates the whole setup — two EC2 instances in separate availability zones, HANA installed on both, HSR configured end to end with no manual steps.&lt;/P&gt;&lt;P&gt;I might follow it up with a blog about HA, but I don't believe that Pacemaker / STONITH is fit for purpose. On nearly every project that I've worked on that had Pacemaker, we ended up tearing it out in favour of manual HSR with manual failover. We'll see.&lt;/P&gt;&lt;P&gt;Everything here was built and tested live. The gotchas section reflects what actually broke, not theoretical edge cases.&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; Same sandbox sizing as the previous post — r5.xlarge, 100GB root volume. Not for production. Run proper sizing before you go anywhere near a productive landscape.&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1423254405"&gt;Architecture&lt;/H2&gt;&lt;PRE&gt;&lt;CODE&gt;Local machine
+    ├── Terraform  → VPC, two subnets (AZ-a, AZ-b), IGW, Route 53 private zone
+    │               two EC2 instances, IAM role for S3 access
+    │
+    └── Ansible    → hana-install.yml  (runs on both nodes in parallel)
+                     hsr-setup.yml    (primary first, then secondary, then verify)
+
+AWS VPC (10.0.0.0/16)
+    ├── Subnet 10.0.1.0/24 (us-east-2a)  →  hana-primary   (r5.xlarge)
+    └── Subnet 10.0.2.0/24 (us-east-2b)  →  hana-secondary (r5.xlarge)
+
+Replication: SYNCMEM, logreplay mode&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;The security group allows all inbound traffic within the VPC (10.0.0.0/16) so HSR can communicate freely between nodes. HANA System Replication uses ports in the 4000x and 5432x ranges depending on instance number — rather than enumerate them, open the VPC CIDR internally and restrict SSH at the perimeter.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1226740900"&gt;Project Layout&lt;/H2&gt;&lt;PRE&gt;&lt;CODE&gt;ansible_hsr/
+├── terraform/
+│   ├── providers.tf
+│   ├── variables.tf
+│   ├── main.tf
+│   └── outputs.tf
+├── ansible/
+│   ├── inventory.ini
+│   ├── hana-install.yml
+│   ├── hsr-setup.yml
+│   └── templates/
+│       └── hana_install.cfg.j2
+└── generate_inventory.sh&lt;/CODE&gt;&lt;/PRE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1030227395"&gt;Step 1 — Terraform&lt;/H2&gt;&lt;H3 id="toc-hId-962796609"&gt;What it provisions&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;VPC with DNS support and hostnames enabled (required for HANA internal resolution)&lt;/LI&gt;&lt;LI&gt;Two subnets in separate AZs for HA placement&lt;/LI&gt;&lt;LI&gt;Internet gateway and route table&lt;/LI&gt;&lt;LI&gt;Route 53 private hosted zone (hana.internal) with A records for both nodes&lt;/LI&gt;&lt;LI&gt;IAM role + policy granting S3 read access to the HANA media bucket — no credentials on the instances&lt;/LI&gt;&lt;LI&gt;Security group: SSH from anywhere, all internal VPC traffic, all egress&lt;/LI&gt;&lt;LI&gt;Two EC2 instances: r5.xlarge, SUSE SLES for SAP 15 SP5 PAYG AMI, 100GB gp3&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;variables.tf&lt;/STRONG&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;variable "aws_region" {
+  default = "us-east-2"
+}
+
+variable "key_pair_name" {
+  default = "&amp;lt;your-key-pair-name&amp;gt;"
+}
+
+variable "hana_media_bucket" {
+  default = "&amp;lt;your-s3-bucket-name&amp;gt;"
+}
+
+variable "private_zone_name" {
+  default = "hana.internal"
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;main.tf (abbreviated — key sections)&lt;/STRONG&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;locals {
+  sles_sap_ami = "ami-099afc29551c4b139"  # SUSE SLES for SAP 15 SP5 PAYG, us-east-2
+}
+
+resource "aws_vpc" "hana" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+}
+
+resource "aws_subnet" "primary" {
+  vpc_id            = aws_vpc.hana.id
+  cidr_block        = "10.0.1.0/24"
+  availability_zone = "${var.aws_region}a"
+}
+
+resource "aws_subnet" "secondary" {
+  vpc_id            = aws_vpc.hana.id
+  cidr_block        = "10.0.2.0/24"
+  availability_zone = "${var.aws_region}b"
+}
+
+resource "aws_security_group" "hana" {
+  vpc_id = aws_vpc.hana.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "All internal VPC traffic (HSR)"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "hana_primary" {
+  ami                         = local.sles_sap_ami
+  instance_type               = "r5.xlarge"
+  key_name                    = var.key_pair_name
+  subnet_id                   = aws_subnet.primary.id
+  vpc_security_group_ids      = [aws_security_group.hana.id]
+  iam_instance_profile        = aws_iam_instance_profile.hana_s3.name
+  associate_public_ip_address = true
+
+  root_block_device {
+    volume_type = "gp3"
+    volume_size = 100
+  }
+
+  tags = { Name = "hana-primary" }
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;outputs.tf&lt;/STRONG&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;output "primary_public_ip"    { value = aws_instance.hana_primary.public_ip }
+output "secondary_public_ip"  { value = aws_instance.hana_secondary.public_ip }
+output "primary_private_ip"   { value = aws_instance.hana_primary.private_ip }
+output "secondary_private_ip" { value = aws_instance.hana_secondary.private_ip }&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId-766283104"&gt;Run&lt;/H3&gt;&lt;PRE&gt;&lt;CODE&gt;cd terraform
+terraform init
+terraform apply -auto-approve&lt;/CODE&gt;&lt;/PRE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-440686880"&gt;Step 2 — Generate the Ansible Inventory&lt;/H2&gt;&lt;P&gt;After &lt;CODE&gt;terraform apply&lt;/CODE&gt;, run &lt;CODE&gt;generate_inventory.sh&lt;/CODE&gt; from the repo root. It reads the Terraform outputs, validates the IPs, constructs the primary's private hostname, and writes &lt;CODE&gt;ansible/inventory.ini&lt;/CODE&gt;.&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "$0")" &amp;amp;&amp;amp; pwd)"
+cd "$SCRIPT_DIR/terraform"
+
+PRIMARY_PUBLIC=$(terraform output -raw primary_public_ip 2&amp;gt;&amp;amp;1)
+SECONDARY_PUBLIC=$(terraform output -raw secondary_public_ip 2&amp;gt;&amp;amp;1)
+PRIMARY_PRIVATE=$(terraform output -raw primary_private_ip 2&amp;gt;&amp;amp;1)
+
+if [[ ! "$PRIMARY_PUBLIC" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ || \
+      ! "$SECONDARY_PUBLIC" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "ERROR: No valid IPs from Terraform — run terraform apply first"
+  exit 1
+fi
+
+PRIMARY_HOSTNAME="ip-$(echo "$PRIMARY_PRIVATE" | tr '.' '-')"
+
+cat &amp;gt; "$SCRIPT_DIR/ansible/inventory.ini" &amp;lt;&amp;lt;EOF
+[primary]
+hana-primary ansible_host=${PRIMARY_PUBLIC} ansible_user=ec2-user ansible_ssh_private_key_file=~/.ssh/HANA_DEP.pem
+
+[secondary]
+hana-secondary ansible_host=${SECONDARY_PUBLIC} ansible_user=ec2-user ansible_ssh_private_key_file=~/.ssh/HANA_DEP.pem
+
+[hana:children]
+primary
+secondary
+
+[hana:vars]
+ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=20'
+primary_private_hostname=${PRIMARY_HOSTNAME}
+EOF&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;The &lt;CODE&gt;primary_private_hostname&lt;/CODE&gt; variable is critical — see the gotchas section.&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;./generate_inventory.sh&lt;/CODE&gt;&lt;/PRE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-244173375"&gt;Step 3 — Install HANA on Both Nodes&lt;/H2&gt;&lt;P&gt;&lt;CODE&gt;hana-install.yml&lt;/CODE&gt; runs against &lt;CODE&gt;[hana]&lt;/CODE&gt; (both nodes in parallel). It handles all prerequisites — packages, kernel parameters, swap, ulimits, THP, saptune — downloads the HANA media from S3, and runs &lt;CODE&gt;hdblcm&lt;/CODE&gt; in silent/batch mode.&lt;/P&gt;&lt;P&gt;Key points:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The IAM instance profile gives each node S3 read access — AWS CLI uses it automatically, no credentials needed on the instance&lt;/LI&gt;&lt;LI&gt;&lt;CODE&gt;hdblcm&lt;/CODE&gt; is run with &lt;CODE&gt;async: 3600, poll: 30&lt;/CODE&gt; — installation takes 20–40 minutes and will time out a normal SSH connection&lt;/LI&gt;&lt;LI&gt;A &lt;CODE&gt;stat&lt;/CODE&gt; check prevents &lt;CODE&gt;hdblcm&lt;/CODE&gt; re-running if HANA is already installed&lt;/LI&gt;&lt;LI&gt;The backup directory &lt;CODE&gt;/hana/backup&lt;/CODE&gt; is chowned to &lt;CODE&gt;hdbadm:sapsys&lt;/CODE&gt; after &lt;CODE&gt;hdblcm&lt;/CODE&gt; runs — &lt;CODE&gt;hdbadm&lt;/CODE&gt; doesn't exist until HANA installs&lt;/LI&gt;&lt;/UL&gt;&lt;PRE&gt;&lt;CODE&gt;cd ansible
+ansible-playbook -i inventory.ini hana-install.yml&lt;/CODE&gt;&lt;/PRE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-47659870"&gt;Step 4 — Configure HSR&lt;/H2&gt;&lt;P&gt;&lt;CODE&gt;hsr-setup.yml&lt;/CODE&gt; is three plays:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;STRONG&gt;Primary&lt;/STRONG&gt; — take backups, enable HSR, copy PKI files to control node&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Secondary&lt;/STRONG&gt; — stop HANA, push PKI files, register with primary, start HANA&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Primary&lt;/STRONG&gt; — verify replication is ACTIVE&lt;/LI&gt;&lt;/OL&gt;&lt;PRE&gt;&lt;CODE&gt;ansible-playbook -i inventory.ini hsr-setup.yml&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;The full playbook is in the appendix. The gotchas below explain every decision in it.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-198400722"&gt;Gotchas&lt;/H2&gt;&lt;H3 id="toc-hId--291515790"&gt;1. HANA MDC requires backups of BOTH databases before sr_enable&lt;/H3&gt;&lt;P&gt;HANA 2.0 runs as Multi-Database Container (MDC) by default. There is a SYSTEMDB and one or more tenant databases (in this case HDB). &lt;CODE&gt;hdbnsutil -sr_enable&lt;/CODE&gt; will refuse to run unless both have a complete data backup:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;Backup has not yet been executed for database 'HDB'
+Primary needs initial data backup for system replication!&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;A SYSTEMDB backup alone is not enough. The playbook runs both explicitly:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;- name: Run SYSTEMDB backup
+  shell: |
+    su - hdbadm -c "
+      hdbsql -i 00 -d SYSTEMDB -u SYSTEM -p 'Hana1234!' \
+      \"BACKUP DATA USING FILE ('systemdb_backup')\"
+    "
+  changed_when: true
+
+- name: Run tenant database backup
+  shell: |
+    su - hdbadm -c "
+      hdbsql -i 00 -d HDB -u SYSTEM -p 'Hana1234!' \
+      \"BACKUP DATA USING FILE ('tenant_backup')\"
+    "
+  changed_when: true&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Then waits for each to appear in the backup catalog before proceeding:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;- name: Wait for SYSTEMDB backup in catalog
+  shell: |
+    su - hdbadm -c "
+      hdbsql -i 00 -d SYSTEMDB -u SYSTEM -p 'Hana1234!' \
+      \"SELECT COUNT(*) FROM SYS.M_BACKUP_CATALOG
+        WHERE ENTRY_TYPE_NAME='complete data backup'
+        AND STATE_NAME='successful'\"
+    "
+  register: systemdb_backup_catalog
+  until: (systemdb_backup_catalog.stdout | regex_search('[1-9][0-9]*')) is not none
+  retries: 20
+  delay: 15
+  changed_when: false&lt;/CODE&gt;&lt;/PRE&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;&lt;STRONG&gt;Gotcha:&lt;/STRONG&gt; &lt;CODE&gt;regex_search()&lt;/CODE&gt; in Ansible returns a string (the match) or None — not a boolean. Using it bare in &lt;CODE&gt;until:&lt;/CODE&gt; raises a "Conditional result was derived from value of type str" error. The &lt;CODE&gt;is not none&lt;/CODE&gt; cast makes it a proper boolean.&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;H3 id="toc-hId--488029295"&gt;2. PKI files are at a specific path — not where you might look&lt;/H3&gt;&lt;P&gt;HANA HSR uses PKI/SSFS files to authenticate replication between nodes. These must be copied from the primary to the secondary so both nodes trust each other. The files are:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;/usr/sap/HDB/SYS/global/security/rsecssfs/data/SSFS_HDB.DAT
+/usr/sap/HDB/SYS/global/security/rsecssfs/key/SSFS_HDB.KEY&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;The playbook copies them to &lt;CODE&gt;/tmp&lt;/CODE&gt; on the primary, fetches them to the control node with Ansible's &lt;CODE&gt;fetch&lt;/CODE&gt; module, then pushes them to the secondary with &lt;CODE&gt;copy&lt;/CODE&gt;:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;- name: Copy PKI files to tmp
+  shell: |
+    cp /usr/sap/HDB/SYS/global/security/rsecssfs/data/SSFS_HDB.DAT /tmp/SSFS_HDB.DAT
+    cp /usr/sap/HDB/SYS/global/security/rsecssfs/key/SSFS_HDB.KEY /tmp/SSFS_HDB.KEY
+    chmod 644 /tmp/SSFS_HDB.DAT /tmp/SSFS_HDB.KEY
+  changed_when: true
+
+- name: Fetch PKI DAT to control node
+  fetch:
+    src: "/tmp/SSFS_HDB.DAT"
+    dest: "/tmp/SSFS_HDB.DAT"
+    flat: true&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;On the secondary:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;- name: Push PKI DAT file to secondary
+  copy:
+    src: "/tmp/SSFS_HDB.DAT"
+    dest: "/usr/sap/HDB/SYS/global/security/rsecssfs/data/SSFS_HDB.DAT"
+    owner: hdbadm
+    group: sapsys
+    mode: "0600"&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId--684542800"&gt;3. Use the EC2 private hostname, not Route 53&lt;/H3&gt;&lt;P&gt;When registering the secondary with the primary, &lt;CODE&gt;hdbnsutil -sr_register --remoteHost=&lt;/CODE&gt; must match the hostname that HANA itself registered under. HANA on AWS registers using the EC2 internal hostname, which is always derived from the private IP:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;10.0.1.154  →  ip-10-0-1-154&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Route 53 names like &lt;CODE&gt;hana-primary.hana.internal&lt;/CODE&gt; will not match and the registration will fail with an SSL/PKI error that looks like a certificate problem but is actually a hostname mismatch.&lt;/P&gt;&lt;P&gt;&lt;CODE&gt;generate_inventory.sh&lt;/CODE&gt; constructs the correct hostname from the Terraform private IP output and writes it to &lt;CODE&gt;[hana:vars]&lt;/CODE&gt; in &lt;CODE&gt;inventory.ini&lt;/CODE&gt;:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;PRIMARY_HOSTNAME="ip-$(echo "$PRIMARY_PRIVATE" | tr '.' '-')"&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;The secondary play reads it as &lt;CODE&gt;{{ primary_private_hostname }}&lt;/CODE&gt; — no hardcoding.&lt;/P&gt;&lt;H3 id="toc-hId--881056305"&gt;4. hdbadm doesn't exist until HANA installs&lt;/H3&gt;&lt;P&gt;The first time &lt;CODE&gt;hana-install.yml&lt;/CODE&gt; runs, &lt;CODE&gt;hdbadm&lt;/CODE&gt; and the &lt;CODE&gt;sapsys&lt;/CODE&gt; group don't exist yet — they're created by &lt;CODE&gt;hdblcm&lt;/CODE&gt;. Any task that references them (like setting ownership on &lt;CODE&gt;/hana/backup&lt;/CODE&gt;) must run after the &lt;CODE&gt;hdblcm&lt;/CODE&gt; task, not before.&lt;/P&gt;&lt;H3 id="toc-hId--1077569810"&gt;5. Variables don't cross plays&lt;/H3&gt;&lt;P&gt;Ansible plays are isolated. A variable set in the primary play is not available in the secondary play. This is why &lt;CODE&gt;primary_private_hostname&lt;/CODE&gt; is in &lt;CODE&gt;inventory.ini&lt;/CODE&gt; under &lt;CODE&gt;[hana:vars]&lt;/CODE&gt; rather than set in the primary play and referenced later. Inventory group vars are available to all hosts in all plays.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId--980680308"&gt;Verifying Replication&lt;/H2&gt;&lt;P&gt;Once the playbook completes, SSH to the primary and run:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;ssh -i ~/.ssh/&amp;lt;your-key-pair-name&amp;gt;.pem ec2-user@&amp;lt;primary-public-ip&amp;gt;
+sudo su - hdbadm
+python3 /usr/sap/HDB/HDB00/exe/python_support/systemReplicationStatus.py&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;A healthy output looks like:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;|Database |Host          |Port  |Service Name |Site ID |Site Name |Secondary     |Replication |Status |Fully Synced |
+|SYSTEMDB |ip-10-0-1-154 |30001 |nameserver   |      1 |SITE1     |ip-10-0-2-150 |SYNCMEM     |ACTIVE |        True |
+|HDB      |ip-10-0-1-154 |30007 |xsengine     |      1 |SITE1     |ip-10-0-2-150 |SYNCMEM     |ACTIVE |        True |
+|HDB      |ip-10-0-1-154 |30003 |indexserver  |      1 |SITE1     |ip-10-0-2-150 |SYNCMEM     |ACTIVE |        True |
+
+overall system replication status: ACTIVE&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;All three services — nameserver, xsengine, indexserver — must show ACTIVE and Fully Synced: True.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId--1177193813"&gt;Tear Down&lt;/H2&gt;&lt;PRE&gt;&lt;CODE&gt;cd terraform
+terraform destroy -auto-approve&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;The S3 bucket and HANA media are unmanaged by Terraform and persist between runs — you only pay S3 storage rates between deployments.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId--1373707318"&gt;Key Lessons&lt;/H2&gt;&lt;P&gt;Problem Root Cause Fix&lt;/P&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;sr_enable: backup not executed&lt;/TD&gt;&lt;TD&gt;MDC has SYSTEMDB + tenant — both need backups&lt;/TD&gt;&lt;TD&gt;Explicit backup task for each DB with catalog wait&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;sr_register: SSL/PKI error&lt;/TD&gt;&lt;TD&gt;Hostname mismatch — Route 53 name vs EC2 hostname&lt;/TD&gt;&lt;TD&gt;Use ip-&amp;lt;private-ip&amp;gt; format, derived from Terraform output&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;PKI copy failing&lt;/TD&gt;&lt;TD&gt;Wrong file path&lt;/TD&gt;&lt;TD&gt;Files are at /usr/sap/HDB/SYS/global/security/rsecssfs/&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;hdbadm not found&lt;/TD&gt;&lt;TD&gt;Running chown before hdblcm creates the user&lt;/TD&gt;&lt;TD&gt;Move ownership task to after hdblcm&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Backup catalog check error&lt;/TD&gt;&lt;TD&gt;regex_search() returns str not bool&lt;/TD&gt;&lt;TD&gt;Use is not none to cast to boolean&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;HANA re-installs on re-run&lt;/TD&gt;&lt;TD&gt;No idempotency check&lt;/TD&gt;&lt;TD&gt;stat check on hdbnsutil before running hdblcm&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId--1570220823"&gt;Appendix&lt;/H2&gt;&lt;H3 id="toc-hId--1891953644"&gt;a) hana-install.yml&lt;/H3&gt;&lt;PRE&gt;&lt;CODE&gt;---
+- name: SAP HANA prerequisites and installation
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    hana_sid: "HDB"
+    hana_instance: "00"
+    hana_master_pw: "&amp;lt;your-password&amp;gt;"
+    sapadm_password: "&amp;lt;your-password&amp;gt;"
+    lss_password: "&amp;lt;your-password&amp;gt;"
+    hana_s3_bucket: "&amp;lt;your-s3-bucket-name&amp;gt;"
+    hana_s3_prefix: "SAP_HANA_DATABASE/DATA_UNITS/HDB_SERVER_LINUX_X86_64"
+    hana_media_dir: "/hana/media"
+    hana_install_dir: "/hana/shared"
+    hana_data_dir: "/hana/data"
+    hana_log_dir: "/hana/log"
+    swap_size_mb: 20480
+
+  tasks:
+
+    - name: Confirm target is SUSE
+      fail:
+        msg: "This playbook requires SUSE Linux Enterprise Server. Got: {{ ansible_os_family }}"
+      when: ansible_os_family != 'Suse'
+
+    - name: Refresh zypper repositories
+      zypper_repository:
+        repo: '*'
+        runrefresh: true
+      ignore_errors: true
+
+    - name: Install required OS packages
+      zypper:
+        name:
+          - libaio1
+          - libaio-devel
+          - libltdl7
+          - libatomic1
+          - libnuma1
+          - numactl
+          - uuidd
+          - rsync
+          - lsof
+          - unzip
+          - xfsprogs
+          - glibc-i18ndata
+          - graphviz
+          - expect
+          - python3
+        state: present
+
+    - name: Enable and start uuidd
+      systemd:
+        name: uuidd
+        state: started
+        enabled: true
+
+    - name: Check existing swap
+      command: swapon --show=SIZE --noheadings --bytes
+      register: swap_check
+      changed_when: false
+      failed_when: false
+
+    - name: Create swapfile
+      command: dd if=/dev/zero of=/swapfile bs=1M count={{ swap_size_mb }}
+      when: swap_check.stdout == ""
+
+    - name: Set swapfile permissions
+      file:
+        path: /swapfile
+        mode: "0600"
+      when: swap_check.stdout == ""
+
+    - name: Format swapfile
+      command: mkswap /swapfile
+      when: swap_check.stdout == ""
+
+    - name: Activate swapfile
+      command: swapon /swapfile
+      when: swap_check.stdout == ""
+
+    - name: Persist swapfile in fstab
+      lineinfile:
+        path: /etc/fstab
+        line: "/swapfile swap swap defaults 0 0"
+        state: present
+
+    - name: Set kernel parameters for HANA
+      sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        sysctl_set: true
+        state: present
+        reload: true
+      loop:
+        - { key: "vm.max_map_count",            value: "2147483647" }
+        - { key: "kernel.sem",                   value: "1250 256000 100 8192" }
+        - { key: "net.core.somaxconn",           value: "4096" }
+        - { key: "net.ipv4.tcp_max_syn_backlog", value: "8192" }
+        - { key: "kernel.numa_balancing",        value: "0" }
+
+    - name: Set ulimits for SAP
+      copy:
+        dest: /etc/security/limits.d/99-sap.conf
+        mode: "0644"
+        content: |
+          @sapsys  soft  nofile  1048576
+          @sapsys  hard  nofile  1048576
+          @sapsys  soft  nproc   unlimited
+          @sapsys  hard  nproc   unlimited
+          @sdba    soft  nofile  1048576
+          @sdba    hard  nofile  1048576
+
+    - name: Disable THP at runtime
+      shell: |
+        echo never &amp;gt; /sys/kernel/mm/transparent_hugepage/enabled
+        echo never &amp;gt; /sys/kernel/mm/transparent_hugepage/defrag
+      changed_when: true
+
+    - name: Create systemd unit to disable THP on boot
+      copy:
+        dest: /etc/systemd/system/disable-thp.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Disable Transparent Huge Pages
+          After=network.target
+          [Service]
+          Type=oneshot
+          ExecStart=/bin/sh -c "echo never &amp;gt; /sys/kernel/mm/transparent_hugepage/enabled &amp;amp;&amp;amp; echo never &amp;gt; /sys/kernel/mm/transparent_hugepage/defrag"
+          RemainAfterExit=yes
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Enable disable-thp service
+      systemd:
+        name: disable-thp
+        enabled: true
+        daemon_reload: true
+
+    - name: Create HANA filesystem directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ hana_install_dir }}"
+        - "{{ hana_data_dir }}"
+        - "{{ hana_log_dir }}"
+        - "/hana/backup"
+
+    - name: Install saptune
+      zypper:
+        name: saptune
+        state: present
+      ignore_errors: true
+
+    - name: Apply SAP HANA tuning profile via saptune
+      command: saptune solution apply HANA
+      changed_when: true
+      ignore_errors: true
+
+    - name: Enable saptune daemon
+      systemd:
+        name: saptune
+        enabled: true
+        state: started
+      ignore_errors: true
+
+    - name: Check if aws cli is present
+      command: which aws
+      register: aws_cli_check
+      changed_when: false
+      failed_when: false
+
+    - name: Download and install AWS CLI v2
+      shell: |
+        curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+        unzip -q /tmp/awscliv2.zip -d /tmp/awscli-install
+        /tmp/awscli-install/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli --update
+        rm -rf /tmp/awscliv2.zip /tmp/awscli-install
+      when: aws_cli_check.rc != 0
+
+    - name: Sync HANA media from S3
+      command: &amp;gt;
+        aws s3 sync s3://{{ hana_s3_bucket }}/{{ hana_s3_prefix }}/ {{ hana_media_dir }}/
+        --no-progress
+      register: s3_sync
+      changed_when: "'download' in s3_sync.stdout"
+
+    - name: Find hdblcm installer
+      find:
+        paths: "{{ hana_media_dir }}"
+        patterns: "hdblcm"
+        recurse: true
+      register: hdblcm_find
+
+    - name: Fail if hdblcm not found
+      fail:
+        msg: "hdblcm not found under {{ hana_media_dir }} — check hana_s3_bucket and hana_s3_prefix"
+      when: hdblcm_find.files | length == 0
+
+    - name: Set hdblcm path fact
+      set_fact:
+        hdblcm_path: "{{ hdblcm_find.files[0].path }}"
+
+    - name: Make hdblcm executable
+      file:
+        path: "{{ hdblcm_path }}"
+        mode: "0755"
+
+    - name: Write hdblcm silent response file
+      template:
+        src: hana_install.cfg.j2
+        dest: /tmp/hana_install.cfg
+        mode: "0600"
+        force: true
+
+    - name: Move LSS media aside
+      command: mv {{ hana_media_dir }}/lss {{ hana_media_dir }}/lss_aside
+      args:
+        removes: "{{ hana_media_dir }}/lss"
+
+    - name: Make media directory fully executable
+      shell: chmod -R 755 {{ hana_media_dir }}
+      changed_when: true
+
+    - name: Check if HANA already installed
+      stat:
+        path: "/usr/sap/{{ hana_sid }}/HDB{{ hana_instance }}/exe/hdbnsutil"
+      register: hana_installed
+
+    - name: Run SAP HANA installation (hdblcm)
+      command: &amp;gt;
+        {{ hdblcm_path }} --batch --configfile=/tmp/hana_install.cfg
+      register: hdblcm_result
+      changed_when: true
+      async: 3600
+      poll: 30
+      when: not hana_installed.stat.exists
+
+    - name: Show hdblcm output
+      debug:
+        msg: "{{ hdblcm_result.stdout_lines | default(['HANA already installed, skipped']) }}"
+
+    - name: Set backup directory ownership for hdbadm
+      file:
+        path: /hana/backup
+        owner: hdbadm
+        group: sapsys
+        recurse: true
+
+    - name: Check HDB daemon is running
+      shell: |
+        su - {{ hana_sid | lower }}adm -c "HDB info" 2&amp;gt;&amp;amp;1 | grep -E "hdbdaemon|hdbnameserver"
+      register: hdb_info
+      changed_when: false
+      failed_when: hdb_info.rc != 0
+
+    - name: Confirm HANA installation complete
+      debug:
+        msg: &amp;gt;
+          SAP HANA {{ hana_sid }} instance {{ hana_instance }} installed successfully.
+          Connect: hdbsql -i {{ hana_instance }} -u SYSTEM -p &amp;lt;password&amp;gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;HR /&gt;&lt;H3 id="toc-hId--2088467149"&gt;b) hsr-setup.yml&lt;/H3&gt;&lt;PRE&gt;&lt;CODE&gt;---
+- name: Enable HSR on primary
+  hosts: primary
+  become: true
+  gather_facts: true
+
+  vars:
+    hana_sid: "HDB"
+    hana_instance: "00"
+    hana_master_pw: "&amp;lt;your-password&amp;gt;"
+    hsr_replication_mode: "syncmem"
+    hsr_operation_mode: "logreplay"
+    hsr_site_name_primary: "SITE1"
+
+  tasks:
+
+    - name: Run SYSTEMDB backup
+      shell: |
+        su - {{ hana_sid | lower }}adm -c "
+          hdbsql -i {{ hana_instance }} -d SYSTEMDB -u SYSTEM -p '{{ hana_master_pw }}' \
+          \"BACKUP DATA USING FILE ('systemdb_backup')\"
+        "
+      changed_when: true
+
+    - name: Run tenant database backup
+      shell: |
+        su - {{ hana_sid | lower }}adm -c "
+          hdbsql -i {{ hana_instance }} -d {{ hana_sid }} -u SYSTEM -p '{{ hana_master_pw }}' \
+          \"BACKUP DATA USING FILE ('tenant_backup')\"
+        "
+      changed_when: true
+
+    - name: Wait for SYSTEMDB backup in catalog
+      shell: |
+        su - {{ hana_sid | lower }}adm -c "
+          hdbsql -i {{ hana_instance }} -d SYSTEMDB -u SYSTEM -p '{{ hana_master_pw }}' \
+          \"SELECT COUNT(*) FROM SYS.M_BACKUP_CATALOG WHERE ENTRY_TYPE_NAME='complete data backup' AND STATE_NAME='successful'\"
+        "
+      register: systemdb_backup_catalog
+      until: (systemdb_backup_catalog.stdout | regex_search('[1-9][0-9]*')) is not none
+      retries: 20
+      delay: 15
+      changed_when: false
+
+    - name: Wait for tenant backup in catalog
+      shell: |
+        su - {{ hana_sid | lower }}adm -c "
+          hdbsql -i {{ hana_instance }} -d {{ hana_sid }} -u SYSTEM -p '{{ hana_master_pw }}' \
+          \"SELECT COUNT(*) FROM SYS.M_BACKUP_CATALOG WHERE ENTRY_TYPE_NAME='complete data backup' AND STATE_NAME='successful'\"
+        "
+      register: tenant_backup_catalog
+      until: (tenant_backup_catalog.stdout | regex_search('[1-9][0-9]*')) is not none
+      retries: 20
+      delay: 15
+      changed_when: false
+
+    - name: Check if HSR already enabled on primary
+      shell: |
+        su - {{ hana_sid | lower }}adm -c "hdbnsutil -sr_state"
+      register: sr_state_check
+      changed_when: false
+
+    - name: Enable system replication on primary
+      shell: |
+        su - {{ hana_sid | lower }}adm -c "
+          hdbnsutil -sr_enable --name={{ hsr_site_name_primary }}
+        "
+      changed_when: true
+      when: "'mode: primary' not in sr_state_check.stdout"
+      ignore_errors: true
+
+    - name: Confirm primary HSR state
+      shell: |
+        su - {{ hana_sid | lower }}adm -c "hdbnsutil -sr_state"
+      register: sr_state_primary
+      changed_when: false
+
+    - name: Show primary HSR state
+      debug:
+        msg: "{{ sr_state_primary.stdout_lines }}"
+
+    - name: Fail if primary not in HSR primary mode
+      fail:
+        msg: "Primary HSR enable failed"
+      when: "'mode: primary' not in sr_state_primary.stdout"
+
+    - name: Copy PKI files to tmp
+      shell: |
+        cp /usr/sap/{{ hana_sid }}/SYS/global/security/rsecssfs/data/SSFS_{{ hana_sid }}.DAT /tmp/SSFS_{{ hana_sid }}.DAT
+        cp /usr/sap/{{ hana_sid }}/SYS/global/security/rsecssfs/key/SSFS_{{ hana_sid }}.KEY /tmp/SSFS_{{ hana_sid }}.KEY
+        chmod 644 /tmp/SSFS_{{ hana_sid }}.DAT /tmp/SSFS_{{ hana_sid }}.KEY
+      changed_when: true
+
+    - name: Fetch PKI DAT to control node
+      fetch:
+        src: "/tmp/SSFS_{{ hana_sid }}.DAT"
+        dest: "/tmp/SSFS_{{ hana_sid }}.DAT"
+        flat: true
+
+    - name: Fetch PKI KEY to control node
+      fetch:
+        src: "/tmp/SSFS_{{ hana_sid }}.KEY"
+        dest: "/tmp/SSFS_{{ hana_sid }}.KEY"
+        flat: true
+
+- name: Stop HANA on secondary and push PKI files
+  hosts: secondary
+  become: true
+  gather_facts: true
+
+  vars:
+    hana_sid: "HDB"
+    hana_instance: "00"
+    hana_master_pw: "&amp;lt;your-password&amp;gt;"
+    hsr_replication_mode: "syncmem"
+    hsr_operation_mode: "logreplay"
+    hsr_site_name_secondary: "SITE2"
+
+  tasks:
+
+    - name: Stop HANA on secondary
+      shell: |
+        su - {{ hana_sid | lower }}adm -c "HDB stop"
+      changed_when: true
+
+    - name: Wait for HANA to fully stop
+      shell: |
+        su - {{ hana_sid | lower }}adm -c "HDB info" 2&amp;gt;&amp;amp;1 | grep -c hdbdaemon || true
+      register: stop_check
+      until: stop_check.stdout | int == 0
+      retries: 20
+      delay: 15
+      changed_when: false
+
+    - name: Push PKI DAT file to secondary
+      copy:
+        src: "/tmp/SSFS_{{ hana_sid }}.DAT"
+        dest: "/usr/sap/{{ hana_sid }}/SYS/global/security/rsecssfs/data/SSFS_{{ hana_sid }}.DAT"
+        owner: hdbadm
+        group: sapsys
+        mode: "0600"
+
+    - name: Push PKI KEY file to secondary
+      copy:
+        src: "/tmp/SSFS_{{ hana_sid }}.KEY"
+        dest: "/usr/sap/{{ hana_sid }}/SYS/global/security/rsecssfs/key/SSFS_{{ hana_sid }}.KEY"
+        owner: hdbadm
+        group: sapsys
+        mode: "0600"
+
+    - name: Register secondary with primary
+      shell: |
+        su - {{ hana_sid | lower }}adm -c "
+          hdbnsutil -sr_register \
+            --name={{ hsr_site_name_secondary }} \
+            --remoteHost={{ primary_private_hostname }} \
+            --remoteInstance={{ hana_instance }} \
+            --replicationMode={{ hsr_replication_mode }} \
+            --operationMode={{ hsr_operation_mode }}
+        "
+      register: sr_register
+      changed_when: true
+
+    - name: Show registration output
+      debug:
+        msg: "{{ sr_register.stdout_lines }}"
+
+    - name: Start HANA on secondary
+      shell: |
+        su - {{ hana_sid | lower }}adm -c "HDB start"
+      changed_when: true
+      async: 600
+      poll: 30
+
+- name: Verify replication state from primary
+  hosts: primary
+  become: true
+  gather_facts: false
+
+  vars:
+    hana_sid: "HDB"
+    hana_instance: "00"
+
+  tasks:
+
+    - name: Wait for secondary to connect
+      shell: |
+        su - {{ hana_sid | lower }}adm -c "
+          python3 /usr/sap/{{ hana_sid }}/{{ hana_sid }}{{ hana_instance }}/exe/python_support/systemReplicationStatus.py
+        " 2&amp;gt;&amp;amp;1 || true
+      register: hsr_status
+      until: "'ACTIVE' in hsr_status.stdout or 'SYNCING' in hsr_status.stdout"
+      retries: 20
+      delay: 15
+      changed_when: false
+
+    - name: Show replication status
+      debug:
+        msg: "{{ hsr_status.stdout_lines }}"
+
+    - name: Confirm replication is active
+      fail:
+        msg: "HSR did not reach ACTIVE or SYNCING state"
+      when: "'ACTIVE' not in hsr_status.stdout and 'SYNCING' not in hsr_status.stdout"
+
+    - name: Final replication status
+      shell: |
+        su - {{ hana_sid | lower }}adm -c "
+          python3 /usr/sap/{{ hana_sid }}/{{ hana_sid }}{{ hana_instance }}/exe/python_support/systemReplicationStatus.py
+        "
+      register: final_status
+      changed_when: false
+      ignore_errors: true
+
+    - name: Show final replication status
+      debug:
+        msg: "{{ final_status.stdout_lines }}"&lt;/CODE&gt;&amp;nbsp;&amp;nbsp;&lt;/PRE&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/automating-sap-hana-system-replication-on-aws-with-terraform-and-ansible/ba-p/14401977"/>
+    <published>2026-05-22T19:34:31.949000+02:00</published>
   </entry>
 </feed>
