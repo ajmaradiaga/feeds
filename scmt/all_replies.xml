@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2026-05-23T09:44:01.540215+00:00</updated>
+  <updated>2026-05-23T09:59:01.199116+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
@@ -1121,7 +1121,7 @@ lot of governance problems in your company.&lt;/code&gt;&lt;/pre&gt;&lt;HR /&gt;
       <name>neilaspin</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/167493</uri>
     </author>
-    <content>&lt;H2 id="toc-hId-1816281415"&gt;Introduction&lt;/H2&gt;&lt;P&gt;This is a follow-up to my earlier post on deploying SAP HANA 2.0 on AWS with Terraform and Ansible. That covered a single-node installation.&lt;/P&gt;&lt;P&gt;SAP HANA System Replication (HSR) paid my mortgage for about 12 / 13 years, but I don't get to play with it much anymore, which is a shame. This post automates the whole setup — two EC2 instances in separate availability zones, HANA installed on both, HSR configured end to end with no manual steps.&lt;/P&gt;&lt;P&gt;I might follow it up with a blog about HA, but I don't believe that Pacemaker / STONITH is fit for purpose. On nearly every project that I've worked on that had Pacemaker, we ended up tearing it out in favour of standard HSR with &lt;EM&gt;manual&lt;/EM&gt; failover. We'll see.&lt;/P&gt;&lt;P&gt;Everything here was built and tested live. The gotchas section reflects what actually broke, not theoretical edge cases.&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; Same sandbox sizing as the previous post — r5.xlarge, 100GB root volume. Not for production. Run proper sizing before you go anywhere near a productive landscape.&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1619767910"&gt;Architecture&lt;/H2&gt;&lt;PRE&gt;&lt;CODE&gt;Local machine
+    <content>&lt;H2 id="toc-hId-1816281415"&gt;Introduction&lt;/H2&gt;&lt;P&gt;This is a follow-up to my earlier post on deploying SAP HANA 2.0 on AWS with Terraform and Ansible. That covered a single-node installation.&lt;/P&gt;&lt;P&gt;SAP HANA System Replication (HSR) paid my mortgage for about 12 / 13 years, but I don't get to play with it much anymore, which is a shame. This post automates the whole setup — two EC2 instances in separate availability zones, HANA installed on both, HSR configured end to end with no manual steps.&lt;/P&gt;&lt;P&gt;I might follow it up with a blog about HA, but I don't believe that Pacemaker / STONITH is fit for purpose. On nearly every project that I've worked on that had Pacemaker, we ended up tearing it out in favour of standard HSR with &lt;EM&gt;manual&lt;/EM&gt; failover. We'll see.&lt;/P&gt;&lt;P&gt;Everything here was built and tested live. The gotchas section reflects what actually broke, not theoretical edge cases.&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;&lt;STRONG&gt;Note:&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;The HANA data (50GB), log (25GB) and shared (50GB) filesystems each have their own dedicated EBS volumes, so the root volume only needs to accommodate the OS and the HANA installation media (~15GB). 50GB is sufficient. Remember this is a sandbox. Use proper SAP Sizing tools for productive use.&lt;/SPAN&gt;&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1619767910"&gt;Architecture&lt;/H2&gt;&lt;PRE&gt;&lt;CODE&gt;Local machine
     ├── Terraform  → VPC, two subnets (AZ-a, AZ-b), IGW, Route 53 private zone
     │               two EC2 instances, IAM role for S3 access
     │
@@ -1158,44 +1158,57 @@ variable "hana_media_bucket" {
 
 variable "private_zone_name" {
   default = "hana.internal"
-}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;main.tf (abbreviated — key sections)&lt;/STRONG&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;locals {
-  sles_sap_ami = "ami-099afc29551c4b139"  # SUSE SLES for SAP 15 SP5 PAYG, us-east-2
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;main.tf&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;# SUSE SLES for SAP 15 SP5 PAYG (us-east-2)
+locals {
+  sles_sap_ami = "ami-099afc29551c4b139"
 }
 
-resource "aws_vpc" "hana" {
-  cidr_block           = "10.0.0.0/16"
-  enable_dns_support   = true
-  enable_dns_hostnames = true
+# IAM role so the instance can pull HANA media from S3
+resource "aws_iam_role" "hana_s3" {
+  name = "hana-s3-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
 }
 
-resource "aws_subnet" "primary" {
-  vpc_id            = aws_vpc.hana.id
-  cidr_block        = "10.0.1.0/24"
-  availability_zone = "${var.aws_region}a"
+resource "aws_iam_role_policy" "hana_s3" {
+  name = "hana-s3-read"
+  role = aws_iam_role.hana_s3.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:GetObject", "s3:ListBucket"]
+      Resource = [
+        "arn:aws:s3:::${var.hana_media_bucket}",
+        "arn:aws:s3:::${var.hana_media_bucket}/*"
+      ]
+    }]
+  })
 }
 
-resource "aws_subnet" "secondary" {
-  vpc_id            = aws_vpc.hana.id
-  cidr_block        = "10.0.2.0/24"
-  availability_zone = "${var.aws_region}b"
+resource "aws_iam_instance_profile" "hana_s3" {
+  name = "hana-s3-profile"
+  role = aws_iam_role.hana_s3.name
 }
 
-resource "aws_security_group" "hana" {
-  vpc_id = aws_vpc.hana.id
+resource "aws_security_group" "firewalld_test" {
+  name        = "firewalld-test-sg"
+  description = "SSH open - firewalld testing instance"
 
   ingress {
+    description = "SSH from anywhere"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "All internal VPC traffic (HSR)"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["10.0.0.0/16"]
   }
 
   egress {
@@ -1204,23 +1217,66 @@ resource "aws_security_group" "hana" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "firewalld-test-sg"
+  }
 }
 
-resource "aws_instance" "hana_primary" {
-  ami                         = local.sles_sap_ami
-  instance_type               = "r5.xlarge"
-  key_name                    = var.key_pair_name
-  subnet_id                   = aws_subnet.primary.id
-  vpc_security_group_ids      = [aws_security_group.hana.id]
-  iam_instance_profile        = aws_iam_instance_profile.hana_s3.name
-  associate_public_ip_address = true
+resource "aws_instance" "hana" {
+  ami                    = local.sles_sap_ami
+  instance_type          = "r5.xlarge"
+  key_name               = var.key_pair_name
+  vpc_security_group_ids = [aws_security_group.firewalld_test.id]
+  iam_instance_profile   = aws_iam_instance_profile.hana_s3.name
 
   root_block_device {
     volume_type = "gp3"
-    volume_size = 100
+    volume_size = 50
   }
 
-  tags = { Name = "hana-primary" }
+  tags = {
+    Name = "hana-server"
+  }
+}
+
+resource "aws_ebs_volume" "hana_data" {
+  availability_zone = aws_instance.hana.availability_zone
+  size              = 50
+  type              = "gp3"
+  tags              = { Name = "hana-data" }
+}
+
+resource "aws_ebs_volume" "hana_log" {
+  availability_zone = aws_instance.hana.availability_zone
+  size              = 25
+  type              = "gp3"
+  tags              = { Name = "hana-log" }
+}
+
+resource "aws_ebs_volume" "hana_shared" {
+  availability_zone = aws_instance.hana.availability_zone
+  size              = 50
+  type              = "gp3"
+  tags              = { Name = "hana-shared" }
+}
+
+resource "aws_volume_attachment" "hana_data" {
+  device_name = "/dev/sdf"
+  volume_id   = aws_ebs_volume.hana_data.id
+  instance_id = aws_instance.hana.id
+}
+
+resource "aws_volume_attachment" "hana_log" {
+  device_name = "/dev/sdg"
+  volume_id   = aws_ebs_volume.hana_log.id
+  instance_id = aws_instance.hana.id
+}
+
+resource "aws_volume_attachment" "hana_shared" {
+  device_name = "/dev/sdh"
+  volume_id   = aws_ebs_volume.hana_shared.id
+  instance_id = aws_instance.hana.id
 }&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;outputs.tf&lt;/STRONG&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;output "primary_public_ip"    { value = aws_instance.hana_primary.public_ip }
 output "secondary_public_ip"  { value = aws_instance.hana_secondary.public_ip }
 output "primary_private_ip"   { value = aws_instance.hana_primary.private_ip }
