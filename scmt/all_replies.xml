@@ -2,672 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2026-06-01T08:59:02.619106+00:00</updated>
+  <updated>2026-06-01T09:14:02.424475+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/integration-forum/may-2026-developer-challenge-week-1-getting-familiar-with-the-events/m-p/14408212#M327</id>
-    <title>Re: May 2026 Developer Challenge - Week 1: Getting familiar with the events</title>
-    <updated>2026-06-01T02:37:05.983000+02:00</updated>
-    <author>
-      <name>Laco</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/162031</uri>
-    </author>
-    <content>&lt;P&gt;1.&amp;nbsp;&lt;SPAN&gt;events being published to my broker( using ollama with local mitral LLM model to generate testdata, the number on start means how many records will be generated):&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;uv run generateBpDataAndSendToRabbit.py 15&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import uuid
-import pika
-import sys
-import json
-from ollama import chat
-from pydantic import BaseModel
-from datetime import datetime, timezone
-
-# ollama structured output -&amp;gt; Event : Data part
-class BusinessPartner(BaseModel):
-    BusinessPartnerFullName: str
-    BusinessPartnerCategory: str
-    BusinessPartnerGrouping: str
-    FirstName: str
-    LastName: str
-    IsNaturalPerson: str 
-    Country: str
-    Region: str 
-    CityName: str 
-    PostalCode: str 
-    StreetName: str
-    HouseNumber: int 
-    AddressTimeZone: str
-
-# ollama structured output -&amp;gt; Event : list of SAP Business Partner
-class BusinessPartnerList(BaseModel):
-    BusinessPartners: list[BusinessPartner]
-
-# generated result by ollama
-BpList = BusinessPartnerList
-
-# takes the first script argument (number of Business Partners to be created) and creates an prompt for on LLM  via ollama. The prompt includes an Data Sample JSON with some values.
-def generateData(dataSetCount : int):
-
-    prompt_text = f"""
-    Act as a strict JSON generator. Generate exactly {dataSetCount} fictive SAP Business Partner records.
-    
-    CRITICAL RULES:
-    1. OUTPUT FORMAT: Return ONLY a valid JSON object matching this EXACT structure. 
-       - Root key must be "BusinessPartners".
-       - Natural Persons must be at least 80% of the total generated records
-       - Value must be a list of objects.
-       - DO NOT include markdown code blocks (no ```json).
-       - DO NOT include any text before or after the JSON.
-       - DO NOT add extra fields. Use ONLY the keys defined below.
-    
-    2. DATA VALIDITY:
-       - All data must be 100% fictive (GDPR compliant).
-       - HouseNumber must be an integer, not a string.
-       - PostalCode must match the country format.
-       - IsNaturalPerson: "X" if Category is "1", else " ".
-       - FirstName/LastName: Empty strings "" if Category is "2" (Organization).
-
-    3. DATA REALISM (NO PLACEHOLDERS):
-       - NEVER use the word "string", "name", "123", or "example" as a value.
-       - Natural Persons MUST have a real First Name (e.g., "Ana", "João", "Miguel", "Sofia") and Last Name.
-       - Organizations MUST have a realistic Company Name (e.g., "Tech Solutions Lda", "Global Logistics GmbH").
-       - All data must be 100% fictive for GDPR compliance.
-    
-    4. FIELD LOGIC:
-       - If Category "1": IsNaturalPerson="X", Grouping="BP02", FirstName/LastName are filled.
-       - If Category "2": IsNaturalPerson=" ", Grouping="BP01", FirstName/LastName are empty strings "".
-       - HouseNumber must be an integer (e.g., 12, not "12").
-
-    5. SCHEMA REFERENCE (Do not deviate):
-       {{
-         "BusinessPartners": [
-           {{
-             "BusinessPartnerFullName": "string",
-             "BusinessPartnerCategory": "1",
-             "BusinessPartnerGrouping": "BP02",
-             "FirstName": "string",
-             "LastName": "string",
-             "IsNaturalPerson": "X",
-             "Country": "PT",
-             "Region": "",
-             "CityName": "string",
-             "PostalCode": "string",
-             "StreetName": "string",
-             "HouseNumber": 12,
-             "AddressTimeZone": "WEST"
-           }}
-         ]
-       }}
-
-    Generate {dataSetCount} such records now.
-    """
-
-    response = chat(
-      model = 'mistral',
-      messages=[{'role': 'user', 'content': prompt_text}],
-      stream = False,
-      format = BusinessPartnerList.model_json_schema(),
-    )
-    return BusinessPartnerList.model_validate_json(response.message.content) 
-
-def sendEventToRabbit(BpList):
-    connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-    channel = connection.channel()
-    channel.queue_declare(queue = 'hello', durable = True, arguments = {'x-queue-type': 'quorum'} )
-   
-    counter = 1
-
-    for item in BpList.BusinessPartners:
-        eventTemplate = json.load(open("event_template.json"))
-        now = datetime.now(timezone.utc)
-
-        # mapping from ollama to sap event format
-        eventTemplate["id"] = str(uuid.uuid4())
-        eventTemplate["time"] = now.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
-        eventTemplate["subject"] = "90000" + str(counter)
-        eventTemplate["data"]["BusinessPartner"] = eventTemplate["subject"]
-        eventTemplate["data"]["BusinessPartnerUUID"] = str(uuid.uuid4())
-        eventTemplate["data"]["BusinessPartnerFullName"] = item.BusinessPartnerFullName
-        eventTemplate["data"]["BusinessPartnerCategory"] = item.BusinessPartnerCategory
-        eventTemplate["data"]["BusinessPartnerGrouping"] = item.BusinessPartnerGrouping
-        eventTemplate["data"]["FirstName"] = item.FirstName
-        eventTemplate["data"]["LastName"] = item.LastName
-        eventTemplate["data"]["IsNaturalPerson"] = item.IsNaturalPerson
-        eventTemplate["data"]["CreationDate"] = f"/Date({int(now.timestamp() * 1000)})/"
-        eventTemplate["data"]["CreatedByUser"] = "SAPDEMOUSER"
-        eventTemplate["data"]["BusinessPartnerAddress"]["Country"] = item.Country
-        eventTemplate["data"]["BusinessPartnerAddress"]["Region"] = item.Region
-        eventTemplate["data"]["BusinessPartnerAddress"]["CityName"] = item.CityName
-        eventTemplate["data"]["BusinessPartnerAddress"]["PostalCode"] = item.PostalCode
-        eventTemplate["data"]["BusinessPartnerAddress"]["StreetName"] = item.StreetName
-        eventTemplate["data"]["BusinessPartnerAddress"]["HouseNumber"] = item.HouseNumber
-        eventTemplate["data"]["BusinessPartnerAddress"]["AddressTimeZone"] = item.AddressTimeZone
-
-        channel.basic_publish(  exchange= '',
-                                routing_key = 'SAPDEV2026MAY',
-                                body= json.dumps(eventTemplate) )
-
-        print(f"\n Business Partner : {eventTemplate["subject"]} sent to RabbitMQ")
-        print(json.dumps(eventTemplate, indent=4, ensure_ascii=False))
-        counter += 1
-    
-    connection.close()
-
-if __name__ == '__main__':
-    BpList = generateData(sys.argv[1])
-    sendEventToRabbit(BpList)&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;2. A sample of&amp;nbsp; the published CloudEvents :&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt; Business Partner : 900003 sent to RabbitMQ
-{
-    "specversion": "1.0",
-    "type": "sap.s4.custom.BusinessPartner.Created",
-    "source": "/sap/s4/erp/business-partner",
-    "id": "c45f3eab-212d-4ecc-940f-6ce90c036ee4",
-    "time": "2026-06-01T00:23:32.660Z",
-    "datacontenttype": "application/json",
-    "subject": "900003",
-    "data": {
-        "BusinessPartner": "900003",
-        "BusinessPartnerUUID": "4dd8e4e4-30b4-47a3-b03f-582d5b2e3bf1",
-        "BusinessPartnerFullName": "João Pereira",
-        "BusinessPartnerCategory": "1",
-        "BusinessPartnerGrouping": "BP02",
-        "FirstName": "João",
-        "LastName": "Pereira",
-        "IsNaturalPerson": "X",
-        "CreationDate": "/Date(1780273412660)/",
-        "CreatedByUser": "SAPDEMOUSER",
-        "BusinessPartnerAddress": {
-            "Country": "PT",
-            "Region": "",
-            "CityName": "Braga",
-            "PostalCode": "4705-329",
-            "StreetName": "Rua da Mãe de Deus",
-            "HouseNumber": 21,
-            "AddressTimeZone": "WEST"
-        }
-    }
-}
-
- Business Partner : 900004 sent to RabbitMQ
-{
-    "specversion": "1.0",
-    "type": "sap.s4.custom.BusinessPartner.Created",
-    "source": "/sap/s4/erp/business-partner",
-    "id": "f87be94c-a50d-40ad-ac66-dd9ac9b567c4",
-    "time": "2026-06-01T00:23:32.661Z",
-    "datacontenttype": "application/json",
-    "subject": "900004",
-    "data": {
-        "BusinessPartner": "900004",
-        "BusinessPartnerUUID": "fc623d80-7de0-489e-a287-93e9926ccd26",
-        "BusinessPartnerFullName": "Global Logistics GmbH",
-        "BusinessPartnerCategory": "2",
-        "BusinessPartnerGrouping": "BP01",
-        "FirstName": "",
-        "LastName": "",
-        "IsNaturalPerson": "",
-        "CreationDate": "/Date(1780273412661)/",
-        "CreatedByUser": "SAPDEMOUSER",
-        "BusinessPartnerAddress": {
-            "Country": "DE",
-            "Region": "Nordrhein-Westfalen",
-            "CityName": "Düsseldorf",
-            "PostalCode": "40213",
-            "StreetName": "Konrad-Adenauer-Allee",
-            "HouseNumber": 67,
-            "AddressTimeZone": "CET"
-        }
-    }
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;3. Which broker you used and why you chose it:&lt;BR /&gt;RabbitMQ - i like stuff you can run locally and the Quickstart Doc was easy&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/integration-forum/may-2026-developer-challenge-week-1-getting-familiar-with-the-events/m-p/14408212#M327"/>
-    <published>2026-06-01T02:37:05.983000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/integration-forum/may-2026-developer-challenge-week-2-connecting-to-the-broker-and-consuming/m-p/14408214#M328</id>
-    <title>Re: May 2026 Developer Challenge - Week 2: Connecting to the broker and consuming events</title>
-    <updated>2026-06-01T02:49:49.735000+02:00</updated>
-    <author>
-      <name>Laco</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/162031</uri>
-    </author>
-    <content>&lt;OL class=""&gt;&lt;LI&gt;Parse the CloudEvent payload and Extract the&amp;nbsp;&lt;CODE&gt;data&lt;/CODE&gt;&amp;nbsp;field&lt;/LI&gt;&lt;/OL&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import pika, sys, os, json
-
-def callback(ch, method, properties, body):
-    print(" [x] Received ")
-    print(f"{json.dumps(json.loads(body)["data"], indent=4, ensure_ascii=False)}")
-
-def followTheWhiteRabbit():
-    connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-    channel = connection.channel()
-    channel.queue_declare(queue='SAPDEV2026MAY', durable=True, arguments={'x-queue-type': 'quorum'})
-    channel.basic_consume(queue='SAPDEV2026MAY',
-                          auto_ack=True,
-                          on_message_callback=callback)
-    print(' [*] Waiting for messages. To exit press CTRL+C')
-    channel.start_consuming()
-
-if __name__ == '__main__':
-    try:
-        followTheWhiteRabbit()
-    except KeyboardInterrupt:
-        print('Interrupted')
-        try:
-            sys.exit(0)
-        except SystemExit:
-            os._exit(0)
-​&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;Log or store the received payload :&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt; [*] Waiting for messages. To exit press CTRL+C
- [x] Received 
-{
-    "BusinessPartner": "900001",
-    "BusinessPartnerUUID": "83188ee2-7186-485d-8989-14511bbd2391",
-    "BusinessPartnerFullName": "Ana Silva",
-    "BusinessPartnerCategory": "1",
-    "BusinessPartnerGrouping": "BP02",
-    "FirstName": "Ana",
-    "LastName": "Silva",
-    "IsNaturalPerson": "X",
-    "CreationDate": "/Date(1780274790384)/",
-    "CreatedByUser": "SAPDEMOUSER",
-    "BusinessPartnerAddress": {
-        "Country": "PT",
-        "Region": "",
-        "CityName": "Lisboa",
-        "PostalCode": "1050-063",
-        "StreetName": "Rua das Flores",
-        "HouseNumber": 21,
-        "AddressTimeZone": "WEST"
-    }
-}
- [x] Received 
-{
-    "BusinessPartner": "900002",
-    "BusinessPartnerUUID": "355901da-d428-4541-b112-708975138474",
-    "BusinessPartnerFullName": "João Almeida",
-    "BusinessPartnerCategory": "1",
-    "BusinessPartnerGrouping": "BP02",
-    "FirstName": "João",
-    "LastName": "Almeida",
-    "IsNaturalPerson": "X",
-    "CreationDate": "/Date(1780274790384)/",
-    "CreatedByUser": "SAPDEMOUSER",
-    "BusinessPartnerAddress": {
-        "Country": "PT",
-        "Region": "",
-        "CityName": "Porto",
-        "PostalCode": "4050-278",
-        "StreetName": "Rua do Serralves",
-        "HouseNumber": 16,
-        "AddressTimeZone": "WEST"
-    }
-}
-​&lt;/code&gt;&lt;/pre&gt;</content>
-    <link href="https://community.sap.com/t5/integration-forum/may-2026-developer-challenge-week-2-connecting-to-the-broker-and-consuming/m-p/14408214#M328"/>
-    <published>2026-06-01T02:49:49.735000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/integration-forum/may-developer-challenge-week-3-vectorizing-the-event-payload/m-p/14408216#M329</id>
-    <title>Re: May Developer Challenge - Week 3: Vectorizing the event payload</title>
-    <updated>2026-06-01T02:59:58.721000+02:00</updated>
-    <author>
-      <name>Laco</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/162031</uri>
-    </author>
-    <content>&lt;P class=""&gt;Steps:&lt;/P&gt;&lt;OL class=""&gt;&lt;LI&gt;Receive the event (as you did in Week 2), Extract the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;data&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;field and prepare it as a string, Send that string to an embedding model and get back a vector:&lt;/LI&gt;&lt;/OL&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import pika, sys, os, json
-from ollama import embed
-
-def createEmbedding(humanReadable):
-    batch = embed(model='mistral',
-                  input=[humanReadable])
-    printTruncatedVector(batch['embeddings'])
-
-def printTruncatedVector(vector):
-    max=len(vector[0])
-    print(" truncated embedding vector:")
-    print(f"[{vector[0][0]},{vector[0][1]},{vector[0][2]}, ........... ,{vector[0][max-3]},{vector[0][max-2]},{vector[0][max-1]}]")
-
-def callback(ch, method, properties, body):
-    print("\n [x] Received\n")
-    bpData = json.loads(body)["data"]
-    humanReadable = (
-        f"BusinessPartnerUUID: {bpData["BusinessPartnerUUID"]}"    
-        f" BusinessPartner: {bpData["BusinessPartner"]}" 
-        f" BusinessPartnerFullName: {bpData["BusinessPartnerFullName"]}"
-        f" BusinessPartnerCategory: {bpData["BusinessPartnerCategory"]}"
-        f" BusinessPartnerGrouping: {bpData["BusinessPartnerGrouping"]}"
-        f" FirstName: {bpData["FirstName"]}"
-        f" LastName: {bpData["LastName"]}"
-        f" IsNaturalPerson: {bpData["IsNaturalPerson"]}"
-        f" Country: {bpData["BusinessPartnerAddress"]["Country"]}"
-        f" Region: {bpData["BusinessPartnerAddress"]["Region"]}"
-        f" CityName: {bpData["BusinessPartnerAddress"]["CityName"]}"
-        f" PostalCode: {bpData["BusinessPartnerAddress"]["PostalCode"]}"
-        f" StreetName: {bpData["BusinessPartnerAddress"]["StreetName"]}"
-        f" HouseNumber: {bpData["BusinessPartnerAddress"]["HouseNumber"]}"
-        f" AddressTimeZone: {bpData["BusinessPartnerAddress"]["AddressTimeZone"]}")
-    print(f" human readable:\n{humanReadable}\n")
-    createEmbedding(humanReadable)
-
-def followTheWhiteRabbit():
-    connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-    channel = connection.channel()
-    channel.queue_declare(queue='SAPDEV2026MAY', durable=True, arguments={'x-queue-type': 'quorum'})
-    channel.basic_consume(queue='SAPDEV2026MAY',
-                          auto_ack=True,
-                          on_message_callback=callback)
-    print(' [*] Waiting for messages. To exit press CTRL+C')
-    channel.start_consuming()
-
-if __name__ == '__main__':
-    try:
-        followTheWhiteRabbit()
-    except KeyboardInterrupt:
-        print('Interrupted')
-        try:
-            sys.exit(0)
-        except SystemExit:
-            os._exit(0)
-​&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;Log the vector (or a truncated version of it) to confirm it's working:&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Laco_0-1780275529000.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/416624i1D1F39F005363224/image-size/large?v=v2&amp;amp;px=999" role="button" title="Laco_0-1780275529000.png" alt="Laco_0-1780275529000.png" /&gt;&lt;/span&gt;&lt;BR /&gt;3. Which embedding model/service you used: ollama Mistral model running locally&amp;nbsp;&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/integration-forum/may-developer-challenge-week-3-vectorizing-the-event-payload/m-p/14408216#M329"/>
-    <published>2026-06-01T02:59:58.721000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/offsetting-maintenance-items-in-a-strategy-plan/qaq-p/14408219</id>
-    <title>Offsetting maintenance items in a strategy plan.</title>
-    <updated>2026-06-01T03:22:24.389000+02:00</updated>
-    <author>
-      <name>_nesto-1996</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2306827</uri>
-    </author>
-    <content>&lt;P&gt;Hello Community,&amp;nbsp;&lt;/P&gt;&lt;P&gt;Apologies if this has already been answered here.&lt;/P&gt;&lt;P&gt;I have multiple items in a maintenance plan. one plan has a separate package and the rest (four) have same packages but different tasklists which have been created. I run a simulation and I noticed that the four items with the same package have same start dates on the WOs.&amp;nbsp;&lt;/P&gt;&lt;P&gt;for me, I want one item with a different start date from the rest. or if possible, can start dates change for these four items with same packages?&amp;nbsp;&lt;/P&gt;&lt;P&gt;The reason for all these items in the same plan is to allow for easy reference as the process is to inspect before the main work is executed. but i just want to have the inspection on a different WO issues from the same plan prior to the main work. Please assist. Thanks for your time.&lt;/P&gt;&lt;H1 id="toc-hId-1687400322"&gt;&amp;nbsp;&lt;/H1&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/offsetting-maintenance-items-in-a-strategy-plan/qaq-p/14408219"/>
-    <published>2026-06-01T03:22:24.389000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/integration-forum/may-developer-challenge-week-4-storing-vectors-and-enabling-rag/m-p/14408221#M331</id>
-    <title>Re: May Developer Challenge - Week 4: Storing vectors and enabling RAG</title>
-    <updated>2026-06-01T03:30:21.187000+02:00</updated>
-    <author>
-      <name>Laco</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/162031</uri>
-    </author>
-    <content>&lt;OL class=""&gt;&lt;LI&gt;A screenshot or code snippet showing Business Partner vectors being stored in your vector store,a&amp;nbsp;sample query and the results returned (which Business Partners were retrieved?): i am now using chroma - so the embeddings are generated on document save, also there is an built in similarity search&lt;/LI&gt;&lt;/OL&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import pika, sys, os, json, chromadb
-from ollama import embed
-
-client = chromadb.PersistentClient(path='./chromaDB')
-collection = client.get_or_create_collection(name="sap_dev_may_2026")
-
-def createAndStoreEmbedding(humanReadable, BPuuid):
-    global collection
-    collection.upsert(
-            documents=[humanReadable],
-            ids=[BPuuid])
-    print("stored in chromadb")
-
-def callback(ch, method, properties, body):
-    print("\n [x] Received\n")
-    bpData = json.loads(body)["data"]
-    humanReadable = (
-        f"BusinessPartnerUUID: {bpData["BusinessPartnerUUID"]}"    
-        f" BusinessPartner: {bpData["BusinessPartner"]}" 
-        f" BusinessPartnerFullName: {bpData["BusinessPartnerFullName"]}"
-        f" BusinessPartnerCategory: {bpData["BusinessPartnerCategory"]}"
-        f" BusinessPartnerGrouping: {bpData["BusinessPartnerGrouping"]}"
-        f" FirstName: {bpData["FirstName"]}"
-        f" LastName: {bpData["LastName"]}"
-        f" IsNaturalPerson: {bpData["IsNaturalPerson"]}"
-        f" Country: {bpData["BusinessPartnerAddress"]["Country"]}"
-        f" Region: {bpData["BusinessPartnerAddress"]["Region"]}"
-        f" CityName: {bpData["BusinessPartnerAddress"]["CityName"]}"
-        f" PostalCode: {bpData["BusinessPartnerAddress"]["PostalCode"]}"
-        f" StreetName: {bpData["BusinessPartnerAddress"]["StreetName"]}"
-        f" HouseNumber: {bpData["BusinessPartnerAddress"]["HouseNumber"]}"
-        f" AddressTimeZone: {bpData["BusinessPartnerAddress"]["AddressTimeZone"]}")
-    print(f" human readable:\n{humanReadable}\n")
-    createAndStoreEmbedding(humanReadable,bpData["BusinessPartnerUUID"])
-
-def followTheWhiteRabbit():
- 
-    connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-    channel = connection.channel()
-    channel.queue_declare(queue='SAPDEV2026MAY', durable=True, arguments={'x-queue-type': 'quorum'})
-    channel.basic_consume(queue='SAPDEV2026MAY',
-                          auto_ack=True,
-                          on_message_callback=callback)
-    print(' [*] Waiting for messages. To exit press CTRL+C')
-    channel.start_consuming()
-
-if __name__ == '__main__':
-    try:
-        followTheWhiteRabbit()
-    except KeyboardInterrupt:
-        print('Interrupted')
-        try:
-            sys.exit(0)
-        except SystemExit:
-            os._exit(0)
-​&lt;/code&gt;&lt;/pre&gt;&lt;UL&gt;&lt;LI&gt;(Optional) The LLM-generated answer if you wired up the full RAG response:&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-python"&gt;&lt;code&gt;import chromadb
-from ollama import chat
-
-chroma_client = chromadb.PersistentClient(path='./chromaDB')
-
-# switch \`create_collection\` to \`get_or_create_collection\` to avoid creating a new collection every time
-collection = chroma_client.get_or_create_collection(name="sap_dev_may_2026")
-
-
-def answerInHumanLanguage(collection, query):
-    # Run the query
-    result = collection.query(query_texts=[query],n_results=5)
-
-    ListOfBpData = ""
-
-    for ids, documents in zip(result["ids"], result["documents"]):
-        for id, document in zip(ids, documents):
-            ListOfBpData += f"{document}\n\n"
-    
-    prompt_text = f"""
-Answer the following Question '{query}' abaout SAP Businesspartner data from the following context(List of SAP Businesspartner data).
-
-RULES: 
- - never Answer just with UUIDs or IDs
- - Business Partner Fullname and BusinessPartner(ID) must be in every answer
-
-CONTEXT: this is an list of Partners found bt cosine similarity from vectors( first places are most similar)
-
-LIST OF SAP BUSINESS PARTNERS:
-{ListOfBpData}
-"""
-    answers = chat(
-               model='mistral',
-               messages=[{'role': 'user', 'content': f'{prompt_text}'}],
-               stream=False )
-    print(answers.message.content)
-    
-
-print("Ask questions about your SAP Business Partners. (Press Ctrl+C to exit)")
-try:
-    while True:
-        # Get input from user
-        query = input("\n❓ Your question: ").strip()
-
-        # Skip empty inputs
-        if not query:
-            continue
-        print("\n🔍 Results:")
-        answerInHumanLanguage(collection, query)
-
-except KeyboardInterrupt:
-    print("\n\n👋 Goodbye! Exiting loop.")
-​&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Laco_0-1780277373526.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/416626iE63DD87AD333A37C/image-size/large?v=v2&amp;amp;px=999" role="button" title="Laco_0-1780277373526.png" alt="Laco_0-1780277373526.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/integration-forum/may-developer-challenge-week-4-storing-vectors-and-enabling-rag/m-p/14408221#M331"/>
-    <published>2026-06-01T03:30:21.187000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/call-external-apis-and-retrieve-the-data-in-abap/bc-p/14408222#M179128</id>
-    <title>Re: Call external APIs and retrieve the data in ABAP</title>
-    <updated>2026-06-01T03:31:57.838000+02:00</updated>
-    <author>
-      <name>AshishPrasad1</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1667890</uri>
-    </author>
-    <content>&lt;P&gt;Hi , I am trying to access data from marketwatch.com copper price daily, full link -&amp;nbsp;&lt;A href="https://www.marketwatch.com/investing/future/hg.1/downloaddatapartial?startdate=04/13/2026&amp;amp;enddate=05/28/2026&amp;amp;daterange=d30&amp;amp;csvdownload=true" target="_blank" rel="nofollow noopener noreferrer"&gt;https://www.marketwatch.com/investing/future/hg.1/downloaddatapartial?startdate=04/13/2026&amp;amp;enddate=05/28/2026&amp;amp;daterange=d30&amp;amp;csvdownload=true&lt;/A&gt;&amp;nbsp;but i am getting a popup for authentication when recieving a data, my basis team has already form connection from sm59 through certificate, but in sm59 destination aswell its asks for authentication popup and we dont have any. How to fix this issue.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/call-external-apis-and-retrieve-the-data-in-abap/bc-p/14408222#M179128"/>
-    <published>2026-06-01T03:31:57.838000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/using-sap-joule-with-a2a-from-a-custom-agent-on-sap-btp-cf-any-guidance-or/qaq-p/14408223</id>
-    <title>Using SAP Joule with A2A from a custom agent on SAP BTP CF – any guidance or examples?</title>
-    <updated>2026-06-01T03:48:47.663000+02:00</updated>
-    <author>
-      <name>zomono426</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1999813</uri>
-    </author>
-    <content>&lt;P&gt;Hi all,&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;I am currently investigating how to use SAP Joule together with a custom agent running on SAP BTP Cloud Foundry.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;What I would like to achieve is the following:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;- Build a custom agent on SAP BTP Cloud Foundry&lt;/P&gt;&lt;P&gt;- Use A2A communication between my custom agent and SAP Joule&lt;/P&gt;&lt;P&gt;- Let SAP Joule handle specific SAP S/4HANA business operations, such as document creation or other standard S/4HANA transactions&lt;/P&gt;&lt;P&gt;- Keep the custom agent responsible for orchestration, while using Joule only for selected S/4HANA-related actions&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;I have found information about scenarios where Joule can call external/custom agents via A2A, but I am not sure whether the opposite direction is currently supported, meaning:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Custom Agent on BTP CF → A2A → SAP Joule → SAP S/4HANA operation&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;My questions are:&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Is this architecture currently supported or generally available?&lt;/LI&gt;&lt;LI&gt;If yes, are there any official documents, tutorials, sample implementations, or reference architectures for this use case?&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;If this direction is not currently supported, I would also appreciate any recommended alternative architecture, for example using Joule as the entry point and calling a custom BTP CF agent from Joule.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Any guidance, documentation links, or practical experiences would be very helpful&lt;/SPAN&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/using-sap-joule-with-a2a-from-a-custom-agent-on-sap-btp-cf-any-guidance-or/qaq-p/14408223"/>
-    <published>2026-06-01T03:48:47.663000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/product-lifecycle-management-q-a/cg02-enter-char-values-for-the-dangerous-goods-data-regulation-class/qaq-p/14408224</id>
-    <title>CG02-Enter char. values for the dangerous goods data (regulation, class)</title>
-    <updated>2026-06-01T04:03:36.853000+02:00</updated>
-    <author>
-      <name>Summit45</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2301867</uri>
-    </author>
-    <content>&lt;P&gt;Hi&lt;/P&gt;&lt;P&gt;I am new to EHS,&amp;nbsp;&lt;/P&gt;&lt;P&gt;Trying to use CG02, to maintain DG master data and Classfication.&lt;/P&gt;&lt;P&gt;Not able to click /maintain Risk Classification tab and getting below error.&lt;/P&gt;&lt;P&gt;The error is : Enter char. values for the dangerous goods data (regulation, class)&lt;/P&gt;&lt;P&gt;Than ks in advace.&lt;/P&gt;&lt;P&gt;Regards&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/product-lifecycle-management-q-a/cg02-enter-char-values-for-the-dangerous-goods-data-regulation-class/qaq-p/14408224"/>
-    <published>2026-06-01T04:03:36.853000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/alternative-valuation-report-for-material-prices-49526866/qaa-p/14408225#M4241794</id>
-    <title>Re: Alternative valuation report for material prices (495...</title>
-    <updated>2026-06-01T04:11:26+02:00</updated>
-    <author>
-      <name>NguyenLam</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2219440</uri>
-    </author>
-    <content>&lt;P&gt;Hello Gopi,&lt;/P&gt;&lt;P&gt;Could you check table CKMLRUNPERIOD for mass display material price for AVR.&lt;/P&gt;&lt;P&gt;Hope this help!&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/alternative-valuation-report-for-material-prices-49526866/qaa-p/14408225#M4241794"/>
-    <published>2026-06-01T04:11:26+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/financial-management-q-a/question-on-gti-license-requirements-for-china-golden-tax-integration/qaq-p/14408226</id>
-    <title>Question on GTI License Requirements for China Golden Tax Integration Scenarios</title>
-    <updated>2026-06-01T04:18:50.216000+02:00</updated>
-    <author>
-      <name>Joyce273530280</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2281397</uri>
-    </author>
-    <content>&lt;DIV&gt;Hi SAP colleagues,&lt;/DIV&gt;&lt;DIV&gt;I would like to get your advice on the license requirements related to SAP Golden Tax Interface (GTI) in China localization.&lt;/DIV&gt;&lt;DIV&gt;We are currently evaluating different integration approaches between SAP and the Chinese Golden Tax System, and I would like to confirm whether my understanding of the licensing implications is correct.&lt;/DIV&gt;&lt;DIV&gt;■ Background&lt;/DIV&gt;&lt;DIV&gt;We assume that SAP SD billing data is transferred to the Golden Tax Interface (GTI), where data validation, splitting, and consolidation are performed before invoice issuance.&lt;/DIV&gt;&lt;DIV&gt;■ Integration Scenarios&lt;/DIV&gt;&lt;DIV&gt;1. Manual Integration&lt;/DIV&gt;&lt;DIV&gt;SAP outputs billing data in the required format of the Golden Tax System.&lt;/DIV&gt;&lt;DIV&gt;The data is then manually processed and uploaded into the Golden Tax System to issue invoices.&lt;/DIV&gt;&lt;DIV&gt;2. Integration via Third-Party System&lt;/DIV&gt;&lt;DIV&gt;SAP sends data in the format required by a third-party vendor, and the third-party system handles the integration with the Golden Tax System.&lt;/DIV&gt;&lt;DIV&gt;3. Direct Integration&lt;/DIV&gt;&lt;DIV&gt;SAP directly sends data to the Golden Tax System via APIs/interfaces for invoice issuance.&lt;/DIV&gt;&lt;DIV&gt;■ Questions&lt;/DIV&gt;&lt;DIV&gt;1. For Scenario 1 (manual integration): If we use standard GTI functions in SAP (such as data extraction, validation, splitting, or consolidation), would a GTI-related license still be required?&lt;/DIV&gt;&lt;DIV&gt;2. For Scenarios 2 and 3: Is it correct to understand that a GTI (or related) license is required whenever SAP is involved in the integration process?&lt;/DIV&gt;&lt;DIV&gt;3. In an S/4HANA environment:&lt;/DIV&gt;&lt;DIV&gt;When using solutions such as&lt;/DIV&gt;&lt;DIV&gt;- SAP Document and Reporting Compliance (DRC)&lt;/DIV&gt;&lt;DIV&gt;- China Tax e-Invoice Management how do these relate to GTI licensing?&lt;/DIV&gt;&lt;DIV&gt;Are additional licenses required?&lt;/DIV&gt;&lt;DIV&gt;Any insights or experience sharing would be greatly appreciated.&lt;/DIV&gt;&lt;DIV&gt;Thanks in advance!&lt;/DIV&gt;</content>
-    <link href="https://community.sap.com/t5/financial-management-q-a/question-on-gti-license-requirements-for-china-golden-tax-integration/qaq-p/14408226"/>
-    <published>2026-06-01T04:18:50.216000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/how-to-limit-the-users-to-use-joule-base/qaq-p/14408228</id>
-    <title>How to limit the users to use Joule Base</title>
-    <updated>2026-06-01T04:24:46.085000+02:00</updated>
-    <author>
-      <name>makinom</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/121527</uri>
-    </author>
-    <content>&lt;P&gt;Dear SAP specialists,&lt;/P&gt;&lt;P&gt;One of my customers uses Joule Base in SAP Cloud ERP development environment for PoC and is now planning to enable it in production environment.&lt;/P&gt;&lt;P&gt;Before that, the leader of IT department has requested that Joule Base should be made available only to a limited group of users, at least during the initial production rollout.&lt;/P&gt;&lt;P&gt;Is it possible to restrict Joule Base usage to specific users only in SAP Cloud ERP?&lt;BR /&gt;As I understand, Joule Base (pop-up to input prompts) can be used by every user who can access the SAP Cloud ERP.&lt;BR /&gt;If it is possible, can you let me know the way?&lt;/P&gt;&lt;P&gt;Thanks and best regards,&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/how-to-limit-the-users-to-use-joule-base/qaq-p/14408228"/>
-    <published>2026-06-01T04:24:46.085000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/running-kill/qaa-p/14408227#M4943146</id>
-    <title>Re: Running KILL</title>
-    <updated>2026-06-01T04:24:49.743000+02:00</updated>
-    <author>
-      <name>bo2l</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/262089</uri>
-    </author>
-    <content>I don't know much about the gdb/programming, but if syslogshold doesn't return any process and sp_who doesn't return other spids likely to be the 'gdb' process then the process should just not exist in ASE. From ASE perspective you can try restarting the server if possible.</content>
-    <link href="https://community.sap.com/t5/technology-q-a/running-kill/qaa-p/14408227#M4943146"/>
-    <published>2026-06-01T04:24:49.743000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/clsd-sdi-oss-note-clarification-needed/qaa-p/14408229#M4241795</id>
-    <title>Re: CLSD SDI OSS note clarification needed</title>
-    <updated>2026-06-01T04:26:10.065000+02:00</updated>
-    <author>
-      <name>NguyenLam</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2219440</uri>
-    </author>
-    <content>&lt;P&gt;Good day!&lt;/P&gt;&lt;P&gt;You can read KBA&amp;nbsp;&lt;SPAN&gt;1991171 for more information.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;It mentioned that&amp;nbsp;Orders with status CLSD will be selected and processed, but processing will stop early, like in the single transaction due to the fact the status forbids further processing.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Solution:&amp;nbsp;&lt;/SPAN&gt;Please set status DLFL (Deletion flag) to the orders instead. (Report PPARCHP1 can be used for production orders, report PRARCHP1 can be used for process orders.)&lt;/P&gt;&lt;P&gt;Hope this help!&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/clsd-sdi-oss-note-clarification-needed/qaa-p/14408229#M4241795"/>
-    <published>2026-06-01T04:26:10.065000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/how-to-add-material-group-description-to-pick-list-form-fdp-pm/qaq-p/14408230</id>
-    <title>How to add Material Group Description to Pick List Form (FDP_PM_MAINTENANCEORDER_SRV) in S/4HANA Pub</title>
-    <updated>2026-06-01T04:45:10.596000+02:00</updated>
-    <author>
-      <name>triminh_le181</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2259623</uri>
-    </author>
-    <content>&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Hi Community,&lt;/P&gt;&lt;P&gt;I have a requirement from a business user to add the &lt;STRONG&gt;Material Group Description&lt;/STRONG&gt; alongside the Material Group Code on the printed Pick List form template in &lt;STRONG&gt;SAP S/4HANA Public Cloud&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;Currently, only the Material Group Code is available in the standard data stream, and the description is missing. I am trying to find a cloud-compliant workaround to achieve this, but I have run into several dead ends with the standard extensibility framework:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Custom Fields / BAdI:&lt;/STRONG&gt; I tried creating a Custom Field, but under the &lt;I&gt;Form Templates&lt;/I&gt; tab, there are no maintenance-related form templates available to extend. Additionally, I couldn't find a suitable BAdI for Maintenance Orders or Operations to update a custom field value at runtime.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Data Source Extensibility:&lt;/STRONG&gt; I attempted to extend the pre-delivered data source via the &lt;I&gt;Custom Fields and Logic&lt;/I&gt; app, but &lt;CODE&gt;FDP_PM_MAINTENANCEORDER_SRV&lt;/CODE&gt; is not available in the extensible data sources list.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Custom CDS Binding:&lt;/STRONG&gt; Since standard Form Data Providers (FDPs) cannot have their underlying gateway services swapped out at the configuration level, I cannot bind a new custom CDS view directly to this standard output configuration.&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Given that this is &lt;STRONG&gt;S/4HANA Public Cloud&lt;/STRONG&gt;, we cannot modify standard CDS views or write custom ABAP on the core backend.&lt;/P&gt;&lt;P&gt;Has anyone successfully brought the Material Group Description (or any other missing text description) into a PM pick list under these constraints? Are there any specific configuration workarounds, alternative extensible standard data providers for PM components, or standard APIs we can leverage within the standard output management framework?&lt;/P&gt;&lt;P&gt;Any insights or alternative approaches would be highly appreciated!&lt;/P&gt;&lt;P&gt;Regards,&lt;/P&gt;&lt;P&gt;Tri&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/how-to-add-material-group-description-to-pick-list-form-fdp-pm/qaq-p/14408230"/>
-    <published>2026-06-01T04:45:10.596000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/abap-forum/brf-editing-in-production/m-p/14408237#M981</id>
-    <title>Re: BRF+ Editing in Production</title>
-    <updated>2026-06-01T05:21:57.144000+02:00</updated>
-    <author>
-      <name>Ryan-Crosby</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/13126</uri>
-    </author>
-    <content>&lt;P&gt;Allow users to modify directly in production... sounds like a terrible idea...&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-forum/brf-editing-in-production/m-p/14408237#M981"/>
-    <published>2026-06-01T05:21:57.144000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/unable-to-create-quot-custom-analytical-queries-and-services-quot-in-sap-s/qaq-p/14408238</id>
-    <title>Unable to Create "Custom Analytical Queries and Services" in SAP S/4HANA Cloud Public Edition</title>
-    <updated>2026-06-01T05:22:41.358000+02:00</updated>
-    <author>
-      <name>KUO_WANRU</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2088663</uri>
-    </author>
-    <content>&lt;P&gt;Hi Expert,&amp;nbsp;&lt;/P&gt;&lt;P&gt;I would like to add a custom query in my starter system, and i can access to this app "&lt;SPAN&gt;Custom Analytical Queries and Services", but unable to do any movement in this app.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KUO_WANRU_0-1780283969761.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/416628i3979B6B9AD82B7DB/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KUO_WANRU_0-1780283969761.png" alt="KUO_WANRU_0-1780283969761.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;I have checked my authorization which Z_&lt;SPAN&gt;BR_ANALYTICS_SPECIALIST that based on template role "BR_ANALYTICS_SPECIALIST", and all "unrestricted". But I still cannot edit or create in that query app.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KUO_WANRU_1-1780284089721.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/416629i0B5C97AFAD10614A/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KUO_WANRU_1-1780284089721.png" alt="KUO_WANRU_1-1780284089721.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;And also check IAM app is active.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="KUO_WANRU_0-1780284897356.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/416630i37C734C38257CBD7/image-size/medium?v=v2&amp;amp;px=400" role="button" title="KUO_WANRU_0-1780284897356.png" alt="KUO_WANRU_0-1780284897356.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Is there any authorization role or catelog I am lacking of?&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Tina&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/unable-to-create-quot-custom-analytical-queries-and-services-quot-in-sap-s/qaq-p/14408238"/>
-    <published>2026-06-01T05:22:41.358000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/sap-snowflake-how-to-store-and-manage-secrets-for-apis-database-credentials/bc-p/14408239#M190810</id>
-    <title>Re: SAP Snowflake: How to Store and Manage Secrets for APIs, Database Credentials, and Keys</title>
-    <updated>2026-06-01T05:27:25.725000+02:00</updated>
-    <author>
-      <name>YashikaYTD</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2077782</uri>
-    </author>
-    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/75"&gt;@Yogananda&lt;/a&gt;&amp;nbsp;- do you have any sandbox or BTPTrail account for SAP Snowflake to practice?&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-snowflake-how-to-store-and-manage-secrets-for-apis-database-credentials/bc-p/14408239#M190810"/>
-    <published>2026-06-01T05:27:25.725000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/agentic-joule-for-developer-it-s-all-about-your-choice/bc-p/14408240#M190811</id>
-    <title>Re: Agentic Joule for developer: It’s all about YOUR CHOICE</title>
-    <updated>2026-06-01T05:28:21.347000+02:00</updated>
-    <author>
-      <name>YashikaYTD</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2077782</uri>
-    </author>
-    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/9367"&gt;@SimonaM&lt;/a&gt;&amp;nbsp;- Any Vs code extension which we can design and play around?&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/agentic-joule-for-developer-it-s-all-about-your-choice/bc-p/14408240#M190811"/>
-    <published>2026-06-01T05:28:21.347000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/making-web-apps-ipv6-ready-the-ipv6-web-resource-checker-webres6/bc-p/14408241#M190812</id>
-    <title>Re: Making Web Apps IPv6-Ready: The IPv6 Web Resource Checker (webres6)</title>
-    <updated>2026-06-01T05:30:18.224000+02:00</updated>
-    <author>
-      <name>YashikaYTD</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2077782</uri>
-    </author>
-    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1718173"&gt;@philsbln&lt;/a&gt;&amp;nbsp;Any BTP deployment of web application is still not in IPv6.. Do you see this as gap or any discussions happening around deployment strategies moving to IPv6 as mandatory?&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/making-web-apps-ipv6-ready-the-ipv6-web-resource-checker-webres6/bc-p/14408241#M190812"/>
-    <published>2026-06-01T05:30:18.224000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/sap-community-leaders-finder/yogananda-muthaiah/bc-p/14408242#M253</id>
     <title>Re: Yogananda Muthaiah</title>
@@ -926,7 +264,7 @@ except KeyboardInterrupt:
       <name>VishnAndr</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/11295</uri>
     </author>
-    <content>&lt;P&gt;a6c7f8bb72e27308619a89be547d9fd798bd715a94eae5ddb6628eabc2ce69f4&lt;/P&gt;</content>
+    <content>&lt;P&gt;c5fe985d92ea2d990aeea96fc43c046da70f59a5bc4a5a41c1a5886f970c6080&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-01-common-types-and-aspects/bc-p/14408278#M75"/>
     <published>2026-06-01T07:39:03.868000+02:00</published>
   </entry>
@@ -1457,6 +795,30 @@ Body:
     <published>2026-06-01T09:45:12.945000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/human-capital-management-q-a/sf-com-compa-ratio-and-range-penetration-v2-0-merges-compa-ratio-from/qaa-p/14408397#M52393</id>
+    <title>Re: SF_COM_Compa_Ratio_and_Range_Penetration_v2.0 merges compa ratio from multiple employee assignme</title>
+    <updated>2026-06-01T09:46:07.610000+02:00</updated>
+    <author>
+      <name>TadasP</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1467114</uri>
+    </author>
+    <content>This is the template used "SF_COM_Compa_Ratio_and_Range_Penetration_v2.0". Also apologies for not mentioning that I have removed FTE from Compa Ratio calculation since Compa Ratio is needed for all active employees in the company despite FTE result.</content>
+    <link href="https://community.sap.com/t5/human-capital-management-q-a/sf-com-compa-ratio-and-range-penetration-v2-0-merges-compa-ratio-from/qaa-p/14408397#M52393"/>
+    <published>2026-06-01T09:46:07.610000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/how-to-add-material-group-description-to-pick-list-form-fdp-pm/qaa-p/14408398#M4241804</id>
+    <title>Re: How to add Material Group Description to Pick List Fo...</title>
+    <updated>2026-06-01T09:48:48.742000+02:00</updated>
+    <author>
+      <name>triminh_le181</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2259623</uri>
+    </author>
+    <content>Hi Henrike, I'm using the custom form template. However, the standard data source doesn't have Material Group Description field. It only contains Material Group code. Cheers, Tri</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/how-to-add-material-group-description-to-pick-list-form-fdp-pm/qaa-p/14408398#M4241804"/>
+    <published>2026-06-01T09:48:48.742000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/financial-management-q-a/how-to-regenarate-bill-of-exchange-file-fbwe/qaq-p/14408399</id>
     <title>How to regenarate Bill of exchange file FBWE</title>
     <updated>2026-06-01T09:49:24.947000+02:00</updated>
@@ -1469,6 +831,18 @@ Body:
     <published>2026-06-01T09:49:24.947000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/technology-q-a/mdg-bp-ui-not-refreshing-for-specific-entities-bp-centrl-fs-bp001-after/qaq-p/14408401</id>
+    <title>MDG BP: UI not refreshing for specific entities (BP_CENTRL, FS_BP001) after Enrichment Spot</title>
+    <updated>2026-06-01T09:50:30.771000+02:00</updated>
+    <author>
+      <name>SimonMDM</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1441755</uri>
+    </author>
+    <content>&lt;P&gt;Hello everyone,&lt;/P&gt;&lt;P&gt;I am currently implementing an Enrichment Spot on the BP data model. I have created two enrichment spots, but only one of them is working as expected.&lt;/P&gt;&lt;P&gt;I created a new CR copied from the standard &lt;STRONG&gt;SUPPL1P1&lt;/STRONG&gt;, which uses the business activity &lt;STRONG&gt;SUP1&lt;/STRONG&gt;. In &lt;CODE&gt;MDGIMG&lt;/CODE&gt;, I created and added the FEEDER and ADAPTER to process 00. To prevent the enrichment from triggering on every single user input, I added a custom button in &lt;CODE&gt;CL_BS_BP_OVP_ASSIST&lt;/CODE&gt; and trigger the click using &lt;CODE&gt;io_event_data-&amp;gt;get_value&lt;/CODE&gt;.&lt;/P&gt;&lt;P&gt;For the CR &lt;STRONG&gt;ZXXXXX&lt;/STRONG&gt; (the &lt;CODE&gt;SUPPL1P1&lt;/CODE&gt; copy), the enrichment works perfectly. The flow passes through the FEEDER to send data to the ADAPTER, runs the process, and upon returning to the FEEDER, I modify the ENTITIES in the &lt;CODE&gt;IF_USMD_ENRICHMENT_FEEDER~GET_MDG_DATA&lt;/CODE&gt; method. For this CR, I have two processes: one enrichment with a pop-up prompting a user choice, and another without a pop-up (the WD is created but empty). The first Spot successfully updates the &lt;CODE&gt;BP_CENTRL&lt;/CODE&gt;, &lt;CODE&gt;AD_POSTAL&lt;/CODE&gt;, and &lt;CODE&gt;FS_BP001&lt;/CODE&gt; entities based on the user's choice in the pop-up. The second one works similarly; the API return from the ADAPTER correctly updates the necessary entities in the background.&lt;/P&gt;&lt;P&gt;Previously, I had a synchronization issue with the &lt;CODE&gt;FS_BP001&lt;/CODE&gt; entity. The Financial Services table wasn't refreshing on the UI right after the FEEDER output. I had to manually trigger an action on an input field using the &lt;CODE&gt;FPM_REFRESH&lt;/CODE&gt; event in its UIBB, or click "Save" to see the changes. To fix this, I added the following code in the &lt;CODE&gt;USMD_MDG_RULE_SERVICE&lt;/CODE&gt;BAdI: &lt;CODE&gt;lo_fpm_event = cl_fpm_event=&amp;gt;create_by_id( iv_event_id = 'CR_CHECK' ).&lt;/CODE&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The Issue:&lt;/STRONG&gt; Now, I am working with CR &lt;STRONG&gt;ZXXXX2&lt;/STRONG&gt; (copied from standard &lt;STRONG&gt;SUPPL2P1&lt;/STRONG&gt;, business activity &lt;STRONG&gt;SUP2&lt;/STRONG&gt;). I applied the exact same configuration and created a new FEEDER and ADAPTER. However, when I update the entities in the FEEDER after the ADAPTER returns, &lt;CODE&gt;BP_CENTRL&lt;/CODE&gt; and &lt;CODE&gt;FS_BP001&lt;/CODE&gt; are not updated immediately on the UI. Strangely, &lt;CODE&gt;AD_POSTAL&lt;/CODE&gt; &lt;I&gt;is&lt;/I&gt; updated correctly. I have to force a sync via a manual user action on the CR to see &lt;CODE&gt;BP_CENTRL&lt;/CODE&gt;and &lt;CODE&gt;FS_BP001&lt;/CODE&gt; properly populated.&lt;/P&gt;&lt;P&gt;Even my previous workaround using &lt;CODE&gt;lo_fpm_event = cl_fpm_event=&amp;gt;create_by_id( iv_event_id = 'CR_CHECK' )&lt;/CODE&gt; doesn't fix the issue this time.&lt;/P&gt;&lt;P&gt;Does anyone have an idea why this is happening or what I might be missing?&lt;/P&gt;&lt;P&gt;Thanks in advance.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/mdg-bp-ui-not-refreshing-for-specific-entities-bp-centrl-fs-bp001-after/qaq-p/14408401"/>
+    <published>2026-06-01T09:50:30.771000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/technology-q-a/syntax-error-quot-wnflin-quot-is-not-type-compatible-with-formal-parameter/qaa-p/14408400#M4943164</id>
     <title>Re: SYNTAX Error: "WNFLIN" is not type-compatible with fo...</title>
     <updated>2026-06-01T09:50:32.305000+02:00</updated>
@@ -1479,6 +853,18 @@ Body:
     <content>&lt;P&gt;Did you already activate structure&amp;nbsp;J_1BNFLIN_SD, table type&amp;nbsp;J_1BNFLIN_SD_TAB and include&amp;nbsp;LJ1BGTOP&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Compare description of table in ddic (J_1BNFLIN_SD) and abap include (J_1BNFLIN + ITMF_J_1BNFLIN_ADD)&lt;/LI&gt;&lt;LI&gt;Look at notes such as&amp;nbsp;&lt;A class="" href="https://me.sap.com/notes/3423952/E" target="_blank" rel="noopener noreferrer"&gt;3423952 - NF-e Technical Note 2019.001 v1.62: Fields Added to Nota Fiscal for Presumed Credit and Fiscal Benefit Code&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/syntax-error-quot-wnflin-quot-is-not-type-compatible-with-formal-parameter/qaa-p/14408400#M4943164"/>
     <published>2026-06-01T09:50:32.305000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/bydesign-supplier-invoice-api-managesupplierinvoicein/qaa-p/14408402#M4943166</id>
+    <title>Re: ByDesign Supplier Invoice API - ManageSupplierInvoiceIn</title>
+    <updated>2026-06-01T09:50:57.534000+02:00</updated>
+    <author>
+      <name>MarkTotnes</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1660720</uri>
+    </author>
+    <content>Thanks Anand - This didn't work however it did point me into further attempts. I ahve now included &amp;lt;AccountingCodingBlockTypeCode&amp;gt; which does then set 'SLS - Sales Order' in the client however still now Sales Order and Item (Line Number) in the client. I currently have this : &amp;lt;!-- &lt;span class="lia-unicode-emoji" title=":white_heavy_check_mark:"&gt;✅&lt;/span&gt; COST DISTRIBUTION --&amp;gt; &amp;lt;AccountingCodingBlockDistribution&amp;gt; &amp;lt;AccountingCodingBlockAssignment&amp;gt; &amp;lt;AccountingCodingBlockTypeCode&amp;gt;SLS&amp;lt;/AccountingCodingBlockTypeCode&amp;gt; &amp;lt;DistributionPercent&amp;gt;50&amp;lt;/DistributionPercent&amp;gt; &amp;lt;!--AccountDeterminationExpenseGroupCode&amp;gt;EXP_REBATE&amp;lt;/AccountDeterminationExpenseGroupCode--&amp;gt; &amp;lt;AccountingCodingBlock&amp;gt; &amp;lt;SalesOrderReference&amp;gt; &amp;lt;ID&amp;gt;8659&amp;lt;/ID&amp;gt; &amp;lt;ItemID&amp;gt;10&amp;lt;/ItemID&amp;gt; &amp;lt;!--ItemTypeCode&amp;gt;1&amp;lt;/ItemTypeCode--&amp;gt; &amp;lt;/SalesOrderReference&amp;gt; &amp;lt;/AccountingCodingBlock&amp;gt; &amp;lt;/AccountingCodingBlockAssignment&amp;gt; &amp;lt;/AccountingCodingBlockDistribution&amp;gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/bydesign-supplier-invoice-api-managesupplierinvoicein/qaa-p/14408402#M4943166"/>
+    <published>2026-06-01T09:50:57.534000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/drc-reporting-withholding-tax/qaa-p/14408403#M4241805</id>
@@ -1505,6 +891,54 @@ Body:
     <published>2026-06-01T09:53:58.197000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/technology-q-a/update-and-deletion-processing-of-the-final-receipt-flag-upon-performance/qaq-p/14408405</id>
+    <title>Update and deletion processing of the final receipt flag upon performance cancellation in co03</title>
+    <updated>2026-06-01T09:54:17.638000+02:00</updated>
+    <author>
+      <name>Kimminah94</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/147609</uri>
+    </author>
+    <content>&lt;DIV&gt;&lt;P&gt;In SAP ECC, when a production order confirmation is posted for the planned quantity, backflush components are issued with movement type 261, and the final issue indicator is checked. This can be verified in the component overview screen of transaction CO03.&lt;/P&gt;&lt;P&gt;However, after cancelling the full quantity in CO13, although the reversal with movement type 262 is performed, the final issue indicator is not reset.&lt;/P&gt;&lt;P&gt;Could you explain the root cause of this behavior and whether there are any solutions or relevant SAP Notes?&lt;/P&gt;&lt;/DIV&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/update-and-deletion-processing-of-the-final-receipt-flag-upon-performance/qaq-p/14408405"/>
+    <published>2026-06-01T09:54:17.638000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/bydesign-supplier-invoice-api-managesupplierinvoicein/qaa-p/14408406#M4943168</id>
+    <title>Re: ByDesign Supplier Invoice API - ManageSupplierInvoiceIn</title>
+    <updated>2026-06-01T09:57:23.372000+02:00</updated>
+    <author>
+      <name>MarkTotnes</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1660720</uri>
+    </author>
+    <content>Thanks Anand - Although what you suggested (removing GeneralLedgerAccountCode) didn't work - it did point me at least now getting the 'SLS - Sales Order' in the Account Assignment Type. Still not showing a Sales Order &amp;amp; Item but am working away on referencing the WSDL. As you siggested - the terminology in the WSDL differs vastly to what we may see in the client ! Thanks again though Anand....</content>
+    <link href="https://community.sap.com/t5/technology-q-a/bydesign-supplier-invoice-api-managesupplierinvoicein/qaa-p/14408406#M4943168"/>
+    <published>2026-06-01T09:57:23.372000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/sap-integration-suite-connecting-to-s-4hana-private-cloud-odata-with-oauth/bc-p/14408407#M190819</id>
+    <title>Re: SAP Integration Suite - Connecting to S/4HANA Private Cloud OData with OAuth (Client Credentials</title>
+    <updated>2026-06-01T09:58:40.499000+02:00</updated>
+    <author>
+      <name>gabrielalberto_stein86</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/796596</uri>
+    </author>
+    <content>&lt;P&gt;Hi,&lt;BR /&gt;thanks for the example.&lt;BR /&gt;I would like to ask, I really don't understand which advantages we have implementing this authentication method, like demonstrated in the iflow.&lt;BR /&gt;Because to get the token, a basic authentication is needed, so you have to give the user and password via http request. And that is what should be avoided.&lt;/P&gt;&lt;P&gt;Is there a difference between sending the basic credentials to get the token and just calling the odata request with basic authentication?&lt;/P&gt;&lt;P&gt;I really don’t understand the advantage here.&lt;BR /&gt;Thanks for your attention.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-integration-suite-connecting-to-s-4hana-private-cloud-odata-with-oauth/bc-p/14408407#M190819"/>
+    <published>2026-06-01T09:58:40.499000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/obzt-define-tax-codes-per-transaction/bc-p/14408412#M73010</id>
+    <title>Re: OBZT - define tax codes per transaction</title>
+    <updated>2026-06-01T09:59:20.686000+02:00</updated>
+    <author>
+      <name>DaiichiSankyo-Project4D</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1474031</uri>
+    </author>
+    <content>&lt;P&gt;Hi Bohdan,&lt;BR /&gt;&lt;BR /&gt;I have a query , if i configured tax codes in invoice verification (LIV) for MIRO transactions does that ensure the similar set of tax codes being displayed in VIM screen as well or is there any other configuration which is specific to VIM interface?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/obzt-define-tax-codes-per-transaction/bc-p/14408412#M73010"/>
+    <published>2026-06-01T09:59:20.686000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/is-it-possible-to-create-work-flow-for-business-partner-create-change-in/qaa-p/14408414#M4241807</id>
     <title>Re: Is it Possible To Create Work Flow For Business Partn...</title>
     <updated>2026-06-01T09:59:51.205000+02:00</updated>
@@ -1527,6 +961,30 @@ Body:
     <content>&lt;P&gt;Hi&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/174760"&gt;@jose-becerra&lt;/a&gt;&amp;nbsp;,&amp;nbsp;&lt;/P&gt;&lt;P&gt;Unfortunately, no: We had to withdraw the 2023 as indicated above.&lt;/P&gt;&lt;P&gt;All we can do is release 2025 as quickly as possible. This is what we are working on now.&lt;/P&gt;&lt;P&gt;Thanks and best wishes,&lt;BR /&gt;Julie Plummer&lt;BR /&gt;&lt;SPAN&gt;ABAP PM.&lt;/SPAN&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/abap-cloud-developer-trial-2023-available-now/bc-p/14408416#M190820"/>
     <published>2026-06-01T10:00:20.662000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/eppm-business-requirements-s4-hana-private-cloud/qaa-p/14408456#M4241808</id>
+    <title>Re: EPPM Business Requirements , S4 Hana Private cloud</title>
+    <updated>2026-06-01T10:05:37.214000+02:00</updated>
+    <author>
+      <name>vinodm25</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2287344</uri>
+    </author>
+    <content>Hi Elena, Thank you for sharing your valuable insights and suggestions. Greatly appreciated and very helpful.</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/eppm-business-requirements-s4-hana-private-cloud/qaa-p/14408456#M4241808"/>
+    <published>2026-06-01T10:05:37.214000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/can-joule-work-with-situation-handling-in-s-4-public/qaa-p/14408465#M4241809</id>
+    <title>Re: Can Joule work with Situation handling in s/4 Public?</title>
+    <updated>2026-06-01T10:10:03.161000+02:00</updated>
+    <author>
+      <name>71189911</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2211641</uri>
+    </author>
+    <content>&lt;DIV&gt;&lt;P&gt;Hi, thanks for your answer.&lt;BR /&gt;Now we have made a plan to activate Situation Handling in our S/4HANA Public Cloud system. However, our users have an additional requirement:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;They would like to receive notifications for Job Monitoring&lt;/STRONG&gt;, for example:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;when a scheduled job ends with an error&lt;/LI&gt;&lt;LI&gt;when a job is completed successfully&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This kind of notification is important for ensuring timely response and operational efficiency.&amp;nbsp;&lt;/P&gt;&lt;/DIV&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/can-joule-work-with-situation-handling-in-s-4-public/qaa-p/14408465#M4241809"/>
+    <published>2026-06-01T10:10:03.161000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/business-transformation-blog-posts/what-is-clean-core-anyway/ba-p/14407993</id>
@@ -1601,6 +1059,18 @@ Body:
     <published>2026-06-01T10:24:04.927000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/human-capital-management-blog-posts-by-sap/successfactors-governance-a-csm-perspective/bc-p/14408490#M10169</id>
+    <title>Re: SuccessFactors Governance: A CSM Perspective</title>
+    <updated>2026-06-01T10:24:12.523000+02:00</updated>
+    <author>
+      <name>salimo</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1704498</uri>
+    </author>
+    <content>&lt;P class=""&gt;&lt;SPAN&gt;From my experience working on SAP SuccessFactors projects, the biggest challenge is rarely the system itself. Most implementation teams focus heavily on configuration, testing, and go-live readiness, but user adoption often receives less attention than it deserves.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;A technically successful implementation can still fail to deliver business value if managers and employees continue relying on old habits and manual processes.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;I particularly agree with the idea that go-live is only the beginning. Continuous improvement, ongoing training, data governance, and regular review of new releases are what transform a system implementation into a true business transformation.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;Technology enables change, but people ultimately determine its success.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Thank you for sharing these valuable insights.&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-blog-posts-by-sap/successfactors-governance-a-csm-perspective/bc-p/14408490#M10169"/>
+    <published>2026-06-01T10:24:12.523000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/how-to-set-up-quota-arrangement-in-sap-a-step-by-step-guide/bc-p/14408492#M73011</id>
     <title>Re: How to Set Up Quota Arrangement in SAP – A Step-by-Step Guide</title>
     <updated>2026-06-01T10:26:22.343000+02:00</updated>
@@ -1623,6 +1093,18 @@ Body:
     <content>&lt;P&gt;Standard SAP does not include an authorization check for this access path, especially for non-header fields.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;I suggest analyzing form BELEG_SUCHEN in SAPMF05L (FB03) for enhancement opportunities to implement custom logic that restricts document display when an item contains an unauthorized cost center.&lt;/LI&gt;&lt;LI&gt;Did you perform an authority-check trace to insure users are actually not allowed to FB03 ?&lt;/LI&gt;&lt;/UL&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/fb03-authorization-based-on-cost-center-when-called-from-s-alr-87013611/qaa-p/14408495#M4241810"/>
     <published>2026-06-01T10:28:21.105000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/system-temporarily-unavailable-error-c-thr81-2512-launch-support-closing/qaq-p/14408496</id>
+    <title>System temporarily unavailable error - C_THR81_2512 launch - Support closing tickets without resolut</title>
+    <updated>2026-06-01T10:28:34.580000+02:00</updated>
+    <author>
+      <name>Alexander_Rogalsky61</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2050401</uri>
+    </author>
+    <content>&lt;P&gt;Hello SAP Community and Learning Team,&lt;/P&gt;&lt;P&gt;I am writing this post out of sheer frustration because I am completely stuck and standard support channels have failed to help me.&lt;/P&gt;&lt;P&gt;Over the last few weeks, I have tried to launch my system-based assessment for &lt;STRONG&gt;C_THR81_2512&lt;/STRONG&gt; (&lt;I&gt;SAP Certified - SAP SuccessFactors Employee Central Core and Position Management&lt;/I&gt;). For the &lt;STRONG&gt;third time in a row&lt;/STRONG&gt;, I was met with the exact same error upon hitting the launch button:&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;&lt;STRONG&gt;"System temporarily unavailable"&lt;/STRONG&gt;&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;P&gt;It appears the backend cloud provisioning script is failing to spin up the live SuccessFactors instance required for this new exam format.&lt;/P&gt;&lt;P&gt;Every single time this happens, I take timestamped screenshots as proof. However, when I opened a ticket last week with SAP Support regarding this issue, it was closed immediately without any helpful solution or investigation into why the environment is failing to load.&amp;nbsp;&lt;/P&gt;&lt;P&gt;This is a massive disruption to my certification timeline, and it is incredibly disheartening to have standard tickets closed when the infrastructure failure is entirely on SAP's side.&lt;/P&gt;&lt;P&gt;Has anyone else encountered this provisioning glitch with the 2026 system-based exams?&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thank you.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/system-temporarily-unavailable-error-c-thr81-2512-launch-support-closing/qaq-p/14408496"/>
+    <published>2026-06-01T10:28:34.580000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/config-tool-connection-not-available-after-dpagent-upgrade/qaq-p/14408497</id>
@@ -1697,6 +1179,18 @@ Body:
     <published>2026-06-01T10:35:52.398000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/technology-q-a/cannot-configure-microsoft-sharepoint-adapter-for-sap-integration-suite/qaa-p/14408565#M4943172</id>
+    <title>Re: CAnnot configure Microsoft SharePoint Adapter for SAP...</title>
+    <updated>2026-06-01T10:40:06.608000+02:00</updated>
+    <author>
+      <name>mastanvali_stw</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2303927</uri>
+    </author>
+    <content>&lt;P&gt;Hi,&lt;/P&gt;&lt;P&gt;first open any integration flow and add sender or receiver pallet then tey to connect adapter from the list you have to select your adapter.&lt;/P&gt;&lt;P&gt;hope it helps&lt;/P&gt;&lt;P&gt;BR,&lt;/P&gt;&lt;P&gt;Mastan&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/cannot-configure-microsoft-sharepoint-adapter-for-sap-integration-suite/qaa-p/14408565#M4943172"/>
+    <published>2026-06-01T10:40:06.608000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/making-web-apps-ipv6-ready-the-ipv6-web-resource-checker-webres6/bc-p/14408572#M190824</id>
     <title>Re: Making Web Apps IPv6-Ready: The IPv6 Web Resource Checker (webres6)</title>
     <updated>2026-06-01T10:49:06.658000+02:00</updated>
@@ -1721,6 +1215,18 @@ Body:
     <published>2026-06-01T10:51:22.209000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/supply-chain-management-q-a/sap-ewm-pgi-after-partial-loading-system-should-allow-to-move-remaining-qty/qaq-p/14408576</id>
+    <title>SAP EWM PGI after Partial Loading. System should allow to move Remaining qty. in SO</title>
+    <updated>2026-06-01T10:53:14.709000+02:00</updated>
+    <author>
+      <name>Lalit_sapuser</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1634051</uri>
+    </author>
+    <content>&lt;P&gt;Hello Everyone,&lt;/P&gt;&lt;P&gt;I am facing an issue in SAP Embedded EWM during an outbound process involving serialized materials.&lt;/P&gt;&lt;P&gt;Scenario&lt;/P&gt;&lt;P&gt;An Outbound Delivery was created and full picking was completed for all delivery quantities.&lt;/P&gt;&lt;P&gt;During loading, only part of the picked quantity could be loaded due to transportation/container capacity constraints.&lt;/P&gt;&lt;P&gt;Since the material is serial-number managed, I created a sub-item/sub-delivery for the loaded serial numbers and performed PGI only for the loaded quantity.&lt;/P&gt;&lt;P&gt;The system successfully created a subdivided Outbound Delivery with reference to the original delivery and posted Goods Issue for the loaded quantity.&lt;/P&gt;&lt;P&gt;Current Behavior&lt;/P&gt;&lt;P&gt;The remaining quantity still exists against the original Outbound Delivery.&lt;/P&gt;&lt;P&gt;The remaining stock is physically available in the GI Zone.&lt;/P&gt;&lt;P&gt;If required, I can perform &lt;STRONG&gt;CANCPICK&lt;/STRONG&gt; and move the remaining stock back to a storage bin.&lt;/P&gt;&lt;P&gt;However, even after the partial PGI, the remaining quantity continues to be reserved against the original delivery.&lt;/P&gt;&lt;P&gt;In ERP, the original delivery still shows the remaining quantity as open.&lt;/P&gt;&lt;P&gt;Because the quantity remains assigned to the original delivery, I am unable to use that stock for another customer order.&lt;/P&gt;&lt;P&gt;Expected Behavior-&lt;/P&gt;&lt;P&gt;My expectation is that after performing partial loading and PGI:&lt;/P&gt;&lt;P&gt;The original Outbound Delivery should be completed in both EWM and ERP.&lt;/P&gt;&lt;P&gt;The remaining unloaded quantity should be released from the delivery.&lt;/P&gt;&lt;P&gt;The remaining quantity should become available again at the Sales Order level (or backorder level) for further planning.&lt;/P&gt;&lt;P&gt;The stock should either remain in the GI Zone or be returned to a storage bin, but it should no longer be reserved against the original delivery.&lt;/P&gt;&lt;H3 id="toc-hId-1945568826"&gt;&amp;nbsp;&lt;/H3&gt;&lt;P&gt;Is there a standard SAP EWM process or configuration that allows the remaining quantity after partial loading PGI to be automatically released back to the Sales Order (instead of remaining open in the original Outbound Delivery)?&lt;/P&gt;&lt;P&gt;Any guidance or best-practice recommendations would be greatly appreciated.&lt;/P&gt;&lt;P&gt;Thanks,&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/supply-chain-management-q-a/sap-ewm-pgi-after-partial-loading-system-should-allow-to-move-remaining-qty/qaq-p/14408576"/>
+    <published>2026-06-01T10:53:14.709000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/human-capital-management-blog-posts-by-sap/custom-infotype-to-the-successfactors-mashup-technical-configuration-guide/bc-p/14408578#M10170</id>
     <title>Re: Custom Infotype to the SuccessFactors Mashup - Technical Configuration Guide</title>
     <updated>2026-06-01T10:56:09.676000+02:00</updated>
@@ -1731,5 +1237,65 @@ Body:
     <content>&lt;P&gt;Hi Shankar,&lt;/P&gt;&lt;P&gt;Very good blog...seems I can use this document as base for all my customer who are looking in having custom information to process in their organization.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/human-capital-management-blog-posts-by-sap/custom-infotype-to-the-successfactors-mashup-technical-configuration-guide/bc-p/14408578#M10170"/>
     <published>2026-06-01T10:56:09.676000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-01-common-types-and-aspects/bc-p/14408594#M81</id>
+    <title>Re: June Developer Challenge - CAP Knowledge - Task 01 - Common types and aspects</title>
+    <updated>2026-06-01T10:59:28.044000+02:00</updated>
+    <author>
+      <name>aryan-11</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/946260</uri>
+    </author>
+    <content>&lt;P&gt;03ba46c8c33222654acfb18a2bb9329c848d50bcf4797651e7f07379b005967d&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-01-common-types-and-aspects/bc-p/14408594#M81"/>
+    <published>2026-06-01T10:59:28.044000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-01-common-types-and-aspects/bc-p/14408596#M82</id>
+    <title>Re: June Developer Challenge - CAP Knowledge - Task 01 - Common types and aspects</title>
+    <updated>2026-06-01T11:03:39.885000+02:00</updated>
+    <author>
+      <name>Greltel</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/37941</uri>
+    </author>
+    <content>&lt;P&gt;b2971068738e67d2d45e05afa2fd9b1bdd46167537ba22205f47f54ceba40a25&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-01-common-types-and-aspects/bc-p/14408596#M82"/>
+    <published>2026-06-01T11:03:39.885000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/i-have-changed-purchase-order-text-of-a-material-item-code-using-mm02-now-i/qaa-p/14408597#M4241814</id>
+    <title>Re: I have changed purchase order text of a material item...</title>
+    <updated>2026-06-01T11:04:22.491000+02:00</updated>
+    <author>
+      <name>ankurch</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/11196</uri>
+    </author>
+    <content>&lt;P&gt;Hello&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/153223"&gt;@mukeshdak&lt;/a&gt;&amp;nbsp; - Pls refer the SAP KBA -&amp;nbsp;&lt;A href="https://me.sap.com/notes/0002769268" target="_blank" rel="noopener noreferrer"&gt;2769268 - Material PO text changes in PO - SAP for Me&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/i-have-changed-purchase-order-text-of-a-material-item-code-using-mm02-now-i/qaa-p/14408597#M4241814"/>
+    <published>2026-06-01T11:04:22.491000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/one-time-customer-set-up-in-public-cloud/qaa-p/14408598#M4241815</id>
+    <title>Re: one time customer set up in public cloud</title>
+    <updated>2026-06-01T11:05:32.271000+02:00</updated>
+    <author>
+      <name>ankurch</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/11196</uri>
+    </author>
+    <content>&lt;P&gt;Hello&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2189041"&gt;@rajeshkumar0311&lt;/a&gt;&amp;nbsp; - you need to access the CBC system to do the configuration.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/one-time-customer-set-up-in-public-cloud/qaa-p/14408598#M4241815"/>
+    <published>2026-06-01T11:05:32.271000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/one-time-customer-set-up-in-public-cloud/qaa-p/14408599#M4241816</id>
+    <title>Re: one time customer set up in public cloud</title>
+    <updated>2026-06-01T11:06:41.340000+02:00</updated>
+    <author>
+      <name>ankurch</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/11196</uri>
+    </author>
+    <content>&lt;P&gt;Hello&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2189041"&gt;@rajeshkumar0311&lt;/a&gt;&amp;nbsp; - you need to have the access of CBC system to do the configuration.&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/one-time-customer-set-up-in-public-cloud/qaa-p/14408599#M4241816"/>
+    <published>2026-06-01T11:06:41.340000+02:00</published>
   </entry>
 </feed>
