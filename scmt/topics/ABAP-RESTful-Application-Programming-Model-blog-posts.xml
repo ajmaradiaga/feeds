@@ -2,550 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-RESTful-Application-Programming-Model-blog-posts.xml</id>
   <title>SAP Community - ABAP RESTful Application Programming Model</title>
-  <updated>2026-06-05T08:00:06.435730+00:00</updated>
+  <updated>2026-06-05T11:00:04.852389+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP RESTful Application Programming Model/pd-p/7e44126e-7b27-471d-a379-df205a12b1ff" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP RESTful Application Programming Model blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/handling-cross-business-object-transactions-in-rap-using-actions/ba-p/14373581</id>
-    <title>Handling Cross Business Object Transactions in RAP Using Actions</title>
-    <updated>2026-04-16T12:34:56.887000+02:00</updated>
-    <author>
-      <name>Tejashree__K</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2293605</uri>
-    </author>
-    <content>&lt;H2 id="toc-hId-1794172674"&gt;Introduction&lt;/H2&gt;&lt;P&gt;In the &lt;SPAN class=""&gt;&lt;SPAN class=""&gt;SAP RAP&lt;/SPAN&gt;&lt;/SPAN&gt;, most examples focus on single Business Object (BO) operations. However, real-world enterprise applications rarely operate in isolation. A single business transaction often impacts multiple BOs—for example, creating a Delivery should trigger Billing, updating inventory, and possibly financial postings.&lt;BR /&gt;In this blog, we explore how to implement &lt;STRONG&gt;cross-BO interaction using RAP Actions&lt;/STRONG&gt;, where:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;A &lt;STRONG&gt;Delivery BO&lt;/STRONG&gt; triggers creation in a &lt;STRONG&gt;Billing BO&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;Both operations are executed within the same &lt;STRONG&gt;LUW (Logical Unit of Work)&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;Data consistency is preserved using RAP’s transactional buffer&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1726741888"&gt;Business Scenario&lt;/H3&gt;&lt;P&gt;Consider a typical &lt;STRONG&gt;Order-to-Cash process&lt;/STRONG&gt;:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;A &lt;STRONG&gt;Delivery&lt;/STRONG&gt; is created for a customer.&lt;/LI&gt;&lt;LI&gt;Once the delivery is confirmed, a &lt;STRONG&gt;Billing document&lt;/STRONG&gt; must be generated.&lt;/LI&gt;&lt;LI&gt;The system should:&lt;UL&gt;&lt;LI&gt;Automatically create a Billing record&lt;/LI&gt;&lt;LI&gt;Update the Delivery status to &lt;EM&gt;DELIVERED&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;Ensure both operations succeed or fail together&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;H4 id="toc-hId-1659311102"&gt;Implementation Steps&lt;/H4&gt;&lt;P&gt;&lt;SPAN&gt;STEP 1:&amp;nbsp;Create a Data base Table&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Data base&amp;nbsp; table For Delivery Details&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'delivery details' 
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE 
-@AbapCatalog.tableCategory : #TRANSPARENT 
-@AbapCatalog.deliveryClass : #A 
-@AbapCatalog.dataMaintenance : #RESTRICTED 
-define table zte_t_delivery_s { 
-key delivery_id : abap.char(10) not null; 
-customer_id : abap.char(5); 
-material : abap.char(20); 
-price : abap.char(10); 
-delivery_date : abap.dats; 
-delivery_status : abap.char(15); 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Data Base table for Billing Details&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Billing Details' 
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE 
-@AbapCatalog.tableCategory : #TRANSPARENT 
-@AbapCatalog.deliveryClass : #A 
-@AbapCatalog.dataMaintenance : #RESTRICTED 
-define table zte_t_billing_s { 
-key billing_id : abap.char(10) not null; 
-customer_id : abap.char(5); 
-delivery_id : abap.char(10); 
-material : abap.char(20); 
-price : abap.char(10); 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;STEP 2: Create root CDS views for both tables&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Root view For Delivery Details&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED 
-@EndUserText.label: 'Delivery Details' 
-@Metadata.ignorePropagatedAnnotations: true 
-define root view entity ZI_T_DELIVERY_S as select from zte_t_delivery_s 
-{ 
-key delivery_id as DeliveryId, 
-customer_id as CustomerId, 
-material as Material, 
-price as Price, 
-delivery_date as DeliveryDate, 
-delivery_status as DeliveryStatus 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;SPAN&gt;Root view For Billing Details&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED 
-@EndUserText.label: 'Billing Details' 
-@Metadata.ignorePropagatedAnnotations: true 
-define root view entity ZI_T_BILLING_S as select from zte_t_billing_s 
-{ 
-key billing_id as BillingId, 
-customer_id as CustomerId, 
-delivery_id as DeliveryId, 
-material as Material, 
-price as Price 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;STEP 3: Create Projection View&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Add UI Annotations&lt;/LI&gt;&lt;LI&gt;Add Action Button In Delivery Projection&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;Projection View For Delivery Details&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED 
-@EndUserText.label: 'Delivery Details' 
-@Metadata.ignorePropagatedAnnotations: true 
-define root view entity ZC_T_DELIVERY_S 
-provider contract transactional_query as projection on ZI_T_DELIVERY_S 
-{ 
-@UI.facet: [{ id: 'deliverdetails',  
-position: 1,  
-label: 'Order Details',  
-type: #IDENTIFICATION_REFERENCE  
-} ] 
-@UI.lineItem: [ 
-{ importance: #MEDIUM}, 
-{ position: 10, type : #FOR_ACTION, label : 'Available', dataAction : 'create_delivery' }, 
-{ position: 1, label : 'Delivery ID' }]  
-@UI.identification: [{ position: 1, label : 'Delivery ID' }] 
-key DeliveryId, 
-@UI.lineItem: [{ position: 2, label : 'Customer ID' }]  
-@UI.identification: [{ position: 2, label : 'Customer ID' }] 
-CustomerId, 
-@UI.lineItem: [{ position: 3, label : 'Material' }]  
-@UI.identification: [{ position: 3, label : 'Material' }] 
-Material, 
-@UI.lineItem: [{ position: 4, label : 'Price' }]  
-@UI.identification: [{ position: 4, label : 'Price' }] 
-Price, 
-@UI.lineItem: [{ position: 5, label : 'Delivery Date' }]  
-@UI.identification: [{ position: 5, label : 'Delivery Date' }] 
-DeliveryDate, 
-@UI.lineItem: [{ position: 6, label : 'Delivery Status' }]  
-@UI.identification: [{ position: 6, label : 'Delivery Status' }] 
-DeliveryStatus 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Projection View for Billing Details&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED 
-@EndUserText.label: 'Billing Details' 
-@Metadata.ignorePropagatedAnnotations: true 
-define root view entity ZC_T_BILLING_S 
-provider contract transactional_query as projection on ZI_T_BILLING_S 
-{ 
-@UI.facet: [{ id: 'Billingdetails',  
-position: 1,  
-label: 'Billing Details',  
-type: #IDENTIFICATION_REFERENCE  
-} ] 
-@UI.lineItem: [{ position: 1, label : 'Billing Id' }]  
-@UI.identification: [{ position: 1, label : 'Billing Id' }] 
-key BillingId, 
-@UI.lineItem: [{ position: 2, label : 'Customer Id' }]  
-@UI.identification: [{ position: 2, label : 'Custoomer Id' }] 
-CustomerId, 
-@UI.lineItem: [{ position: 3, label : 'Delivery Id' }]  
-@UI.identification: [{ position: 3, label : 'Delivery Id' }] 
-DeliveryId, 
-@UI.lineItem: [{ position: 4, label : 'Material' }]  
-@UI.identification: [{ position: 4, label : 'Material' }] 
-Material, 
-@UI.lineItem: [{ position: 5, label : 'Price' }]  
-@UI.identification: [{ position: 5, label : 'Price' }] 
-Price 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;STEP 4: Define Behavior Definitions&lt;BR /&gt;&amp;nbsp;Delivery BO behavior&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Enable CRUD operation&lt;/LI&gt;&lt;LI&gt;Declare a non-factory action&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This Action is responsible for creating Billing data and updating delivery status&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed implementation in class zbp_i_t_delivery_s unique; 
-strict ( 2 ); 
-define behavior for ZI_T_DELIVERY_S //alias &amp;lt;alias_name&amp;gt; 
-persistent table zte_t_delivery_s 
-lock master 
-authorization master ( instance ) 
-//etag master &amp;lt;field_name&amp;gt; 
-{ 
-create; 
-update; 
-delete; 
-action create_delivery result [1] $self; 
-mapping for zte_t_delivery_s 
-{ 
-DeliveryId = delivery_id; 
-CustomerId = customer_id; 
-Material = material; 
-Price = price; 
-DeliveryDate = delivery_date; 
-DeliveryStatus = delivery_status; 
-} 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Billing BO behavior&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Enable CRUD operations&lt;/LI&gt;&lt;LI&gt;use Late Numbering for auto-generating Billing Id&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed implementation in class zbp_i_t_billing_s unique; 
-strict ( 2 ); 
-define behavior for ZI_T_BILLING_S //alias &amp;lt;alias_name&amp;gt; 
-persistent table zte_t_billing_s 
-lock master 
-authorization master ( instance ) 
-late numbering 
-//etag master &amp;lt;field_name&amp;gt; 
-{ 
-create; 
-update; 
-delete; 
-
-mapping for zte_t_billing_s 
-{ 
-BillingId = billing_id; 
-DeliveryId = delivery_id; 
-CustomerId = customer_id; 
-Material = material; 
-Price = price; 
-} 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;STEP 5: Define Projection behavior&amp;nbsp;&lt;/P&gt;&lt;P&gt;Delivery BO projection behavior&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection; 
-strict ( 2 ); 
-define behavior for ZC_T_DELIVERY_S //alias &amp;lt;alias_name&amp;gt; 
-{ 
-use create; 
-use update; 
-use delete; 
-use action create_delivery; 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Billing BO projection behavior&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection; 
-strict ( 2 ); 
-define behavior for ZC_T_BILLING_S //alias &amp;lt;alias_name&amp;gt; 
-{ 
-use create; 
-use update; 
-use delete; 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;STEP 6:&amp;nbsp;&amp;nbsp;Implement Behavior Logic&lt;/P&gt;&lt;P&gt;Delivery Class&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_ZI_T_DELIVERY_S DEFINITION INHERITING FROM cl_abap_behavior_handler. 
-
-PRIVATE SECTION. 
-METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION 
-IMPORTING keys REQUEST requested_authorizations FOR zi_t_delivery_s RESULT result. 
-
-METHODS create_delivery FOR MODIFY 
-IMPORTING keys FOR ACTION zi_t_delivery_s~create_delivery RESULT result. 
-ENDCLASS.
- 
-CLASS lhc_ZI_T_DELIVERY_S IMPLEMENTATION. 
-METHOD get_instance_authorizations. 
-ENDMETHOD. 
-
-METHOD create_delivery. 
-READ ENTITIES OF ZI_T_DELIVERY_S 
-IN LOCAL MODE 
-ENTITY ZI_T_DELIVERY_S 
-FIELDS ( DeliveryId CustomerId Material Price ) 
-WITH CORRESPONDING #( keys ) 
-RESULT DATA(lt_delivery). 
-LOOP AT lt_delivery INTO DATA(ls_delivery). 
-
-"Create Billing Entry 
-MODIFY ENTITIES OF ZI_T_BILLING_S 
-ENTITY ZI_T_BILLING_S 
-CREATE 
-FIELDS ( DeliveryId CustomerId Material Price ) 
-WITH VALUE #( 
-( 
-%cid = 'BILL1' 
-DeliveryId = ls_delivery-DeliveryId 
-CustomerId = ls_delivery-CustomerId 
-Material = ls_delivery-Material 
-Price = ls_delivery-Price 
-) 
-) 
-FAILED DATA(ls_failed) 
-REPORTED DATA(ls_reported). 
-
-IF ls_failed IS NOT INITIAL. 
-reported = CORRESPONDING #( ls_reported ). 
-RETURN. 
-ENDIF. 
-
-"Update Delivery Status 
-MODIFY ENTITIES OF ZI_T_DELIVERY_S 
-IN LOCAL MODE 
-ENTITY ZI_T_DELIVERY_S 
-UPDATE FIELDS ( DeliveryStatus ) 
-WITH VALUE #( 
-( 
-DeliveryId = ls_delivery-DeliveryId 
-DeliveryStatus = 'DELIVERED' 
-) 
-). 
-ENDLOOP.
-ENDMETHOD. 
-ENDCLASS. &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Billing Class&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_ZI_T_BILLING_S DEFINITION INHERITING FROM cl_abap_behavior_handler. 
-PRIVATE SECTION. 
-METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION 
-IMPORTING keys REQUEST requested_authorizations FOR zi_t_billing_s RESULT result. 
-ENDCLASS. 
-
-CLASS lhc_ZI_T_BILLING_S IMPLEMENTATION. 
-METHOD get_instance_authorizations. 
-ENDMETHOD. 
-ENDCLASS. 
-
-CLASS lsc_ZI_T_BILLING_S DEFINITION INHERITING FROM cl_abap_behavior_saver. 
-PROTECTED SECTION. 
-METHODS adjust_numbers REDEFINITION. 
-METHODS cleanup_finalize REDEFINITION. 
-ENDCLASS. 
-
-CLASS lsc_ZI_T_BILLING_S IMPLEMENTATION. 
-METHOD adjust_numbers. 
-SELECT FROM ZTE_T_Billing_S FIELDS MAX( billing_id ) INTO (ls_mat_num). 
-DATA(lv_num) = ls_mat_num+3(4). 
-LOOP AT mapped-zi_t_billing_s ASSIGNING FIELD-SYMBOL(&amp;lt;fs_material&amp;gt;). 
-lv_num += 1. 
-&amp;lt;fs_material&amp;gt;-BillingId = |BIL{ lv_num ALPHA = IN WIDTH = 4 }|. 
-ENDLOOP. 
-ENDMETHOD. 
-METHOD cleanup_finalize. 
-ENDMETHOD. 
-ENDCLASS. &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;STEP 7: Service Defination&lt;/P&gt;&lt;P&gt;Expose Both Behavior objects&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Delivery and billing details' 
-define service ZSD_T_DETAILS { 
-expose ZC_T_DELIVERY_S; 
-expose ZC_T_BILLING_S; 
-} &lt;/code&gt;&lt;/pre&gt;&lt;P&gt;STEP 8 : Service Binding&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;create service binding&lt;/LI&gt;&lt;LI&gt;Activate and publish&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2026-04-14 111025.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397823i8476A4E2AE84645F/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2026-04-14 111025.png" alt="Screenshot 2026-04-14 111025.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;STEP 9: RESULT&lt;/P&gt;&lt;P&gt;Create a record and click on the Action Button the delivery Status will be updated and Billing records will be created&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2026-04-14 111910.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397825iA4D9E2B07A2155B9/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2026-04-14 111910.png" alt="Screenshot 2026-04-14 111910.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Billing details when Action is trigged and Delivery status updated to Delivery&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2026-04-14 112132.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/397826i0200461ABD756B77/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2026-04-14 112132.png" alt="Screenshot 2026-04-14 112132.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;H2 id="toc-hId-1204632159"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;Cross Business Object operations in RAP are essential for building real-world enterprise applications. While RAP abstracts much of the complexity, designing such interactions requires a clear understanding of:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Transactional behavior&lt;/LI&gt;&lt;LI&gt;BO independence vs coordination&lt;/LI&gt;&lt;LI&gt;Framework-driven data consistency By leveraging RAP Actions and EML, we can safely orchestrate multi-BO updates without compromising on clean architecture or data integrity.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This example demonstrates how a simple Delivery trigger can drive Billing creation, showcasing a scalable pattern that can be extended to more complex business processes.&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/handling-cross-business-object-transactions-in-rap-using-actions/ba-p/14373581"/>
-    <published>2026-04-16T12:34:56.887000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/rap-unmanaged-implementation-draft-enablement-late-numbering-and/ba-p/14373966</id>
-    <title>RAP Unmanaged Implementation: Draft Enablement, Late Numbering, and Associations Explained.</title>
-    <updated>2026-04-23T08:21:23.070000+02:00</updated>
-    <author>
-      <name>Gurudeep</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1874883</uri>
-    </author>
-    <content>&lt;P&gt;&lt;FONT size="6"&gt;Introduction.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;SAP RESTful Application Programming Model (RAP) provides a powerful framework for building modern, scalable applications. While managed scenarios offer built-in handling of persistence and standard operations, unmanaged scenarios give developers greater flexibility to implement custom business logic and control the complete data flow manually.&lt;/P&gt;&lt;P&gt;In this blog, we will explore how to build an &lt;STRONG&gt;unmanaged RAP Business Object&lt;/STRONG&gt;, focusing on key concepts such as &lt;STRONG&gt;Late Numbering&lt;/STRONG&gt;, &lt;STRONG&gt;Draft Handling&lt;/STRONG&gt;, and &lt;STRONG&gt;Header-Item associations&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;&lt;EM&gt;&lt;U&gt;&lt;STRONG&gt;LATE NUMBERING:&lt;/STRONG&gt;&lt;/U&gt;&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;In Late Numbering the primary key (usually ID) of a business object is not generated at the time of creation, but instead assigned later during the save (persist) phase, this is typically handled inside the SAVE method of the behavior implementation class.&lt;BR /&gt;So initially:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Temporary keys are used during transaction processing.&lt;/LI&gt;&lt;LI&gt;Final keys are generated only when data is committed to the database.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Late numbering is useful in scenarios where:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Number depends on final validation or logic&lt;BR /&gt;Example: Generate ID only after all validations pass&lt;/LI&gt;&lt;LI&gt;Avoid number gaps&lt;BR /&gt;If numbering happens early and transaction fails → gaps occur. Late numbering ensures numbers are assigned only for successful transactions&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;How It Works (Conceptually)&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;User creates record → temporary key assigned&lt;/LI&gt;&lt;LI&gt;Data stays in transactional buffer&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;During SAVE:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Generate final number&lt;/LI&gt;&lt;LI&gt;Replace temporary key with actual key&lt;/LI&gt;&lt;LI&gt;Save to database&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;U&gt;&lt;EM&gt;&lt;STRONG&gt;DRAFT:&lt;/STRONG&gt;&lt;/EM&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;Draft handling allows users to save incomplete data without activating it in the database.&lt;BR /&gt;It enables:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;“Save as Draft”&lt;/LI&gt;&lt;LI&gt;“Edit Later”&lt;/LI&gt;&lt;LI&gt;“Activate when ready”&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This is widely used in Fiori applications.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Why Do We Use Draft?&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;User convenience&lt;BR /&gt;&amp;nbsp; &amp;nbsp;Users can partially fill data and come back later.&lt;/LI&gt;&lt;LI&gt;Avoid data loss&lt;BR /&gt;&amp;nbsp; &amp;nbsp;Work is not lost if session ends.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;How Draft Works (Flow):&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;User creates or edits data → stored in Draft table.&lt;/LI&gt;&lt;LI&gt;Draft data is isolated from active data.&lt;/LI&gt;&lt;LI&gt;User can:&lt;BR /&gt;1. Edit draft&lt;BR /&gt;2. Discard draft&lt;BR /&gt;3. Activate draft&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;On Activate:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Draft data moves to active table.&lt;/LI&gt;&lt;LI&gt;Business logic (validations, determinations) is triggered.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;U&gt;&lt;EM&gt;&lt;STRONG&gt;Number Assignment in Draft with Late Numbering:&lt;/STRONG&gt;&lt;/EM&gt;&lt;/U&gt;&lt;BR /&gt;What happens to the ID in Draft?&lt;/P&gt;&lt;P&gt;When we use Late Numbering + Draft, the actual (final) key is NOT assigned in the draft table.&lt;/P&gt;&lt;P&gt;Instead:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;A temporary key (UUID or %CID) is used internally.&lt;/LI&gt;&lt;LI&gt;The real number is assigned only during Activate (SAVE).&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;There will be two phase:&lt;BR /&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; Draft Phase and Activation Phase.&lt;BR /&gt;&lt;STRONG&gt;During Draft (Create / Edit).&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;No final number is generated&lt;BR /&gt;RAP uses:&lt;BR /&gt;1. Temporary key (%CID) in backend processing&lt;BR /&gt;2. Draft UUID (technical key) in draft tables&lt;BR /&gt;3. The business key field is usually:&lt;BR /&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; Empty OR Filled with a placeholder (optional, but not final)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;So draft data is stored without the actual business number&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;During Activation (Save)&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;SAVE method is triggered&lt;/LI&gt;&lt;LI&gt;You generate the final number&lt;BR /&gt;System:&lt;BR /&gt;1. Replaces temporary key with actual key&lt;BR /&gt;2. Moves data from draft → active table&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;SCENARIO:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In this application, we have a Product (Header) table (ZGN_T_PRODUCTS) and an Order (Item) table (ZGN_T_ORDERS) linked through productid. Users can create and save Product records independently, while Orders can be created later based on the product. The requirement is to generate both Product ID and Order ID only during final save (activation) using late numbering. Users should also be able to save incomplete data as draft and complete it later. To handle custom logic, and manual persistence, an unmanaged RAP approach is used&lt;/P&gt;&lt;P&gt;1.Database tables:&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Product table - Header'
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #RESTRICTED
-define table zgn_t_products {
-
-  key client    : abap.clnt not null;
-  key productid : abap.char(3) not null;
-  productname   : abap.char(15);
-  quantity      : abap.char(3);
-  price         : abap.char(7);
-  totalprice    : abap.char(10);
-  lastchange    : timestampl;
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Order table - Item'
-@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #RESTRICTED
-define table zgn_t_orders {
-
-  key client    : abap.clnt not null;
-  key orderid   : abap.char(3) not null;
-  key productid : abap.char(3) not null;
-  orderstatus   : abap.char(10);
-  location      : abap.char(20);
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;2.&amp;nbsp;Created draft tables for both Product (Header) and Order (Item) entities to support draft functionality. These tables store intermediate data, allowing users to save incomplete records and activate them later.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Draft table for entity ZGN_I_PRODUCTS'
-@AbapCatalog.enhancement.category : #EXTENSIBLE_ANY
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #RESTRICTED
-define table zgn_dft_prdts {
-
-  key mandt     : mandt not null;
-  key productid : abap.char(3) not null;
-  key draftuuid : sdraft_uuid not null;
-  productname   : abap.char(15);
-  quantity      : abap.char(3);
-  price         : abap.char(7);
-  totalprice    : abap.char(10);
-  lastchange    : timestampl;
-  "%admin"      : include sych_bdl_draft_admin_inc;
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Draft table for entity ZGN_I_ORDERS'
-@AbapCatalog.enhancement.category : #EXTENSIBLE_ANY
-@AbapCatalog.tableCategory : #TRANSPARENT
-@AbapCatalog.deliveryClass : #A
-@AbapCatalog.dataMaintenance : #RESTRICTED
-define table zgn_dft_order {
-
-  key mandt       : mandt not null;
-  key orderid     : abap.char(3) not null;
-  key productid   : abap.char(3) not null;
-  key draftuuid   : sdraft_uuid not null;
-  parentdraftuuid : sdraft_uuid;
-  orderstatus     : abap.char(10);
-  location        : abap.char(20);
-  "%admin"        : include sych_bdl_draft_admin_inc;
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;3. Created an Interface view on top of these two database table. Defined a proper association between Product (Header) and Order (Item) using productid to establish the relationship.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Product interface view'
-@Metadata.ignorePropagatedAnnotations: true
-define root view entity ZGN_I_PRODUCTS as select from ZGN_T_PRODUCTS
-composition[1..*] of ZGN_I_ORDERS as _order
-{
-    key productid as Productid,
-    productname as Productname,
-    quantity as Quantity,
-    price as Price,
-    totalprice as Totalprice,
-    lastchange as Lastchange,
-    _order
-}&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Order interface view'
-@Metadata.ignorePropagatedAnnotations: true
-define view entity ZGN_I_ORDERS as select from zgn_t_orders
-association to parent ZGN_I_PRODUCTS as _products
-on $projection.Productid = _products.Productid
-{
-    key orderid as Orderid,
-    key productid as Productid,
-    orderstatus as Orderstatus,
-    location as Location,
-    _products
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;4.&amp;nbsp; Created a consumption CDS view on top of the interface views to expose the data for UI usage. Instead of using metadata extensions, all required UI annotations were directly maintained within the consumption view for simplicity.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Product consumption view'
-@Metadata.ignorePropagatedAnnotations: true
-define root view entity ZGN_C_PRODUCTS
-  provider contract transactional_query
-   as projection on ZGN_I_PRODUCTS
-{
-       .facet: [{ position: 1,
-    type: #IDENTIFICATION_REFERENCE,
-                  purpose: #STANDARD,
-                  label: 'Product details' },
-                  
-                  {
-                  position: 2,
-                  type: #LINEITEM_REFERENCE,
-                  purpose: #STANDARD,
-                  label: 'Order details',
-                  targetElement: '_order'
-                  } ]
-                  
-    
-    .lineItem: [{ position: 10 }]
-    .identification: [{ position: 10, label : 'Product id' }]
-    key Productid,
-    .lineItem: [{ position: 20 }]
-    .identification: [{ position: 20, label : 'Product Name' }]
-    Productname,
-    .lineItem: [{ position: 30 }]
-    .identification: [{ position: 30, label : 'Quantity' }]
-    Quantity,
-    .lineItem: [{ position: 40 }]
-    .identification: [{ position: 40, label : 'Price' }]
-    Price,
-    .lineItem: [{ position: 50 }]
-    .identification: [{ position: 50, label : 'Total price' }]
-    Totalprice,
-    .lineItem: [{ position: 60 }]
-    .identification: [{ position: 10, label : 'Last change' }]
-    Lastchange,
-    _order : redirected to composition child ZGN_C_ORDERS
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Order projection view'
-@Metadata.ignorePropagatedAnnotations: true
-define view entity ZGN_C_ORDERS as projection on ZGN_I_ORDERS
-{
-     .facet: [{ position: 1,
-    type: #IDENTIFICATION_REFERENCE,
-                  purpose: #STANDARD,
-                  label: 'Order details' }]
-                  
-    .lineItem: [{ position: 10 }]
-    .identification: [{ position: 10, label : 'Order id' }]
-    key Orderid,
-    .lineItem: [{ position: 20 }]
-    .identification: [{ position: 20, label : 'Product id' }]
-    key Productid,
-    .lineItem: [{ position: 30 }]
-    .identification: [{ position: 30, label : 'Order status' }]
-    Orderstatus,
-    .lineItem: [{ position: 40 }]
-    .identification: [{ position: 40, label : 'Location' }]
-    Location,
-    /* Associations */
-    _products : redirected to parent zgn_c_products
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;5.&amp;nbsp;Created behavior definitions on top of the interface views for both Product (Header) and Order (Item) entities. Defined the required operations and enabled features like draft handling, associations, and late numbering as per our requirements.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;unmanaged implementation in class zbp_gn_i_products unique;
-strict ( 2 );
-with draft;
-
-define behavior for ZGN_I_PRODUCTS //alias &amp;lt;alias_name&amp;gt;
-draft table zgn_dft_prdts
-late numbering
-lock master
-total etag Lastchange
-authorization master ( instance )
-
-{
-  create;
-  update;
-  delete;
-  field ( readonly ) Productid, Totalprice;
-  association _order { create; with draft; }
-  draft action Activate optimized;
-  draft action Edit;
-  draft action Resume;
-  draft action Discard;
-  draft determine action Prepare;
-
-  determination total on modify { field Price; field Quantity; }
-  side effects
-  { field Price affects field Totalprice;
-    field Quantity affects field Totalprice; }
-
-  mapping for zgn_t_products
-    {
-      Productid   = productid;
-      Productname = productname;
-      Quantity    = quantity;
-      Price       = price;
-      Totalprice  = totalprice;
-      Lastchange  = lastchange;
-    }
-
-}
-
-define behavior for ZGN_I_ORDERS //alias &amp;lt;alias_name&amp;gt;
-draft table zgn_dft_order
-late numbering
-lock dependent by _products
-authorization dependent by _products
-{
-  update;
-  delete;
-  field ( readonly : update ) Orderid, Productid;
-  association _products { with draft; }
-
-  mapping for zgn_t_orders
-    {
-      Orderid     = orderid;
-      Productid   = productid;
-      Orderstatus = orderstatus;
-      Location    = location;
-    }
-
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;6.&amp;nbsp;Implemented the required business logic in the behavior pool class using a helper class. This includes handling late numbering, calculations, and manual data persistence for both Product and Order entities.&lt;/P&gt;&lt;P&gt;&amp;nbsp; &amp;nbsp;&amp;nbsp;In the helper class, created a dedicated method to handle late numbering logic. This method generates the Product ID and Order ID and is called from the behavior pool &lt;STRONG&gt;adjust_numbers&lt;/STRONG&gt; method.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt; METHODS late_num CHANGING mapped   TYPE tt_late
-                              reported TYPE tt_report_late  .
-
- METHOD late_num.
-    IF gt_tab IS NOT INITIAL.
-      SELECT FROM zgn_t_products
-      FIELDS
-      MAX( productid )
-      INTO (lv_max).
-      LOOP AT gt_tab ASSIGNING FIELD-SYMBOL(&amp;lt;fs_max&amp;gt;).
-        lv_max += 1.
-        &amp;lt;fs_max&amp;gt;-productid = lv_max.
-      ENDLOOP.
-    ENDIF.
-
-    IF gt_tab_item1 IS NOT INITIAL.
-      SELECT FROM zgn_t_orders
-     FIELDS
-     MAX( orderid )
-     INTO (lv_max_i).
-      LOOP AT gt_tab_item1 ASSIGNING FIELD-SYMBOL(&amp;lt;fs_max_i&amp;gt;).
-        lv_max_i += 1.
-        &amp;lt;fs_max_i&amp;gt;-orderid = lv_max_i.
-      ENDLOOP.
-    ENDIF.
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;Called this method in the behavior pool class&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;  METHOD adjust_numbers.
-    zcl_gn_helper_unmln=&amp;gt;get_inst(  )-&amp;gt;late_num(
-      CHANGING
-        mapped   = mapped
-        reported = reported
-    ).
-  ENDMETHOD.
-
-  METHOD save.
-    zcl_gn_helper_unmln=&amp;gt;get_inst(  )-&amp;gt;save_data(
-     CHANGING
-       reported = reported
-   ).
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Implemented Persistance Logic for Header and Item.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Implemented the create methods for both Product (Header) and Order (Item) in the behavior implementation.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;In the header create method (create_data), the incoming entity data is mapped to an internal table using CORRESPONDING, which is later used for persistence.&lt;/LI&gt;&lt;LI&gt;In the item create method (create_item):&lt;BR /&gt;1.&amp;nbsp;The Product ID from the header is captured.&lt;BR /&gt;2.&amp;nbsp;Item data is extracted using %target.&lt;BR /&gt;3. A loop is used to assign the Product ID to each item, maintaining the header- item&amp;nbsp;association.&lt;BR /&gt;4.&amp;nbsp;Finally, the data is prepared for database insertion and mapped back to the response structure.&lt;BR /&gt;&lt;BR /&gt;This ensures that all order items are correctly linked to their respective product during creation.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;%target&lt;/STRONG&gt; is used in composition (Header → Item) scenarios to access the child entity data (Item records) that come along with the parent during a deep create.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt; METHOD create_data.
-    gt_tab = CORRESPONDING #( entities MAPPING FROM ENTITY ).
-  ENDMETHOD.
-
-METHOD create_item.
-    DATA(lv_pid) = entities[ 1 ]-Productid.
-    gt_tab_item = CORRESPONDING #( entities[ 1 ]-%target ).
-
-    LOOP AT gt_tab_item ASSIGNING FIELD-SYMBOL(&amp;lt;fs_item&amp;gt;).
-      &amp;lt;fs_item&amp;gt;-productid = lv_pid.
-    ENDLOOP.
-
-    APPEND VALUE zgn_t_orders( productid = &amp;lt;fs_item&amp;gt;-productid
-                               orderid = &amp;lt;fs_item&amp;gt;-orderid
-                               orderstatus = &amp;lt;fs_item&amp;gt;-orderstatus
-                               location = &amp;lt;fs_item&amp;gt;-location )
-                        TO gt_tab_item1.
-    mapped-zgn_i_orders = CORRESPONDING #( entities ).
-  ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Output:&lt;/P&gt;&lt;P&gt;During product creation, the Product ID is not assigned initially and remains empty in draft mode; it is generated during the save (activation) phase through late numbering.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.jfif" style="width: 800px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398022i5D74E825067E7756/image-size/large?v=v2&amp;amp;px=999" role="button" title="image.jfif" alt="image.jfif" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;After clicking on create:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (4).png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398023iB60D02E448ADD10D/image-size/large?v=v2&amp;amp;px=999" role="button" title="image (4).png" alt="image (4).png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Same applies for Order ID, which remains blank during creation and gets generated upon save&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (5).png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398025i3990059D2F9248CD/image-size/large?v=v2&amp;amp;px=999" role="button" title="image (5).png" alt="image (5).png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The below image shows the draft table entries for Orders, where the data is temporarily stored during the draft phase. At this stage, the Order ID is not yet finalized, and the system maintains a draft UUID to uniquely identify the record.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (6).png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398036iB4EF45A5FCB39CD7/image-size/large?v=v2&amp;amp;px=999" role="button" title="image (6).png" alt="image (6).png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;After clicking on save the order id gets generated.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (1).jfif" style="width: 800px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398039iB3CE11B3363E54B6/image-size/large?v=v2&amp;amp;px=999" role="button" title="image (1).jfif" alt="image (1).jfif" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The below screen shows the active data after clicking Save (activation). Both Product ID (Header) and Order ID (Item) are now successfully generated using late numbering. The Product and its associated Orders are persisted in the database with proper header-item linkage via productid.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image (7).png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/398040i49E72D78655C9174/image-size/large?v=v2&amp;amp;px=999" role="button" title="image (7).png" alt="image (7).png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT size="6"&gt;&lt;U&gt;&lt;EM&gt;&lt;STRONG&gt;Conclusion:&lt;/STRONG&gt;&lt;/EM&gt;&lt;/U&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;EM&gt;&lt;FONT size="4"&gt;In this blog, we explored how to implement an unmanaged RAP Business Object with key features like Late Numbering, Draft Handling, and Header-Item association. We saw how both Product (Header) and Order (Item) records can be created in draft mode and how their IDs are generated only during the save (activation) phase using late numbering. By handling the logic in the behavior pool and helper class, we achieved full control over data persistence, and associations.&lt;/FONT&gt;&lt;/EM&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/rap-unmanaged-implementation-draft-enablement-late-numbering-and/ba-p/14373966"/>
-    <published>2026-04-23T08:21:23.070000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/sales-configuration-display-by-cds-with-table-function-hana-sql-for/ba-p/14381112</id>
     <title>Sales Configuration display by CDS with table function/HANA SQL for Embedded Analytics and Fiori RAP</title>
@@ -3082,5 +2542,237 @@ ENDCLASS.&lt;/CODE&gt;&lt;/PRE&gt;&lt;HR /&gt;&lt;H3 id="toc-hId--1077424860"&gt
     <content>&lt;P&gt;&lt;div class="video-embed-center video-embed"&gt;&lt;iframe class="embedly-embed" src="https://cdn.embedly.com/widgets/media.html?src=https%3A%2F%2Fwww.youtube.com%2Fembed%2FRMQiC_-XaPQ%3Ffeature%3Doembed&amp;amp;display_name=YouTube&amp;amp;url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DRMQiC_-XaPQ&amp;amp;image=https%3A%2F%2Fi.ytimg.com%2Fvi%2FRMQiC_-XaPQ%2Fhqdefault.jpg&amp;amp;type=text%2Fhtml&amp;amp;schema=youtube" width="600" height="337" scrolling="no" title="ADT for VS Code, SAP BTP ABAP Env 2605, June Dev Challenge, DYK 19 | SAP Developer News" frameborder="0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen="true"&gt;&lt;/iframe&gt;&lt;/div&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1817198085"&gt;Items&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;ADT for VS Code available on VS Code Marketplace&lt;/STRONG&gt;&lt;BR /&gt;- Official announcement blog post &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/abap-development-tools-for-visual-studio-code-is-now-available-on-the-vs/ba-p/14402120" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-sap/abap-development-tools-for-visual-studio-code-is-now-available-on-the-vs/ba-p/14402120&lt;/A&gt;&lt;BR /&gt;- FAQ &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/abap-development-tools-for-visual-studio-code-is-now-available-on-the-vs/ba-p/14402120" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-sap/abap-development-tools-for-visual-studio-code-is-now-available-on-the-vs/ba-p/14402120&lt;/A&gt;&lt;BR /&gt;- GitHub Tutorial &lt;A href="https://github.com/SAP-samples/abap-platform-rap130/tree/main" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/SAP-samples/abap-platform-rap130/tree/main&lt;/A&gt;&lt;BR /&gt;- VS Code Marketplace Link &lt;A href="https://marketplace.visualstudio.com/items?itemName=SAPSE.adt-vscode" target="_blank" rel="noopener nofollow noreferrer"&gt;https://marketplace.visualstudio.com/items?itemName=SAPSE.adt-vscode&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;SAP BTP ABAP Environment – release 2605&lt;/STRONG&gt;&lt;BR /&gt;- Blog post &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-btp-abap-environment-release-2605/ba-p/14403929" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-sap/sap-btp-abap-environment-release-2605/ba-p/14403929&lt;/A&gt;&lt;BR /&gt;- What’s New for SAP BTP ABAP environment &lt;A href="https://help.sap.com/whats-new/7a822d3bcaa74f31b98fa315601e9c96?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/whats-new/7a822d3bcaa74f31b98fa315601e9c96?locale=en-US&lt;/A&gt;&lt;BR /&gt;- What’s New in Generative AI in ABAP Cloud &lt;A href="https://help.sap.com/whats-new/4d359a7f8e8248e18f98e85ea0b9d83e?locale=en-US" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/whats-new/4d359a7f8e8248e18f98e85ea0b9d83e?locale=en-US&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;June Developer Challenge details&lt;/STRONG&gt;&lt;BR /&gt;- The challenge &lt;A href="https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge/ba-p/14405157" target="_blank"&gt;https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge/ba-p/14405157&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Did You Know? #19 Standardize Class Definition&lt;/STRONG&gt;&lt;BR /&gt;- ABAP Cleaner &lt;A href="https://github.com/SAP/abap-cleaner" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/SAP/abap-cleaner&lt;/A&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1620684580"&gt;Chapter titles&lt;/H2&gt;&lt;P&gt;00:00 Intro&lt;BR /&gt;00:07 ADT for VS Code available on VS Code Marketplace&lt;BR /&gt;02:01 SAP BTP ABAP Environment – release 2605&lt;BR /&gt;03:20 June Developer Challenge details&lt;BR /&gt;04:54 Did You Know? #19 Standardize Class Definition&lt;/P&gt;&lt;H2 id="toc-hId-1424171075"&gt;Transcript&lt;/H2&gt;&lt;P&gt;[Intro]&lt;BR /&gt;This is the SAP Developer News for June the 4th, 2026.&lt;/P&gt;&lt;P&gt;[Sheena]&lt;BR /&gt;Hello, ABAP Developers. We have an exciting news this week. The first version of ABAP Development Tools for Visual Studio Code extension is available in the VS Code Marketplace. This marks a significant step in modernizing the ABAP Development experience by bringing ABAP Development to one of the most widely used IDEs in the developer community. The initial release focuses on the ABAP Cloud development model and supports key artifacts such as ABAP classes, interfaces, CDS artifacts, service definitions, service binding, and behavior definitions. This extension includes essential development features such as code completion, navigation, syntax checking, debugging, ABAP unit integration, transport management, and repository search. A key highlight is that developers building RAP applications can now work on both the backend ABAP artifacts and the frontend SAP Fiori or SAPUI5 application within the same development environment. The extension also includes a built-in model context protocol or MCP server. This enables AI agents available in Visual Studio Code such as Microsoft Copilot to interact with ABAP development objects and assist developers directly within their workflow. To get started, install VS code, add the ADT extension from the marketplace, connect it to your ABAP system and you're ready to go. SAP has also published a GitHub tutorial showing how the built-in ADT MCP server can be used with AI agents to create a simple RAP application. Don't forget to also take a look at this FAQ document, which is also included in the blog post. This is just the beginning. More capabilities and ABAP development objects are planned for upcoming releases. So stay tuned.&lt;/P&gt;&lt;P&gt;[Shilpa]&lt;BR /&gt;Hello, ABAP developers. the SAP BTP ABAP environment 2605 has been released and this blog post by Nora Klemp provides an overview of the delivered features. Here are some of the key highlights. In ABAP language, Boolean expression is now supported. Yes, this was widely discussed and requested and it has now been supported. In ABAP development tools, there is a signature comparison when you are migrating from DDIC based views to CDS view entity. In ABAP restful application programming model draft is now supported in cds table entities there are two new attributes in feature control one is read-only create as well as mandatory update in analytics the WYSIWYG editor of the review booklets now supports multiple data providers in ATC a new variant is introduced to perform clean core analysis in both SAP ECC as well as SAP S/4HANA systems in landscape portal you can use Deploy Product App to deploy or update a specific product version and specific system. You can check out all the new features in What's New for SAP BTP ABAP Environment page. The new AI features is listed separately in What's New for ABAP Generative AI for ABAP Cloud. Check it out.&lt;/P&gt;&lt;P&gt;[DJ]&lt;BR /&gt;The June Developer Challenge is underway. and this month we're focusing on exercising our grey matter in order to maintain some level of cognitive discipline in this new era that's right and in the challenge we're diving into the CAP documentation to learn what's there and how to navigate to it but perhaps more importantly to learn the names for and understand the fundamentals of concepts features language constructs and more all of which make CAP what it is why because knowing what things are called and how they relate and what they do and where to find more information is the foundation of understanding and how it's built and understanding is more important than ever today. So this month there's a new question published on every working day that's 22 days in total 22 questions Each question focuses on a particular aspect or topic or area of CAP and where the answers can be found in the CAP documentation, in Capire. And also, after each day's question is done, there are links to further reading added to the end of the question post for those of you who want to learn more. It's like a five-minute mini -workout for your brain each day. What are you waiting for? See you online.&lt;/P&gt;&lt;P&gt;[Sheena]&lt;BR /&gt;Did you know that the standardized class definition feature in ABAP Cleaner helps keep class definitions consistent, improving code readability and maintainability? Usually, in ABAP class definitions, the ordering and layout of options such as public, private sections inheriting from, etc., can vary across developers and projects, leading to inconsistent code structure and reduced readability. To address this issue, ABAP Cleaner has a rule, Standardize Class Definition. It has various options like indentation, specifying number of spaces, and splitting the statement to one or multiple lines. For example, here if we select public to be in a separate line, the class definition gets rewritten with public in next line across all class definitions in your code. Similarly, for inheriting from and create statements. Now, you can see that the various class definitions within the code has the same format, thereby improving readability and maintainability and hence following SAP best practices.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/developer-news/sap-developer-news-june-4th-2026/ba-p/14411237"/>
     <published>2026-06-04T21:00:00.018000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/enhancing-fiori-elements-with-contact-quick-view-in-rap-using-cds/ba-p/14409162</id>
+    <title>Enhancing Fiori Elements with Contact Quick View in RAP using CDS Annotation.</title>
+    <updated>2026-06-05T11:41:57.561000+02:00</updated>
+    <author>
+      <name>Gurudeep</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1874883</uri>
+    </author>
+    <content>&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif" size="5"&gt;&lt;STRONG&gt;INTRODUCTION&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;SAP Fiori Elements provides rich UI capabilities through annotations, reducing the need for custom UI development.&amp;nbsp;One such feature is the Contact Quick View, which allows users to view contact information such as name, phone number, and address in a pop-up card directly from a table or object page.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;In RAP applications, Contact Quick View can be implemented using CDS view annotations and UI metadata annotations. This blog shows how to create a contact entity and display the contact card in object page sections.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;STRONG&gt;Why Contact Quick View?&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;A Contact Quick View typically act as a pop-up card that appears when a user clicks on a contact field in a Fiori application. It provides quick access to contact details without navigating to another screen.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Typical information displayed includes:&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Full Name&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Phone Number&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Address&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Email&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;This feature improves the user experience by making important contact information readily available.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;STRONG&gt;STEP 1: Create a Contact CDS View.&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Contact entity view'
+@Metadata.ignorePropagatedAnnotations: true
+define view entity ZI_CONTACT
+{
+  key id            as ID,
+
+  @Semantics.name.fullName: true
+  name              as Name,
+
+  @Semantics.telephone.type: [#PREF]
+  phone             as Phone,
+
+  @Semantics.eMail.address: true
+  email             as Email,
+
+  @Semantics.address.label: true
+  address_label     as AddressLabel
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="50%" height="30px"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;STRONG&gt;Annotation&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/TD&gt;&lt;TD width="50%" height="30px"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;STRONG&gt;Purpose&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="50%" height="30px"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;@Semantics.name.fullName&lt;/FONT&gt;&lt;/TD&gt;&lt;TD width="50%" height="30px"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Identifies the full name of the contact&lt;/FONT&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="50%" height="30px"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;@Semantics.telephone.type&lt;/FONT&gt;&lt;/TD&gt;&lt;TD width="50%" height="30px"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Defines the preferred phone number&lt;/FONT&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="50%" height="30px"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;@Semantics.eMail.address&lt;/FONT&gt;&lt;/TD&gt;&lt;TD width="50%" height="30px"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Defines the eMail address&lt;/FONT&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="50%" height="30px"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;@Semantics.address.label&lt;/FONT&gt;&lt;/TD&gt;&lt;TD width="50%" height="30px"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Address description&lt;/FONT&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;These semantic annotations enable SAP Fiori Elements to automatically build the Contact Quick View card.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;STRONG&gt;STEP 2:&amp;nbsp;Create an Association to the Contact Entity&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;In your root CDS view, create an association to the contact entity.&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;association [0..1] to ZI_CONTACT as _Contact 
+on $projection.ContactID = _Contact.ID;&lt;/code&gt;&lt;/pre&gt;&lt;P class=""&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;Expose the association:&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;_Conatct&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;STRONG&gt;STEP 3:&amp;nbsp;Display Contact Quick View in Object Page.&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;To show the contact information in a Field Group or Header Section, use the &lt;FONT color="#c7254e"&gt;&lt;SPAN&gt;#AS_CONTACT&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;annotation.&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@ui.facet: [ { purpose : #HEADER,
+                 label : 'General Data',
+                  type : #FIELDGROUP_REFERENCE,
+       targetQualifier : 'HeaderData' } ]
+
+@UI.fieldGroup: [ { qualifier : 'HeaderData',
+                         type : #AS_CONTACT,
+                        label : 'Contact Information',
+                     position : 70,
+                        value : '_Contact' } ]&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;When users open the Object Page, they will see a contact field. Clicking it opens the Contact Quick View card displaying all contact details.&lt;/FONT&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;To display the contact directly within a List Report table, use the following annotation:&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;PRE&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;CODE&gt;&lt;SPAN&gt;@UI.lineItem: &lt;SPAN class=""&gt;[
+  {
+    type      : #AS_CONTACT,
+    label     : 'Contact',
+    value     : '_Contact',
+    position  : 120
+  }
+]&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/FONT&gt;&lt;/PRE&gt;&lt;P class=""&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;STRONG&gt;Output:&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 928px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/417940i47056B86FA3885F8/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;The Contact Quick View feature offers several advantages:&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;Improved user experience&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;Quick access to contact information&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;Reduced navigation effort&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;Standard SAP Fiori Elements functionality&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;Minimal custom UI development&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;Fully annotation-driven implementation&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-1816512019"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;Key Points&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H2&gt;&lt;OL&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;Contact data must be available through a dedicated CDS entity.&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;Semantic annotations are mandatory for Fiori Elements to recognize contact information.&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;The association to the contact entity must be exposed in the consumption view.&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;Use &lt;/SPAN&gt;&lt;CODE&gt;&lt;SPAN&gt;type: #AS_CONTACT&lt;/SPAN&gt;&lt;/CODE&gt;&lt;SPAN&gt; in &lt;/SPAN&gt;&lt;CODE&gt;&lt;SPAN&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.lineItem&lt;/SPAN&gt;&lt;/CODE&gt;&lt;SPAN&gt; for List Reports.&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;Use &lt;/SPAN&gt;&lt;CODE&gt;&lt;SPAN&gt;type: #AS_CONTACT&lt;/SPAN&gt;&lt;/CODE&gt;&lt;SPAN&gt; in &lt;/SPAN&gt;&lt;CODE&gt;&lt;SPAN&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.fieldGroup&lt;/SPAN&gt;&lt;/CODE&gt;&lt;SPAN&gt; for Object Pages.&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;H2 id="toc-hId-1619998514"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;Conclusion&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/H2&gt;&lt;P class=""&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;Contact Quick View is a powerful Fiori Elements feature that enhances application usability by providing instant access to contact information. By leveraging CDS semantic annotations and the &lt;/SPAN&gt;&lt;CODE&gt;&lt;SPAN&gt;#AS_CONTACT&lt;/SPAN&gt;&lt;/CODE&gt;&lt;SPAN&gt; UI annotation, RAP developers can implement this functionality with minimal effort and no custom UI coding.&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;SPAN&gt;Using this approach, SAP developers can deliver more interactive and user-friendly applications while fully embracing the annotation-driven development model of RAP and SAP Fiori Elements.&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/enhancing-fiori-elements-with-contact-quick-view-in-rap-using-cds/ba-p/14409162"/>
+    <published>2026-06-05T11:41:57.561000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/implementing-parallel-processing-in-abap-cloud-using-cl-abap-parallel-and/ba-p/14411216</id>
+    <title>Implementing Parallel Processing in ABAP Cloud Using CL_ABAP_PARALLEL and RAP EML</title>
+    <updated>2026-06-05T11:53:27.252000+02:00</updated>
+    <author>
+      <name>sharathtm</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1874965</uri>
+    </author>
+    <content>&lt;H2 id="toc-hId-1817198022"&gt;Introduction:&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;Modern SAP applications often need to execute time-consuming operations such as external service calls, heavy calculations, or mass data creation. Running such logic sequentially can slow down user interaction and block dialog processes. ABAP Cloud offers a clean and powerful way to distribute workload using&amp;nbsp;parallel processing&amp;nbsp;via the class&amp;nbsp;CL_ABAP_PARALLEL.&lt;/P&gt;&lt;P&gt;In this blog, we will see:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;What a parallel class is in ABAP Cloud&lt;/LI&gt;&lt;LI&gt;How to implement IF_ABAP_PARALLEL&lt;/LI&gt;&lt;LI&gt;How to execute RAP EML inside a parallel task&lt;/LI&gt;&lt;LI&gt;How to commit inside the task and return results&lt;/LI&gt;&lt;/OL&gt;&lt;H2 id="toc-hId-1620684517"&gt;What is parallel class?&lt;/H2&gt;&lt;P&gt;&lt;BR /&gt;A parallel class is a normal ABAP class that implements the interface&amp;nbsp;IF_ABAP_PARALLEL.&lt;BR /&gt;This interface provides the method:&amp;nbsp;IF_ABAP_PARALLEL-DO&lt;/P&gt;&lt;P&gt;which represents the logic that will run in a separate work process. Each instance of this class becomes an independent task executed by the framework.&lt;/P&gt;&lt;P&gt;The advantages are:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Multiple tasks run concurrently&lt;/LI&gt;&lt;LI&gt;Main session is not blocked&lt;/LI&gt;&lt;LI&gt;Each task has its own transactional context&lt;/LI&gt;&lt;LI&gt;You can perform COMMIT inside the task&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-1424171012"&gt;Business scenario:&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;Billing Document Header, which represents the main business document&lt;/LI&gt;&lt;LI&gt;Billing Document Item, which contains detailed line-level data including materials&lt;/LI&gt;&lt;LI&gt;Task BO (a separate RAP Business Object with managed implementation) used to store task-related information.&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-1356740226"&gt;Requirement:&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;Read the billing document item data from the system using RAP EML&lt;/LI&gt;&lt;LI&gt;Fetch the corresponding Material ID from each billing item for further processing&lt;/LI&gt;&lt;LI&gt;Create a Task record using RAP EML based on the extracted Material&lt;/LI&gt;&lt;LI&gt;Perform the commit operation inside the parallel task to ensure independent transaction handling&lt;/LI&gt;&lt;LI&gt;Retrieve the generated Task UUID from the managed Task BO after successful creation&lt;/LI&gt;&lt;LI&gt;Update the billing item description field with the returned UUID to reflect the processing result&lt;/LI&gt;&lt;LI&gt;Ensure all these steps are executed efficiently using parallel processing for better performance and scalability.&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-1031144002"&gt;Implementing Steps:&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;Step 1:&lt;/STRONG&gt; Create parallel task class&lt;BR /&gt;This class:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Receives Material ID in constructor&lt;/LI&gt;&lt;LI&gt;Implements IF_ABAP_PARALLEL&lt;/LI&gt;&lt;LI&gt;Creates Task using EML&lt;/LI&gt;&lt;LI&gt;Performs COMMIT ENTITIES inside the task&lt;/LI&gt;&lt;LI&gt;Returns the created UUID&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zsrt_cl_parallel_task DEFINITION
+PUBLIC
+FINAL
+CREATE PUBLIC .
+
+PUBLIC SECTION.
+INTERFACES if_serializable_object . " Required for parallel execution
+INTERFACES if_abap_parallel . " Enables parallel processing logic
+
+METHODS :
+constructor IMPORTING iv_material TYPE string, " Receive input material
+get_result RETURNING VALUE(rt_result) TYPE string. " Return generated UUID
+
+PRIVATE SECTION.
+DATA: mv_material TYPE string. " Stores material passed to task
+DATA mv_result TYPE string. " Stores generated Task UUID
+
+ENDCLASS.
+
+
+
+CLASS zsrt_cl_parallel_task IMPLEMENTATION.
+
+METHOD constructor.
+mv_material = iv_material. " Initialize material for this task instance
+ENDMETHOD.
+
+METHOD get_result.
+RETURN mv_result. " Return UUID result to caller
+ENDMETHOD.
+
+
+METHOD if_abap_parallel~do.
+
+DATA:
+lt_task_create TYPE TABLE FOR CREATE zsrt_i_task_head, " Input structure for CREATE
+ls_task_create LIKE LINE OF lt_task_create,
+lt_reported TYPE RESPONSE FOR REPORTED EARLY zsrt_i_task_head,
+lt_mapped TYPE RESPONSE FOR MAPPED EARLY zsrt_i_task_head, " Holds generated values (UUID)
+lt_failed TYPE RESPONSE FOR FAILED EARLY zsrt_i_task_head. " Holds failed entries
+
+" Prepare Task data using material
+lt_task_create = VALUE #(
+(
+%cid = 'MY_CID_1' " Correlation ID
+taskid = |TASK-{ mv_material }| " Dynamic Task ID
+title = |New task for { mv_material }| " Task title
+description = 'Test Description'
+overallstatus = 'O'
+%control = VALUE #( " Mark fields for update
+taskid = if_abap_behv=&amp;gt;mk-on
+title = if_abap_behv=&amp;gt;mk-on
+description = if_abap_behv=&amp;gt;mk-on
+overallstatus = if_abap_behv=&amp;gt;mk-on )
+)
+).
+
+" Create Task record using RAP EML
+MODIFY ENTITIES OF zsrt_i_task_head
+ENTITY zsrt_i_task_head
+CREATE FROM lt_task_create
+MAPPED lt_mapped " Contains generated UUID
+FAILED lt_failed
+REPORTED lt_reported.
+
+" Process only if creation is successful
+IF lt_failed IS INITIAL.
+
+COMMIT ENTITIES. " Commit inside parallel task (separate LUW)
+
+" Read generated UUID from mapped structure
+READ TABLE lt_mapped-zsrt_i_task_head INTO DATA(ls_map) INDEX 1.
+
+IF sy-subrc = 0.
+mv_result = ls_map-taskuuid. " Store UUID for returning
+ENDIF.
+
+ENDIF.
+
+ENDMETHOD.
+
+ENDCLASS.
+&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;BR /&gt;Key Points:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;EML is executed inside the parallel session&lt;/LI&gt;&lt;LI&gt;COMMIT ENTITIES is allowed here&lt;/LI&gt;&lt;LI&gt;Result is stored in instance attribute&lt;/LI&gt;&lt;LI&gt;get_result method exposes the value&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Step 2&lt;/STRONG&gt;: Calling the Parallel Class&lt;BR /&gt;To keep the example simple, we call it from a local class implementing IF_OO_ADT_CLASSRUN.&lt;/P&gt;&lt;P&gt;Execution Flow&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Read billing item using EML&lt;/LI&gt;&lt;LI&gt;Extract Material ID&lt;/LI&gt;&lt;LI&gt;Create instance of parallel task&lt;/LI&gt;&lt;LI&gt;Run using CL_ABAP_PARALLEL&lt;/LI&gt;&lt;LI&gt;Collect result&lt;/LI&gt;&lt;LI&gt;Update billing item description&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS zsrt_cl_process DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+    INTERFACES if_oo_adt_classrun.   " Entry point for execution in ADT
+
+ENDCLASS.
+
+
+
+CLASS zsrt_cl_process IMPLEMENTATION.
+
+  METHOD if_oo_adt_classrun~main.
+
+    DATA: 
+      lt_processes TYPE cl_abap_parallel=&amp;gt;t_in_inst_tab,  " Holds parallel task instances
+      lt_results   TYPE STANDARD TABLE OF sysuuid_x16.    " Stores returned UUID results
+
+    " Read all Billing Items from DB table
+    SELECT *
+      FROM zsrt_bill_item
+      INTO TABLE &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1407137"&gt;@DATA&lt;/a&gt;(lt_items).
+
+
+    " Create one parallel task instance per item
+    LOOP AT lt_items INTO DATA(ls_item).
+
+      INSERT NEW zsrt_cl_parallel_task(
+        CONV #( ls_item-materialid )   " Pass material to parallel class
+      ) INTO TABLE lt_processes.
+
+    ENDLOOP.
+
+
+    " Execute all tasks in parallel (max 5 at a time)
+    NEW cl_abap_parallel( p_num_tasks = 5 )-&amp;gt;run_inst(
+      EXPORTING
+        p_in_tab  = lt_processes       " Input: task instances
+      IMPORTING
+        p_out_tab = DATA(lt_finished)  " Output: completed instances
+    ).
+
+
+    " Collect UUID results from each parallel execution
+    LOOP AT lt_finished INTO DATA(ls_finished).
+
+      DATA(lv_uuid) =
+        CAST zsrt_cl_parallel_task(
+          ls_finished-inst )-&amp;gt;get_result( ).  " Get UUID from each task
+
+      APPEND lv_uuid TO lt_results.
+
+    ENDLOOP.
+
+
+    DATA idx TYPE sy-tabix.
+    idx = 0.
+
+
+    " Update billing items with respective UUIDs
+    LOOP AT lt_items INTO ls_item.
+
+      idx = idx + 1.
+
+      READ TABLE lt_results INTO DATA(lv_uuid2) INDEX idx.
+
+      IF sy-subrc = 0.
+
+        MODIFY ENTITIES OF zsrt_i_bill_head
+          ENTITY zsrt_i_bill_item
+          UPDATE FROM VALUE #(
+            ( billid               = ls_item-billid       " Key field
+              itemno               = ls_item-itemno       " Key field
+              description          = lv_uuid2             " Store UUID
+              %control-description = if_abap_behv=&amp;gt;mk-on  " Enable update
+            )
+          ).
+
+      ENDIF.
+
+    ENDLOOP.
+
+
+    " Save all updates to database
+    COMMIT ENTITIES.
+
+  ENDMETHOD.
+
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Result:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="sharathtm_0-1780569186267.png" style="width: 864px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/418069iB5F893049408C1AD/image-dimensions/864x198/is-moderation-mode/true?v=v2" width="864" height="198" role="button" title="sharathtm_0-1780569186267.png" alt="sharathtm_0-1780569186267.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="sharathtm_1-1780569239404.png" style="width: 823px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/418070i067D7ECFAFF22065/image-dimensions/823x273/is-moderation-mode/true?v=v2" width="823" height="273" role="button" title="sharathtm_1-1780569239404.png" alt="sharathtm_1-1780569239404.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;&lt;STRONG&gt;Conclusion:&lt;/STRONG&gt;&lt;BR /&gt;Parallel processing in ABAP Cloud enables faster and efficient handling of large data by executing tasks simultaneously. Using CL_ABAP_PARALLEL&amp;nbsp;with RAP EML, we can process multiple records independently and improve performance. This approach ensures better scalability and optimal use of system resources for real-time business scenarios.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/implementing-parallel-processing-in-abap-cloud-using-cl-abap-parallel-and/ba-p/14411216"/>
+    <published>2026-06-05T11:53:27.252000+02:00</published>
   </entry>
 </feed>
