@@ -2,88 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Cloud-blog-posts.xml</id>
   <title>SAP Community - ABAP Cloud</title>
-  <updated>2026-06-09T05:00:00.880201+00:00</updated>
+  <updated>2026-06-09T08:00:00.826966+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Cloud/pd-p/9ada5ac7-3f77-49de-b5c9-9019df1d1e09" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Cloud blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/abap-blog-posts/abap-cloud-logger/ba-p/14384093</id>
-    <title>ABAP Cloud Logger</title>
-    <updated>2026-04-30T12:03:44.242000+02:00</updated>
-    <author>
-      <name>Greltel</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/37941</uri>
-    </author>
-    <content>&lt;H3 id="toc-hId-1924203933"&gt;Introduction&lt;/H3&gt;&lt;P&gt;Logging in ABAP is one of those things that sounds boring until you've done it five times and realized you've written five different solutions. How many custom loggers have you written in your ABAP career? I've lost count.&lt;/P&gt;&lt;P&gt;The scenario keeps repeating. One developer needs structured messages, another insists on SLG1, and the business wants a JSON dump for a dashboard. Three projects later, and you’re deep in the FMs BAL_LOG_CREATE and BAL_LOG_MSG_ADD, maintaining a massive Z-class that is somehow totally different from the one you wrote for the last project.&lt;/P&gt;&lt;P data-unlink="true"&gt;Τhen came ABAP Cloud. Τhose old function modules weren't released anymore. SAP swapped out the BAL_* family for the cl_bali_* classes (like cl_bali_log and cl_bali_header_setter). The new API is better. Cleaner, properly object-oriented, makes more sense once you get it. The problem is getting it — there's a learning curve, and almost no community tooling around it yet.&amp;nbsp; Actually, the only one that I have found is &lt;A href="https://github.com/Xexer/abap-message-logger" target="_self" rel="nofollow noopener noreferrer"&gt;this&lt;/A&gt;.&amp;nbsp;Shoutout to the author(&amp;nbsp;Björn Schulz&amp;nbsp;)for the inspiration.&lt;/P&gt;&lt;P&gt;So, I decided to build a new one from scratch. With a few rules:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;ABAP Cloud compatible. No legacy types, no unreleased APIs. Has to run on Steampunk and Embedded Steampunk natively.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;One entry point for everything. Free text, symsg, exceptions, BAPIRET2 tables, or an arbitrary structure I want dumped to JSON — I shouldn't have to think about which method to call.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;A fluent API. The kind where the code reads almost like a sentence.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;Multiton instances keyed on object / subobject / external number. Two unrelated parts of the same transaction should be able to log to the same place without passing instances around, and without paying the cost of recreating loggers every time.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;All those small things I keep hardcoding anyway. Built in, once.&lt;/P&gt;&lt;P&gt;What came out of all this is &lt;STRONG&gt;ZCL_CLOUD_LOGGER, a fully open-source logger built specifically for ABAP Cloud.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In this post, I’ll show you exactly how it works, dive into some of the architectural choices (and bugs I hit along the way), and explain how you can easily drop it into your own systems.&lt;/P&gt;&lt;H3 id="toc-hId-1727690428"&gt;Installation&lt;/H3&gt;&lt;P data-unlink="true"&gt;If you've used abapGit before, you already know the drill. If not, this is the moment to install&amp;nbsp;&lt;A href="https://abapgit.org/" target="_self" rel="nofollow noopener noreferrer"&gt;abapGit&lt;/A&gt;.&amp;nbsp;Ιt's the standard tool for ABAP open source distribution.&lt;/P&gt;&lt;P data-unlink="true"&gt;The github project of cloud logger can be found &lt;A href="https://github.com/greltel/abap-cloud-logger" target="_self" rel="nofollow noopener noreferrer"&gt;here.&lt;/A&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1531176923" id="toc-hId-1531176923"&gt;The simplest possible example&lt;/H3&gt;&lt;P class=""&gt;Once installed, here's what the absolute minimum looks like:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;DATA(log) = zcl_cloud_logger=&amp;gt;get_instance(
-  object    = 'Z_MY_LOG_OBJ'
-  subobject = 'STEP_1' ).
-
-log-&amp;gt;log_string_add( 'Process started.' ).
-
-" ... do stuff ...
-
-log-&amp;gt;log_string_add( 'Process finished.' )
-   -&amp;gt;save_application_log( ).&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId-1138149913" id="toc-hId-1334663418"&gt;Logging anything&lt;/H3&gt;&lt;P class=""&gt;The standard SAP API forces you to juggle completely different calls depending on whether you're dealing with a BAPIRET2 table, an exception class, or just a standard sy-msg. My class still gives you specific methods for those, but behind the scenes, everything is routed through the exact same core logic. This guarantees your log output stays consistent, no matter what kind of data you just tossed at it. Υou can also log arbitrary data like a serialized json.&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;" A symsg-style message
-log-&amp;gt;log_message_add( symsg = VALUE #( msgty = 'E'
-                                        msgid = 'ZMY_MSGS'
-                                        msgno = '042'
-                                        msgv1 = 'Order 100' ) ).
-
-" An exception
-TRY.
-    do_something_risky( ).
-  CATCH cx_root INTO DATA(err).
-    log-&amp;gt;log_exception_add( exception = err
-                            severity  = 'E' ).
-ENDTRY.
-
-" Whole BAPIRET2 table — and only the errors
-log-&amp;gt;log_bapiret2_table_add( bapiret2_t   = lt_bapi_messages
-                             min_severity = 'E' ).
-
-" Log serialized to JSON automatically
-log-&amp;gt;log_data_add( data = ls_my_payload ).&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId-941636408" id="toc-hId-1138149913"&gt;Sticky context&lt;/H3&gt;&lt;P class=""&gt;Say you're looping through 50 sales orders, and each one goes through multiple validations. If one fails, your log needs to show exactly which order caused it. Without sticky context, you're forced to manually concatenate the order ID into every single string before logging it. With sticky context, you just set it once per iteration:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;log-&amp;gt;set_context( |Order { order_id }| ).
-
-log-&amp;gt;log_string_add( 'validation started' ).
-log-&amp;gt;log_string_add( 'price check OK' ).
-log-&amp;gt;log_string_add( 'stock check failed' ).
-
-log-&amp;gt;clear_context( ).&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId-548609398" id="toc-hId-941636408"&gt;&lt;STRONG&gt;Built-in timing&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Every project eventually gets a requirement like "how long did this specific step take?". Since I always end up writing the same timer logic anyway, I just so I built in it directly into the logger:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;log-&amp;gt;start_timer( ).
-
-call_external_service( ).
-
-log-&amp;gt;stop_timer( 'External service call' ).&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId-155582388" id="toc-hId-745122903"&gt;The internal error trail&lt;/H3&gt;&lt;P&gt;I'll admit, almost every logger I've ever written has the same dirty secret somewhere in the code: CATCH cx_bali_runtime INTO DATA(swallowed). " ignore.You obviously don't want a simple read method like log_contains_error to trigger a dump and blow up the calling program. So, you just swallow the exception. Works fine until something actually breaks and you have no trace of what happened.&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;DATA(errors) = log-&amp;gt;get_internal_errors( ).
-" Returns a table of timestamp / method_name / error_text
-" for every cx_bali_runtime that was caught silently.&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId--312675991" id="toc-hId-548609398"&gt;Multiton config validation&lt;/H3&gt;&lt;P&gt;There is a specific flaw with the multiton pattern.If two callers ask for the exact same (object, subobject, ext_number) key but pass different db_save flags, the second caller just silently gets the first caller's instance. Then they waste time debugging why their db_save = abap_false log ended up being saved to the database anyway. To prevent this, &amp;nbsp;the logger checks the config and throws if there's a mismatch.&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;" First caller
-zcl_cloud_logger=&amp;gt;get_instance(
-  object = 'Z_LOG' subobject = 'STEP' db_save = abap_true ).
-
-" Second caller, later in the same transaction
-zcl_cloud_logger=&amp;gt;get_instance(
-  object = 'Z_LOG' subobject = 'STEP' db_save = abap_false ).
-" → raises zcx_cloud_logger_error: config_mismatch&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId--705703001" id="toc-hId-352095893"&gt;Full Example&lt;/H3&gt;&lt;P&gt;Here is a full example based on a real world project:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;DATA(log) = zcl_cloud_logger=&amp;gt;get_instance(
-  object               = 'Z_INVOICE'
-  subobject            = 'POSTING'
-  enable_emergency_log = abap_true ).
-
-log-&amp;gt;set_context( |Invoice { invoice_id }| )
-   -&amp;gt;start_timer( ).
-
-TRY.
-    post_invoice( invoice_id ).
-    log-&amp;gt;log_string_add( string = 'Posted successfully'
-                         msgty  = log-&amp;gt;c_message_type-success ).
-
-  CATCH cx_root INTO DATA(err).
-    log-&amp;gt;log_exception_add( exception = err severity = 'E' ).
-ENDTRY.
-
-log-&amp;gt;stop_timer( 'Invoice posting' )
-   -&amp;gt;clear_context( )
-   -&amp;gt;save_application_log( ).&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId--902216506" id="toc-hId-155582388"&gt;Conclusion&lt;/H3&gt;&lt;P&gt;Logging is the kind of code nobody notices when it works. The whole point of this class was to stop solving the same problem on every project and have something I can drop in and forget about. Fluent API, multiton, sticky context, timing, JSON dumps for the weird requirements — all the stuff I kept rebuilding by hand.&lt;/P&gt;&lt;P&gt;The project is open source, MIT-licensed and runs in ABAP Cloud. I've worked through some bugs to get it stable, and it's now in real use. If you give it a try, tell me what's missing. Feel free to open an issue,pull request or just send me a message.Find it on&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A class="" href="https://github.com/greltel/abap-cloud-logger" target="_blank" rel="noopener nofollow noreferrer"&gt;GitHub.&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/abap-blog-posts/abap-cloud-logger/ba-p/14384093"/>
-    <published>2026-04-30T12:03:44.242000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/pessimistic-concurrency-control-locking-using-unmanaged-scenario-in-rap/ba-p/14389690</id>
     <title>Pessimistic Concurrency Control (Locking) using Unmanaged Scenario in RAP</title>
@@ -1593,5 +1515,260 @@ define service Zsd_te_SalesData {
 }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;Service Binding&lt;/P&gt;&lt;P&gt;The Binding Type has to be ODATA V4&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2026-06-04 111308.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/417948i31E4A214C996D603/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2026-06-04 111308.png" alt="Screenshot 2026-06-04 111308.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1227634533"&gt;Result&lt;/H2&gt;&lt;P&gt;If the Field&lt;STRONG&gt; Availability is&amp;nbsp; 'X'&lt;/STRONG&gt;&amp;nbsp; then the data will be shown as Saved Version and cannot edit the record.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2026-06-04 123451.png" style="width: 928px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/417977i3AB55E9FA2B2D826/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2026-06-04 123451.png" alt="Screenshot 2026-06-04 123451.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;If the Field&lt;STRONG&gt; Availability is Not&amp;nbsp; 'X'&amp;nbsp;&lt;/STRONG&gt; then the data will be shown as Draft and can edit the record.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Screenshot 2026-06-04.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/417983iD533E92C2FC498C8/image-size/large?v=v2&amp;amp;px=999" role="button" title="Screenshot 2026-06-04.png" alt="Screenshot 2026-06-04.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1031121028"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;Draft Query in SAP RAP&lt;/STRONG&gt; allows controlled access to draft data by placing a CDS view over the draft table and assigning it via the query addition in the behavior definition.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Key benefits:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL class=""&gt;&lt;LI&gt;Apply authorization checks, DCL rules, and custom filters specifically for drafts&lt;/LI&gt;&lt;LI&gt;Draft and active entities can follow independent visibility rules&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/query-draft-in-rap/ba-p/14410943"/>
     <published>2026-06-09T06:52:51.586000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/implementing-rap-action-parameter-value-help-using-cds-abstract-entity-in/ba-p/14413064</id>
+    <title>Implementing RAP Action Parameter Value Help Using CDS Abstract Entity in SAP RAP</title>
+    <updated>2026-06-09T09:39:02.577000+02:00</updated>
+    <author>
+      <name>hasan123</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1928123</uri>
+    </author>
+    <content>&lt;H2 id="toc-hId-1817255835"&gt;&lt;SPAN&gt;Introduction&lt;/SPAN&gt;&lt;/H2&gt;&lt;P class=""&gt;&lt;SPAN&gt;The ABAP RESTful Application Programming Model (RAP) provides a powerful way to build modern SAP Fiori applications using behavior definitions, CDS views, and OData services.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;One common requirement in business applications is allowing users to execute actions on one or multiple records while providing additional input through a dialog popup. In many scenarios, this input should be selected from a predefined list of values rather than entered manually.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;A typical example is updating the category of one or more products. Users should be able to trigger an action, choose a valid category from a value help dialog, and apply the selected category to all chosen records.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;This blog demonstrates how to implement an RAP Action Parameter with Value Help using a CDS Abstract Entity, CDS Value Help View, and Behavior Action. The result is a Fiori Elements application where users can execute an action and select values through standard SAP F4 help.&lt;/SPAN&gt;&lt;/P&gt;&lt;DIV&gt;&lt;HR /&gt;&lt;/DIV&gt;&lt;H2 id="toc-hId-1620742330"&gt;&lt;SPAN&gt;What are RAP Action Parameters?&lt;/SPAN&gt;&lt;/H2&gt;&lt;P class=""&gt;&lt;SPAN&gt;Actions in RAP allow developers to execute custom business logic that goes beyond standard Create, Update, and Delete operations.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;An action can:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Execute custom business logic&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Update one or multiple records&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Trigger validations&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Open parameter dialogs for user input&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;&lt;SPAN&gt;When an action requires user input, RAP automatically generates a dialog popup using an Abstract Entity.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;This makes actions ideal for scenarios such as:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Approving business documents&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Assigning categories&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Updating statuses&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Triggering business processes&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;DIV&gt;&lt;HR /&gt;&lt;/DIV&gt;&lt;H2 id="toc-hId-1424228825"&gt;&lt;SPAN&gt;Real-Time Business Scenario: Mass Category Assignment&lt;/SPAN&gt;&lt;/H2&gt;&lt;P class=""&gt;&lt;SPAN&gt;Consider a product management application.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;Business users maintain products and their categories.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;Examples:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;Product ID Product Name Category&lt;/P&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN&gt;P1001&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN&gt;Laptop&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN&gt;ELEC&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN&gt;P1002&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN&gt;Office Chair&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN&gt;FURN&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;SPAN&gt;P1003&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN&gt;T-Shirt&lt;/SPAN&gt;&lt;/TD&gt;&lt;TD&gt;&lt;SPAN&gt;CLTH&lt;/SPAN&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P class=""&gt;&lt;SPAN&gt;A user selects multiple products and wants to update their category simultaneously.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;Instead of editing each product individually:&lt;/SPAN&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;SPAN&gt;Select one or more products&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Click &lt;/SPAN&gt;&lt;STRONG&gt;Set Category&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Choose a category from F4 Help&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Confirm the action&lt;/SPAN&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P class=""&gt;&lt;SPAN&gt;All selected products are updated automatically.&lt;/SPAN&gt;&lt;/P&gt;&lt;DIV&gt;&lt;HR /&gt;&lt;/DIV&gt;&lt;H2 id="toc-hId-1227715320"&gt;&lt;SPAN&gt;The Problem&lt;/SPAN&gt;&lt;/H2&gt;&lt;P class=""&gt;&lt;SPAN&gt;If the category field is entered manually:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Users may enter invalid values&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Validation becomes difficult&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;User experience is poor&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Data consistency cannot be guaranteed&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;&lt;SPAN&gt;Example:&lt;/SPAN&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;ELEC  ✔ Valid
+FURN  ✔ Valid
+ABCD  ✖ Invalid
+XYZ1  ✖ Invalid&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;P class=""&gt;&lt;SPAN&gt;Without a value help mechanism, users can easily enter incorrect data.&lt;/SPAN&gt;&lt;/P&gt;&lt;DIV&gt;&lt;HR /&gt;&lt;/DIV&gt;&lt;H2 id="toc-hId-1031201815"&gt;&lt;SPAN&gt;The Solution&lt;/SPAN&gt;&lt;/H2&gt;&lt;P class=""&gt;&lt;SPAN&gt;To solve this problem, we implement:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;A Category Master table&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;A CDS Value Help View&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;A CDS Abstract Entity for action parameters&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;A RAP Action with parameter support&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;A Fiori Elements Value Help dialog&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;&lt;SPAN&gt;The action parameter field is linked to the value help CDS entity using:&lt;/SPAN&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;@Consumption.valueHelpDefinition&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;SPAN&gt;This automatically generates:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;F4 Help&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Search dialog&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Value validation&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;User-friendly selection experience&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-705605591"&gt;&lt;SPAN&gt;Implementation Using RAP Action Parameter Value Help&lt;/SPAN&gt;&lt;/H1&gt;&lt;H2 id="toc-hId-638174805"&gt;&lt;SPAN&gt;Step 1: Create Category Master Table&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Create a database table to store available product categories.&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Product Category Table'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #RESTRICTED
+define table zprod_category {
+
+  key client      : abap.clnt not null;
+  key category_id : abap.char(4) not null;
+  category_name   : abap.char(40);
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This table acts as the master source for the value help.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-441661300"&gt;&lt;SPAN&gt;Step 2: Create Product Table&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Create a product table containing:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Product ID&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Product Name&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Category&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Audit fields&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label : 'Product Table'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table zproduct_s {
+
+  key client            : abap.clnt not null;
+  key product_id        : abap.char(10) not null;
+  product_name          : abap.char(40);
+  category              : abap.char(4);
+  created_by            : abp_creation_user;
+  created_at            : abp_creation_tstmpl;
+  last_changed_by       : abp_locinst_lastchange_user;
+  last_changed_at       : abp_locinst_lastchange_tstmpl;
+  local_last_changed_at : abp_locinst_lastchange_tstmpl;
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This table stores the transactional product data.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-245147795"&gt;&lt;SPAN&gt;Step 3: Create Value Help CDS View&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Create a CDS View Entity that exposes category information.&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AbapCatalog.viewEnhancementCategory: [#NONE]
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Category Value Help'
+@Metadata.ignorePropagatedAnnotations: true
+@ObjectModel.usageType:{
+    serviceQuality: #X,
+    sizeCategory: #S,
+    dataClass: #MIXED
+}
+
+define view entity ZI_CategoryVH
+  as select from zprod_category
+{
+  key category_id   as CategoryId,
+      category_name as CategoryName
+}&lt;/code&gt;&lt;/pre&gt;&lt;P class=""&gt;&lt;SPAN&gt;Explanation:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Provides the source for value help&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Supplies category IDs and descriptions&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Used by both RAP and Fiori Elements&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-48634290"&gt;&lt;SPAN&gt;Step 4: Create Root Interface View&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Create the RAP Root Interface View.&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Product Interface View'
+@Metadata.ignorePropagatedAnnotations: true
+define root view entity ZI_PRODUCT_S as select from zproduct_s
+{
+    
+  key product_id              as ProductId,
+      product_name            as ProductName,
+      category                as Category,
+
+      @Semantics.user.createdBy: true
+      created_by              as CreatedBy,
+
+      @Semantics.systemDateTime.createdAt: true
+      created_at              as CreatedAt,
+
+      @Semantics.user.lastChangedBy: true
+      last_changed_by         as LastChangedBy,
+
+      @Semantics.systemDateTime.lastChangedAt: true
+      last_changed_at         as LastChangedAt,
+
+      @Semantics.systemDateTime.localInstanceLastChangedAt: true
+      local_last_changed_at   as LocalLastChangedAt
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This view represents the Product business object.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-199375142"&gt;&lt;SPAN&gt;Step 5: Create Projection View&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Create the Projection View exposed to Fiori.&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Product Projection View'
+@Metadata.ignorePropagatedAnnotations: true
+@Metadata.allowExtensions: true
+define root view entity ZC_PRODUCT
+  provider contract transactional_query
+  as projection on ZI_PRODUCT_S
+{
+  key ProductId,
+      ProductName,
+      @Consumption.valueHelpDefinition: [{
+         entity: {
+           name: 'ZI_CATEGORYVH',
+           element: 'CategoryId'
+         }
+       }]
+      Category,
+      CreatedBy,
+      CreatedAt,
+      LastChangedBy,
+      LastChangedAt,
+      LocalLastChangedAt
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This enables F4 Help on the Category field.&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;H2 id="toc-hId-2861637"&gt;&lt;SPAN&gt;Step 6: Create Abstract Entity for Action Parameters&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;The action dialog parameters are defined using a CDS Abstract Entity.&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Parameter for Set Category Action'
+define abstract entity ZA_SETCATEGORY_PARAM
+{
+  @EndUserText.label: 'New Category'
+  @Consumption.valueHelpDefinition: [{
+    entity    : {
+      name    : 'ZI_CATEGORYVH',
+      element : 'CategoryId'
+    },
+    useForValidation: true
+  }]
+  NewCategory : abap.char(4);
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;P class=""&gt;&lt;SPAN&gt;Explanation:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Generates the popup field&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Provides F4 help&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Enables automatic validation&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;&lt;SPAN&gt;Important:&lt;/SPAN&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;useForValidation: true&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;SPAN&gt;prevents invalid values from being entered.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId--193651868"&gt;&lt;SPAN&gt;Step 7: Create Interface Behavior Definition&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Define the RAP Action.&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed implementation in class zbp_i_product_s unique;
+strict ( 2 );
+
+define behavior for ZI_PRODUCT_S alias Product
+persistent table zproduct_s
+lock master
+authorization master ( instance )
+etag master LastChangedAt
+{
+  create;
+  update;
+  delete;
+
+  field ( readonly ) ProductId, CreatedBy, CreatedAt,
+  LastChangedBy, LastChangedAt,
+  LocalLastChangedAt;
+
+  field ( mandatory ) ProductName;
+
+  action setCategory parameter ZA_SETCATEGORY_PARAM
+    result [1] $self;
+
+  mapping for zproduct_s corresponding
+    {
+      ProductId          = product_id;
+      ProductName        = product_name;
+      Category           = category;
+      CreatedBy          = created_by;
+      CreatedAt          = created_at;
+      LastChangedBy      = last_changed_by;
+      LastChangedAt      = last_changed_at;
+      LocalLastChangedAt = local_last_changed_at;
+    }
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId--390165373"&gt;&lt;SPAN&gt;Step 8: Implement Action Logic&lt;/SPAN&gt;&lt;/H2&gt;&lt;P class=""&gt;&lt;SPAN&gt;In the behavior implementation class:&lt;/SPAN&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;METHOD setcategory.&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;P class=""&gt;&lt;SPAN&gt;The implementation:&lt;/SPAN&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;SPAN&gt;Reads selected products&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Retrieves action parameter value&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Updates category field&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Returns updated records&lt;/SPAN&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P class=""&gt;&lt;SPAN&gt;The selected category is obtained from:&lt;/SPAN&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;keys&lt;SPAN class=""&gt;[ ... ]&lt;/SPAN&gt;-%param-NewCategory&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_Product DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
+
+    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
+      IMPORTING keys REQUEST requested_authorizations FOR Product RESULT result.
+
+    METHODS setCategory FOR MODIFY
+      IMPORTING keys FOR ACTION Product~setCategory RESULT result.
+
+ENDCLASS.
+
+CLASS lhc_Product IMPLEMENTATION.
+
+  METHOD get_instance_authorizations.
+  ENDMETHOD.
+
+  METHOD setCategory.
+
+    " Read current product records
+    READ ENTITIES OF zi_product_s IN LOCAL MODE
+      ENTITY Product
+        FIELDS ( ProductId Category )
+        WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_products).
+
+    " Update category field for each selected product
+    MODIFY ENTITIES OF zi_product_s IN LOCAL MODE
+      ENTITY Product
+        UPDATE FIELDS ( Category )
+        WITH VALUE #(
+          FOR ls_prod IN lt_products
+          (
+            %tky     = ls_prod-%tky
+            Category = keys[ KEY entity
+                              %key = ls_prod-%key
+                            ]-%param-NewCategory
+          )
+        )
+      REPORTED DATA(lt_reported).
+
+    " Return updated records as action result
+    READ ENTITIES OF zi_product_s IN LOCAL MODE
+      ENTITY Product
+        ALL FIELDS
+        WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_result).
+
+    result = VALUE #(
+      FOR ls_res IN lt_result
+      ( %tky   = ls_res-%tky
+        %param = ls_res )
+    ).
+  ENDMETHOD.
+
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;H2 id="toc-hId--586678878"&gt;&amp;nbsp;&lt;/H2&gt;&lt;H2 id="toc-hId--783192383"&gt;&lt;SPAN&gt;Step 9: Create Projection Behavior Definition&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Expose the action:&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection;
+strict ( 2 );
+
+define behavior for ZC_PRODUCT //alias &amp;lt;alias_name&amp;gt;
+{
+  use create;
+  use update;
+  use delete;
+
+  use action setCategory;
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId--979705888"&gt;&lt;SPAN&gt;Step 10: Create Metadata Extension&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Add UI annotations.&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@Metadata.layer: #CORE
+
+annotate entity ZC_PRODUCT with
+{
+  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.facet: [
+  {
+    id:       'ProductInfo',
+    type:     #IDENTIFICATION_REFERENCE,
+    label:    'Product Information',
+    position: 10
+  }
+  ]
+
+  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.lineItem: [
+    { position: 10, label: 'Product ID' },
+    { type: #FOR_ACTION, dataAction: 'setCategory',
+      label: 'Set Category', position: 40 }
+  ]
+  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.identification: [{ position: 10 }]
+  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.selectionField: [{ position: 10 }]
+  ProductId;
+
+  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.lineItem: [{ position: 20, label: 'Product Name' }]
+  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.identification: [{ position: 20 }]
+  ProductName;
+
+  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.lineItem: [{ position: 30, label: 'Category' }]
+  &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.identification: [{ position: 30 }]
+  Category;
+
+}&lt;/code&gt;&lt;/pre&gt;&lt;H2 id="toc-hId--1176219393"&gt;&amp;nbsp;&lt;/H2&gt;&lt;H2 id="toc-hId--1372732898"&gt;&lt;SPAN&gt;Step 11: Create Service Definition&lt;/SPAN&gt;&lt;/H2&gt;&lt;P&gt;&lt;SPAN&gt;Expose both entities.&lt;/SPAN&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;@EndUserText.label: 'Product Service'
+define service ZSD_PRODUCT {
+  expose ZC_PRODUCT    as Product;
+  expose ZI_CategoryVH as CategoryVH;
+}&lt;/code&gt;&lt;/pre&gt;&lt;P class=""&gt;&lt;SPAN&gt;Important:&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;Many developers forget to expose the value help entity.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;Without exposing:&lt;/SPAN&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;ZI_CATEGORY_VH&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;SPAN&gt;the F4 dialog will not display any data.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId--1569246403"&gt;&lt;SPAN&gt;Step 12: Create Service Binding&lt;/SPAN&gt;&lt;/H2&gt;&lt;P class=""&gt;&lt;SPAN&gt;Create:&lt;/SPAN&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;OData V4 - UI&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;P class=""&gt;&lt;SPAN&gt;service binding.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Activate and Publish the service.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId--1597576217"&gt;&lt;SPAN&gt;Result&lt;/SPAN&gt;&lt;/H2&gt;&lt;P class=""&gt;&lt;SPAN&gt;Once the application is launched, users can:&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId--2087492729"&gt;&lt;SPAN&gt;1. Select Products&lt;/SPAN&gt;&lt;/H3&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;☑ P1001 Laptop
+☑ P1002 Office Chair&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId-2010961062"&gt;&lt;SPAN&gt;2. Click Set Category&lt;/SPAN&gt;&lt;/H3&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;&lt;SPAN class=""&gt;[ Set Category ]&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId-1814447557"&gt;&lt;SPAN&gt;3. Action Dialog Opens&lt;/SPAN&gt;&lt;/H3&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;Set Category
+
+New Category &lt;SPAN class=""&gt;[      ]&lt;/SPAN&gt; 🔍&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId-1617934052"&gt;&lt;SPAN&gt;4. Open Value Help&lt;/SPAN&gt;&lt;/H3&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;ELEC  Electronics
+FURN  Furniture
+CLTH  Clothing
+FOOD  Food &amp;amp; Beverages&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId-1421420547"&gt;&lt;SPAN&gt;5. Choose a Category&lt;/SPAN&gt;&lt;/H3&gt;&lt;P class=""&gt;&lt;SPAN&gt;Example:&lt;/SPAN&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;ELEC&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId-1224907042"&gt;&lt;SPAN&gt;6. Confirm&lt;/SPAN&gt;&lt;/H3&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;OK&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId-1028393537"&gt;&lt;SPAN&gt;7. RAP Action Executes&lt;/SPAN&gt;&lt;/H3&gt;&lt;P class=""&gt;&lt;SPAN&gt;Selected records are updated automatically.&lt;/SPAN&gt;&lt;/P&gt;&lt;H3 id="toc-hId-831880032"&gt;&lt;SPAN&gt;8. List Refreshes&lt;/SPAN&gt;&lt;/H3&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;P1001  Laptop        ELEC
+P1002  Office Chair  ELEC&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;P class=""&gt;&lt;SPAN&gt;Success message:&lt;/SPAN&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;&lt;SPAN&gt;Category updated successfully&lt;/SPAN&gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="hasan123_0-1780903219380.png" style="width: 915px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/418834iC56C898503374F72/image-dimensions/915x514/is-moderation-mode/true?v=v2" width="915" height="514" role="button" title="hasan123_0-1780903219380.png" alt="hasan123_0-1780903219380.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-928769534"&gt;&amp;nbsp;&lt;/H2&gt;&lt;H2 id="toc-hId-900439720"&gt;&lt;SPAN&gt;Conclusion&lt;/SPAN&gt;&lt;/H2&gt;&lt;P class=""&gt;&lt;SPAN&gt;In this blog, we explored how to implement RAP Action Parameters with Value Help using a CDS Abstract Entity.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;We discussed a real-world business scenario where users need to update product categories for multiple records while ensuring only valid values can be selected.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;By combining a CDS Value Help View, Abstract Entity, RAP Action, and Fiori Elements annotations, we were able to create a user-friendly action dialog with built-in F4 help and validation.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;This approach provides a reusable pattern for implementing parameterized actions in RAP and can easily be extended for approval processes, status updates, assignment actions, and many other business scenarios while maintaining a clean and scalable design.&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/implementing-rap-action-parameter-value-help-using-cds-abstract-entity-in/ba-p/14413064"/>
+    <published>2026-06-09T09:39:02.577000+02:00</published>
   </entry>
 </feed>
