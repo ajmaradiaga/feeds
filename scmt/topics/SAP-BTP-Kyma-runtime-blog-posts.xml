@@ -2,347 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-BTP-Kyma-runtime-blog-posts.xml</id>
   <title>SAP Community - SAP BTP, Kyma runtime</title>
-  <updated>2026-06-11T14:00:31.314568+00:00</updated>
+  <updated>2026-06-22T17:00:50.086825+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP BTP, Kyma runtime/pd-p/73554900100800003012" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP BTP, Kyma runtime blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/from-cloud-foundry-to-kyma-on-sap-btp-5-essential-migration-patterns/ba-p/14328724</id>
-    <title>From Cloud Foundry to Kyma on SAP BTP: 5 Essential Migration Patterns</title>
-    <updated>2026-02-17T08:40:01.820000+01:00</updated>
-    <author>
-      <name>neilaspin</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/167493</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-1660623044"&gt;From Cloud Foundry to Kyma on SAP BTP: 5 Essential Migration Patterns&lt;/H1&gt;&lt;H2 id="toc-hId-1593192258"&gt;Introduction&lt;/H2&gt;&lt;P&gt;This blog covers five core patterns you'll need when moving from CF to Kyma, with working examples you can test on a BTP Trial Kyma cluster. Each pattern is presented as a direct comparison: here's how you did it in Cloud Foundry, here's how you do it in Kyma. The code examples are complete and tested—you can copy them into your own Kyma environment and see them work. By the end, you'll have a practical understanding of the migration path and reference code you can adapt for your own applications.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;What you'll learn:&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Basic deployment with APIRules (Istio-based routing)&lt;/LI&gt;&lt;LI&gt;Service bindings using Kubernetes-native patterns&lt;/LI&gt;&lt;LI&gt;Pre-runtime configuration with init containers&lt;/LI&gt;&lt;LI&gt;Credential Store integration for secrets management&lt;/LI&gt;&lt;LI&gt;Destination Service integration from Kyma&lt;/LI&gt;&lt;/OL&gt;&lt;H2 id="toc-hId-1396678753"&gt;Prerequisites&lt;/H2&gt;&lt;P&gt;Before starting, you'll need:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;SAP BTP Trial account with Kyma environment enabled&lt;/LI&gt;&lt;LI&gt;&lt;CODE&gt;kubectl&lt;/CODE&gt; CLI installed locally&lt;/LI&gt;&lt;LI&gt;Basic familiarity with Kubernetes concepts&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-1200165248"&gt;Setup: Download Your Kubeconfig&lt;/H2&gt;&lt;P&gt;First, let's get connected to your Kyma cluster:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;# Create directory structure
-mkdir -p ~/kyma-tutorials
-cd ~/kyma-tutorials
-
-# Download kubeconfig from BTP Cockpit
-# Navigate to: Subaccount → Kyma Environment → Download Kubeconfig
-# Save to ~/.kube/config-kyma-trial
-
-# Set kubeconfig
-export KUBECONFIG=~/.kube/config-kyma-trial
-
-# Verify connection
-kubectl cluster-info&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;Critical first step:&lt;/STRONG&gt; Enable Istio sidecar injection on your namespace. Kyma requires this for external routing to work:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;# Create namespace
-kubectl create namespace demo-app
-
-# Enable Istio injection
-kubectl label namespace demo-app istio-injection=enabled
-
-# Set as default
-kubectl config set-context --current --namespace=demo-app&lt;/CODE&gt;&lt;/PRE&gt;&lt;H2 id="toc-hId-1003651743"&gt;Pattern 1: Deployment and Routing with APIRules&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;CF Pattern:&lt;/STRONG&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;cf push myapp&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;Kyma Pattern:&lt;/STRONG&gt; In Kyma, you need three resources: Deployment, Service, and APIRule.&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: hello-kyma
-  namespace: demo-app
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: hello-kyma
-  template:
-    metadata:
-      labels:
-        app: hello-kyma
-    spec:
-      containers:
-      - name: hello
-        image: hashicorp/http-echo:latest
-        args:
-          - "-text=Hello from Kyma!"
-        ports:
-        - containerPort: 5678
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: hello-kyma-service
-  namespace: demo-app
-spec:
-  selector:
-    app: hello-kyma
-  ports:
-  - protocol: TCP
-    port: 80
-    targetPort: 5678
----
-apiVersion: gateway.kyma-project.io/v2alpha1
-kind: APIRule
-metadata:
-  name: hello-kyma-api
-  namespace: demo-app
-spec:
-  gateway: kyma-system/kyma-gateway
-  hosts:
-    - hello-kyma.&amp;lt;YOUR_CLUSTER_DOMAIN&amp;gt;
-  service:
-    name: hello-kyma-service
-    port: 80
-  rules:
-    - path: /*
-      methods: ["GET"]
-      noAuth: true&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Deploy it:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;kubectl apply -f deployment.yaml
-
-# Wait for pod with Istio sidecar
-kubectl get pods -n demo-app
-# You should see 2/2 containers (app + istio-proxy)
-
-# Test your app
-curl https://hello-kyma.&amp;lt;YOUR_CLUSTER_DOMAIN&amp;gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;Key differences:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;CF Router → Istio + APIRule&lt;/LI&gt;&lt;LI&gt;CF routes → APIRule hosts&lt;/LI&gt;&lt;LI&gt;Automatic SSL in both, but APIRule uses &lt;CODE&gt;noAuth: true&lt;/CODE&gt; vs App Router patterns&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-807138238"&gt;Pattern 2: Service Bindings - From VCAP_SERVICES to Kubernetes Secrets&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;CF Pattern:&lt;/STRONG&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;cf create-service xsuaa application myxsuaa
-cf bind-service myapp myxsuaa
-# Credentials appear in VCAP_SERVICES environment variable&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;Kyma Pattern:&lt;/STRONG&gt; In Kyma, service bindings create Kubernetes Secrets.&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;apiVersion: services.cloud.sap.com/v1
-kind: ServiceInstance
-metadata:
-  name: kyma-xsuaa
-  namespace: demo-app
-spec:
-  serviceOfferingName: xsuaa
-  servicePlanName: application
-  parameters:
-    xsappname: kyma-demo-xsuaa
-    tenant-mode: dedicated
-    scopes:
-      - name: "$XSAPPNAME.Read"
-        description: "Read permission"
-    role-templates:
-      - name: Reader
-        scope-references:
-          - "$XSAPPNAME.Read"
----
-apiVersion: services.cloud.sap.com/v1
-kind: ServiceBinding
-metadata:
-  name: kyma-xsuaa-binding
-  namespace: demo-app
-spec:
-  serviceInstanceName: kyma-xsuaa
-  secretName: kyma-xsuaa-secret&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Deploy it:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;kubectl apply -f xsuaa-instance.yaml
-
-# Wait for ready (takes 1-2 minutes)
-kubectl get serviceinstance kyma-xsuaa -n demo-app -w&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Now use the credentials in your app - you have two options:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Option 1: Environment Variables&lt;/STRONG&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;env:
-- name: XSUAA_CLIENTID
-  valueFrom:
-    secretKeyRef:
-      name: kyma-xsuaa-secret
-      key: clientid
-- name: XSUAA_CLIENTSECRET
-  valueFrom:
-    secretKeyRef:
-      name: kyma-xsuaa-secret
-      key: clientsecret&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;Option 2: Volume Mounts&lt;/STRONG&gt;&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;volumeMounts:
-- name: xsuaa-volume
-  mountPath: /etc/secrets/xsuaa
-  readOnly: true
-volumes:
-- name: xsuaa-volume
-  secret:
-    secretName: kyma-xsuaa-secret&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Then read credentials from files:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;const fs = require('fs');
-const clientId = fs.readFileSync('/etc/secrets/xsuaa/clientid', 'utf8');
-const clientSecret = fs.readFileSync('/etc/secrets/xsuaa/clientsecret', 'utf8');&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;Key differences:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Cloud Foundry Kyma&lt;/P&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;CODE&gt;cf bind-service&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;ServiceBinding&lt;/CODE&gt; resource&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;CODE&gt;VCAP_SERVICES&lt;/CODE&gt; JSON&lt;/TD&gt;&lt;TD&gt;Kubernetes Secret&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Auto-injected as env var&lt;/TD&gt;&lt;TD&gt;Mount as volume OR env vars&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;App parses JSON&lt;/TD&gt;&lt;TD&gt;App reads individual keys&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-610624733"&gt;Pattern 3: Pre-Runtime Configuration - From .profile to Init Containers&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;CF Pattern:&lt;/STRONG&gt; Create a &lt;CODE&gt;.profile&lt;/CODE&gt; script in your app directory:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;#!/bin/bash
-echo "Decrypting secrets..."
-# Runs before app starts, in same container&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;Kyma Pattern:&lt;/STRONG&gt; Use Kubernetes Init Containers that run before your main app:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: init-demo
-  namespace: demo-app
-spec:
-  template:
-    spec:
-      # Init container runs FIRST
-      initContainers:
-      - name: decrypt-config
-        image: busybox:latest
-        command:
-        - sh
-        - -c
-        - |
-          echo "Init container running..."
-          # Decrypt secrets, download certs, etc.
-          cat /encrypted/config.txt | base64 -d &amp;gt; /decrypted/config.txt
-          echo "Runtime info: $(date)" &amp;gt;&amp;gt; /decrypted/runtime-info.txt
-          echo "Init complete!"
-        volumeMounts:
-        - name: encrypted-volume
-          mountPath: /encrypted
-        - name: decrypted-volume
-          mountPath: /decrypted
-      
-      # Main app runs AFTER init completes
-      containers:
-      - name: app
-        image: myapp:latest
-        volumeMounts:
-        - name: decrypted-volume
-          mountPath: /decrypted
-          readOnly: true
-      
-      volumes:
-      - name: encrypted-volume
-        configMap:
-          name: encrypted-config
-      - name: decrypted-volume
-        emptyDir: {}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;Key differences:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;CF .profile Kyma Init Containers&lt;/P&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;Shell script only&lt;/TD&gt;&lt;TD&gt;Any container image&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Same container&lt;/TD&gt;&lt;TD&gt;Separate container&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Sequential only&lt;/TD&gt;&lt;TD&gt;Multiple init containers (chained)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;No resource limits&lt;/TD&gt;&lt;TD&gt;CPU/memory limits per init&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;&lt;STRONG&gt;Real-world use cases:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Decrypt Credential Store secrets&lt;/LI&gt;&lt;LI&gt;Download certificates from external CA&lt;/LI&gt;&lt;LI&gt;Run database migrations&lt;/LI&gt;&lt;LI&gt;Generate dynamic configuration&lt;/LI&gt;&lt;LI&gt;Wait for dependencies to be ready&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-414111228"&gt;Pattern 4: Credential Store Integration&lt;/H2&gt;&lt;P&gt;In CF, you might fetch credentials in your &lt;CODE&gt;.profile&lt;/CODE&gt; script. In Kyma, use an init container to fetch from Credential Store and write to a shared volume.&lt;/P&gt;&lt;P&gt;First, create the Credential Store service:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;apiVersion: services.cloud.sap.com/v1
-kind: ServiceInstance
-metadata:
-  name: credstore
-  namespace: demo-app
-spec:
-  serviceOfferingName: credstore
-  servicePlanName: trial
----
-apiVersion: services.cloud.sap.com/v1
-kind: ServiceBinding
-metadata:
-  name: credstore-binding
-  namespace: demo-app
-spec:
-  serviceInstanceName: credstore
-  secretName: credstore-secret&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Then fetch credentials in an init container:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;spec:
-  initContainers:
-  - name: fetch-credentials
-    image: curlimages/curl:latest
-    command:
-    - sh
-    - -c
-    - |
-      # Get OAuth token
-      OAUTH_URL="$(cat /credstore/url | sed 's|/api.*||')/oauth/token"
-      TOKEN=$(curl -s -X POST "$OAUTH_URL" \
-        -d "grant_type=client_credentials" \
-        -d "client_id=$(cat /credstore/username)" \
-        -d "client_secret=$(cat /credstore/password)" \
-        | jq -r '.access_token')
-      
-      # Fetch credential
-      CRED_URL=$(cat /credstore/url)
-      curl -s "$CRED_URL/password?name=database-password" \
-        -H "Authorization: Bearer $TOKEN" \
-        | jq -r '.value' &amp;gt; /secrets/db-password
-    volumeMounts:
-    - name: credstore-creds
-      mountPath: /credstore
-      readOnly: true
-    - name: runtime-secrets
-      mountPath: /secrets
-  
-  containers:
-  - name: app
-    image: myapp:latest
-    volumeMounts:
-    - name: runtime-secrets
-      mountPath: /secrets
-      readOnly: true
-  
-  volumes:
-  - name: credstore-creds
-    secret:
-      secretName: credstore-secret
-  - name: runtime-secrets
-    emptyDir: {}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;Why this matters:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Credentials NOT stored in Kubernetes Secrets (more secure)&lt;/LI&gt;&lt;LI&gt;Credentials fetched at runtime (can rotate without redeploying)&lt;/LI&gt;&lt;LI&gt;Main app doesn't need Credential Store SDK&lt;/LI&gt;&lt;LI&gt;Init container separates credential management from app logic&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-217597723"&gt;Pattern 5: Destination Service Integration&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;CF Pattern:&lt;/STRONG&gt; In CF, you use the App Router with &lt;CODE&gt;@sap/approuter&lt;/CODE&gt; package, which handles Destination Service integration automatically.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Kyma Pattern:&lt;/STRONG&gt; In Kyma, you need to call the Destination Service API directly from your application.&lt;/P&gt;&lt;P&gt;First, create the destination in BTP Cockpit:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Go to Connectivity → Destinations&lt;/LI&gt;&lt;LI&gt;Create destination:&lt;UL&gt;&lt;LI&gt;Name: &lt;CODE&gt;backend-api&lt;/CODE&gt;&lt;/LI&gt;&lt;LI&gt;URL: &lt;CODE&gt;&lt;A href="https://api.example.com" target="_blank" rel="noopener nofollow noreferrer"&gt;https://api.example.com&lt;/A&gt;&lt;/CODE&gt;&lt;/LI&gt;&lt;LI&gt;Authentication: &lt;CODE&gt;NoAuthentication&lt;/CODE&gt;&lt;/LI&gt;&lt;LI&gt;Additional Property: &lt;CODE&gt;forwardAuthToken = true&lt;/CODE&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Then create the Destination service instance:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;apiVersion: services.cloud.sap.com/v1
-kind: ServiceInstance
-metadata:
-  name: destination
-  namespace: demo-app
-spec:
-  serviceOfferingName: destination
-  servicePlanName: lite
----
-apiVersion: services.cloud.sap.com/v1
-kind: ServiceBinding
-metadata:
-  name: destination-binding
-  namespace: demo-app
-spec:
-  serviceInstanceName: destination
-  secretName: destination-secret&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Use it in your Node.js app:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;const express = require('express');
-const axios = require('axios');
-const fs = require('fs');
-const app = express();
-
-// Read Destination Service credentials from mounted secret
-const destCreds = {
-  uri: fs.readFileSync('/etc/secrets/destination/uri', 'utf8').trim(),
-  clientid: fs.readFileSync('/etc/secrets/destination/clientid', 'utf8').trim(),
-  clientsecret: fs.readFileSync('/etc/secrets/destination/clientsecret', 'utf8').trim(),
-  url: fs.readFileSync('/etc/secrets/destination/url', 'utf8').trim()
-};
-
-app.get('/call-backend', async (req, res) =&amp;gt; {
-  try {
-    // 1. Get OAuth token for Destination Service
-    const tokenResponse = await axios.post(
-      `${destCreds.url}/oauth/token`,
-      new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: destCreds.clientid,
-        client_secret: destCreds.clientsecret
-      }),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-    );
-    
-    const token = tokenResponse.data.access_token;
-    
-    // 2. Get destination configuration
-    const destResponse = await axios.get(
-      `${destCreds.uri}/destination-configuration/v1/destinations/backend-api`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    
-    const backendUrl = destResponse.data.destinationConfiguration.URL;
-    
-    // 3. Call backend via destination
-    const backendResponse = await axios.get(`${backendUrl}/posts/1`);
-    
-    res.json({
-      message: 'Success!',
-      data: backendResponse.data
-    });
-    
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.listen(8080);&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Deploy with the secret mounted:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: destination-demo
-spec:
-  template:
-    spec:
-      containers:
-      - name: app
-        image: node:18-alpine
-        volumeMounts:
-        - name: destination-creds
-          mountPath: /etc/secrets/destination
-          readOnly: true
-      volumes:
-      - name: destination-creds
-        secret:
-          secretName: destination-secret
----
-apiVersion: gateway.kyma-project.io/v2alpha1
-kind: APIRule
-metadata:
-  name: destination-demo-api
-spec:
-  gateway: kyma-system/kyma-gateway
-  hosts:
-    - destination-demo.&amp;lt;YOUR_CLUSTER_DOMAIN&amp;gt;
-  service:
-    name: destination-demo-service
-    port: 80
-  rules:
-    - path: /*
-      methods: ["GET"]
-      noAuth: true&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;Key differences:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Cloud Foundry Kyma&lt;/P&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;App Router handles it&lt;/TD&gt;&lt;TD&gt;Manual API calls&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;CODE&gt;@sap/approuter&lt;/CODE&gt; package&lt;/TD&gt;&lt;TD&gt;Custom integration code&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Auto-configured routes&lt;/TD&gt;&lt;TD&gt;Explicit OAuth + API calls&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-21084218"&gt;Summary: CF vs Kyma Migration Checklist&lt;/H2&gt;&lt;P&gt;Feature Cloud Foundry Kyma Equivalent&lt;/P&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Deploy&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;cf push&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;kubectl apply -f deployment.yaml&lt;/CODE&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Service Binding&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;cf bind-service&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;ServiceBinding&lt;/CODE&gt; resource&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Credentials&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;VCAP_SERVICES&lt;/CODE&gt; JSON env var&lt;/TD&gt;&lt;TD&gt;Kubernetes Secret (volume/env)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Pre-runtime&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;.profile&lt;/CODE&gt; script&lt;/TD&gt;&lt;TD&gt;Init Containers&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Routing&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;CF Router + routes&lt;/TD&gt;&lt;TD&gt;Istio + APIRule&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Authentication&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;App Router&lt;/TD&gt;&lt;TD&gt;APIRule &lt;CODE&gt;accessStrategies&lt;/CODE&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Namespace isolation&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;CF Spaces (shared network)&lt;/TD&gt;&lt;TD&gt;K8s Namespaces (network policies)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Scaling&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;cf scale&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;kubectl scale&lt;/CODE&gt; or HPA&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;H2 id="toc-hId-171825070"&gt;Key Takeaways&lt;/H2&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Istio is mandatory&lt;/STRONG&gt;: Always enable &lt;CODE&gt;istio-injection=enabled&lt;/CODE&gt; on namespaces before deploying apps that need external access.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Secrets are files, not JSON&lt;/STRONG&gt;: In Kyma, service credentials are individual files in a mounted volume, not a single JSON object.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Init containers are powerful&lt;/STRONG&gt;: They're not just a &lt;CODE&gt;.profile&lt;/CODE&gt; replacement—they can use any container image, have independent resource limits, and can be chained.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Manual integration required&lt;/STRONG&gt;: Unlike CF's App Router, Kyma requires you to integrate with BTP services (like Destination Service) directly via API calls.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Kubernetes-native&lt;/STRONG&gt;: Kyma uses standard Kubernetes patterns. If you know Kubernetes, you know Kyma. If you don't, learning Kyma teaches you portable Kubernetes skills.&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;H2 id="toc-hId--24688435"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;The patterns in this blog give you a foundation to migrate existing CF apps to Kyma. Start with simple apps, master these five patterns, then tackle more complex workloads.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/from-cloud-foundry-to-kyma-on-sap-btp-5-essential-migration-patterns/ba-p/14328724"/>
-    <published>2026-02-17T08:40:01.820000+01:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/sap-job-scheduling-service-we-redesigned-the-dashboard-and-added-analytics/ba-p/14334944</id>
     <title>SAP Job Scheduling Service: We Redesigned the Dashboard (And Added Analytics)</title>
@@ -1423,7 +1086,7 @@ kubectl apply -f https://github.com/kyma-project/istio/releases/latest/download/
 kubectl apply -f https://github.com/kyma-project/istio/releases/latest/download/istio-default-cr.yaml&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;Serverless&lt;/STRONG&gt; (for Functions):&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;kubectl apply -f https://github.com/kyma-project/serverless-manager/releases/latest/download/serverless-operator.yaml
 kubectl apply -f https://github.com/kyma-project/serverless-manager/releases/latest/download/default-serverless-cr.yaml -n kyma-system&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;STRONG&gt;API Gateway&lt;/STRONG&gt; (exposes your functions externally via APIRules):&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;kubectl label namespace kyma-system istio-injection=enabled --overwrite
 kubectl apply -f https://github.com/kyma-project/api-gateway/releases/latest/download/api-gateway-manager.yaml
-kubectl apply -f https://github.com/kyma-project/api-gateway/releases/latest/download/apigateway-default-cr.yaml&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Give everything a couple of minutes to come up. You can watch progress with:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;kubectl get pods -n kyma-system --watch&lt;/CODE&gt;&lt;/PRE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1206571338"&gt;Step 3 — Fix CoreDNS (The Bit the Docs Mention but Don't Emphasise Enough)&lt;/H2&gt;&lt;P&gt;This is the step that will silently break everything if you skip it.&lt;/P&gt;&lt;P&gt;By default, &lt;CODE&gt;local.kyma.dev&lt;/CODE&gt; subdomains don't resolve to anything useful inside the cluster. You need to tell CoreDNS to rewrite them to point at the Istio ingress gateway:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;cat &amp;lt;&amp;lt;EOF | kubectl apply -f -
+kubectl apply -f https://github.com/kyma-project/api-gateway/releases/latest/download/apigateway-default-cr.yaml&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Give everything a couple of minutes to come up. You can watch progress with:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;kubectl get pods -n kyma-system --watch&lt;/CODE&gt;&lt;/PRE&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-1206571338"&gt;Step 3 — Fix CoreDNS&amp;nbsp;&lt;/H2&gt;&lt;P&gt;This is the step that will silently break everything if you skip it.&lt;/P&gt;&lt;P&gt;By default, &lt;CODE&gt;local.kyma.dev&lt;/CODE&gt; subdomains don't resolve to anything useful inside the cluster. You need to tell CoreDNS to rewrite them to point at the Istio ingress gateway:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;cat &amp;lt;&amp;lt;EOF | kubectl apply -f -
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -1446,7 +1109,7 @@ spec:
       source: |
         module.exports = { main: function (event, context) {
           return "Hello from local Kyma!";
-        }}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Apply it, wait for it to reach &lt;CODE&gt;Running&lt;/CODE&gt; state, then create an APIRule to expose it. Once that's in place, test with:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;curl http://hello-kyma.local.kyma.dev:30080&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Note the port — because of the k3d port mapping, HTTP traffic goes through &lt;CODE&gt;30080&lt;/CODE&gt;, not &lt;CODE&gt;80&lt;/CODE&gt; directly.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-813544328"&gt;What I Actually Ran Into&lt;/H2&gt;&lt;P&gt;The official quick-start docs are accurate, but they assume a fairly smooth path. Here's what debugging actually looked like once I had everything deployed but couldn't get a response through the gateway.&lt;/P&gt;&lt;P&gt;The problem wasn't Kyma. It was a combination of:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;DNS not resolving&lt;/STRONG&gt; — &lt;CODE&gt;nslookup hello-kyma.local.kyma.dev&lt;/CODE&gt; was returning nothing. Root cause: CoreDNS rewrite not applied (see Step 3).&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Port confusion&lt;/STRONG&gt; — I'd been curling port &lt;CODE&gt;80&lt;/CODE&gt; and &lt;CODE&gt;443&lt;/CODE&gt; directly, which don't work from the host. The k3d port mappings mean you need &lt;CODE&gt;30080&lt;/CODE&gt; for HTTP and &lt;CODE&gt;30443&lt;/CODE&gt; for HTTPS from outside the cluster.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Istio mTLS&lt;/STRONG&gt; — Once DNS was working, I hit &lt;CODE&gt;RBAC: access denied&lt;/CODE&gt;. This turned out to be Istio's strict mTLS mode combined with an AuthorizationPolicy that wasn't correctly matching the ingress gateway's service account. Checking &lt;CODE&gt;kubectl get authorizationpolicy -n default -o yaml&lt;/CODE&gt; and cross-referencing the actual service account name on the ingress gateway pod sorted it.&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;The fix that confirmed everything was working:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;curl http://hello-kyma.local.kyma.dev:30080&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Response: &lt;CODE&gt;Hello from local Kyma!&lt;/CODE&gt;&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-617030823"&gt;A Note on HTTPS&lt;/H2&gt;&lt;P&gt;HTTP works cleanly with the setup above. HTTPS on a local k3d cluster involves self-signed certificates and some extra trust configuration on the host side — that's a separate infrastructure problem rather than a Kyma one, and deserves its own post.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-420517318"&gt;Why Bother?&lt;/H2&gt;&lt;P&gt;Running Kyma locally isn't a replacement for BTP Kyma runtime — you won't be able to bind real BTP services without the BTP Operator pointing at a real subaccount. But for understanding how Functions, API Gateway, Istio, and service mesh concepts actually hang together, it's genuinely valuable. You can break things, fix things, and read actual logs — which is where the learning happens.&lt;/P&gt;&lt;P&gt;If SAP is going to keep Kyma trial offline for a while, this is the next best thing.&lt;/P&gt;&lt;HR /&gt;&lt;P&gt;&lt;EM&gt;Tested on macOS (Apple Silicon) with k3d v5.7, Kyma Istio module latest, and API Gateway module latest.&lt;/EM&gt;&lt;/P&gt;</content>
+        }}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Apply it, wait for it to reach &lt;CODE&gt;Running&lt;/CODE&gt; state, then create an APIRule to expose it. Once that's in place, test with:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;curl http://hello-kyma.local.kyma.dev:30080&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Note the port — because of the k3d port mapping, HTTP traffic goes through &lt;CODE&gt;30080&lt;/CODE&gt;, not &lt;CODE&gt;80&lt;/CODE&gt; directly.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-813544328"&gt;Issues&lt;/H2&gt;&lt;P&gt;The official quick-start docs are accurate, but they assume a fairly smooth path. Here's what debugging actually looked like once I had everything deployed but couldn't get a response through the gateway.&lt;/P&gt;&lt;P&gt;The problem wasn't Kyma. It was a combination of:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;DNS not resolving&lt;/STRONG&gt; — &lt;CODE&gt;nslookup hello-kyma.local.kyma.dev&lt;/CODE&gt; was returning nothing. Root cause: CoreDNS rewrite not applied (see Step 3).&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Port confusion&lt;/STRONG&gt; — I'd been curling port &lt;CODE&gt;80&lt;/CODE&gt; and &lt;CODE&gt;443&lt;/CODE&gt; directly, which don't work from the host. The k3d port mappings mean you need &lt;CODE&gt;30080&lt;/CODE&gt; for HTTP and &lt;CODE&gt;30443&lt;/CODE&gt; for HTTPS from outside the cluster.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Istio mTLS&lt;/STRONG&gt; — Once DNS was working, I hit &lt;CODE&gt;RBAC: access denied&lt;/CODE&gt;. This turned out to be Istio's strict mTLS mode combined with an AuthorizationPolicy that wasn't correctly matching the ingress gateway's service account. Checking &lt;CODE&gt;kubectl get authorizationpolicy -n default -o yaml&lt;/CODE&gt; and cross-referencing the actual service account name on the ingress gateway pod sorted it.&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;The fix that confirmed everything was working:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;curl http://hello-kyma.local.kyma.dev:30080&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Response: &lt;CODE&gt;Hello from local Kyma!&lt;/CODE&gt;&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-617030823"&gt;A Note on HTTPS&lt;/H2&gt;&lt;P&gt;HTTP works cleanly with the setup above. HTTPS on a local k3d cluster involves self-signed certificates and some extra trust configuration on the host side — that's a separate infrastructure problem rather than a Kyma one, and deserves its own post.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-420517318"&gt;Why Bother?&lt;/H2&gt;&lt;P&gt;Running Kyma locally isn't a replacement for BTP Kyma runtime — you won't be able to bind real BTP services without the BTP Operator pointing at a real subaccount. But for understanding how Functions, API Gateway, Istio, and service mesh concepts actually hang together, it's genuinely valuable. You can break things, fix things, and read actual logs — which is where the learning happens.&lt;/P&gt;&lt;P&gt;If SAP is going to keep Kyma trial offline for a while, this is the next best thing.&lt;/P&gt;&lt;HR /&gt;&lt;P&gt;&lt;EM&gt;Tested on macOS (Apple Silicon) with k3d v5.7, Kyma Istio module latest, and API Gateway module latest.&lt;/EM&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/no-kyma-runtime-no-problem-running-kyma-locally-with-k3d/ba-p/14396846"/>
     <published>2026-05-15T09:14:54.960000+02:00</published>
   </entry>
@@ -2103,5 +1766,17 @@ kubectl apply -f k8s/apirule.yaml&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Check the pod
   -&amp;gt; JSON response&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;The difference is that your code runs in a container you built and pushed, rather than in the Kyma serverless runtime. The BTP Service Operator still injects the Destination Service credentials into the pod as environment variables via the ServiceBinding secret — that part is identical.&lt;/P&gt;&lt;HR /&gt;&lt;H2 id="toc-hId-2929748"&gt;Key Points&lt;/H2&gt;&lt;P&gt;&lt;STRONG&gt;The Serverless module is optional.&lt;/STRONG&gt; The BTP Service Operator, APIRule, and Istio are the parts that matter for this integration pattern. If Serverless isn't enabled, a standard Deployment works just as well.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Instance destinations vs subaccount destinations.&lt;/STRONG&gt; If you can't create destinations in the BTP cockpit, use &lt;CODE&gt;POST /destination-configuration/v1/instanceDestinations&lt;/CODE&gt;. These are scoped to the service instance and can be created using the binding credentials. They're resolved at runtime just like subaccount destinations.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Multi-platform builds matter.&lt;/STRONG&gt; Apple Silicon Macs build &lt;CODE&gt;linux/arm64&lt;/CODE&gt; by default. Use &lt;CODE&gt;docker buildx build --platform linux/amd64,linux/arm64&lt;/CODE&gt; to produce a manifest list that works on both architectures — avoiding the cryptic &lt;CODE&gt;no match for platform in manifest&lt;/CODE&gt; error.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Use the full APIRule hostname.&lt;/STRONG&gt; In Kyma API Gateway v2, short hostnames in the &lt;CODE&gt;hosts&lt;/CODE&gt; field expand to include the namespace (&lt;CODE&gt;bp-function.dev-space-neil.&amp;lt;cluster-domain&amp;gt;&lt;/CODE&gt;). This may not match your cluster's wildcard DNS. Use the full explicit hostname (&lt;CODE&gt;bp-function.&amp;lt;cluster-domain&amp;gt;&lt;/CODE&gt;) to be safe — check what format existing APIRules in your cluster use.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Gzip is not optional.&lt;/STRONG&gt; The SAP API Business Hub sandbox always returns gzip-compressed responses regardless of what you put in &lt;CODE&gt;Accept-Encoding&lt;/CODE&gt;. Handle it explicitly with Node's built-in &lt;CODE&gt;zlib&lt;/CODE&gt; module.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/calling-the-sap-business-partner-api-from-kyma-without-serverless/ba-p/14415928"/>
     <published>2026-06-10T22:01:00.221000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sap-for-utilities-blog-posts/atul-architecture-4-ai-on-sap-btp-for-grid-operations/ba-p/14419316</id>
+    <title>ATUL Architecture #4 — AI on SAP BTP for Grid Operations</title>
+    <updated>2026-06-17T11:21:39.612000+02:00</updated>
+    <author>
+      <name>Atul_Joshi85</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2274193</uri>
+    </author>
+    <content>&lt;H1 id="toc-hId-1688354592"&gt;ATUL Architecture #4 — AI on SAP BTP for Grid Operations&lt;/H1&gt;&lt;P&gt;&lt;STRONG&gt;&lt;EM&gt;How AI Becomes Actionable Inside SAP Processes&lt;/EM&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1750006525"&gt;&lt;STRONG&gt;1.&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/STRONG&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Utilities generate massive volumes of operational data every second—from SCADA systems, AMI networks, intelligent electronic devices (IEDs), weather feeds, and grid sensors. While collecting data is no longer the challenge, transforming that data into actionable operational decisions remains difficult. Most AI initiatives stop at dashboards and predictions. However, real business value is realized only when AI insights automatically trigger operational processes inside SAP.&lt;/P&gt;&lt;P&gt;In this architecture, I demonstrate how SAP BTP combines time-series data, machine learning, event-driven integration, and SAP S/4HANA workflows to create a closed-loop operational model where AI does not simply predict problems—it initiates action.&lt;/P&gt;&lt;P&gt;The goal is simple: &lt;STRONG&gt;AI should not just predict. AI should trigger work.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Most utilities already have advanced analytics and dashboards. The real challenge is operationalizing AI—moving from insight to action.&lt;BR /&gt;This architecture demonstrates how SAP BTP closes that gap by embedding AI directly into operational workflows, ensuring that predictions automatically trigger governed actions inside SAP S/4HANA.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Atul_Joshi85_0-1781565307119.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/422020i0B52F0BC396DF4BD/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Atul_Joshi85_0-1781565307119.png" alt="Atul_Joshi85_0-1781565307119.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1553493020"&gt;&lt;STRONG&gt;2.&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/STRONG&gt;&lt;STRONG&gt;Foundation: Timeseries + AI on BTP&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Time‑Series Data Foundation: Grid operations run on time‑series data. Typical examples include:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Transformer temperature curves&lt;/LI&gt;&lt;LI&gt;Voltage fluctuations&lt;/LI&gt;&lt;LI&gt;Feeder imbalance&lt;/LI&gt;&lt;LI&gt;Breaker operation frequency&lt;/LI&gt;&lt;LI&gt;Meter communication patterns&lt;/LI&gt;&lt;LI&gt;Weather impact signals&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;SAP BTP provides two strong foundations for this:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;SAP HANA Cloud — native time‑series functions, fast analytics&lt;/LI&gt;&lt;LI&gt;SAP Datasphere — semantic modeling + integration&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Most utilities already have this data in SCADA, OMS, or AMI systems. The architecture standardizes and contextualizes this data within SAP BTP, ensuring it is immediately consumable by AI models and downstream processes.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Anomaly Detection on BTP&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Once time‑series data is available, the next step is anomaly detection. Common utility scenarios:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Sudden voltage drop on a feeder&lt;/LI&gt;&lt;LI&gt;Transformer overheating pattern&lt;/LI&gt;&lt;LI&gt;Meter not reporting for 48 hours&lt;/LI&gt;&lt;LI&gt;Repeated breaker operations&lt;/LI&gt;&lt;LI&gt;Unusual load spike&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;SAP AI Core + AI Launchpad support models such as:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;LSTM‑based anomaly detection&lt;/LI&gt;&lt;LI&gt;Isolation Forest&lt;/LI&gt;&lt;LI&gt;Autoencoders&lt;/LI&gt;&lt;LI&gt;Threshold‑based rules for simple cases&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The output is always the same: “Something looks wrong here.” But anomaly detection alone does not help operations. The value comes when the anomaly creates an action. In grid operations, the value of anomaly detection lies not in identifying every deviation, but in identifying actionable deviations—those that require operational response within defined time windows.&lt;/P&gt;&lt;H3 id="toc-hId-1356979515"&gt;&lt;STRONG&gt;3.&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/STRONG&gt;&lt;STRONG&gt;Predictive Maintenance for Grid Assets&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Predictive maintenance models help utilities answer:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;When will this transformer fail&lt;/LI&gt;&lt;LI&gt;Which feeder is at highest risk next week&lt;/LI&gt;&lt;LI&gt;Which assets need inspection before summer load&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;SAP BTP supports this through:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;AI Core for model training&lt;/LI&gt;&lt;LI&gt;HANA Cloud for feature engineering&lt;/LI&gt;&lt;LI&gt;Event Mesh for event‑driven triggers&lt;/LI&gt;&lt;LI&gt;SAP Build Process Automation for workflows&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The model output becomes a risk score or failure probability. But prediction alone is not enough. It must flow into SAP S/4HANA. From a business perspective, predictive maintenance shifts operations from reactive repair to risk-based intervention, allowing utilities to prioritize maintenance budgets toward high-impact assets and reduce unplanned outage exposure.&lt;/P&gt;&lt;H3 id="toc-hId-1160466010"&gt;&lt;STRONG&gt;4.&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/STRONG&gt;&lt;STRONG&gt;AI Workflow S/4HANA Integration (The "Gatekeeper" Layer)&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;This is where the architecture ensures both speed and safety. AI becomes valuable only when it creates work, but critical infrastructure requires accountability.&lt;/P&gt;&lt;P&gt;Integrating Manual Approvals: Before the automated creation of a work order in S/4HANA, insert an Approval Step within SAP Build Process Automation.&lt;/P&gt;&lt;P&gt;This “gatekeeper layer” is essential in regulated industries. Fully autonomous AI decisions are rarely acceptable in utility operations. By inserting human approval only when risk thresholds are exceeded, the architecture balances automation with control. This ensures safety, regulatory compliance, and operator trust, while still preserving the speed advantages of AI-driven decisioning.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Atul_Joshi85_1-1781565307158.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/422021iD67290C6B52BC08B/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Atul_Joshi85_1-1781565307158.png" alt="Atul_Joshi85_1-1781565307158.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The Pattern: When the AI model reaches a "low-confidence" threshold or identifies a high-risk asset, the workflow automatically pauses.&lt;/LI&gt;&lt;LI&gt;The Interface: A task is pushed to the supervisor's SAP Build Inbox, displaying the AI’s risk score, supporting technical data, and a "Approve/Reject" button.&lt;/LI&gt;&lt;LI&gt;The Result: The S/4HANA work order is only generated after human verification, ensuring that the system is an "AI-assisted" tool rather than a fully autonomous one.&lt;/LI&gt;&lt;LI&gt;AI → Workflow → S/4HANA Integration&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;This is the most important part of architecture. AI becomes valuable only when it creates work.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Example Flow&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;AI model detects transformer overheating&lt;/LI&gt;&lt;LI&gt;Event Mesh publishes an event&lt;/LI&gt;&lt;LI&gt;SAP Build Process Automation starts a workflow&lt;/LI&gt;&lt;LI&gt;Workflow checks asset master data in S/4HANA&lt;/LI&gt;&lt;LI&gt;A maintenance notification or work order is created&lt;/LI&gt;&lt;LI&gt;Field technician receives the job in SAP FSM or mobile app&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;This is where utilities see real impact:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Faster response&lt;/LI&gt;&lt;LI&gt;Fewer outages&lt;/LI&gt;&lt;LI&gt;Better asset life&lt;/LI&gt;&lt;LI&gt;Lower O&amp;amp;M cost&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;AI is not a dashboard. AI is a &lt;STRONG&gt;trigger&lt;/STRONG&gt;.&lt;/P&gt;&lt;H3 id="toc-hId-963952505"&gt;&lt;STRONG&gt;5.&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/STRONG&gt;&lt;STRONG&gt;Real Utility Scenarios&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;Scenario 1 — Feeder Overload Prediction&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;AI predicts overload 48 hours ahead&lt;/LI&gt;&lt;LI&gt;Workflow creates a load‑balancing task&lt;/LI&gt;&lt;LI&gt;S/4HANA logs the action for audit&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Scenario 2 — Transformer Failure Risk&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Model detects abnormal temperature pattern&lt;/LI&gt;&lt;LI&gt;Work order created automatically&lt;/LI&gt;&lt;LI&gt;Technician dispatched before failure&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Scenario 3 — Meter Communication Failure&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;AI detects repeated non‑reporting meters&lt;/LI&gt;&lt;LI&gt;Workflow assigns investigation to AMI team&lt;/LI&gt;&lt;LI&gt;S/4HANA tracks resolution&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;These are simple, but they save real money. Across utilities, such scenarios have the potential to significantly reduce mean time to detection (MTTD), minimize outage duration, and improve asset utilization efficiency.&lt;/P&gt;&lt;H3 id="toc-hId-767439000"&gt;6.&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;STRONG&gt;Architecture&lt;/STRONG&gt; View 1: AI‑Triggered Transformer Overheating Workflow (End‑to‑End)&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Flow Explanation&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;SCADA / IoT Gateway Streams transformer temperature every 5 seconds.&lt;/LI&gt;&lt;LI&gt;SAP BTP – HANA Cloud Stores timeseries + applies smoothing, rolling averages, and feature extraction.&lt;/LI&gt;&lt;LI&gt;SAP AI Core LSTM model detects abnormal temperature rise → generates anomaly score.&lt;/LI&gt;&lt;LI&gt;SAP Event Mesh Publishes event: transformer-&amp;gt;overheat-&amp;gt;detected.&lt;/LI&gt;&lt;LI&gt;SAP Build Process Automation&lt;UL&gt;&lt;LI&gt;Reads asset master from S/4&lt;/LI&gt;&lt;LI&gt;Apply business rules (risk threshold, asset criticality)&lt;/LI&gt;&lt;LI&gt;Sends approval task to supervisor&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;SAP S/4HANA PM&lt;UL&gt;&lt;LI&gt;Creates Maintenance Notification&lt;/LI&gt;&lt;LI&gt;Converts to Work Order after approval&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;LI&gt;SAP Field Service Management Dispatches technician with asset details + AI explanation.&lt;/LI&gt;&lt;/OL&gt;&lt;H3 id="toc-hId-570925495"&gt;&lt;STRONG&gt;7.&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/STRONG&gt;&lt;STRONG&gt;Architecture&lt;/STRONG&gt;&lt;STRONG&gt; View 2: AMI Meter Non‑Reporting Investigation Workflow&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Meter Communication Failure Flow — A simple but high‑value scenario.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Flow Explanation&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;AMI Headend System Detects meter not reporting for 48 hours.&lt;/LI&gt;&lt;LI&gt;SAP BTP – Datasphere Harmonizes meter metadata, location, customer info.&lt;/LI&gt;&lt;LI&gt;SAP AI Core Isolation Forest model identifies “communication anomaly cluster.”&lt;/LI&gt;&lt;LI&gt;SAP Event Mesh Publishes event: meter-&amp;gt;communication-&amp;gt;anomaly.&lt;/LI&gt;&lt;LI&gt;SAP Build Process Automation&lt;/LI&gt;&lt;LI&gt;Checks if meter is in outage area&lt;/LI&gt;&lt;LI&gt;Checks last service history&lt;/LI&gt;&lt;LI&gt;Assigns task to AMI Ops Team&lt;/LI&gt;&lt;LI&gt;SAP S/4HANA Customer Service / PM Creates service order or investigation ticket.&lt;/LI&gt;&lt;LI&gt;Technician Mobile App Receives job with meter location + AI reasoning.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;&amp;nbsp;&lt;/STRONG&gt;&lt;STRONG&gt;8.&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/STRONG&gt;&lt;STRONG&gt;Ground‑Reality Example: “The Black Friday Surge Event”&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Black Friday‑style load spikes happen in utilities too — sudden, unpredictable, and dangerous. Here’s the short version you can paste into your paper:&lt;/P&gt;&lt;P&gt;“During a sudden pre‑holiday cold‑weather surge, Feeder F‑19’s load jumped 14% in under 3 minutes. SAP HANA Cloud flagged the abnormal ramp, SAP AI Core predicted an overload within 45 minutes, and Event Mesh triggered an automated workflow. A supervisor approved a pre‑emptive load transfer, and S/4HANA&lt;STRONG&gt; executed the &lt;/STRONG&gt;switching plan. The feeder stabilized within 20 minutes — preventing an outage during peak demand.”&lt;/P&gt;&lt;H3 id="toc-hId-374411990"&gt;&lt;STRONG&gt;9.&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/STRONG&gt;&lt;STRONG&gt;Key Architectural Principles&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Point 1 “AI runs on BTP, close to SAP data" or AI Proximity to SAP Data Matters&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Right now, it just says "No complex integration." That's a feature, not an insight. What you should explain is why proximity matters architecturally — when AI models live in the same platform as your master data, you eliminate the ETL lag, data translation errors, and security surface area that come with external AI platforms. The practical implication: your anomaly detection is working on the same asset hierarchy that S/4HANA uses to create work orders, so there's no mismatch between "what the AI saw" and "what the technician gets dispatched to fix." That's a real architectural win worth spelling out.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;Point 2 “Event-Driven Architecture Reduces Operational Latency"&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;"AI triggers work instantly" is too vague. The deeper idea here is about operational latency — in grid operations, the window between early warning and failure can be hours or even minutes. A polling-based batch integration would miss that window entirely. Event Mesh ensures the moment AI flags an anomaly; the downstream workflow fires. You could contrast this with the old model: AI generates a report overnight, an analyst reviews it in the morning, creates a ticket manually — by which time the transformer has already tripped. Event-driven isn't just faster; it changes the category of what's possible.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;Point 3 "S/4HANA becomes the system of action"&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;The current line misses the real point, which is about organizational trust and auditability. Utilities are regulated industries. Work orders, notifications, and approvals don't just need to happen — they need to be traceable, auditable, and defensible to regulators and internal compliance teams. Because S/4HANA is already the system of record for asset management and maintenance, routing AI-triggered actions through it means you don't need a parallel tracking system. The AI's recommendation and the resulting field action live in the same audit trail. That's not a convenience — it's a compliance requirement for most utilities.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;Point 4 “Measurable Business Outcomes Define Success"&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;"Fewer outages, faster response, better asset health" reads like a brochure. The improvement here is to be specific about how you'd measure these. For example: reduction in mean time to detect (MTTD) on grid anomalies, reduction in unplanned outage minutes per feeder, or improvement in asset utilization rates as preventive maintenance replaces reactive repair. Even if you don't have exact numbers, framing the metrics gives readers a way to build a business case internally — which is often exactly what a utility architect needs when presenting this to leadership.&lt;/LI&gt;&lt;/OL&gt;&lt;H3 id="toc-hId-177898485"&gt;&lt;STRONG&gt;10.&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/STRONG&gt;&lt;STRONG&gt;Governance Considerations&lt;/STRONG&gt;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;AI model versioning and monitoring using SAP AI Core&lt;/LI&gt;&lt;LI&gt;Data lineage and semantic consistency via Datasphere&lt;/LI&gt;&lt;LI&gt;Secure integration through SAP BTP service layer&lt;/LI&gt;&lt;LI&gt;Role-based access for approval workflows&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;These elements ensure that AI-driven automation remains compliant, auditable, and enterprise-ready.&lt;/P&gt;&lt;H3 id="toc-hId--93846389"&gt;&lt;STRONG&gt;11.&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/STRONG&gt;&lt;STRONG&gt;Final Thoughts&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;AI for grid operations is not about fancy models. It’s about connecting predictions to SAP processes.&lt;/P&gt;&lt;P&gt;Time‑series data → AI model → Event → Workflow → S/4HANA action.&lt;/P&gt;&lt;P&gt;The future of utility operations is not autonomous AI replacing operators. It is AI-driven workflows that help operators act earlier, with better information, inside trusted SAP business processes. When predictions automatically become notifications, approvals, work orders, and field actions, SAP BTP becomes the operational backbone of grid modernization.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Atul_Joshi85_2-1781565307200.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/422022i5F5B2B7142F78B97/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Atul_Joshi85_2-1781565307200.png" alt="Atul_Joshi85_2-1781565307200.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId--290359894"&gt;&lt;STRONG&gt;12.&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; &lt;/STRONG&gt;&lt;STRONG&gt;Practical Architecture Example: “The 3 AM Save”&lt;/STRONG&gt;&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Step‑by‑Step Flow (Real Utility Reality)&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;2:58 AM — SCADA temperature spike Transformer T‑221 shows a sudden 9°C rise in 4 minutes.&lt;/LI&gt;&lt;LI&gt;3:00 AM — SAP HANA Cloud detects abnormal curve Rolling window + derivative features show a deviation from normal nighttime cooling.&lt;/LI&gt;&lt;LI&gt;3:01 AM — SAP AI Core LSTM flags anomaly Risk score jumps from 0.18 → 0.74. Not a failure yet — but trending toward one.&lt;/LI&gt;&lt;LI&gt;3:01:10 AM — SAP Event Mesh publishes event grid-&amp;gt;transformer-&amp;gt;overheat-&amp;gt;predicted.&lt;/LI&gt;&lt;LI&gt;3:01:12 AM — SAP Build Process Automation starts workflow&lt;/LI&gt;&lt;UL&gt;&lt;LI&gt;Pulls asset master from S/4&lt;/LI&gt;&lt;LI&gt;Checks transformer age (17 years)&lt;/LI&gt;&lt;LI&gt;Checks last maintenance (14 months ago)&lt;/LI&gt;&lt;LI&gt;Checks load forecast (high morning peak expected)&lt;/LI&gt;&lt;/UL&gt;&lt;LI&gt;3:01:30 AM — Supervisor approval triggered A mobile notification appears: &lt;EM&gt;“AI predicts overheating in 3–5 hours. Approve pre‑failure inspection?”&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;3:03 AM — Supervisor taps “Approve” (This is the human‑in‑the‑loop safety layer.)&lt;/LI&gt;&lt;LI&gt;3:03:10 AM — SAP S/4HANA creates work order Priority: High Task: Inspect cooling fins + oil level + load tap changer&lt;/LI&gt;&lt;LI&gt;3:20 AM — Field technician receives job on mobile Drives to site before failure window.&lt;/LI&gt;&lt;LI&gt;4:05 AM — Technician finds blocked cooling fins Dust + debris + vegetation restricting airflow.&lt;/LI&gt;&lt;LI&gt;4:40 AM — Issue cleared, temperature stabilizes Transformer returns to normal operating range.&lt;/LI&gt;&lt;LI&gt;Failure avoided. Outage avoided. $40k avoided. And the entire chain is auditable inside S/4HANA.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;What Example Proves (The Architectural Insight)&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This single incident captures the entire purpose of architecture. The utility didn’t just detect a problem — it prevented failure because AI, events, workflows, and S/4HANA acted as one system. The model didn’t need to be perfect; it only needed to be early. Event Mesh eliminated latency. Build Process Automation added human judgment. S/4HANA ensured the action was auditable and compliant. And the field technician received the job before the asset crossed the failure threshold.&lt;/P&gt;&lt;P&gt;This is the difference between “AI that predicts” and AI that protects the grid.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/sap-for-utilities-blog-posts/atul-architecture-4-ai-on-sap-btp-for-grid-operations/ba-p/14419316"/>
+    <published>2026-06-17T11:21:39.612000+02:00</published>
   </entry>
 </feed>
