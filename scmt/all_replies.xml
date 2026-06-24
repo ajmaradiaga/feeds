@@ -2,409 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2026-06-24T16:29:01.220021+00:00</updated>
+  <updated>2026-06-24T16:44:01.254024+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/replicating-sap-s-4hana-cds-view-entities-into-sap-hana-cloud-a-practical/ba-p/14419559</id>
-    <title>Replicating SAP S/4HANA CDS View Entities into SAP HANA Cloud: A Practical Guide</title>
-    <updated>2026-06-24T13:33:30.571000+02:00</updated>
-    <author>
-      <name>Taesuk</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/202976</uri>
-    </author>
-    <content>&lt;P&gt;In analytics, speed is everything—yet pulling real-time data from a live SAP S/4HANA system remains a bottleneck for many organizations. When your reports rely on remote queries, they are instantly vulnerable to network latency and cross-system traffic. CDS view replication changes the game by moving the data to where the processing happens: caching it directly into SAP HANA Cloud and automating background syncs for instant reporting.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="CDS_Replication.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425604iB970917C7A25D5E6/image-size/large?v=v2&amp;amp;px=999" role="button" title="CDS_Replication.png" alt="CDS_Replication.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;This post walks through everything you need to know to set up, operate, and monitor CDS view replication using the SAP HANA smart data access **abapodbc** adapter which is an extension to the already available federation as introduced by my colleague &lt;A href="https://community.sap.com/t5/user/viewprofilepage/user-id/204092" target="_self"&gt;SeungjoonLee&lt;/A&gt;&amp;nbsp;and my previous blog.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;STRONG&gt;Related Blogs:&lt;/STRONG&gt;&lt;BR /&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/taking-data-federation-to-the-next-level-accessing-remote-abap-cds-view/ba-p/13635034" target="_blank"&gt;Taking Data Federation to the Next Level: Accessing Remote ABAP CDS View Entities in SAP HANA Cloud&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A class="" href="https://community.sap.com/t5/technology-blog-posts-by-sap/easily-create-data-snapshots-from-abap-environment-s-cds-views-in-sap-hana/ba-p/13920746" target="_blank"&gt;Easily create data snapshots from ABAP environment's CDS Views in SAP HANA Cloud, SAP HANA Database&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;H2 id="toc-hId-1817439360"&gt;&amp;nbsp;&lt;/H2&gt;&lt;H2 id="toc-hId-1620925855"&gt;What Is CDS View Entity Replication?&lt;/H2&gt;&lt;P&gt;At its core, CDS view replication lets you maintain a local copy of an SAP S/4HANA CDS view as a native table inside SAP HANA Cloud. Once the initial snapshot is loaded, subsequent updates are applied using **Change Data Capture (CDC)** — only inserts, updates, and deletes are fetched and replayed, not the entire dataset.&lt;/P&gt;&lt;P&gt;The result is a target table in SAP HANA Cloud that stays in sync with your S/4HANA source, with a freshness you control.&lt;/P&gt;&lt;H3 id="toc-hId-1553495069"&gt;Why This Matters&lt;/H3&gt;&lt;P&gt;- &lt;STRONG&gt;Performance&lt;/STRONG&gt;: Local queries beat remote queries — no cross-system round trips at runtime.&lt;BR /&gt;- &lt;STRONG&gt;Availability&lt;/STRONG&gt;: Your replica stays accessible even if the S/4HANA system is under maintenance.&lt;BR /&gt;- &lt;STRONG&gt;Flexibility&lt;/STRONG&gt;: You can project specific columns or filter rows at the subscription level, so you only replicate what you need.&lt;BR /&gt;- &lt;STRONG&gt;Integration&lt;/STRONG&gt;: The replicated table is a plain SAP HANA table — you can join it with other local data, build calculation views on top of it, or expose it via BTP services.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-1227898845"&gt;The Two Replication Phases&lt;/H2&gt;&lt;P&gt;Replication is split into two distinct phases:&lt;/P&gt;&lt;H3 id="toc-hId-1160468059"&gt;Phase 1: Initial Load&lt;/H3&gt;&lt;P&gt;The initial load takes a full snapshot of the CDS view and copies it into the target table. You trigger this with the `QUEUE` command. The system handles chunking and parallelism internally — you just monitor progress.&lt;/P&gt;&lt;P&gt;One important caveat: the initial load does **not** check whether the target table is empty. If you're reloading after a reset, truncate the target table first.&lt;/P&gt;&lt;H3 id="toc-hId-963954554"&gt;Phase 2: Delta Load&lt;/H3&gt;&lt;P&gt;Once the initial load completes, only changes (inserts, updates, deletes) are replicated. You have two options here:&lt;/P&gt;&lt;P&gt;- &lt;STRONG&gt;System-scheduled replication&lt;/STRONG&gt;&amp;nbsp;(`DISTRIBUTE`): The system automatically runs delta replication at a configurable interval. Set it once, let it run.&lt;BR /&gt;- &lt;STRONG&gt;User-driven replication&lt;/STRONG&gt;&amp;nbsp;(`DELTA LOAD`): You explicitly trigger replication whenever you want. Useful for controlled refresh scenarios or testing.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId-638358330"&gt;Setting It Up:&amp;nbsp;&lt;/H2&gt;&lt;H3 id="toc-hId-570927544"&gt;Pre-requisite A — Setup Source System&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/abap-cloud/abap-integration-connectivity/exposing-sql-services-for-data-integration?version=s4_hana" target="_self" rel="noopener noreferrer"&gt;Enabling Access to ABAP-Managed Data for System-External Consumers&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/abap-cloud/abap-integration-connectivity/inbound-data-integration-using-sql?version=s4_hana" target="_self" rel="noopener noreferrer"&gt;Accessing ABAP-Managed Data from System-External Consumers&lt;/A&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://help.sap.com/docs/abap-cloud/abap-integration-connectivity/data-federation-using-sql-service-and-smart-data-access-for-sap-hana-cloud?version=s4_hana" target="_self" rel="noopener noreferrer"&gt;Accessing ABAP-Managed Data from&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN class=""&gt;SAP HANA Cloud&lt;/SPAN&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;SPAN class=""&gt;SAP HANA&lt;/SPAN&gt;&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-374414039"&gt;Pre-requisite B — Configure Cloud Connector to Source&amp;nbsp;&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;A class="" title="Configure Cloud Connector before connecting to on-premise sources and using them in various use cases. In the Cloud Connector administration, connect the SAP Datasphere subaccount to your Cloud Connector, add a mapping to each relevant source system in your network, and specify accessible resources for each source system." href="https://help.sap.com/docs/SAP_DATASPHERE/9f804b8efa8043539289f42f372c4862/f289920243a34127b0c8b13012a1a4b5.html?locale=en-US&amp;amp;state=PRODUCTION&amp;amp;version=cloud" target="_blank" rel="noopener noreferrer"&gt;Configure Cloud Connector&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A class="" title="https://help.sap.com/docs/connectivity/sap-btp-connectivity-cf/configure-access-control-rfc" href="https://help.sap.com/docs/connectivity/sap-btp-connectivity-cf/configure-access-control-rfc" target="_blank" rel="noopener noreferrer"&gt;Configure Access Control (RFC)&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;in the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;SAP BTP Connectivity&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;documentation&lt;/LI&gt;&lt;/UL&gt;&lt;H3 id="toc-hId-177900534"&gt;Step 1 — Create a Remote Source&lt;/H3&gt;&lt;P&gt;You need an abapodbc adapter remote source that connects SAP HANA Cloud to your S/4HANA system. This is your network tunnel between the two systems.&lt;/P&gt;&lt;H3 id="toc-hId--93844340"&gt;Step 2 — Create the Virtual Table and Target Table&lt;/H3&gt;&lt;P&gt;Create a virtual table from the remote source (this is your read-through proxy to the CDS view), and create a local target table that will hold the replicated data.&lt;/P&gt;&lt;H3 id="toc-hId--290357845"&gt;Step 3 — Create the Remote Subscription&lt;/H3&gt;&lt;P&gt;This is where the replication is defined. The `CREATE REMOTE SUBSCRIPTION` statement ties everything together:&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;-- Simplest form: replicate everything
-CREATE REMOTE SUBSCRIPTION "ABAP_SUBSCRIPTION"
-ON "SOURCE_CDS_VIEW"
-TARGET TABLE "TARGET_TABLE";
-
--- Column projection: only replicate specific fields
-CREATE REMOTE SUBSCRIPTION "ABAP_SUBSCRIPTION"
-AS (SELECT "COL1", "COL2", "COL3" FROM "SOURCE_CDS_VIEW")
-TARGET TABLE "TARGET_TABLE";
-
--- Row filter: only replicate rows matching a condition
-CREATE REMOTE SUBSCRIPTION "ABAP_SUBSCRIPTION"
-AS (SELECT * FROM "SOURCE_CDS_VIEW" WHERE "DEPARTMENT" = 'SALES')
-TARGET TABLE "TARGET_TABLE";&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The `WHERE` clause supports `=`, `&amp;lt;&amp;gt;`, `&amp;lt;`, `&amp;lt;=`, `&amp;gt;`, `&amp;gt;=`, `BETWEEN`, `IN`, `LIKE`, and logical operators `AND`/`OR`/`NOT`. A few syntax rules apply: field names must be double-quoted, string values single-quoted, and the right-hand side of a comparison must be a literal (no field-to-field comparisons).&lt;/P&gt;&lt;H3 id="toc-hId--486871350"&gt;Step 4 — Perform the Initial Load&lt;/H3&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;ALTER REMOTE SUBSCRIPTION "ABAP_SUBSCRIPTION" QUEUE;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Monitor progress in the `M_REMOTE_SUBSCRIPTION_INITIAL_LOADS` system view. The number of chunks can increase dynamically during the load as the system generates new ones.&lt;/P&gt;&lt;H3 id="toc-hId--683384855"&gt;Step 5 — Enable Delta Replication&lt;/H3&gt;&lt;P&gt;Choose your mode:&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;-- Scheduled: run every 15 minutes
-ALTER REMOTE SUBSCRIPTION "ABAP_SUBSCRIPTION" DISTRIBUTE INTERVAL 900;
-
--- On-demand: trigger manually
-ALTER REMOTE SUBSCRIPTION "ABAP_SUBSCRIPTION" DELTA LOAD;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H3 id="toc-hId--879898360"&gt;Load Behaviors: Normal vs. Upsert&lt;/H3&gt;&lt;P&gt;When you create the subscription, you choose how DML operations are applied to the target table.&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="25%"&gt;Behavior&lt;/TD&gt;&lt;TD width="25%"&gt;INSERT&lt;/TD&gt;&lt;TD width="25%"&gt;UPDATE&lt;/TD&gt;&lt;TD width="25%"&gt;DELETE&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%"&gt;&lt;STRONG&gt;Normal&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="25%"&gt;Applied directly&lt;/TD&gt;&lt;TD width="25%"&gt;Applied directly&lt;/TD&gt;&lt;TD width="25%"&gt;Applied directly&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="25%"&gt;&lt;STRONG&gt;Upsert&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="25%"&gt;Applied as UPSERT&lt;/TD&gt;&lt;TD width="25%"&gt;Applied as UPSERT&lt;/TD&gt;&lt;TD width="25%"&gt;Converted to UPDATE with `CHANGE_TYPE = 'D'`&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;The upsert mode is useful when you want to preserve a history of deletions or need idempotent replay. It requires three additional metadata columns in the target table as shown below:&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;CREATE TABLE "TARGET_TABLE" (
-"ID" INT,
-"NAME" NVARCHAR(100),
-"CHANGE_TYPE" NVARCHAR(1), -- 'A' = insert/update, 'D' = delete
-"CHANGE_TIME" TIMESTAMP,
-"CHANGE_SEQ" BIGINT -- optional: portion identifier
-);
-
-CREATE REMOTE SUBSCRIPTION "ABAP_SUBSCRIPTION"
-ON "SOURCE_CDS_VIEW"
-TARGET TABLE "TARGET_TABLE"
-CHANGE TYPE COLUMN "CHANGE_TYPE"
-CHANGE TIME COLUMN "CHANGE_TIME"
-CHANGE SEQUENCE COLUMN "CHANGE_SEQ"
-UPSERT;&lt;/code&gt;&lt;/pre&gt;&lt;H2 id="toc-hId--783008858"&gt;&amp;nbsp;&lt;/H2&gt;&lt;H2 id="toc-hId--979522363"&gt;Managing Replication Day-to-Day&lt;/H2&gt;&lt;H3 id="toc-hId--1469438875"&gt;Adjusting the Schedule&lt;/H3&gt;&lt;P&gt;You can update the replication interval without triggering an immediate run — useful for shifting frequency during off-peak hours:&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;ALTER REMOTE SUBSCRIPTION "ABAP_SUBSCRIPTION" INTERVAL 1800; -- 30 minutes&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;To immediately trigger replication AND update the interval:&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;ALTER REMOTE SUBSCRIPTION "ABAP_SUBSCRIPTION" DISTRIBUTE INTERVAL 1800;&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId--1665952380"&gt;Suspending During Maintenance&lt;/H3&gt;&lt;P&gt;If your S/4HANA system is going down for maintenance, suspend replication at the remote source level. All subscriptions under that source are paused; running jobs are allowed to finish but no new ones are scheduled.&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;ALTER REMOTE SOURCE &amp;lt;remote_source_name&amp;gt; SUSPEND CAPTURE;
-
--- When the system is back up:
-ALTER REMOTE SOURCE &amp;lt;remote_source_name&amp;gt; RESUME CAPTURE;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Note that `SUSPEND CAPTURE` only affects system-scheduled jobs. Manual `DELTA LOAD` commands still work.&lt;/P&gt;&lt;H3 id="toc-hId--1862465885"&gt;Cancelling a Running Job&lt;/H3&gt;&lt;P&gt;If a replication job is consuming too many resources or is stuck, you can cancel it mid-execution:&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;-- Find the running job
-SELECT CONNECTION_ID
-FROM M_REMOTE_REPLICATION_JOBS
-WHERE STATUS = 'RUNNING'
-AND REMOTE_SUBSCRIPTION_NAME = 'ABAP_SUBSCRIPTION';
-
--- Cancel it
-ALTER SYSTEM CANCEL SESSION '&amp;lt;connection_id&amp;gt;';&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The system rolls back any partial changes, restoring the target table to its pre-job state. The job is automatically rescheduled for its next interval.&lt;/P&gt;&lt;H3 id="toc-hId--1890795699"&gt;Resetting vs. Dropping&lt;/H3&gt;&lt;P&gt;&lt;STRONG&gt;Reset&lt;/STRONG&gt;&amp;nbsp;returns the subscription to its initial state without removing it. Use this when you need to re-run the full initial load:&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;ALTER REMOTE SUBSCRIPTION "ABAP_SUBSCRIPTION" RESET;
-TRUNCATE TABLE "TARGET_TABLE";
-ALTER REMOTE SUBSCRIPTION "ABAP_SUBSCRIPTION" QUEUE;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Drop&lt;/STRONG&gt;&amp;nbsp;permanently removes the subscription and cleans up resources on the ABAP source. The target table is retained.&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;DROP REMOTE SUBSCRIPTION "ABAP_SUBSCRIPTION";&lt;/code&gt;&lt;/pre&gt;&lt;H2 id="toc-hId--1793906197"&gt;&amp;nbsp;&lt;/H2&gt;&lt;H2 id="toc-hId--1990419702"&gt;Monitoring: The System Views You Need&lt;/H2&gt;&lt;P&gt;SAP HANA provides a set of dedicated system views for CDS view replication. Here's when to use each one:&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="50%"&gt;View&lt;/TD&gt;&lt;TD width="50%"&gt;Use Case&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="50%"&gt;&lt;STRONG&gt;REMOTE_SUBSCRIPTIONS&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="50%"&gt;Check subscription configuration, status, and the current replicated version (`EXTERNAL_VERSION_ID`)&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="50%"&gt;&lt;STRONG&gt;M_REMOTE_SUBSCRIPTIONS&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="50%"&gt;Runtime health and status of active subscriptions&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="50%"&gt;&lt;STRONG&gt;M_REMOTE_REPLICATION_JOBS&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="50%"&gt;Full lifecycle of scheduled jobs — PLANNED, RUNNING, COMPLETED, FAILED, CANCELLED&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="50%"&gt;&lt;STRONG&gt;M_REMOTE_SUBSCRIPTION_INITIAL_LOADS&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="50%"&gt;Initial load progress by chunk: status, record count, execution time&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="50%"&gt;&lt;STRONG&gt;M_REMOTE_SUBSCRIPTIONS_ABAPODBC&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="50%"&gt;ABAP-side replication ID and last processed portion ID&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;A few useful queries to keep handy:&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;-- Is my initial load done?
-SELECT CHUNK_ID, TOTAL_RECORD_COUNT, EXECUTION_STATUS, EXECUTION_TIME
-FROM M_REMOTE_SUBSCRIPTION_INITIAL_LOADS
-WHERE REMOTE_SUBSCRIPTION_NAME = 'ABAP_SUBSCRIPTION';
-
--- What's my latest replicated version?
-SELECT EXTERNAL_VERSION_ID
-FROM REMOTE_SUBSCRIPTIONS
-WHERE SUBSCRIPTION_NAME = 'ABAP_SUBSCRIPTION';
-
--- Did any scheduled jobs fail recently?
-SELECT STATUS, ERROR_NUMBER, ERROR_MESSAGE, START_TIME, END_TIME
-FROM M_REMOTE_REPLICATION_JOBS
-WHERE REMOTE_SUBSCRIPTION_NAME = 'ABAP_SUBSCRIPTION'
-ORDER BY START_TIME DESC;&lt;/code&gt;&lt;/pre&gt;&lt;H3 id="toc-hId-1814631082"&gt;&amp;nbsp;&lt;/H3&gt;&lt;H3 id="toc-hId-1618117577"&gt;Workload Management&lt;/H3&gt;&lt;P&gt;Automatic replication jobs participate in SAP HANA's native admission control. You can define workload class thresholds to prevent replication from overwhelming the system:&lt;/P&gt;&lt;pre class="lia-code-sample language-sql"&gt;&lt;code&gt;CREATE WORKLOAD CLASS "AbapReplicationControl"
-SET 'ADMISSION CONTROL REJECT CPU THRESHOLD' = '90',
-'ADMISSION CONTROL QUEUE CPU THRESHOLD' = '70';
-
-CREATE WORKLOAD MAPPING "AbapReplicationMapping"
-WORKLOAD CLASS "AbapReplicationControl"
-SET 'APPLICATION NAME' = '_SYS_REMOTE_REPLICATION_ABAP_DELTA_LOAD';&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Jobs that exceed the QUEUE threshold are delayed; jobs that exceed the REJECT threshold fail with an error and are rescheduled.&lt;/P&gt;&lt;H2 id="toc-hId-1715007079"&gt;&amp;nbsp;&lt;/H2&gt;&lt;H2 id="toc-hId-1518493574"&gt;&lt;STRONG&gt;Limitations to Know Before You Start&lt;/STRONG&gt;&lt;/H2&gt;&lt;P&gt;Before you commit to a schema design, check these constraints:&lt;/P&gt;&lt;P&gt;- &lt;STRONG&gt;Load behavior&lt;/STRONG&gt;: Only Normal and Upsert are supported. INSERT and ARCHIVE load behaviors are not.&amp;nbsp; (Archived data in the source are converted to deletes and will be removed from the target table)&lt;BR /&gt;- &lt;STRONG&gt;Schema changes:&lt;/STRONG&gt; The `WITH SCHEMA CHANGES` clause is not supported. If the CDS view schema changes, replication will fail and you'll need to manually update the target table and recreate the subscription.&lt;BR /&gt;- &lt;STRONG&gt;Initial load:&lt;/STRONG&gt; Only the automated `QUEUE` command is supported. The manual `INITIAL LOAD PREPARE/EXECUTE/FINALIZE` flow is not available.&lt;BR /&gt;- &lt;STRONG&gt;Subquery expressions:&lt;/STRONG&gt; Column projection and row filtering work. Function calls like `UPPER()` or arithmetic expressions in the subquery do not.&lt;BR /&gt;- &lt;STRONG&gt;Subscription query:&lt;/STRONG&gt; Once created, the subscription query cannot be changed. `ALTER REMOTE SUBSCRIPTION … REFRESH DEFINITION` is not supported. Recreate it if you need to change the filter or projection.&lt;BR /&gt;- &lt;STRONG&gt;Target type&lt;/STRONG&gt;: Only `TARGET TABLE` is supported. `TARGET PROCEDURE` and `TARGET TASK` are not.&lt;BR /&gt;- **NULL handling**: Empty values on the ABAP side (empty strings, zeros) may arrive as `NULL` in the target table. Account for this in downstream logic.&lt;/P&gt;&lt;P&gt;---&lt;/P&gt;&lt;H2 id="toc-hId-1321980069"&gt;Summary&lt;/H2&gt;&lt;P&gt;CDS view replication with the abapodbc adapter gives you a clean, CDC-based pipeline from SAP S/4HANA into SAP HANA Cloud. The lifecycle is straightforward: create the subscription, run the initial load with `QUEUE`, then choose between scheduled replication (`DISTRIBUTE`) or on-demand updates (`DELTA LOAD`). Built-in system views give you full visibility into job status, and native workload management ensures replication doesn't compete with your critical workloads.&lt;/P&gt;&lt;P&gt;The main things to keep in mind:&lt;/P&gt;&lt;P&gt;1. Truncate the target table before re-running the initial load — the system won't do it for you.&lt;BR /&gt;2. Schema changes on the source CDS view require a manual rebuild of the subscription.&lt;BR /&gt;3. Orphaned replications can silently drain ABAP resources — check with `DHADM` after any failed `CREATE REMOTE SUBSCRIPTION`.&lt;BR /&gt;4. Failed scheduled jobs are **not** automatically rescheduled — you need to re-issue `DISTRIBUTE` after resolving the error.&lt;/P&gt;&lt;P&gt;With that, you have everything you need to get replication running and keep it healthy in production.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/replicating-sap-s-4hana-cds-view-entities-into-sap-hana-cloud-a-practical/ba-p/14419559"/>
-    <published>2026-06-24T13:33:30.571000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/abap-forum/dynamic-height-control-of-tabstrip-in-classic-dynpro-is-it-possible/td-p/14426456</id>
-    <title>Dynamic height control of Tabstrip in classic Dynpro — is it possible?</title>
-    <updated>2026-06-24T13:33:31.278000+02:00</updated>
-    <author>
-      <name>oliver_am</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/423937</uri>
-    </author>
-    <content>&lt;P class=""&gt;Hi all,&lt;/P&gt;&lt;P class=""&gt;I have a classic Dynpro with two subscreen areas at the top and a Tabstrip at the bottom. I want to hide one or both of the upper subscreen areas via a button, and have the Tabstrip grow to fill the freed space — basically a responsive layout.&lt;/P&gt;&lt;P class=""&gt;The problem is that no matter what I change (height of the Tabstrip, height of the subscreen area inside it, height of the subscreens themselves), the Tabstrip always renders at the same size. Nothing seems to have any effect.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="oliver_am_3-1782300785693.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425740i8C321CC88617A332/image-size/medium?v=v2&amp;amp;px=400" role="button" title="oliver_am_3-1782300785693.png" alt="oliver_am_3-1782300785693.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;To make things worse, on smaller screens like a laptop display everything looks very cramped, and even when the upper areas are hidden the Tabstrip stays the same small size instead of expanding.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="oliver_am_1-1782300748583.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425738i1B694D9E193892B0/image-size/medium?v=v2&amp;amp;px=400" role="button" title="oliver_am_1-1782300748583.png" alt="oliver_am_1-1782300748583.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="oliver_am_2-1782300759961.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425739i4FBE308FED6A5D5C/image-size/medium?v=v2&amp;amp;px=400" role="button" title="oliver_am_2-1782300759961.png" alt="oliver_am_2-1782300759961.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P class=""&gt;My setup:&lt;/P&gt;&lt;UL class=""&gt;&lt;LI&gt;Dynpro type: Normal&lt;/LI&gt;&lt;LI&gt;Two subscreen areas at the top (conditionally shown/hidden)&lt;/LI&gt;&lt;LI&gt;One Tabstrip at the bottom with a single subscreen area (&lt;CODE&gt;TC_FICHAS_SCA&lt;/CODE&gt;) that loads different subscreens depending on the active tab&lt;/LI&gt;&lt;LI&gt;The Tabstrip contains a &lt;CODE&gt;CL_GUI_ALV_GRID&lt;/CODE&gt; inside a Custom Container&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="oliver_am_0-1782300723566.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425737iE513D03084BCEF53/image-size/medium?v=v2&amp;amp;px=400" role="button" title="oliver_am_0-1782300723566.png" alt="oliver_am_0-1782300723566.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P class=""&gt;My questions:&lt;/P&gt;&lt;OL class=""&gt;&lt;LI&gt;Is there a hard limit on Tabstrip height in classic Dynpro that ignores whatever you set in Screen Painter?&lt;/LI&gt;&lt;LI&gt;Is there any way to control the Tabstrip height &lt;STRONG&gt;dynamically at runtime&lt;/STRONG&gt; (e.g. when hiding the upper areas)?&lt;/LI&gt;&lt;/OL&gt;&lt;P class=""&gt;Any experience or workaround welcome. Thanks.&lt;/P&gt;&lt;P class=""&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-forum/dynamic-height-control-of-tabstrip-in-classic-dynpro-is-it-possible/td-p/14426456"/>
-    <published>2026-06-24T13:33:31.278000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/substring-function-in-cpi-properties/qaa-p/14426458#M4944679</id>
-    <title>Re: substring function in CPI properties</title>
-    <updated>2026-06-24T13:37:40.952000+02:00</updated>
-    <author>
-      <name>Andreas_Kempf</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2223349</uri>
-    </author>
-    <content>&lt;P&gt;${property.ID.substring(36,16)}&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/substring-function-in-cpi-properties/qaa-p/14426458#M4944679"/>
-    <published>2026-06-24T13:37:40.952000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/automatic-calculation-posting-of-goodwill-in-grp-reporting/qaa-p/14426460#M4243515</id>
-    <title>Re: Automatic Calculation/Posting of Goodwill in Grp Repo...</title>
-    <updated>2026-06-24T13:40:30.852000+02:00</updated>
-    <author>
-      <name>Kashmira</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1656510</uri>
-    </author>
-    <content>Hi Grégoire, do u have a step by step guide on how to create the rule?</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/automatic-calculation-posting-of-goodwill-in-grp-reporting/qaa-p/14426460#M4243515"/>
-    <published>2026-06-24T13:40:30.852000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/financial-management-blog-posts-by-sap/step-by-step-implementation-guide-sap-document-and-reporting-compliance-drc/bc-p/14426468#M9841</id>
-    <title>Re: Step-by-Step Implementation Guide: SAP Document and Reporting Compliance (DRC) Cash Flow Stateme</title>
-    <updated>2026-06-24T13:49:48.415000+02:00</updated>
-    <author>
-      <name>6-Mar</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1521269</uri>
-    </author>
-    <content>&lt;P class=""&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/242110"&gt;@daniel_wang&lt;/a&gt;&amp;nbsp;I am currently configuring the Cash Flow Statement (Direct Method) in SAP S/4HANA Cloud Public Edition. The structure (cash flow items and hierarchy, including parent and leaf nodes) has been completed, and the account assignments have also been maintained.&lt;/P&gt;&lt;P&gt;The relevant G/L accounts have been assigned as cash accounts, offsetting accounts, and invoice accounts according to the configuration model. End-to-end tests have been executed using standard processes (e.g., supplier invoice creation and outgoing payments via standard AP apps).&lt;/P&gt;&lt;P&gt;However, when running the report, the output (PDF) is completely empty, with no values displayed in any of the cash flow items.&lt;/P&gt;&lt;P&gt;I have verified that accounting documents are being posted correctly for the test scenarios, but the Cash Flow Statement still does not reflect any movements.&lt;/P&gt;&lt;P&gt;I would like to confirm:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;What are the mandatory prerequisites for postings to be included in the Cash Flow Statement (Direct Method) in S/4HANA Cloud Public Edition?&lt;/LI&gt;&lt;LI&gt;What checks should be performed when the structure and account mapping are correctly maintained but the report still returns zero values?&lt;/LI&gt;&lt;LI&gt;Are there any additional critical configuration steps (e.g., version setup, derivation logic, or reconciliation settings) that could prevent data selection in the report?&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Any guidance would be greatly appreciated.&lt;/P&gt;&lt;P&gt;Some prints:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="6Mar_0-1782301753213.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425745i3A01C91AD517AD18/image-size/medium?v=v2&amp;amp;px=400" role="button" title="6Mar_0-1782301753213.png" alt="6Mar_0-1782301753213.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="6Mar_1-1782301766213.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425746i87243044892639BA/image-size/medium?v=v2&amp;amp;px=400" role="button" title="6Mar_1-1782301766213.png" alt="6Mar_1-1782301766213.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="6Mar_2-1782301778259.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425748i13DF14C2E55D96EE/image-size/medium?v=v2&amp;amp;px=400" role="button" title="6Mar_2-1782301778259.png" alt="6Mar_2-1782301778259.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/financial-management-blog-posts-by-sap/step-by-step-implementation-guide-sap-document-and-reporting-compliance-drc/bc-p/14426468#M9841"/>
-    <published>2026-06-24T13:49:48.415000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/human-capital-management-q-a/change-candidate-source-field-of-hired-candidate-manually/qaq-p/14426471</id>
-    <title>Change candidate source field of hired candidate manually?</title>
-    <updated>2026-06-24T13:51:34.078000+02:00</updated>
-    <author>
-      <name>AnikaStenderBys</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/115453</uri>
-    </author>
-    <content>&lt;P&gt;Hello,&amp;nbsp;&lt;/P&gt;&lt;P&gt;Is it possible to change the candidate source field of hired candidate manually afterwards? We would like to track one candidate manually as referral post hiring.&lt;/P&gt;&lt;P&gt;Thank you and kind regards,&lt;/P&gt;&lt;P&gt;Anika&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/human-capital-management-q-a/change-candidate-source-field-of-hired-candidate-manually/qaq-p/14426471"/>
-    <published>2026-06-24T13:51:34.078000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/why-ocm-is-the-missing-piece-in-every-organisation-s-ai-strategy/ba-p/14426475</id>
-    <title>Why OCM Is the Missing Piece in Every Organisation's AI Strategy</title>
-    <updated>2026-06-24T13:55:15.011000+02:00</updated>
-    <author>
-      <name>DaveRyan</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2009919</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Why OCM Is the Missing Piece in Every Organisation's AI Strategy&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;There is a question being asked in boardrooms, team meetings, and coffee queues right now, and it is not going away:&amp;nbsp;&lt;EM&gt;what is going to happen to my job?&lt;/EM&gt;&lt;/P&gt;&lt;P&gt;Artificial intelligence is moving faster than most organisations anticipated, and the honest answer is that nobody has the full picture yet. What we do know is that the way work gets done is changing — and that the organisations navigating this well are not the ones with the biggest AI budgets. They are the ones that understood, early, that this was first and foremost a people challenge.&lt;/P&gt;&lt;P&gt;That is the core argument for Organisational Change Management in the AI era. Not as a box-ticking exercise bolted onto a technology rollout, but as the strategic discipline that determines whether AI investments actually deliver — or quietly gather dust while employees route around them.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Why This Wave Is Different&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Previous automation largely addressed physical and transactional tasks. AI is operating on cognitive work — drafting, analysing, summarising, diagnosing, designing, deciding. The scope is broader, and the speed is faster, compressing adjustment timelines that previous technological transitions stretched across decades. Organisations that wait until the disruption is fully visible before acting will be managing a crisis rather than a change programme.&lt;/P&gt;&lt;P&gt;The core shifts are already underway. The proportion of time employees spend on repeatable execution is shrinking; the proportion spent on judgement, contextual reasoning, and human oversight is growing. Individual expertise is giving way to human-AI collaboration — producing outputs neither could generate alone. And stable role definitions are being replaced by a continuous adaptation imperative that makes learning culture a competitive necessity, not a nice-to-have.&lt;/P&gt;&lt;P&gt;SAP's approach to Business AI, embedded natively across its application suite, makes this shift tangible — surfacing AI capabilities directly within the workflows employees already use and providing organisations with a practical context for OCM conversations about what human-AI collaboration looks like in everyday work.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;What OCM Actually Does Here&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Done well, OCM is the systematic process of understanding what a change means for the people it affects and designing intentional support so they can move through it effectively. In an AI context, that means answering questions that technology roadmaps do not address.&lt;/P&gt;&lt;P&gt;What, specifically, is changing for each group of employees — not in aggregate, but at the level of which tasks shift, what success now looks like, and what remains unchanged? What are people actually afraid of — not just job loss, but fear of incompetence, irrelevance, or surveillance? Who needs to be involved in shaping the transition, not just receiving it? And what new capabilities are needed, and how will they actually be built?&lt;/P&gt;&lt;P&gt;On that last question, most AI change programmes fall shortest. A session on how to use a platform is not the same as building the judgement to work effectively alongside AI — knowing when to trust its outputs, when to probe them, and when to override them.&amp;nbsp;SAP Learning Hub addresses this with dedicated AI literacy and SAP Business AI learning paths structured by role, going beyond tool familiarity to the broader context of working with AI responsibly. SAP Enable Now complements this with in-application, just-in-time guidance that makes capability building a continuous, workflow-embedded experience rather than a series of training events.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Governance, Ethics, and Risk&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Strategy conversations about AI governance tend to stay at the policy level. What rarely receives enough attention is the gap between a governance document and the daily behaviour of thousands of employees making small AI-related decisions every hour. That gap is precisely where OCM operates.&lt;/P&gt;&lt;P&gt;Formal governance must address data privacy, algorithmic bias, regulatory compliance, and clear decision rights — who approves which AI uses, what escalation paths exist, and which decisions always require a human in the loop. OCM translates these frameworks into day-to-day behaviour by embedding responsible AI use in training, workflows, performance expectations, and cultural norms. It also surfaces the ethical questions employees are already encountering — outputs that feel wrong, datasets that seem skewed, automated steps that removed a human check for good reason — and routes those observations back to governance bodies before they become incidents.&lt;/P&gt;&lt;P&gt;SAP has published AI ethics principles spanning transparency, fairness, privacy, accountability, and reliability, which underpin how capabilities are built across the SAP portfolio. These give organisations deploying SAP Business AI a meaningful reference point for their own governance frameworks — grounded in how the technology was designed to behave. SAP's AI ethics commitments are reflected in its training and certification programmes, making responsible use a thread running through the learning experience, not an addendum.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Anchoring Change to Business Value&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;A change programme focused only on adoption rates and sentiment, without connecting to business outcomes, is vulnerable. Effective OCM anchors the programme to clearly defined outcomes from the outset — cost, quality, risk reduction, customer experience — with baselines defined before deployment so that improvement can be demonstrated, not just asserted.&lt;/P&gt;&lt;P&gt;A benefits map that traces the path from changed human behaviour to business outcome serves multiple purposes: it guides prioritisation, creates a common language between technology and business functions, and gives employees a meaningful answer to why this matters. Human metrics — confidence, sentiment, collaboration quality — should be tracked as leading indicators of those business outcomes, not as ends in themselves.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Workflow and Operating Model Redesign&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;There is a common failure mode in AI programmes that looks like success on the surface. The tool is deployed, training runs, adoption metrics look reasonable — and yet the efficiency gains never materialise. The diagnosis is almost always the same: AI was bolted onto an existing workflow rather than embedded into a redesigned one.&lt;/P&gt;&lt;P&gt;AI changes what is feasible at each step of a process, removing some bottlenecks and creating new ones in places that were not bottlenecks before. Operating model redesign — reconstructing how work flows, who owns which decisions, and where human review is mandatory — is a core OCM deliverable, not an afterthought. And it does not end at go-live. Frontline employees will discover, within weeks, edge cases the model handles inconsistently, steps where AI output increases cognitive load, and handoffs that create confusion because accountability was not clearly redesigned. The OCM infrastructure — change agents, feedback mechanisms, iterative review cycles — is what captures these insights and routes them back into ongoing refinement.&lt;/P&gt;&lt;P&gt;For organisations running SAP-based processes, Signavio's integration with the broader SAP landscape means workflow redesign is connected directly to the systems people use every day.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Structural Enablers&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Individual change programmes are not sufficient when the underlying technology is evolving continuously. Organisations need structures that sustain ongoing adaptation.&lt;/P&gt;&lt;P&gt;An AI Centre of Excellence consolidates expertise, sets deployment standards, maintains governance, and coordinates learning across the organisation. For it to work, it must be closely partnered with the change function. An AI CoE without sustained attention to adoption and culture will underperform; OCM without a close relationship to the CoE will design programmes that drift from deployment realities.&amp;nbsp;SAP Activate's OCM workstream provides a structured framework for exactly this collaboration — starting at the Discover phase, well before deployment, and designed for the pace and complexity of SAP-enabled transformation.&lt;/P&gt;&lt;P&gt;A change agent network and AI power user community are equally important. Peer influence is the most powerful driver of sustained behaviour change. Identifying respected individuals with strong AI working practices, investing in their confidence, and connecting them into a cross-organisational network creates a capability-building engine that outlasts any structured programme.&amp;nbsp;SAP Enable Now and SAP Learning Hub together provide the platform and content infrastructure to make this network operationally effective at scale — including learning paths designed specifically for change practitioners navigating AI-led transformations.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Wellbeing, Performance, and the Conversation Organisations Are Avoiding&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Some roles will be significantly reduced. For some individuals, the honest answer to "what happens to my job?" is not reassuring. Pretending otherwise — with upbeat messages about AI freeing people for higher-value work, without acknowledging genuine uncertainty — is communication employees see through immediately. When they do, trust collapses, and with it the psychological safety the programme depends on.&lt;/P&gt;&lt;P&gt;Wellbeing is also a concrete risk. AI can increase cognitive load in ways that are not immediately obvious — monitoring outputs for errors, managing the boundary between delegation and retention, recalibrating professional identity when the nature of work shifts. Surveillance anxiety is real. Burnout risk increases when people are learning new tools, adapting to new roles, managing uncertainty, and still being held to pre-AI performance standards.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Performance measurement must also change. If systems punish the learning curve that comes with AI experimentation, the rational response is to stop experimenting.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Beyond the Organisation&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;AI-driven changes do not stop at the organisation's boundary. Customers interact with AI-powered decisions — often without visibility into how AI shaped their experience. Suppliers face changed terms of relationship. Regulators, particularly under frameworks like the EU AI Act, increasingly require documented, auditable, explainable AI use. OCM principles — stakeholder mapping, clear communication, feedback mechanisms — apply to all of these audiences, not just to employees.&amp;nbsp;SAP's investments in AI transparency and explainability features within its Business AI portfolio, and its published compliance documentation, give organisations working within SAP environments a concrete foundation for their regulatory engagement — reducing the burden of demonstrating responsible AI use to external authorities.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Where to Start&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Six commitments define organisations that manage AI change effectively.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Anchor to value early.&lt;/STRONG&gt;&amp;nbsp;Define business outcomes and baselines before rollout. Map the path from behaviour change to business impact and track both.&amp;nbsp;Start the OCM workstream at the technology evaluation stage, using SAP Activate guidance to structure the early-phase people work.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Redesign workflows, not just mindsets.&lt;/STRONG&gt;&amp;nbsp;Treat operating model redesign as a core programme deliverable, with iterative post go-live refinement built in.&amp;nbsp;Use SAP Signavio to make this continuous and data-driven.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Embed governance behaviourally.&lt;/STRONG&gt;&amp;nbsp;Translate ethics and risk frameworks into daily practice through training, performance expectations, and cultural norms.&amp;nbsp;Draw on SAP's AI ethics principles and SAP Learning Hub's responsible AI curriculum to ground this in the technology employees are actually using.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Build structural capability.&lt;/STRONG&gt;&amp;nbsp;Establish the AI CoE partnership and the change agent network.&amp;nbsp;Deploy SAP Enable Now and SAP Learning Hub to make the network effective at scale.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Protect wellbeing and rethink performance.&lt;/STRONG&gt;&amp;nbsp;Monitor cognitive load and burnout risk actively. Redesign metrics so the system rewards the experimentation it needs.&amp;nbsp;Use SAP SuccessFactors to operationalise both commitments.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Extend beyond the organisation.&lt;/STRONG&gt;&amp;nbsp;Apply the same rigour to customer, supplier, and regulatory communication that you apply internally.&lt;/P&gt;&lt;P&gt;The technology will keep advancing regardless. The organisations that genuinely benefit are those that treat AI as a sociotechnical challenge — connecting it to clear outcomes, embedding governance in culture, redesigning operations with the people who use them, and building the institutional capability to keep adapting.&lt;/P&gt;&lt;P&gt;For organisations in the SAP ecosystem, the combination of SAP Activate, SAP Enable Now, SAP Learning Hub, SAP Signavio, and SAP SuccessFactors means that the infrastructure for effective AI change management is already available. The question is whether it is deployed with the same seriousness as the AI capabilities it supports.&lt;/P&gt;&lt;P&gt;The choice belongs entirely to the organisation. And it starts with how seriously it takes change management.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/why-ocm-is-the-missing-piece-in-every-organisation-s-ai-strategy/ba-p/14426475"/>
-    <published>2026-06-24T13:55:15.011000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/supply-chain-management-q-a/minimize-custom-condition-types-and-account-keys-for-rea1-res2-rea5-etc-in/qaq-p/14426482</id>
-    <title>Minimize Custom condition types and account keys for REA1, RES2, REA5 etc. in settlement Management</title>
-    <updated>2026-06-24T14:01:59.283000+02:00</updated>
-    <author>
-      <name>kirankumardara</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/861303</uri>
-    </author>
-    <content>&lt;P&gt;Hello CCM Experts,&lt;/P&gt;&lt;P&gt;We have requirement to create custom condition types for different price promotions. There are around 26 conditions types in sales rebate we have created in place of RES1 so that each condition will be assigned to unique G/L Account.&lt;/P&gt;&lt;P&gt;Now for&amp;nbsp;REA1, RES2, REA5 do we need to create 26 custom promotional conditions for each, as they are applicable for all promotional conditions types in accrual and reversal and we should also create custom account keys. This is making pricing procedure complex.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Our aim is to assign each promotion condition to a specific G/L Account .&lt;/P&gt;&lt;P&gt;Could you please suggest alternativees to possibly reduce to one account keys for all these reversals.&lt;/P&gt;&lt;P&gt;Regards&amp;nbsp;&lt;/P&gt;&lt;P&gt;Kiran Kumar Dara&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;a href="https://community.sap.com/t5/c-khhcw49343/Settlement+Management/pd-p/9400b307-81e0-4db8-9487-df04dac62aeb" class="lia-product-mention" data-product="1083-1"&gt;Settlement Management&lt;/a&gt;&amp;nbsp; &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Variant+Configuration+and+Pricing/pd-p/73555000100800001502" class="lia-product-mention" data-product="816-1"&gt;SAP Variant Configuration and Pricing&lt;/a&gt;&amp;nbsp; &lt;a href="https://community.sap.com/t5/c-khhcw49343/SD+Sales/pd-p/167431589774684563301227734202839" class="lia-product-mention" data-product="1082-1"&gt;SD Sales&lt;/a&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/supply-chain-management-q-a/minimize-custom-condition-types-and-account-keys-for-rea1-res2-rea5-etc-in/qaq-p/14426482"/>
-    <published>2026-06-24T14:01:59.283000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/sap-university-alliances-program-blog-posts/celebrate-your-sap-academic-community-conference-experience-earn-your/bc-p/14426486#M296</id>
-    <title>Re: Celebrate Your SAP Academic Community Conference experience: Earn Your Exclusive Conference Badg</title>
-    <updated>2026-06-24T14:06:04.329000+02:00</updated>
-    <author>
-      <name>liviu-virgiliu</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/377693</uri>
-    </author>
-    <content>&lt;P&gt;&lt;SPAN&gt;SAP Academic Community Conference CEE 2026, great experience!&lt;/SPAN&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/sap-university-alliances-program-blog-posts/celebrate-your-sap-academic-community-conference-experience-earn-your/bc-p/14426486#M296"/>
-    <published>2026-06-24T14:06:04.329000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/financial-management-q-a/f3041-import-supplier-invoices-po-not-released-error/qaq-p/14426487</id>
-    <title>F3041 - Import supplier invoices - PO not released error</title>
-    <updated>2026-06-24T14:07:04.670000+02:00</updated>
-    <author>
-      <name>s-tashev_80</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2313339</uri>
-    </author>
-    <content>&lt;P&gt;Hello,&amp;nbsp;&lt;BR /&gt;when I am trying to simulate or park/post a document from the SAP Fiori app (F3041) - Import supplier invoices, the following error occurs, the PO is existing, and already invoiced, but on the excel template I am uploading there isn't any information connected with that PO number or any PO, can somebody help me out &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&amp;nbsp; &lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+HANA%25252C+platform+edition/pd-p/01200314690800001945" class="lia-product-mention" data-product="652-1"&gt;SAP HANA, platform edition&lt;/a&gt;&amp;nbsp;&lt;a href="https://community.sap.com/t5/c-khhcw49343/SAP+Fiori+for+SAP+ERP/pd-p/67838200100800006297" class="lia-product-mention" data-product="621-1"&gt;SAP Fiori for SAP ERP&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="stashev_80_0-1782302645065.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425758iE490833B49BF7820/image-size/medium?v=v2&amp;amp;px=400" role="button" title="stashev_80_0-1782302645065.png" alt="stashev_80_0-1782302645065.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/financial-management-q-a/f3041-import-supplier-invoices-po-not-released-error/qaq-p/14426487"/>
-    <published>2026-06-24T14:07:04.670000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/roles-for-adding-capabilities-in-cpi-system/qaq-p/14426488</id>
-    <title>Roles For Adding Capabilities in CPI System</title>
-    <updated>2026-06-24T14:08:43.092000+02:00</updated>
-    <author>
-      <name>vidyasagar1</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1425817</uri>
-    </author>
-    <content>&lt;P&gt;Hi SAP Team,&lt;/P&gt;&lt;P&gt;Please suggest relevant roles for adding the below capabilities in CPI system.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;U&gt;API Management&lt;/U&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;U&gt;Open Connectors&lt;/U&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;U&gt;Integration Advisor&lt;/U&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;U&gt;Integration Assessment&lt;/U&gt;&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Also attaching same document for reference&amp;nbsp;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/roles-for-adding-capabilities-in-cpi-system/qaq-p/14426488"/>
-    <published>2026-06-24T14:08:43.092000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/trial-cloud-identity-services-first-administrator-never-received-activation/qaa-p/14426489#M4944683</id>
-    <title>Re: Trial Cloud Identity Services: first administrator ne...</title>
-    <updated>2026-06-24T14:09:08.556000+02:00</updated>
-    <author>
-      <name>randa_khayrmoadi1c7386</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2312755</uri>
-    </author>
-    <content>Thank you very much, I will keep waiting, Is this bug can affect trying to use BAS and Work Zone in the tailer account?</content>
-    <link href="https://community.sap.com/t5/technology-q-a/trial-cloud-identity-services-first-administrator-never-received-activation/qaa-p/14426489#M4944683"/>
-    <published>2026-06-24T14:09:08.556000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/free-goods-deletion-flag-unable-to-find-the-change-logs/qaq-p/14426491</id>
-    <title>Free goods deletion flag unable to find the change logs</title>
-    <updated>2026-06-24T14:09:31.860000+02:00</updated>
-    <author>
-      <name>PK1979</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1691881</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Issue: We are deleting the free goods condition records and changes are not captured in CDHDR and CDPOS&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Is it standard functionality behavior or do we need to do any configuration related to the free goods. &lt;/STRONG&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/free-goods-deletion-flag-unable-to-find-the-change-logs/qaq-p/14426491"/>
-    <published>2026-06-24T14:09:31.860000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-18-rfc-for-uuids/bc-p/14426490#M770</id>
-    <title>Re: June Developer Challenge - CAP Knowledge - Task 18 - RFC for UUIDs</title>
-    <updated>2026-06-24T14:09:31.913000+02:00</updated>
-    <author>
-      <name>Rupesh_Kumar25</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2274433</uri>
-    </author>
-    <content>&lt;P&gt;fd52a76eccef1cd0c4c8935ebb8645e62ea2d7f3ea355a1edf0a50a6384ab7ed&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-18-rfc-for-uuids/bc-p/14426490#M770"/>
-    <published>2026-06-24T14:09:31.913000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/storage-location-not-mandatory-in-po/qaq-p/14426501</id>
-    <title>Storage Location not mandatory in PO</title>
-    <updated>2026-06-24T14:18:45.494000+02:00</updated>
-    <author>
-      <name>9657979991</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2313346</uri>
-    </author>
-    <content>&lt;P&gt;Dear SAP Support Team,&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Description:&lt;/STRONG&gt;&lt;BR /&gt;We have a requirement to make Storage Location mandatory in Purchase Orders.&lt;BR /&gt;Tried using Field Selection Key (NBF) in document type configuration, but the field remains optional.&lt;/P&gt;&lt;P&gt;Please confirm:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Is this possible via standard configuration in S/4HANA Public Cloud?&lt;/LI&gt;&lt;LI&gt;If not, what is the recommended SAP approach?&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/storage-location-not-mandatory-in-po/qaq-p/14426501"/>
-    <published>2026-06-24T14:18:45.494000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/gcs-jwt-token-generation-sap-cpi-neo-pkix-path-building-failed/qaq-p/14426503</id>
-    <title>GCS JWT token generation - SAP CPI neo - PKIX path building failed:</title>
-    <updated>2026-06-24T14:19:10.891000+02:00</updated>
-    <author>
-      <name>SandhyaTai</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1585300</uri>
-    </author>
-    <content>&lt;P&gt;We have a requirement to upload files from SAP CPI (Neo environment) to Google Cloud Storage. As part of this integration, we implemented an OAuth 2.0 JWT Bearer flow using a Google service account.&lt;/P&gt;&lt;P&gt;The integration flow has been designed as follows:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;The service account private key is stored securely in the CPI Keystore (converted to &lt;CODE&gt;.p12&lt;/CODE&gt; format).&lt;/LI&gt;&lt;LI&gt;A Groovy script retrieves the private key from the keystore and generates a signed JWT.&lt;/LI&gt;&lt;LI&gt;The generated JWT is then used in an HTTP adapter call to obtain an access token from Google’s OAuth token endpoint.&lt;/LI&gt;&lt;LI&gt;The access token is intended to be used in a subsequent HTTP call to upload files to Google Cloud Storage.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;However, we are encountering an error when invoking the OAuth token endpoint:&lt;/P&gt;&lt;P&gt;&lt;CODE&gt;&lt;A href="https://oauth2.googleapis.com/token" target="_blank" rel="nofollow noopener noreferrer"&gt;https://oauth2.googleapis.com/token&lt;/A&gt; &lt;/CODE&gt;&lt;/P&gt;&lt;P&gt;The error message observed is:&lt;/P&gt;&lt;P&gt;&lt;CODE&gt;java.net.ConnectException: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target &lt;/CODE&gt;&lt;/P&gt;&lt;P&gt;We have already imported the relevant Google/DigiCert certificates (including GTS Root R1 and WR2, as well as DigiCert Global Root certificates) into the CPI Neo keystore. Despite this, the PKIX error persists during the HTTPS call.&lt;/P&gt;&lt;P&gt;Could you please advise what might be missing or incorrectly configured in this scenario? Additionally, are there any known limitations or special considerations in SAP CPI Neo when establishing HTTPS connections to Google OAuth endpoints (&lt;CODE&gt;oauth2.googleapis.com&lt;/CODE&gt;)?&lt;/P&gt;&lt;P&gt;Your guidance on how to resolve this issue, or confirmation of any platform-related constraints, would be greatly appreciated.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/gcs-jwt-token-generation-sap-cpi-neo-pkix-path-building-failed/qaq-p/14426503"/>
-    <published>2026-06-24T14:19:10.891000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/technology-q-a/technical-setup-for-cloud-alm/qaa-p/14426506#M4944685</id>
-    <title>Re: Technical setup for Cloud ALM</title>
-    <updated>2026-06-24T14:20:18.368000+02:00</updated>
-    <author>
-      <name>JamieFulen</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/20349</uri>
-    </author>
-    <content>&lt;P&gt;Hello&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1453215"&gt;@Palo&lt;/a&gt;,&lt;/P&gt;&lt;P&gt;The usage rights for SAP Cloud ALM can be found here:&amp;nbsp;&lt;A href="https://support.sap.com/en/alm/usage-rights.html?anchorId=section_1290774100_c" target="_blank" rel="noopener noreferrer"&gt;Usage Rights&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Best regards,&lt;BR /&gt;Jamie&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-q-a/technical-setup-for-cloud-alm/qaa-p/14426506#M4944685"/>
-    <published>2026-06-24T14:20:18.368000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/sap-end-of-month-processes/qaq-p/14426510</id>
-    <title>SAP End of month processes</title>
-    <updated>2026-06-24T14:25:49.826000+02:00</updated>
-    <author>
-      <name>Doon_7418</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2304978</uri>
-    </author>
-    <content>&lt;P&gt;Hi All,&lt;/P&gt;&lt;P&gt;I'd like to better understand the month-end close process. I haven't used SAP FICO in a while and trying to remember all the codes i used years ago. Could you share the close calendar, key SAP FICO activities, major reconciliations, and any common challenges please? I'd also like to understand which activities are considered critical to completing the close on time,&amp;nbsp; I will be joining a new team as they start their close process&lt;/P&gt;&lt;P&gt;thanks&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/sap-end-of-month-processes/qaq-p/14426510"/>
-    <published>2026-06-24T14:25:49.826000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-13-optional-cdl-keyword/bc-p/14426512#M771</id>
-    <title>Re: June Developer Challenge - CAP Knowledge - Task 13 - Optional CDL keyword</title>
-    <updated>2026-06-24T14:28:56.253000+02:00</updated>
-    <author>
-      <name>SergioG_TX</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/39917</uri>
-    </author>
-    <content>&lt;P&gt;d660e87d4504d7b2a2ed5bc97b6430dfc0d8afdd768d03f05a06ce5677d7b78c&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-13-optional-cdl-keyword/bc-p/14426512#M771"/>
-    <published>2026-06-24T14:28:56.253000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-14-change-tracking/bc-p/14426513#M772</id>
-    <title>Re: June Developer Challenge - CAP Knowledge - Task 14 - Change tracking</title>
-    <updated>2026-06-24T14:31:02.343000+02:00</updated>
-    <author>
-      <name>SergioG_TX</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/39917</uri>
-    </author>
-    <content>&lt;P&gt;eac9ee2de35942254f600fc729b2d79629d3685f1e561719d4a09ccec9c360e8&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-14-change-tracking/bc-p/14426513#M772"/>
-    <published>2026-06-24T14:31:02.343000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/zertifizierung-zur-fi-beraterin-f%C3%BCr-die-cloud-edition/qaa-p/14426514#M4243519</id>
-    <title>Re: Zertifizierung zur FI-Beraterin für die Cloud Edition</title>
-    <updated>2026-06-24T14:34:57.779000+02:00</updated>
-    <author>
-      <name>HenrikeGroetecke</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/47173</uri>
-    </author>
-    <content>Hallo Laura, vielen Dank für die Frage! Ich habe sie an die Experten weitergeleitet. Viele Grüße, Henrike</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/zertifizierung-zur-fi-beraterin-f%C3%BCr-die-cloud-edition/qaa-p/14426514#M4243519"/>
-    <published>2026-06-24T14:34:57.779000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/api-for-post-goods-receipt-for-handling-unit-with-inbound-delivery/qaq-p/14426515</id>
-    <title>API for post goods receipt for handling unit with inbound delivery reference in warehouse missing</title>
-    <updated>2026-06-24T14:35:39.886000+02:00</updated>
-    <author>
-      <name>SAPSupport</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/121003</uri>
-    </author>
-    <content>&lt;P&gt;With warehouse inbound delivery API:&amp;nbsp;&lt;A href="https://api.sap.com/api/WAREHOUSEINBOUNDDELIVERY_0001/overview" target="_blank" rel="noopener noreferrer"&gt;https://api.sap.com/api/WAREHOUSEINBOUNDDELIVERY_0001/overview&lt;/A&gt;&amp;nbsp;it is not possible to post goods receipt for handling unit one by one.&lt;/P&gt;&lt;P&gt;Please suggest the correct approach for this&lt;/P&gt;&lt;BR /&gt;------------------------------------------------------------------------------------------------------------------------------------------------&lt;BR /&gt;&lt;B&gt;Learn more about the SAP Support user and program &lt;A target="_blank" href="https://community.sap.com/t5/enterprise-resource-planning-blogs-by-sap/maximizing-the-power-of-sap-community-at-product-support/ba-p/13501276"&gt;here&lt;/A&gt;.&lt;/B&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/api-for-post-goods-receipt-for-handling-unit-with-inbound-delivery/qaq-p/14426515"/>
-    <published>2026-06-24T14:35:39.886000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/api-for-post-goods-receipt-for-handling-unit-with-inbound-delivery/qaa-p/14426516#M4243521</id>
-    <title>Re: API for post goods receipt for handling unit with inb...</title>
-    <updated>2026-06-24T14:35:47.331000+02:00</updated>
-    <author>
-      <name>SAPSupport</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/121003</uri>
-    </author>
-    <content>&lt;P&gt;In SAP S/4HANA Cloud Public Edition, when dealing with warehouse inbound deliveries, it is not possible to post goods receipt for handling units one by one using the Warehouse Inbound Delivery API. This API does not support individual handling unit goods receipt postings related to an inbound delivery.&lt;/P&gt;&lt;P&gt;Key Points:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Handling Units&lt;/STRONG&gt;: These are physical units consisting of packaging material and the goods contained within.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Warehouse Management&lt;/STRONG&gt;: In a WM-managed storage location, goods receipt for handling units must be posted through the highest-level handling unit&amp;nbsp;&lt;A href="https://help.sap.com/docs/SAP_S4HANA_CLOUD/9ce855c709ce4f5c99b685903461106e/aaacfcb5512043499fd6edacd1d91660.html" target="_blank" rel="noopener noreferrer"&gt;APIs for Logistics Cross Topics - Post Goods Receipt in WM-Managed Storage Location&lt;/A&gt;&amp;nbsp;in the hierarchy.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Example:&lt;/P&gt;&lt;P&gt;To post goods receipt for an inbound delivery linked to a handling unit, you must use the highest-level handling unit:&lt;/P&gt;&lt;PRE&gt;POST &amp;lt;host&amp;gt;/sap/opu/odata4/sap/api_handlingunit/srvd_a2x/sap/handlingunit/0001/HandlingUnit(HandlingUnitExternalID='800036410',Warehouse='1050')/SAP__self.PostGoodsReceipt?sap-client=&amp;lt;client&amp;gt;&lt;/PRE&gt;&lt;P&gt;This approach ensures that the goods receipt is processed correctly for the entire hierarchy of handling units associated with the inbound delivery.&lt;/P&gt;&lt;P&gt;Please let us know by there if you have further questions about your question! We keep at your service.&lt;/P&gt;&lt;P&gt;Best regards,&lt;/P&gt;&lt;P&gt;SAP Support&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/api-for-post-goods-receipt-for-handling-unit-with-inbound-delivery/qaa-p/14426516#M4243521"/>
-    <published>2026-06-24T14:35:47.331000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/zertifizierung-zur-fi-beraterin-f%C3%BCr-die-cloud-edition/qaa-p/14426517#M4243522</id>
-    <title>Re: Zertifizierung zur FI-Beraterin für die Cloud Edition</title>
-    <updated>2026-06-24T14:35:55.714000+02:00</updated>
-    <author>
-      <name>HenrikeGroetecke</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/47173</uri>
-    </author>
-    <content>&lt;P&gt;SAP Machine Translation Portal translation:&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;P&gt;Certification as an FI consultant for the cloud edition&lt;BR /&gt;Hello everyone,&lt;/P&gt;&lt;P&gt;I have already completed the S4F10, S4F12, S4F13, S4F15, and S4F17 modules. I am currently working as an S/4HANA key user in the Finance area, currently on the S/4HANA Public Cloud Edition.&lt;/P&gt;&lt;P&gt;I am interested in certification as an FI consultant for the cloud edition. Is this the certification C_TS4FI?&lt;/P&gt;&lt;P&gt;If I understood it correctly, it would be a good idea to subscribe to SAP Learning Hub.&lt;/P&gt;&lt;P&gt;I have found the following information on the SAP website:&lt;/P&gt;&lt;P&gt;“ What are the costs of obtaining and ensuring certification?&lt;/P&gt;&lt;P&gt;To maintain and maintain your SAP certification, a subscription to SAP Learning Hub gives you access to live training with experts, on-demand practice systems, advanced analytics, four exam attempts, and short, unattended assessments. This exclusive solution gives you everything you need to prepare, pass, and ensure your SAP certifications – with just one subscription. The next subscription cost is per user. Available directly from the SAP Store or through your SAP representative. SAP PartnerEdge members can learn more about and subscribe to the SAP Learning Hub (partner edition) . "&lt;/P&gt;&lt;P&gt;Do I understand correctly that for $1,488.00 you get access to the Learning Hub and four exam attempts for certification?&lt;/P&gt;&lt;P&gt;Thank you for your support.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/zertifizierung-zur-fi-beraterin-f%C3%BCr-die-cloud-edition/qaa-p/14426517#M4243522"/>
-    <published>2026-06-24T14:35:55.714000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-15-local-binding-registry/bc-p/14426519#M773</id>
-    <title>Re: June Developer Challenge - CAP Knowledge - Task 15 - Local binding registry</title>
-    <updated>2026-06-24T14:37:08.501000+02:00</updated>
-    <author>
-      <name>SergioG_TX</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/39917</uri>
-    </author>
-    <content>&lt;P&gt;6895f3138f47c2a50ed89f7e4a11bf42b46723d8ad8c8da38185821981ca4c4c&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-15-local-binding-registry/bc-p/14426519#M773"/>
-    <published>2026-06-24T14:37:08.501000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/sap-eppm-financial-planning-introducing-custom-value-types-for-flexible/bc-p/14426521#M64645</id>
-    <title>Re: SAP EPPM Financial Planning: Introducing Custom Value Types for Flexible Cost Splits</title>
-    <updated>2026-06-24T14:38:00.714000+02:00</updated>
-    <author>
-      <name>Shubham_Srivastava1</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/132064</uri>
-    </author>
-    <content>&lt;P&gt;Informative&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/sap-eppm-financial-planning-introducing-custom-value-types-for-flexible/bc-p/14426521#M64645"/>
-    <published>2026-06-24T14:38:00.714000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/abap-forum/transitioning-from-cse-hr-to-sap-should-i-learn-rap-and-btp-directly/td-p/14426522</id>
-    <title>Transitioning from CSE/HR to SAP: Should I learn RAP and BTP directly?</title>
-    <updated>2026-06-24T14:38:28.764000+02:00</updated>
-    <author>
-      <name>Chaitanya333</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2313345</uri>
-    </author>
-    <content>&lt;P&gt;Hi everyone,&lt;/P&gt;&lt;P&gt;I come from a Computer Science Engineering (&lt;STRONG&gt;CSE&lt;/STRONG&gt;) background, but due to some personal situations, I've been stuck working in the &lt;STRONG&gt;HR&lt;/STRONG&gt; field for the &lt;STRONG&gt;last year&lt;/STRONG&gt;. I'm really eager to get back into tech and &lt;STRONG&gt;transition into SAP development.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;I'm starting to look into learning SAP ABAP, but a few friends suggested that I should skip traditional/classical ABAP entirely and go straight for the RESTful ABAP Programming Model (&lt;STRONG&gt;RAP&lt;/STRONG&gt;) and &lt;STRONG&gt;SAP BTP&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;Since I already have a coding background, I’d love to get some honest advice from the experts here:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Is it actually realistic to jump straight into RAP without knowing traditional ABAP, or do I still need to master core ABAP and Object-Oriented syntax first?&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;What does the job market look like for a fresher focusing purely on ABAP Cloud, RAP, and BTP?&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;If you were in my shoes, what roadmap or learning path would you take to get solid, hands-on experience?&lt;BR /&gt;&lt;BR /&gt;Thanks a lot for your time and help!&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/abap-forum/transitioning-from-cse-hr-to-sap-should-i-learn-rap-and-btp-directly/td-p/14426522"/>
-    <published>2026-06-24T14:38:28.764000+02:00</published>
-  </entry>
-  <entry>
-    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/the-new-dmee-format-it-cgi-xml-ct-italy-new-legal-requirement-iso20022-in/qaa-p/14426524#M4243523</id>
-    <title>Re: The new DMEE format IT_CGI_XML_CT Italy new legal req...</title>
-    <updated>2026-06-24T14:39:52.204000+02:00</updated>
-    <author>
-      <name>nag_7589</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2053253</uri>
-    </author>
-    <content>&lt;P&gt;Please go through below note&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;A class="" href="https://me.sap.com/notes/2268123" target="_blank" rel="noopener noreferrer"&gt;2268123&lt;/A&gt;-&lt;SPAN&gt;CGI: CGI_XML_CT(CBI) - Italy; specific extension for credit transfers&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="__xmlview10--idObjectPageHeader-title" id="toc-hId-1818273410"&gt;&lt;SPAN class=""&gt;2253571 - Collective information note: CGI_XML_CT, CGI_XML_DD&lt;/SPAN&gt;&lt;/H2&gt;</content>
-    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/the-new-dmee-format-it-cgi-xml-ct-italy-new-legal-requirement-iso20022-in/qaa-p/14426524#M4243523"/>
-    <published>2026-06-24T14:39:52.204000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/set-up-authorization-for-ledger-group-not-working/qaa-p/14426526#M4243524</id>
     <title>Re: Set up Authorization  for Ledger Group not working</title>
@@ -914,6 +515,18 @@ BIND(STRAFTER(STR(rel), "relatedTo/") AS reltyp)
     <published>2026-06-24T15:14:26.698000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/supply-chain-management-blog-posts-by-sap/call-sap-digital-manufacturing-production-processes-via-rest-api/bc-p/14426571#M8530</id>
+    <title>Re: Call SAP Digital Manufacturing Production Processes via REST API</title>
+    <updated>2026-06-24T15:24:22.833000+02:00</updated>
+    <author>
+      <name>Bjorn_Vanholme</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2040949</uri>
+    </author>
+    <content>&lt;P&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/175657"&gt;@ManoelCosta&lt;/a&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thank you for this post.&lt;BR /&gt;What I tried was creating a generic start PPD, because each workcenters has their own specific PPD.&lt;/P&gt;&lt;P&gt;I the parameter part i added "key" and the request body is configured with a structure containing the parameters for each start ppd.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Bjorn_Vanholme_1-1782307341353.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425796i914F6797CE3DA884/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Bjorn_Vanholme_1-1782307341353.png" alt="Bjorn_Vanholme_1-1782307341353.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In the general start I wanted to call the specific PPD without using an if to prevent that for each workcenter we needed to add the new workcenter PPD.&amp;nbsp; So we are using a custom data field on resource level to store the key and&amp;nbsp;pass this key to the generic PPD.&lt;/P&gt;&lt;P&gt;Here we are getting an error&amp;nbsp; "IO exception occured" while the postman call works fine?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/supply-chain-management-blog-posts-by-sap/call-sap-digital-manufacturing-production-processes-via-rest-api/bc-p/14426571#M8530"/>
+    <published>2026-06-24T15:24:22.833000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/supply-chain-management-q-a/minimize-custom-condition-types-and-account-keys-for-rea1-res2-rea5-etc-in/qaa-p/14426572#M211245</id>
     <title>Re: Minimize Custom condition types and account keys for...</title>
     <updated>2026-06-24T15:28:22.383000+02:00</updated>
@@ -948,6 +561,18 @@ BIND(STRAFTER(STR(rel), "relatedTo/") AS reltyp)
     <content>&lt;DIV class=""&gt;Most procurement teams are sitting on a goldmine of data they cannot access, contracts they cannot track, and risks they cannot see until it is too late.&lt;/DIV&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;This video follows one CPO — thirteen minutes before a board meeting, three unanswered questions from her CFO — and shows exactly how AI changes that equation. Not through theory, but through the four capabilities that are transforming procurement right now: spend visibility, smarter sourcing, contract intelligence, and supplier risk management.&lt;/DIV&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;The numbers speak for themselves. Ninety-seven percent spend classification accuracy. Ninety percent faster negotiation preparation. Three point two million euros saved by seeing a supply chain risk before it became a crisis.&lt;/DIV&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;If your procurement function is still running on spreadsheets and quarterly reports, this is worth six minutes of your time.&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;P&gt;&lt;A href="https://community.sap.com/source-Ids-list" target="1_cbm2fr5y" rel="nofollow noopener noreferrer"&gt;&amp;nbsp;&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://static.ekx.cloud.sap/api/chat/files/view?filePath=%2Ftmp%2Fsandbox%2FAI_in_Procurement_Slides_v5.html&amp;amp;threadId=9813ff69-391e-4d2f-bf21-2b3cd453926d" target="_self" rel="nofollow noopener noreferrer"&gt;Presentation&lt;/A&gt;&lt;/P&gt;&lt;/DIV&gt;</content>
     <link href="https://community.sap.com/t5/spend-management-blog-posts-by-sap/ai-in-procurement-a-visual-walkthrough/ba-p/14426581"/>
     <published>2026-06-24T15:35:33.815000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/financial-management-q-a/which-is-the-catalog-assigned-to-app-quot-assign-payment-type-to-a-company/qaa-p/14426582#M259805</id>
+    <title>Re: Which is the catalog assigned to App "Assign Payment...</title>
+    <updated>2026-06-24T15:36:18.758000+02:00</updated>
+    <author>
+      <name>CDE11</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1745443</uri>
+    </author>
+    <content>Thanks &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/185148"&gt;@RaymondGiuseppi&lt;/a&gt;. I would like to ask again to clarify the following: You provided catalog catalog "SAP_CA_BC_IC_LND_FIN_AP0_PC Accounts Payable - Configuration", that provides access to "Set Up Payment Methods per Company Code for Payment Transactions" (101044). It seems it is not the same as catalog "SAP_CA_BC_IC_LND_FIN_GL_HR_PC General Ledger for Croatia - Configuration", that provides access to "Assign Payment Type to a Company Code"(107024). We can access to 101044 but not to 107024, which is the one assigned to a Croatia catalog . Do you know which catalog should we use for this other app. Thanks again for your response. Kind regards.</content>
+    <link href="https://community.sap.com/t5/financial-management-q-a/which-is-the-catalog-assigned-to-app-quot-assign-payment-type-to-a-company/qaa-p/14426582#M259805"/>
+    <published>2026-06-24T15:36:18.758000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/zertifizierung-zur-fi-beraterin-f%C3%BCr-die-cloud-edition/qaa-p/14426588#M4243532</id>
@@ -996,6 +621,18 @@ BIND(STRAFTER(STR(rel), "relatedTo/") AS reltyp)
     <content>&lt;P&gt;Read KBA&amp;nbsp;&lt;A href="https://me.sap.com/notes/3268822/E" target="_self" rel="noopener noreferrer"&gt;3268822 - Field Control in Purchase Orders and Purchase Requisitions in S/4HANA Cloud&lt;/A&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/storage-location-not-mandatory-in-po/qaa-p/14426595#M4243535"/>
     <published>2026-06-24T15:43:59.523000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/intercompany-sto-return-process-for-damaged-goods-with-automatic-credit/qaq-p/14426596</id>
+    <title>Intercompany STO Return Process for Damaged Goods with Automatic Credit/Debit Note Creation</title>
+    <updated>2026-06-24T15:45:14.811000+02:00</updated>
+    <author>
+      <name>SAIPOLU</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1584744</uri>
+    </author>
+    <content>&lt;P class=""&gt;&lt;STRONG&gt;&lt;SPAN&gt;Business Scenario&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;Company Code &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;1004&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; creates a Stock Transport Order (STO) to Company Code &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;1003&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;An intercompany sales order is automatically created in Company Code &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;1003&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; with Company Code &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;1004&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; as the customer.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Company Code &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;1003&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; delivers the goods and posts the goods issue.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Company Code &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;1004&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; receives the goods and posts the goods receipt.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Intercompany billing is completed in Company Code &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;1003&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Supplier invoice is automatically created/booked in Company Code &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;1004&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;&lt;STRONG&gt;&lt;SPAN&gt;Issue&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;After goods receipt, Company Code &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;1004&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; identified that the received material is damaged and needs to be returned to Company Code &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;1003&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;STRONG&gt;&lt;SPAN&gt;Requirement&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;Need to understand and configure the standard return process in SAP S/4HANA Public Cloud for an Intercompany STO scenario with the following expected outcome:&lt;/SPAN&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;SPAN&gt;Company Code &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;1004&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; creates a return request/return order against the original STO.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Damaged material is physically returned from Company Code &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;1004&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; to Company Code &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;1003&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt;.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Return delivery and goods movement are posted.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Intercompany billing documents are reversed/credited.&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;A &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;credit note&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; is generated for Company Code &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;1004&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; (customer side).&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;A corresponding &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;debit note/credit memo adjustment&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; is automatically generated in Company Code &lt;/SPAN&gt;&lt;STRONG&gt;&lt;SPAN&gt;1003&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;SPAN&gt; (supplying company).&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Financial postings are cleared against the original intercompany invoice and supplier invoice.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P class=""&gt;&lt;STRONG&gt;&lt;SPAN&gt;Questions&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;What is the standard SAP S/4HANA Public Cloud process for Intercompany STO returns after billing has already been completed?&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Which scope items/apps should be used?&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Is a Return Purchase Order, Customer Return, or Intercompany Returns process required?&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;Can credit memo and debit memo documents be created automatically from the return process?&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;What are the required configuration and master data settings?&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P class=""&gt;&lt;STRONG&gt;&lt;SPAN&gt;Example&lt;/SPAN&gt;&lt;/STRONG&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;Supplying Company: 1003&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;Receiving Company: 1004&lt;/SPAN&gt;&lt;/P&gt;&lt;P class=""&gt;&lt;SPAN&gt;Original Flow:&lt;/SPAN&gt;&lt;BR /&gt;&lt;SPAN&gt;STO → Intercompany Sales Order → Outbound Delivery → PGI → Goods Receipt → Intercompany Billing → Supplier Invoice&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Required Return Flow:&lt;/SPAN&gt;&lt;BR /&gt;&lt;SPAN&gt;Return Request → Return Delivery → Return Goods Receipt by 1003 → Credit Memo to 1004 → Corresponding Debit/Credit Adjustment in 1003&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/intercompany-sto-return-process-for-damaged-goods-with-automatic-credit/qaq-p/14426596"/>
+    <published>2026-06-24T15:45:14.811000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/crm-and-cx-blog-posts-by-sap/extending-contract-account-notes-to-sap-s-4hana-customer-engagement/ba-p/14425061</id>
@@ -1182,6 +819,42 @@ BIND(STRAFTER(STR(rel), "relatedTo/") AS reltyp)
     <published>2026-06-24T15:46:43.066000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/financial-management-q-a/sap-s-4hana-public-cloud-alternative-to-document-type-er-for-intercompany/qaq-p/14426597</id>
+    <title>SAP S/4HANA Public Cloud – Alternative to Document Type ER for Intercompany Travel Expense Recharge</title>
+    <updated>2026-06-24T15:49:25.095000+02:00</updated>
+    <author>
+      <name>marcel_f</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/151277</uri>
+    </author>
+    <content>&lt;P&gt;Hello SAP Community,&lt;/P&gt;&lt;P&gt;We are currently implementing &lt;STRONG&gt;SAP S/4HANA Cloud Public Edition&lt;/STRONG&gt; and using the following scope items for cross-company cost allocation and intercompany billing processes:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;4AN – Intercompany Billing for Cross-Company Cost Accounting Postings&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;4AU – Project Control Intercompany&lt;/STRONG&gt;&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;16T – Intercompany Processes – Project-Based Services&lt;/STRONG&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;During our analysis of the standard process for cross-company cost recharging (especially &lt;STRONG&gt;travel expense recharges&lt;/STRONG&gt;), we noticed that the SAP Best Practice documentation for scope item &lt;STRONG&gt;4AU&lt;/STRONG&gt; uses document type &lt;STRONG&gt;ER – Manual Travel Expenses&lt;/STRONG&gt; when posting intercompany expenses.&lt;/P&gt;&lt;P&gt;In the process step &lt;EM&gt;"Post Cross-Company Expenses"&lt;/EM&gt;, a supplier invoice is created using document type &lt;STRONG&gt;ER&lt;/STRONG&gt; and posted to a WBS element before the subsequent intercompany billing process is executed.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Our Challenge&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;In our system landscape, travel expenses and other employee-related costs originate from upstream systems and are transferred to SAP via interfaces (e.g. Travel &amp;amp; Expense solutions).&lt;/P&gt;&lt;P&gt;As a result, users do &lt;STRONG&gt;not&lt;/STRONG&gt; manually create supplier invoices in SAP using document type &lt;STRONG&gt;ER&lt;/STRONG&gt;, as described in the Best Practice process.&lt;/P&gt;&lt;P&gt;When we use document type ER, we encounter problems with currency conversion as well as with advance payment invoices&lt;/P&gt;&lt;P&gt;Instead, the costs already exist in SAP as FI postings generated through interfaces.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Questions&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;We would like to understand what SAP-recommended alternatives exist for enabling &lt;STRONG&gt;intercompany travel expense recharges&lt;/STRONG&gt; and other intercompany cost reallocations when document type &lt;STRONG&gt;ER&lt;/STRONG&gt; cannot be used.&lt;/P&gt;&lt;P&gt;Specifically:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Is the use of document type &lt;STRONG&gt;ER&lt;/STRONG&gt; a technical prerequisite for generating the subsequent intercompany billing request in scope items 4AN / 4AU?&lt;/LI&gt;&lt;LI&gt;We would very much like to use the SAP standard and implement a fully automated process&lt;/LI&gt;&lt;LI&gt;Are there SAP Best Practices for intercompany travel expense recharges when the original costs are transferred from external expense management systems?&lt;/LI&gt;&lt;LI&gt;Does anyone have experience implementing scope items &lt;STRONG&gt;4AN&lt;/STRONG&gt;, &lt;STRONG&gt;4AU&lt;/STRONG&gt;, and &lt;STRONG&gt;16T&lt;/STRONG&gt; in scenarios where travel expenses originate outside SAP and are integrated via interfaces?&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;Target Scenario&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Our objective is to use the standard SAP intercompany billing functionality without requiring manual reposting of travel expenses through supplier invoices with document type &lt;STRONG&gt;ER&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;We would appreciate any guidance, SAP Notes, Best Practices, or project experiences regarding this topic.&lt;/P&gt;&lt;P&gt;Thank you in advance for your support.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/financial-management-q-a/sap-s-4hana-public-cloud-alternative-to-document-type-er-for-intercompany/qaq-p/14426597"/>
+    <published>2026-06-24T15:49:25.095000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/fixed-quantity-indicator-in-standard-costing-estimate/qaa-p/14426599#M4243537</id>
+    <title>Re: fixed quantity indicator in standard costing estimate</title>
+    <updated>2026-06-24T15:53:27.782000+02:00</updated>
+    <author>
+      <name>ofs_sapteam</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1657955</uri>
+    </author>
+    <content>&lt;P&gt;Hi Lakshmipathi,&lt;/P&gt;&lt;P&gt;Thank you for your detailed information, we followed the steps, we set the raw material in the finished product BOM, we set the fixed quantity indicator in the BOM and also set the costing lot size = 1. However, CK11N is still multiplying the quantity of the raw material based on the quantity of the finished product. When I create a production order the fixed indicator works, the raw material quantity remains the same regardless of the finish good quantity, it also works in transaction CS11 the raw material quantity remains the same regardless of the finish good quantity. Why is this not working in CK11N? Can you please help us? Are we missing any steps or is there another way?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/fixed-quantity-indicator-in-standard-costing-estimate/qaa-p/14426599#M4243537"/>
+    <published>2026-06-24T15:53:27.782000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/human-capital-management-q-a/onboarding-custom-tasks-integration-with-employee-central/qaq-p/14426600</id>
+    <title>Onboarding Custom tasks integration with Employee central</title>
+    <updated>2026-06-24T15:53:28.463000+02:00</updated>
+    <author>
+      <name>rajeswari_maradabd461c</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2277878</uri>
+    </author>
+    <content>&lt;P&gt;Hello Experts,&amp;nbsp;&lt;/P&gt;&lt;P&gt;Hope you are doing great.&lt;/P&gt;&lt;DIV&gt;&lt;P&gt;We have a requirement to integrate the onboarding custom task, which is submitted by the manager, into Employee Central. We would appreciate your guidance on how this can be achieved.&lt;/P&gt;&lt;P&gt;Thank you in advance for your support.&lt;/P&gt;&lt;/DIV&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thank you&lt;/P&gt;&lt;P&gt;Rajeswari.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/human-capital-management-q-a/onboarding-custom-tasks-integration-with-employee-central/qaq-p/14426600"/>
+    <published>2026-06-24T15:53:28.463000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/financial-management-q-a/journal-entries-with-0-interest-amount-are-not-displayed-in-quot-manage/qaq-p/14426601</id>
     <title>Journal entries with 0 interest amount are not displayed in "Manage Interest Calculation Runs" app a</title>
     <updated>2026-06-24T15:54:56.108000+02:00</updated>
@@ -1192,6 +865,18 @@ BIND(STRAFTER(STR(rel), "relatedTo/") AS reltyp)
     <content>&lt;P&gt;&lt;STRONG&gt;[Component / Application]&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;Job: Schedule Interest Calculation Jobs&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;App: Manage Interest Calculation Runs&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;[Symptom / Actual Behavior]&lt;/STRONG&gt; When executing the interest calculation via the "Schedule Interest Calculation Jobs" app, the source journal entry numbers are normally output and can be verified in the "Manage Interest Calculation Runs" app. However, for journal entries where the interest calculation process was executed but the resulting &lt;STRONG&gt;calculated interest amount was "0"&lt;/STRONG&gt;, they are not output or displayed in the "Manage Interest Calculation Runs" app.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;[Questions]&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;&lt;P&gt;Is it the standard behavior (intended specification) of SAP S/4HANA Cloud that journal entries with a calculated interest amount of 0 are not displayed in the "Manage Interest Calculation Runs" app?&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;If it is standard behavior, is there any configuration change or parameter setting available to output/display these journal entries with 0 interest amount in the app?&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;</content>
     <link href="https://community.sap.com/t5/financial-management-q-a/journal-entries-with-0-interest-amount-are-not-displayed-in-quot-manage/qaq-p/14426601"/>
     <published>2026-06-24T15:54:56.108000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/i-want-to-see-purchase-order-and-invoice-numbers-in-the-asset-transactions/qaq-p/14426602</id>
+    <title>I want to see purchase order and invoice numbers in the Asset Transactions Fiori app</title>
+    <updated>2026-06-24T15:54:57.087000+02:00</updated>
+    <author>
+      <name>Prashant_9090</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1560642</uri>
+    </author>
+    <content>&lt;P&gt;I need purchase order document numbers and invoice numbers to be displayed in the Asset Transactions Fiori app. The current documentation and standard app do not show these details directly, and I am seeking assistance on how to enable or retrieve them within the app. I want to open a support case for detailed help.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/i-want-to-see-purchase-order-and-invoice-numbers-in-the-asset-transactions/qaq-p/14426602"/>
+    <published>2026-06-24T15:54:57.087000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/what-is-the-product-roadmap-for-the-legacy-sap-test-automation-platform-tap/qaa-p/14426604#M4944687</id>
@@ -1228,6 +913,30 @@ BIND(STRAFTER(STR(rel), "relatedTo/") AS reltyp)
     <content>&lt;P&gt;Regarding the question 3):&lt;BR /&gt;Please check the answer below:&lt;BR /&gt;The SAP Expert Portal &lt;A href="https://support.sap.com/en/alm/sap-cloud-alm/operations/expert-portal/setup-managed-services.html?anchorId=section" rel="noopener noreferrer" target="_blank"&gt;Setup Managed Components&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;contains the setup information for SAP Cloud ALM and the supported systems (and services). This includes how to configure the connection between SAP Cloud ALM and the managed system (service), displays any prerequisites, and defines how to configure data collection for the various monitoring use cases. Ensure the prerequisites are met, including implementing all relevant SAP Notes and follow the documented steps. Note: There are some videos captured in this area that may be helpful, but as new versions reach release, they can be 'less' current than the text information contained on the portal. Note: If problems are encountered, check &lt;A href="https://support.sap.com/en/alm/sap-cloud-alm/operations/expert-portal/calm-op-troubleshooting/calm-troubleshooting-abap.html" rel="noopener noreferrer" target="_blank"&gt;Troubleshooting for ABAP Systems&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&amp;nbsp;to try to resolve the problem. If problems remain in the area of connection, log a support case for SV-CLM-INF-CON.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/technical-setup-for-cloud-alm/qaa-p/14426608#M4944688"/>
     <published>2026-06-24T16:02:52.180000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/experiencing-change-in-layout-after-upgrade/qaq-p/14426610</id>
+    <title>Experiencing change in layout after upgrade</title>
+    <updated>2026-06-24T16:06:05.770000+02:00</updated>
+    <author>
+      <name>COTY</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1770967</uri>
+    </author>
+    <content>&lt;P&gt;After the upgrade, the standard WDA tiles are no longer opening in a new tab. Prior to the upgrade, clicking on a tile would open it in a new tab (except for the Home page). However, post-upgrade, the tile now opens in the same tab, replacing the Home screen.&lt;/P&gt;&lt;P&gt;We tried all steps as suggested in SAP support but nothing worked.Below are the steps we followed.&lt;/P&gt;&lt;P&gt;Open transaction&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;/n/UI2/FLP_CUS_CONF&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;for client‑specific settings or&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;/n/UI2/FLP_SYS_CONF&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;for system‑wide settings.&lt;/P&gt;&lt;P&gt;Locate the parameters&amp;nbsp;&lt;STRONG&gt;NAVIGATION_GUI_INPLACE&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;and&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;NAVIGATION_WDA_INPLACE&lt;/STRONG&gt;.&lt;/P&gt;&lt;P&gt;Set&amp;nbsp;&lt;STRONG&gt;NAVIGATION_WDA_INPLACE = false&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;(and optionally&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;NAVIGATION_GUI_INPLACE = false&lt;/STRONG&gt;) to force WDA tiles to open in a new browser tab (ex‑place). Setting the value to&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;true&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;will keep the navigation in‑place (same tab).&lt;/P&gt;&lt;P&gt;Save the changes, clear the browser cache and restart the Fiori Launchpad session&amp;nbsp;&lt;/P&gt;&lt;P&gt;Even after all these settings we have seen same behaviour.&lt;/P&gt;&lt;P&gt;Kindly check and confirm if any settings are missing on our end to restore the system behavior to how it functioned prior to the upgrade.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/experiencing-change-in-layout-after-upgrade/qaq-p/14426610"/>
+    <published>2026-06-24T16:06:05.770000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/qpr4-is-not-displaying-workcentre-in-the-output/qaq-p/14426611</id>
+    <title>QPR4 - is not displaying WorkCentre in the Output</title>
+    <updated>2026-06-24T16:08:04.693000+02:00</updated>
+    <author>
+      <name>Rizwan1</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1531723</uri>
+    </author>
+    <content>&lt;P&gt;QPR4 has work center field in ALV output, but it is not displaying any values. may we know display the work center ?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/qpr4-is-not-displaying-workcentre-in-the-output/qaq-p/14426611"/>
+    <published>2026-06-24T16:08:04.693000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-q-a/sofficeintegration142-sapscriptword2007-dotm/qaa-p/14426612#M4944690</id>
@@ -1406,6 +1115,18 @@ OTHERS = 2 ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Executing above code will create 
     <published>2026-06-24T16:20:20.745000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/financial-management-q-a/education-reimbursement/qaq-p/14426622</id>
+    <title>Education Reimbursement</title>
+    <updated>2026-06-24T16:25:07.166000+02:00</updated>
+    <author>
+      <name>PStew_6-7</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2313376</uri>
+    </author>
+    <content>&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="PStew_67_0-1782310729093.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425811iDE035B5F2FCD5797/image-size/medium?v=v2&amp;amp;px=400" role="button" title="PStew_67_0-1782310729093.png" alt="PStew_67_0-1782310729093.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Please add a education reimbursement ICON to the template, with better guidelines for requirements.&amp;nbsp; In order to decrease rejections rate on repayment.&amp;nbsp; Thank You&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/financial-management-q-a/education-reimbursement/qaq-p/14426622"/>
+    <published>2026-06-24T16:25:07.166000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/incidencia-en-sistema-test-a-la-hora-de-contabilizar/qaa-p/14426623#M4243542</id>
     <title>Re: Incidencia en sistema TEST a la hora de contabilizar</title>
     <updated>2026-06-24T16:27:14.345000+02:00</updated>
@@ -1465,6 +1186,18 @@ OTHERS = 2 ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Executing above code will create 
     <published>2026-06-24T16:36:07.192000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/udf-field-tab-order-navigation-issue-in-sap-business-one/qaa-p/14426629#M4243543</id>
+    <title>Re: UDF Field Tab Order Navigation Issue in SAP Business One</title>
+    <updated>2026-06-24T16:36:48.891000+02:00</updated>
+    <author>
+      <name>usman_hassan7</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2310578</uri>
+    </author>
+    <content>Thank you for testing and confirming. Option 1 — UI API Add-On (Permanent Fix) If you have or can develop a simple SAP B1 add-on, this is the only reliable solution. In the et_FORM_LOAD event, access the UDF form and set TabOrder explicitly:SAPbouiCOM.Form oUDFForm = oApp.Forms.Item(oForm.UDFFormUID); oUDFForm.Items.Item("U_Field1").TabOrder = 1; oUDFForm.Items.Item("U_Field2").TabOrder = 2; oUDFForm.Items.Item("U_Field3").TabOrder = 3; oUDFForm.Items.Item("U_Field4").TabOrder = 4;This works every time the form opens and does not require recreating UDFs.</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/udf-field-tab-order-navigation-issue-in-sap-business-one/qaa-p/14426629#M4243543"/>
+    <published>2026-06-24T16:36:48.891000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/incorrect-exchange-rates-for-calculated-costs/qaa-p/14426630#M4243544</id>
     <title>Re: Incorrect Exchange rates for Calculated costs</title>
     <updated>2026-06-24T16:37:50.288000+02:00</updated>
@@ -1475,6 +1208,30 @@ OTHERS = 2 ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Executing above code will create 
     <content>&lt;P&gt;Dear&amp;nbsp;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1481231"&gt;@SiddheshParab&lt;/a&gt;,&lt;/P&gt;&lt;P&gt;PC02 Calculated Costs is determined from sales order costing / product cost planning, not from the standard sales order pricing exchange-rate logic used by other SD condition types. For sales order costing SAP confirms that the system normally uses costing variant PPC4 and valuation variant 001. For this valuation variant the relevant planning category is PLN and by default this planning category is mapped to exchange rate type P. Therefore, PC02 can show a different exchange-rate result than other sales order condition types if those conditions use a different exchange rate type or date&lt;/P&gt;&lt;P&gt;More details below:&lt;/P&gt;&lt;P&gt;&lt;A href="https://userapps.support.sap.com/sap/support/knowledge/en/3513695" target="_blank" rel="noopener noreferrer"&gt;SAP KBA 3513695 - CK323 error raised in sales order costing&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://userapps.support.sap.com/sap/support/knowledge/en/3667170" target="_blank" rel="noopener noreferrer"&gt;SAP KBA 3667170 - How Is the Exchange Rate Selected During Material Cost Estimate in SAP S/4HANA Cloud Public Edition&lt;/A&gt;&lt;/P&gt;&lt;P&gt;&lt;A href="https://userapps.support.sap.com/sap/support/knowledge/en/3482860" target="_blank" rel="noopener noreferrer"&gt;SAP KBA 3482860 - Unexpected exchange rate type used for material cost estimate - SAP S/4HANA Cloud Public Edition&lt;/A&gt;&lt;/P&gt;&lt;P&gt;For comparison the normal sales/service order pricing exchange-rate type follows a different logic. SAP confirms that it can be taken from the sold-to party sales-area data in Manage Customer Master Data and if that field is blank the system defaults to exchange rate type M. This explains why PC02 may differ from other pricing conditions&lt;/P&gt;&lt;P&gt;More details below:&lt;/P&gt;&lt;P&gt;&lt;A href="https://userapps.support.sap.com/sap/support/knowledge/en/3599406" target="_blank" rel="noopener noreferrer"&gt;SAP KBA 3599406 - The determination of exchange rate type in sales and service orders - SAP S/4HANA Cloud Public Edition&lt;/A&gt;&lt;/P&gt;&lt;P&gt;Recommended checks:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Verify the exchange rate maintained for exchange rate type P in the Currency Exchange Rates app&lt;/LI&gt;&lt;LI&gt;Verify the mapping of planning category PLN in SSCUI 101970 Maintain Category for Planning&lt;/LI&gt;&lt;LI&gt;Check the valuation/conversion date used by the sales order cost estimate, because PC02 follows costing logic rather than simply reusing the sales order pricing exchange rate&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;Summary:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;PC02 is driven by sales order costing. In standard Public Cloud the key exchange-rate source is planning category PLN mapped to exchange rate type P, not the standard SD pricing exchange-rate logic&lt;/P&gt;&lt;P&gt;Best Regards,&lt;/P&gt;&lt;P&gt;Dawid&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/incorrect-exchange-rates-for-calculated-costs/qaa-p/14426630#M4243544"/>
     <published>2026-06-24T16:37:50.288000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/financial-management-q-a/s-4hana-cloud-public-edition-multi-approver-workflow-for-supplier-invoices/qaq-p/14426632</id>
+    <title>[S/4HANA Cloud Public Edition] Multi-approver workflow for supplier invoices by cost center</title>
+    <updated>2026-06-24T16:40:03.820000+02:00</updated>
+    <author>
+      <name>Veronica_VidalTorres</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1776090</uri>
+    </author>
+    <content>&lt;P&gt;&lt;STRONG&gt;S/4HANA Cloud Public Edition - Multi-approver workflow for supplier invoices by cost center – how to configure?&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;We need to implement an approval workflow for MIRO-type supplier invoices (invoice verification / accounts payable) so that when an invoice is posted against a specific cost center, multiple people can approve or reject it — not just a single responsible person.&lt;/P&gt;&lt;P&gt;What we have explored so far:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Cost center master data – Responsible Person field: This field only allows a single person to be assigned, so it doesn't cover the multi-approver scenario we need.&lt;/LI&gt;&lt;LI&gt;"Manage Teams and Responsibilities" app: We found this application and explored it as a potential solution, but when configuring the &lt;I&gt;Type and &lt;I&gt;Category fields, we cannot find any standard option that maps to supplier invoice approval against a cost center. It's unclear whether this app is even intended for this process.&lt;/I&gt;&lt;/I&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;&lt;STRONG&gt;Specific questions:&lt;/STRONG&gt;&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Is there a standard mechanism in S/4HANA Cloud Public Edition to define a group of approvers for supplier invoices based on the cost center being posted to?&lt;/LI&gt;&lt;LI&gt;Can "Manage Teams and Responsibilities" be used for this purpose? If so, which Type/Category combination should be used?&lt;/LI&gt;&lt;LI&gt;Is there any workflow configuration available in Public Cloud for this scenario, or is this a limitation of the public edition?&lt;P&gt;Any guidance or pointers to relevant documentation would be greatly appreciated.&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;</content>
+    <link href="https://community.sap.com/t5/financial-management-q-a/s-4hana-cloud-public-edition-multi-approver-workflow-for-supplier-invoices/qaq-p/14426632"/>
+    <published>2026-06-24T16:40:03.820000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/data-and-analytics-blog-posts/two-ways-to-build-a-hierarchy-in-sac-and-how-to-choose-the-right-one/bc-p/14426633#M158</id>
+    <title>Re: Two Ways to Build a Hierarchy in SAC and How to Choose the Right One</title>
+    <updated>2026-06-24T16:40:09.475000+02:00</updated>
+    <author>
+      <name>KSHIRLEYCHK</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1437001</uri>
+    </author>
+    <content>&lt;P&gt;Is one hierarchy type more flexible to changes than the other?&amp;nbsp; A specific example being wanting to bring in a lower level of account granularity into an SAC model.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/data-and-analytics-blog-posts/two-ways-to-build-a-hierarchy-in-sac-and-how-to-choose-the-right-one/bc-p/14426633#M158"/>
+    <published>2026-06-24T16:40:09.475000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/human-capital-management-q-a/username-ias-business-and-personal-email-addresses-recommendations/qaq-p/14426634</id>
@@ -1499,6 +1256,18 @@ OTHERS = 2 ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Executing above code will create 
     <content>&lt;P&gt;We currently have the below non-SAP systems using data transfer mechanisms as outlined below:&lt;/P&gt;&lt;P&gt;MIMS → Data Services → HANA DB&amp;nbsp;&lt;BR /&gt;ICIMS → API/SFTP (via CPI) → SAP BW&amp;nbsp;&lt;BR /&gt;DS_MasterEngine_SLA (API) → HANA DB&amp;nbsp;&lt;BR /&gt;OSIsoft (AVEVA) → HANA DB&amp;nbsp;&lt;/P&gt;&lt;P&gt;As part of the BW/4HANA transformation initiative, we are planning to integrate these data sources directly with SAP Datasphere by eliminating the existing Data Services and HANA DB ( layers wherever possible.&lt;/P&gt;&lt;P&gt;Could you please help us evaluate and suggest suitable integration scenarios/approaches for the above systems with SAP Datasphere?&lt;/P&gt;&lt;P&gt;&lt;BR /&gt;Please also share if there are any reference architectures or implementation documents available for similar integrations.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-q-a/integration-scenarios-for-non-sap-systems-with-sap-datasphere/qaq-p/14426636"/>
     <published>2026-06-24T16:48:04.219000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/cfdi-idoc-solution-idoc-not-linked-with-billing-document/qaq-p/14426637</id>
+    <title>CFDI Idoc Solution: Idoc not linked with billing document</title>
+    <updated>2026-06-24T16:48:04.974000+02:00</updated>
+    <author>
+      <name>alexduerl</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1843539</uri>
+    </author>
+    <content>&lt;P&gt;Dear support-team,&lt;/P&gt;&lt;P&gt;usually outgouing Idocs are linked with the triggering document in SAP - for example:&lt;/P&gt;&lt;P&gt;Billing document triggers INVOICE02 Idoc. Outgoing Idoc is linked with billing document. You can see the link (or relationship)&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;in VF02/VF03 under Relationsships&lt;/LI&gt;&lt;LI&gt;WE02/WE05/BD87 under Relationships&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;For our mexicon company code we have customized the CFDI Idoc solution which also creates Idoc triggered by billing document. In this solution a different Idoc Typs is beeing used (MXCFDIREQ002). As we noticed this Idoc is not linked with the billing document as it is done for INVOIC02 Idocs.&lt;/P&gt;&lt;P&gt;Please provide information on how the Idocs for CFDI Idoc solution can be linked to the billing document.&lt;/P&gt;&lt;P&gt;Thanks in advance and best regards.&lt;BR /&gt;Alex Dürl&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/cfdi-idoc-solution-idoc-not-linked-with-billing-document/qaq-p/14426637"/>
+    <published>2026-06-24T16:48:04.974000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/your-path-to-ai-powered-transformation-with-sap-cloud-alm/bc-p/14426638#M191465</id>
@@ -1561,6 +1330,42 @@ OTHERS = 2 ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Executing above code will create 
     <published>2026-06-24T17:01:41.851000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/supply-chain-management-q-a/finite-heurisaitc-don-t-create-production-supply/qaq-p/14426644</id>
+    <title>finite heurisaitc don't create production supply</title>
+    <updated>2026-06-24T17:05:43.946000+02:00</updated>
+    <author>
+      <name>Oli-msg</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2300045</uri>
+    </author>
+    <content>&lt;P&gt;Hello Experts,&amp;nbsp;&lt;/P&gt;&lt;P&gt;if we start the finite heuristic in SAPIBP2 we get no production suplly. WE have a forecast in DA6 and should produce in DA3 but nothing happened. The result of the run is unfullfill demand&lt;/P&gt;&lt;P&gt;the t-lane and capacity looks fine&amp;nbsp;&lt;/P&gt;&lt;P&gt;have you an idea what we can also check ?&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;thanks in advance&amp;nbsp;&lt;/P&gt;&lt;P&gt;Oliver&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/supply-chain-management-q-a/finite-heurisaitc-don-t-create-production-supply/qaq-p/14426644"/>
+    <published>2026-06-24T17:05:43.946000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/subject-unable-to-access-sap-cloud-identity-services-ias-administration/qaa-p/14426649#M4944692</id>
+    <title>Re: Subject: Unable to Access SAP Cloud Identity Services...</title>
+    <updated>2026-06-24T17:06:25.408000+02:00</updated>
+    <author>
+      <name>ashique</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1525573</uri>
+    </author>
+    <content>Maria just posted about it yesterday. Here is the update &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-sap/cloud-identity-services-bug-in-sap-btp-trial-environment-current-status/ba-p/14426240" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-sap/cloud-identity-services-bug-in-sap-btp-trial-environment-current-status/ba-p/14426240&lt;/A&gt; Btw I am just a normal user like you, not a SAP associate</content>
+    <link href="https://community.sap.com/t5/technology-q-a/subject-unable-to-access-sap-cloud-identity-services-ias-administration/qaa-p/14426649#M4944692"/>
+    <published>2026-06-24T17:06:25.408000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/cn72-is-not-capturing-the-ecp-data-for-ps-projects/qaq-p/14426651</id>
+    <title>CN72 is not capturing the ECP Data for PS Projects.</title>
+    <updated>2026-06-24T17:10:42.064000+02:00</updated>
+    <author>
+      <name>MADHAN_VUTTARAPALLY</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2313406</uri>
+    </author>
+    <content>&lt;P&gt;The current snapshot functionality available through transaction CN72 does not capture Easy Cost Planning (ECP) entries from the CKIS table.&lt;/P&gt;&lt;P&gt;To address this limitation, we are considering developing a custom program that extracts CKIS table entries and stores them in a custom Z-table, along with relevant date and timestamp information.&amp;nbsp;&lt;BR /&gt;This solution would enable us to maintain historical snapshots and support comparison with live data in Fiori reports.&lt;/P&gt;&lt;P&gt;We would appreciate your guidance on whether there are any standard SAP options available to capture snapshots of Easy Cost Planning (ECP) data.&lt;/P&gt;&lt;P&gt;If no standard solution exists, please confirm whether proceeding with the custom approach—capturing CKIS records along with date and timestamp in a Z-table—would be appropriate.&lt;BR /&gt;Additionally, we would like to highlight a concern regarding the potential growth of records in the snapshot table over time.&lt;/P&gt;&lt;P&gt;We would appreciate recommendations on how to efficiently manage data volume and ensure optimal performance as the dataset increases, Approx. Data Volume 1Million Records per Month.&lt;BR /&gt;with the Retention Period of 18Months to pull the data frequently and show the same in the Comparision Reports.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/cn72-is-not-capturing-the-ecp-data-for-ps-projects/qaq-p/14426651"/>
+    <published>2026-06-24T17:10:42.064000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/abap-test-cockpit-atc-recommendations-for-governance-of-clean-core-abap/bc-p/14426652#M191467</id>
     <title>Re: ABAP test cockpit (ATC) recommendations for governance of clean core ABAP development</title>
     <updated>2026-06-24T17:11:58.953000+02:00</updated>
@@ -1583,6 +1388,42 @@ OTHERS = 2 ).&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Executing above code will create 
     <content>&lt;P&gt;Hi,&lt;/P&gt;&lt;P&gt;Work Instructions URL integration via LOIPRO IDOC using DMS/DIR is covered in standard, see&amp;nbsp;&lt;A title="Configuring a Production Order with Document Info Records" href="https://help.sap.com/docs/sap-digital-manufacturing/integration-guide/configuring-production-order-with-document-info-records" target="_blank" rel="noopener noreferrer"&gt;Configuring a Production Order with Document Info Records&lt;/A&gt;. You can implement different strategies, including files, using Standard APIs below and a middleware like Integration Suite.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;A href="https://api.sap.com/api/sapdme_workinstruction_file/resource/Attached_File" target="_blank" rel="noopener noreferrer"&gt;https://api.sap.com/api/sapdme_workinstruction_file/resource/Attached_File&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://api.sap.com/api/sapdme_workinstruction_v2/resource/Work_Instructions" target="_blank" rel="noopener noreferrer"&gt;https://api.sap.com/api/sapdme_workinstruction_v2/resource/Work_Instructions&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;&lt;A href="https://api.sap.com/api/sapdme_workinstruction/resource/Work_Instructions" target="_blank" rel="noopener noreferrer"&gt;https://api.sap.com/api/sapdme_workinstruction/resource/Work_Instructions&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Hope it helps! Br, Manoel&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/product-lifecycle-management-q-a/transfer-of-work-instruction-without-dir/qaa-p/14426653#M85138"/>
     <published>2026-06-24T17:12:05.511000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/sap-pr1-finished-goods-inventory-clearing-multiple-plants/qaq-p/14426655</id>
+    <title>SAP PR1 - Finished Goods Inventory Clearing Multiple plants</title>
+    <updated>2026-06-24T17:17:27.133000+02:00</updated>
+    <author>
+      <name>samruddhisuresh_khandarea5ae2f</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2313311</uri>
+    </author>
+    <content>&lt;P&gt;We have received an request from user that the quantity was showing in MD04 transaction for the PO's. when we checked these are of old PO's 7802393236 , 7804586318 and the stock was in transit for these PO. can you please sugguest a solution for removing the stock from the MD04 as it is required to clear for Aduit purpose&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/sap-pr1-finished-goods-inventory-clearing-multiple-plants/qaq-p/14426655"/>
+    <published>2026-06-24T17:17:27.133000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/sap-business-ai-platform-partner-led-adoption-incentive/bc-p/14426658#M191468</id>
+    <title>Re: SAP Business AI Platform partner-led adoption incentive</title>
+    <updated>2026-06-24T17:21:06.742000+02:00</updated>
+    <author>
+      <name>venkatraosap</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/893334</uri>
+    </author>
+    <content>&lt;P&gt;This is an important initiative, and SAP Business AI adoption will absolutely need strong partner-led execution.&lt;/P&gt;&lt;P&gt;That said, I want to share a real emerging-partner perspective. Many capable specialist partners are actively investing in SAP Business AI, BTP, Joule-aligned use cases, Cloud ALM, automation, clean-core execution, and PoC-to-production offerings.&lt;/P&gt;&lt;P&gt;However, in practice, the path can be difficult to navigate. Access to incentive programs often appears tied to PartnerEdge status, while entry into the relevant PartnerEdge track itself can take time, involve multiple steps, and require clearer guidance. That creates a difficult loop for emerging partners: follow the official partner path, but access to AI incentives, enablement sessions, sandbox/TDD environments, and technical guidance may depend on already being fully inside the ecosystem.&lt;/P&gt;&lt;P&gt;This is especially challenging because SAP partnership is not free. Emerging partners invest real money, certifications, resources, business planning, and thousands of dollars to build SAP-aligned capabilities. So when the ecosystem is described as open, there also needs to be a clearer and more practical onboarding path for qualified specialist partners who are already investing.&lt;/P&gt;&lt;P&gt;The future of SAP Business AI cannot be driven only by the largest established partners. Customers also need lean, AI-first specialist firms that can move fast, build focused PoCs, support clean-core execution, and help convert AI ambition into measurable business outcomes.&lt;/P&gt;&lt;P&gt;I hope SAP uses this incentive program not only to fund adoption, but also to improve access, routing, enablement, and transparency for capable emerging partners who want to help SAP customers succeed.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/sap-business-ai-platform-partner-led-adoption-incentive/bc-p/14426658#M191468"/>
+    <published>2026-06-24T17:21:06.742000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/sap-eppm-financial-planning-introducing-custom-value-types-for-flexible/bc-p/14426659#M64647</id>
+    <title>Re: SAP EPPM Financial Planning: Introducing Custom Value Types for Flexible Cost Splits</title>
+    <updated>2026-06-24T17:21:58.729000+02:00</updated>
+    <author>
+      <name>CletusHenry</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2309381</uri>
+    </author>
+    <content>&lt;P&gt;That’s interesting and solves our problem! thanks Janett!&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/sap-eppm-financial-planning-introducing-custom-value-types-for-flexible/bc-p/14426659#M64647"/>
+    <published>2026-06-24T17:21:58.729000+02:00</published>
   </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/working-with-large-data-models-in-sap-datasphere-using-claude-code/ba-p/14426639</id>
@@ -1708,6 +1549,42 @@ Deploy complete.&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;What would have been an hour o
     <published>2026-06-24T17:40:14.685000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/step-by-step-calling-s-4hana-private-cloud-standard-odata-apis-with-oauth-2/bc-p/14426673#M191469</id>
+    <title>Re: Step-by-Step: Calling S/4HANA Private Cloud Standard OData APIs with OAuth 2.0 from Client Tool</title>
+    <updated>2026-06-24T17:45:47.863000+02:00</updated>
+    <author>
+      <name>RRDD</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2033402</uri>
+    </author>
+    <content>&lt;P&gt;Hello,&lt;/P&gt;&lt;P&gt;When I add a new service, such as API_CHANGEMASTER, and assign it the technical name ZAPI_CHANGEMASTER, I can make requests using basic authentication; however, even if I add the scope in SOAuth2, I always get a 401 error.&lt;/P&gt;&lt;P&gt;I’ve tried standard services, such as /sap/opu/odata/IWFND/CATALOGSERVICE;v=2/ServiceCollection, and they work correctly, but I can’t get new services to work.&lt;/P&gt;&lt;P&gt;I’ve enabled the OAuth option for the service, but I can’t work out why I’m unable to make requests to the custom services.&lt;/P&gt;&lt;P&gt;I’ve checked:&lt;/P&gt;&lt;P&gt;- SICF, and the service is created as API_CHANGEMASTER&lt;/P&gt;&lt;P&gt;- the user has no permission issues, as it works with basic authentication&lt;/P&gt;&lt;P&gt;- it has an associated system alias&lt;/P&gt;&lt;P&gt;Any idea what the problem might be?&lt;BR /&gt;&lt;BR /&gt;&lt;SPAN&gt;Thanks in advance.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/step-by-step-calling-s-4hana-private-cloud-standard-odata-apis-with-oauth-2/bc-p/14426673#M191469"/>
+    <published>2026-06-24T17:45:47.863000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/qpr4-is-not-displaying-workcentre-in-the-output/qaq-p/14426677</id>
+    <title>QPR4 - is not displaying WorkCentre in the Output</title>
+    <updated>2026-06-24T17:54:23.752000+02:00</updated>
+    <author>
+      <name>mrajesh22</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2313334</uri>
+    </author>
+    <content>&lt;P&gt;QPR4 has work center field in ALV output, but it is not displaying any values. may we know display the work center ?&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/qpr4-is-not-displaying-workcentre-in-the-output/qaq-p/14426677"/>
+    <published>2026-06-24T17:54:23.752000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/financial-management-q-a/management-accounting-certification/qaa-p/14426680#M259811</id>
+    <title>Re: Management Accounting Certification</title>
+    <updated>2026-06-24T17:56:53.812000+02:00</updated>
+    <author>
+      <name>pamela_gakii</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2269966</uri>
+    </author>
+    <content>Hello... Am planning to take the same exam but for the public edition. Could it be the same?</content>
+    <link href="https://community.sap.com/t5/financial-management-q-a/management-accounting-certification/qaa-p/14426680#M259811"/>
+    <published>2026-06-24T17:56:53.812000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/free-goods-deletion-flag-unable-to-find-the-change-logs/qaa-p/14426681#M4243553</id>
     <title>Re: Free goods deletion flag unable to find the change logs</title>
     <updated>2026-06-24T17:57:43.843000+02:00</updated>
@@ -1780,6 +1657,54 @@ Deploy complete.&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;What would have been an hour o
     <published>2026-06-24T18:07:54.796000+02:00</published>
   </entry>
   <entry>
+    <id>https://community.sap.com/t5/technology-q-a/st-pi-patch-31-not-showing-retrofit-use-case-in-transaction-alm-setup/qaq-p/14426697</id>
+    <title>ST-PI Patch 31 not showing retrofit use case in transaction ALM_SETUP</title>
+    <updated>2026-06-24T18:12:41.489000+02:00</updated>
+    <author>
+      <name>shivakul54</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/882570</uri>
+    </author>
+    <content>&lt;P&gt;Hello,&lt;/P&gt;&lt;P&gt;We are at ST-PI patch 31 but cannot see RETROFIT use case in ALM_SETUP.&amp;nbsp; Please suggest suitable note can be implemented to display retrofit use case.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="shivakul54_0-1782317491404.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425843i91AEBAD2F77DD678/image-size/medium?v=v2&amp;amp;px=400" role="button" title="shivakul54_0-1782317491404.png" alt="shivakul54_0-1782317491404.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="shivakul54_1-1782317507142.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425844i2ED241BEF89AEFE2/image-size/medium?v=v2&amp;amp;px=400" role="button" title="shivakul54_1-1782317507142.png" alt="shivakul54_1-1782317507142.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Thanks and Regards,&lt;/P&gt;&lt;P&gt;Shivani&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/st-pi-patch-31-not-showing-retrofit-use-case-in-transaction-alm-setup/qaq-p/14426697"/>
+    <published>2026-06-24T18:12:41.489000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/contract-creation-issue/qaq-p/14426700</id>
+    <title>Contract creation issue</title>
+    <updated>2026-06-24T18:16:48.071000+02:00</updated>
+    <author>
+      <name>priya21</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1623860</uri>
+    </author>
+    <content>&lt;P&gt;We are using the standard SAP BAPI &lt;STRONG&gt;BAPI_CONTRACT_CREATE&lt;/STRONG&gt; in one of our programs for mass contract creation.&lt;/P&gt;&lt;P&gt;However, when we attempt to create contracts using this BAPI, the contracts are not being created successfully. We have verified the input data, and when the same data is used to create contracts manually through the standard transaction, the contract creation works without any issues.&lt;/P&gt;&lt;P&gt;Could you please help us understand if there are any known limitations, mandatory parameters, or additional checks required when using &lt;STRONG&gt;BAPI_CONTRACT_CREATE&lt;/STRONG&gt; for contract creation?&lt;/P&gt;&lt;P&gt;I have attached the test data , please check and let us know what the issue is.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/contract-creation-issue/qaq-p/14426700"/>
+    <published>2026-06-24T18:16:48.071000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/analytical-report-to-display-requirement-feature-and-transport-request/qaa-p/14426709#M4944697</id>
+    <title>Re: Analytical report to display requirement, feature and...</title>
+    <updated>2026-06-24T18:18:59.268000+02:00</updated>
+    <author>
+      <name>shivakul54</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/882570</uri>
+    </author>
+    <content>&lt;P&gt;I got the answer for this....Exporting Feature Traceability into excel will provide all related information.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/analytical-report-to-display-requirement-feature-and-transport-request/qaa-p/14426709#M4944697"/>
+    <published>2026-06-24T18:18:59.268000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-q-a/am-error-in-rl-space-table-like-entities-with-parameters-are-not-supported/qaq-p/14426710</id>
+    <title>AM error in RL Space: Table-like entities with parameters are not supported for conversion to SQL</title>
+    <updated>2026-06-24T18:19:16.513000+02:00</updated>
+    <author>
+      <name>Prakash2</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/169567</uri>
+    </author>
+    <content>&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;Hello Experts,&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;I am facing an issue in SAP Datasphere Analytical Model when consuming a parameterized object from another space.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;Scenario:&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;I have created a view for Business Partner Relationship data. The view contains an input parameter for key-date based validity filtering.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;The input parameter is:&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;VERTRIEBSPARTNER_GULTIGKEITSDATUM&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;The datatype of the input parameter and the date fields is the same.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;What is working:&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;I created a Dimension with Hierarchy based on this parameterized view.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;The Dimension and Hierarchy are working correctly. Data preview works successfully with the input parameter.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;I also tested the same dataset and the same fact view in the same space by creating a new Analytical Model. In that case, the Analytical Model works correctly and I do not get any error.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;What is not working:&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;The issue occurs only when the Analytical Model is created in the Reporting Space.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;In the Reporting Space, when I consume the same parameterized object / Dimension / Hierarchy in an Analytical Model, I get the following error:&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;"Table-like entities with parameters are not supported for conversion to SQL"&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;Can anyone confirm whether SAP Datasphere Analytical Model supports direct consumption of parameterized views / dimensions / hierarchies from another space?&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;Has anyone faced a similar issue with this error?&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;&lt;SPAN&gt;Any suggestion or confirmation would be helpful.&lt;/SPAN&gt;&lt;/SPAN&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;SPAN&gt;Thanks in advance.&lt;/SPAN&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Prakash2_0-1782317719294.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425846i325EA6A8CF1296FE/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Prakash2_0-1782317719294.png" alt="Prakash2_0-1782317719294.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Prakash2_1-1782317890763.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425854iFB548D04715056DA/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Prakash2_1-1782317890763.png" alt="Prakash2_1-1782317890763.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;</content>
+    <link href="https://community.sap.com/t5/technology-q-a/am-error-in-rl-space-table-like-entities-with-parameters-are-not-supported/qaq-p/14426710"/>
+    <published>2026-06-24T18:19:16.513000+02:00</published>
+  </entry>
+  <entry>
     <id>https://community.sap.com/t5/technology-q-a/sap-btp-cf-capi-replacement-for-password-grant-oauth-2-1-rfc-9700/qaa-p/14426711#M4944699</id>
     <title>Re: SAP BTP CF CAPI: replacement for password grant (OAuth 2.1 / RFC 9700)</title>
     <updated>2026-06-24T18:20:45.693000+02:00</updated>
@@ -1799,8 +1724,20 @@ Deploy complete.&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;What would have been an hour o
       <name>6-Mar</name>
       <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1521269</uri>
     </author>
-    <content>&lt;P class=""&gt;Hi everyone,&lt;/P&gt;&lt;P&gt;I’m working with SAP S/4HANA Cash Flow (Indirect Method) and I can see correct values in the “Cash Flow Statement (Indirect Method)” Fiori app.&lt;/P&gt;&lt;P&gt;However, when I run the Statutory Report, the cash flow section does not show the same values.&lt;/P&gt;&lt;P&gt;Both reports are executed for the same fiscal year and company code.&lt;/P&gt;&lt;P&gt;Is it expected that the Statutory Report does not directly reflect the Cash Flow Statement (Indirect Method) output, or is there a configuration step to align both (ledger / reporting entity / version)?&lt;/P&gt;&lt;P&gt;Thanks in advance.&lt;/P&gt;&lt;P&gt;Prints:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="6Mar_0-1782318108805.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425855iE4BF0F46E86FA919/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="6Mar_0-1782318108805.png" alt="6Mar_0-1782318108805.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="6Mar_1-1782318177831.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425858i56F872DEC46CDA0B/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="6Mar_1-1782318177831.png" alt="6Mar_1-1782318177831.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
+    <content>&lt;P class=""&gt;Hi everyone,&lt;/P&gt;&lt;P&gt;I’m working with SAP S/4HANA Cash Flow (Indirect Method) and I can see correct values in the “Cash Flow Statement (Indirect Method)” Fiori app.&lt;/P&gt;&lt;P&gt;However, when I run the Statutory Report, the cash flow section does not show the same values.&lt;/P&gt;&lt;P&gt;Both reports are executed for the same fiscal year and company code.&lt;/P&gt;&lt;P&gt;Is it expected that the Statutory Report does not directly reflect the Cash Flow Statement (Indirect Method) output, or is there a configuration step to align both (ledger / reporting entity / version)?&lt;/P&gt;&lt;P&gt;Thanks in advance.&lt;/P&gt;&lt;P&gt;Prints:&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="6Mar_0-1782318108805.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425855iE4BF0F46E86FA919/image-size/medium?v=v2&amp;amp;px=400" role="button" title="6Mar_0-1782318108805.png" alt="6Mar_0-1782318108805.png" /&gt;&lt;/span&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="6Mar_1-1782318177831.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425858i56F872DEC46CDA0B/image-size/medium?v=v2&amp;amp;px=400" role="button" title="6Mar_1-1782318177831.png" alt="6Mar_1-1782318177831.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/cash-flow-statement-indirect-method-vs-statutory-report-mismatch/qaq-p/14426716"/>
     <published>2026-06-24T18:23:26.382000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-18-rfc-for-uuids/bc-p/14426720#M780</id>
+    <title>Re: June Developer Challenge - CAP Knowledge - Task 18 - RFC for UUIDs</title>
+    <updated>2026-06-24T18:42:18.593000+02:00</updated>
+    <author>
+      <name>Chaimae_Chairi27</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2178867</uri>
+    </author>
+    <content>&lt;P&gt;79b4f816a72ba069b6b7ccc83903c65cb9adf07916a4ee2ffd00ef00a01dd148&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-18-rfc-for-uuids/bc-p/14426720#M780"/>
+    <published>2026-06-24T18:42:18.593000+02:00</published>
   </entry>
 </feed>
