@@ -2,22 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/members/developer-advocates/Dan_Wroblewski.xml</id>
   <title>SAP Community - Daniel Wroblewski</title>
-  <updated>2026-07-13T11:30:03.528667+00:00</updated>
+  <updated>2026-07-13T23:30:04.650077+00:00</updated>
   <link href="https://community.sap.com/t5/user/viewprofilepage/user-id/72" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Daniel Wroblewski in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-08-cxl-case-when-then-operator/bc-p/14415240#M370</id>
-    <title>Re: June Developer Challenge - CAP Knowledge - Task 08 - CXL case-when-then operator</title>
-    <updated>2026-06-10T09:27:18.431000+02:00</updated>
-    <author>
-      <name>Dan_Wroblewski</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/72</uri>
-    </author>
-    <content>&lt;P&gt;68709db6a46c5229f971f688a400ffe74b9548ba340d5455e6229c8ac5c355fe&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-08-cxl-case-when-then-operator/bc-p/14415240#M370"/>
-    <published>2026-06-10T09:27:18.431000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/sap-cap-blog-posts/june-developer-challenge-cap-knowledge-task-09-injecting-conditions-via/bc-p/14417499#M445</id>
     <title>Re: June Developer Challenge - CAP Knowledge - Task 09 - Injecting conditions via filters</title>
@@ -322,5 +310,123 @@ service GameService {
 }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Service&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Dan_Wroblewski_0-1783861694918.png" style="width: 841px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/432109iFC3981CA6CFF56F7/image-dimensions/841x473?v=v2" width="841" height="473" role="button" title="Dan_Wroblewski_0-1783861694918.png" alt="Dan_Wroblewski_0-1783861694918.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;DIV class=""&gt;&lt;P&gt;No changes made to TurnStatus enum&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;/DIV&gt;&lt;DIV class=""&gt;&amp;nbsp;&lt;/DIV&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/sap-cap-blog-posts/july-developer-challenge-week-1-model-the-board/bc-p/14438640#M1023"/>
     <published>2026-07-12T15:11:03.261000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/sap-cap-blog-posts/july-developer-challenge-week-2-roll-amp-move/bc-p/14439490#M1027</id>
+    <title>Re: 🐍 July Developer Challenge Week 2 — Roll &amp; Move</title>
+    <updated>2026-07-13T18:55:55.025000+02:00</updated>
+    <author>
+      <name>Dan_Wroblewski</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/72</uri>
+    </author>
+    <content>&lt;P&gt;1.&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;const cds = require('@sap/cds')
+
+module.exports = class GameService extends cds.ApplicationService {
+  async init() {
+
+    const { Players, BoardSquares } = this.entities
+
+    // ── startTurn ─────────────────────────────────────────────────────────
+    // @from: [#Waiting]  →  CAP validates status before this runs
+    // &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: #Playing      →  CAP updates status after this returns
+    // No business logic needed — CAP's &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/39488"&gt;@flow&lt;/a&gt;.status handles the transition.
+    this.on('startTurn', 'Players', async (req) =&amp;gt; {
+      // Intentionally empty: the @from/@to annotations do all the work.
+    })
+
+    // ── rollDice ──────────────────────────────────────────────────────────
+    // @from: [#Playing]  →  CAP validates status before this runs
+    // &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: #Moving       →  CAP updates status after this returns
+    this.on('rollDice', 'Players', async (req) =&amp;gt; {
+      const player = await SELECT.one.from(Players).where({ ID: req.params[0].ID })
+      if (!player) return req.error(404, 'Player not found')
+
+      const roll = Math.ceil(Math.random() * 6)
+      let newPosition = player.position + roll
+
+      // Can't overshoot square 100 — must land exactly
+      if (newPosition &amp;gt; 100) {
+        await UPDATE(Players).set({ lastRoll: roll }).where({ ID: player.ID })
+        const needed = 100 - player.position
+        return req.reject(409, `Need exactly ${needed} to finish. Rolled ${roll}. No move.`)
+      }
+
+      // Resolve snake or ladder on the new square
+      const square = await SELECT.one.from(BoardSquares).where({ square: newPosition })
+      let finalPosition = newPosition
+      let event = null
+
+      if (square?.ladderTo) {
+        finalPosition = square.ladderTo
+        event = { type: 'ladder', 'from': newPosition, 'to': finalPosition }
+      } else if (square?.snakeTo) {
+        finalPosition = square.snakeTo
+        event = square.isDoubleHead
+          ? { type: 'doubleSnake', 'from': newPosition, 'to': finalPosition }
+          : { type: 'snake', 'from': newPosition, 'to': finalPosition }
+      }
+
+      // Persist position and last roll
+      await UPDATE(Players)
+        .set({ position: finalPosition, lastRoll: roll })
+        .where({ ID: player.ID })
+
+      // Emit domain event so subscribers (Week 3) can react
+      if (event) await this.emit('BoardEvent', { playerID: player.ID, ...event })
+
+      // Use req.reply() — not return — to pin the response value before CAP's
+      // &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/39488"&gt;@flow&lt;/a&gt;.status after-handler runs. A plain `return` gets cleared by the
+      // flow machinery, producing HTTP 204 instead of the expected 200 + body.
+      req.reply({ roll, position: finalPosition, event: event?.type ?? 'normal' })
+    })
+
+    // ── confirmMove ───────────────────────────────────────────────────────
+    // @from: [#Moving]  →  normal end of a turn, hands off to next player (Week 3)
+    // &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: #Waiting     →  player waits for their next turn
+    this.on('confirmMove', 'Players', async (req) =&amp;gt; {
+      // Week 3 will add turn rotation here.
+      // For now: just let CAP apply &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: #Waiting
+    })
+
+    // ── blockPlayer ───────────────────────────────────────────────────────
+    // @from: [#Moving]  →  called when player lands on a double-headed snake
+    // &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: #Blocked     →  player skips their next turn
+    this.on('blockPlayer', 'Players', async (req) =&amp;gt; {
+      // Business logic: the position was already updated in rollDice.
+      // This action just transitions state — CAP handles the &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: #Blocked update.
+      req.info('Player is blocked and will skip their next turn.')
+    })
+
+    // ── unblockPlayer ─────────────────────────────────────────────────────
+    // @from: [#Blocked]   →  called at the start of a blocked player's next turn
+    // &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: $flow.previous →  CAP restores the status to whatever it was before #Blocked
+    this.on('unblockPlayer', 'Players', async (req) =&amp;gt; {
+      // CAP's $flow.previous does the work — no code needed here.
+      // The player's status returns to #Waiting automatically.
+    })
+
+    // ── winGame ───────────────────────────────────────────────────────────
+    // @from: [#Moving]  →  called when player.position === 100
+    // &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: #Finished    →  player has won
+    this.on('winGame', 'Players', async (req) =&amp;gt; {
+      const player = await SELECT.one.from(Players).where({ ID: req.params[0].ID })
+      if (!player) return req.error(404, 'Player not found')
+
+      // Mark the session as finished with this player as winner
+      await UPDATE('snakeladder.GameSessions')
+        .set({
+          finishedAt: new Date().toISOString(),
+          winner_ID: player.ID
+        })
+        .where({ ID: player.session_ID })
+
+      await this.emit('GameWon', { playerID: player.ID, sessionID: player.session_ID })
+    })
+
+    return super.init()
+  }
+}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;2.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Dan_Wroblewski_0-1783957889312.png" style="width: 510px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/432568i1A3A4D70CCF7C071/image-dimensions/510x305?v=v2" width="510" height="305" role="button" title="Dan_Wroblewski_0-1783957889312.png" alt="Dan_Wroblewski_0-1783957889312.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;3.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Dan_Wroblewski_1-1783958209464.png" style="width: 510px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/432569iBE14C33245E99520/image-dimensions/510x269?v=v2" width="510" height="269" role="button" title="Dan_Wroblewski_1-1783958209464.png" alt="Dan_Wroblewski_1-1783958209464.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;4. It seems to allow the execution of winGame as long as the player is in the Moving status, even if the player is not at position 100. However, I did not see that the game session got updated with the winner, until I realized that the player I created was not associated to a session. Once I gave the player a session, it updated the session.&lt;/P&gt;&lt;P&gt;But I added a check and now I cannot do that.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Dan_Wroblewski_0-1783960869772.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/432576i4F032866FFCF139F/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Dan_Wroblewski_0-1783960869772.png" alt="Dan_Wroblewski_0-1783960869772.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Stretch.&lt;/P&gt;&lt;P&gt;All great, though I had to add that field to the entity definition. I didn't really understand what the use in the game was for &lt;EM&gt;turnsBlocked&lt;/EM&gt; -- just a total counter of the total times that player was blocked?&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Dan_Wroblewski_1-1783961683388.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/432578i9BDCD4C78B6412AA/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Dan_Wroblewski_1-1783961683388.png" alt="Dan_Wroblewski_1-1783961683388.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;---------------------------------------&lt;/P&gt;&lt;P&gt;Note I had to fix the module type in package.json before it would work as expected (at first I simply renamed the file cjs but this only let the service run, but roll dice did not work)&lt;/P&gt;&lt;P&gt;From Claude:&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Done. Removed &lt;/SPAN&gt;&lt;CODE&gt;"type": "module"&lt;/CODE&gt;&lt;SPAN&gt; from &lt;/SPAN&gt;&lt;A rel="noopener noreferrer" target="_blank"&gt;package.json&lt;/A&gt;&lt;SPAN&gt; so &lt;/SPAN&gt;&lt;CODE&gt;.js&lt;/CODE&gt;&lt;SPAN&gt; files default back to CommonJS, and renamed &lt;/SPAN&gt;&lt;A rel="noopener noreferrer" target="_blank"&gt;srv/game-service.js&lt;/A&gt;&lt;SPAN&gt; back. The file content is unchanged — it was already valid CommonJS.&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/sap-cap-blog-posts/july-developer-challenge-week-2-roll-amp-move/bc-p/14439490#M1027"/>
+    <published>2026-07-13T18:55:55.025000+02:00</published>
   </entry>
 </feed>
