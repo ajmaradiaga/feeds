@@ -2,128 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/all_replies.xml</id>
   <title>SAP Community - All Replies</title>
-  <updated>2026-07-13T20:59:02.024998+00:00</updated>
+  <updated>2026-07-13T21:14:01.116057+00:00</updated>
   <link href="https://community.sap.com/" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>Replies in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/sap-cap-blog-posts/july-developer-challenge-week-2-roll-amp-move/bc-p/14439490#M1027</id>
-    <title>Re: 🐍 July Developer Challenge Week 2 — Roll &amp; Move</title>
-    <updated>2026-07-13T18:55:55.025000+02:00</updated>
-    <author>
-      <name>Dan_Wroblewski</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/72</uri>
-    </author>
-    <content>&lt;P&gt;1.&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;const cds = require('@sap/cds')
-
-module.exports = class GameService extends cds.ApplicationService {
-  async init() {
-
-    const { Players, BoardSquares } = this.entities
-
-    // ── startTurn ─────────────────────────────────────────────────────────
-    // @from: [#Waiting]  →  CAP validates status before this runs
-    // &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: #Playing      →  CAP updates status after this returns
-    // No business logic needed — CAP's &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/39488"&gt;@flow&lt;/a&gt;.status handles the transition.
-    this.on('startTurn', 'Players', async (req) =&amp;gt; {
-      // Intentionally empty: the @from/@to annotations do all the work.
-    })
-
-    // ── rollDice ──────────────────────────────────────────────────────────
-    // @from: [#Playing]  →  CAP validates status before this runs
-    // &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: #Moving       →  CAP updates status after this returns
-    this.on('rollDice', 'Players', async (req) =&amp;gt; {
-      const player = await SELECT.one.from(Players).where({ ID: req.params[0].ID })
-      if (!player) return req.error(404, 'Player not found')
-
-      const roll = Math.ceil(Math.random() * 6)
-      let newPosition = player.position + roll
-
-      // Can't overshoot square 100 — must land exactly
-      if (newPosition &amp;gt; 100) {
-        await UPDATE(Players).set({ lastRoll: roll }).where({ ID: player.ID })
-        const needed = 100 - player.position
-        return req.reject(409, `Need exactly ${needed} to finish. Rolled ${roll}. No move.`)
-      }
-
-      // Resolve snake or ladder on the new square
-      const square = await SELECT.one.from(BoardSquares).where({ square: newPosition })
-      let finalPosition = newPosition
-      let event = null
-
-      if (square?.ladderTo) {
-        finalPosition = square.ladderTo
-        event = { type: 'ladder', 'from': newPosition, 'to': finalPosition }
-      } else if (square?.snakeTo) {
-        finalPosition = square.snakeTo
-        event = square.isDoubleHead
-          ? { type: 'doubleSnake', 'from': newPosition, 'to': finalPosition }
-          : { type: 'snake', 'from': newPosition, 'to': finalPosition }
-      }
-
-      // Persist position and last roll
-      await UPDATE(Players)
-        .set({ position: finalPosition, lastRoll: roll })
-        .where({ ID: player.ID })
-
-      // Emit domain event so subscribers (Week 3) can react
-      if (event) await this.emit('BoardEvent', { playerID: player.ID, ...event })
-
-      // Use req.reply() — not return — to pin the response value before CAP's
-      // &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/39488"&gt;@flow&lt;/a&gt;.status after-handler runs. A plain `return` gets cleared by the
-      // flow machinery, producing HTTP 204 instead of the expected 200 + body.
-      req.reply({ roll, position: finalPosition, event: event?.type ?? 'normal' })
-    })
-
-    // ── confirmMove ───────────────────────────────────────────────────────
-    // @from: [#Moving]  →  normal end of a turn, hands off to next player (Week 3)
-    // &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: #Waiting     →  player waits for their next turn
-    this.on('confirmMove', 'Players', async (req) =&amp;gt; {
-      // Week 3 will add turn rotation here.
-      // For now: just let CAP apply &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: #Waiting
-    })
-
-    // ── blockPlayer ───────────────────────────────────────────────────────
-    // @from: [#Moving]  →  called when player lands on a double-headed snake
-    // &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: #Blocked     →  player skips their next turn
-    this.on('blockPlayer', 'Players', async (req) =&amp;gt; {
-      // Business logic: the position was already updated in rollDice.
-      // This action just transitions state — CAP handles the &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: #Blocked update.
-      req.info('Player is blocked and will skip their next turn.')
-    })
-
-    // ── unblockPlayer ─────────────────────────────────────────────────────
-    // @from: [#Blocked]   →  called at the start of a blocked player's next turn
-    // &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: $flow.previous →  CAP restores the status to whatever it was before #Blocked
-    this.on('unblockPlayer', 'Players', async (req) =&amp;gt; {
-      // CAP's $flow.previous does the work — no code needed here.
-      // The player's status returns to #Waiting automatically.
-    })
-
-    // ── winGame ───────────────────────────────────────────────────────────
-    // @from: [#Moving]  →  called when player.position === 100
-    // &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1392811"&gt;@TO&lt;/a&gt;: #Finished    →  player has won
-    this.on('winGame', 'Players', async (req) =&amp;gt; {
-      const player = await SELECT.one.from(Players).where({ ID: req.params[0].ID })
-      if (!player) return req.error(404, 'Player not found')
-
-      // Mark the session as finished with this player as winner
-      await UPDATE('snakeladder.GameSessions')
-        .set({
-          finishedAt: new Date().toISOString(),
-          winner_ID: player.ID
-        })
-        .where({ ID: player.session_ID })
-
-      await this.emit('GameWon', { playerID: player.ID, sessionID: player.session_ID })
-    })
-
-    return super.init()
-  }
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;2.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Dan_Wroblewski_0-1783957889312.png" style="width: 510px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/432568i1A3A4D70CCF7C071/image-dimensions/510x305?v=v2" width="510" height="305" role="button" title="Dan_Wroblewski_0-1783957889312.png" alt="Dan_Wroblewski_0-1783957889312.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;3.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Dan_Wroblewski_1-1783958209464.png" style="width: 510px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/432569iBE14C33245E99520/image-dimensions/510x269?v=v2" width="510" height="269" role="button" title="Dan_Wroblewski_1-1783958209464.png" alt="Dan_Wroblewski_1-1783958209464.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;4. It seems to allow the execution of winGame as long as the player is in the Moving status, even if the player is not at position 100. However, I did not see that the game session got updated with the winner, until I realized that the player I created was not associated to a session. Once I gave the player a session, it updated the session.&lt;/P&gt;&lt;P&gt;But I added a check and now I cannot do that.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Dan_Wroblewski_0-1783960869772.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/432576i4F032866FFCF139F/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Dan_Wroblewski_0-1783960869772.png" alt="Dan_Wroblewski_0-1783960869772.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Stretch.&lt;/P&gt;&lt;P&gt;All great, though I had to add that field to the entity definition. I didn't really understand what the use in the game was for &lt;EM&gt;turnsBlocked&lt;/EM&gt; -- just a total counter of the total times that player was blocked?&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Dan_Wroblewski_1-1783961683388.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/432578i9BDCD4C78B6412AA/image-size/medium?v=v2&amp;amp;px=400" role="button" title="Dan_Wroblewski_1-1783961683388.png" alt="Dan_Wroblewski_1-1783961683388.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;---------------------------------------&lt;/P&gt;&lt;P&gt;Note I had to fix the module type in package.json before it would work as expected (at first I simply renamed the file cjs but this only let the service run, but roll dice did not work)&lt;/P&gt;&lt;P&gt;From Claude:&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Done. Removed &lt;/SPAN&gt;&lt;CODE&gt;"type": "module"&lt;/CODE&gt;&lt;SPAN&gt; from &lt;/SPAN&gt;&lt;A rel="noopener noreferrer" target="_blank"&gt;package.json&lt;/A&gt;&lt;SPAN&gt; so &lt;/SPAN&gt;&lt;CODE&gt;.js&lt;/CODE&gt;&lt;SPAN&gt; files default back to CommonJS, and renamed &lt;/SPAN&gt;&lt;A rel="noopener noreferrer" target="_blank"&gt;srv/game-service.js&lt;/A&gt;&lt;SPAN&gt; back. The file content is unchanged — it was already valid CommonJS.&lt;/SPAN&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/sap-cap-blog-posts/july-developer-challenge-week-2-roll-amp-move/bc-p/14439490#M1027"/>
-    <published>2026-07-13T18:55:55.025000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/financial-management-q-a/coc-operation-revaluation-of-cogs-vs-scrapping-finished-product/qaa-p/14439491#M260041</id>
     <title>Re: COC Operation: Revaluation of COGS vs. Scrapping Fini...</title>
@@ -1311,5 +1193,17 @@ module.exports = class GameService extends cds.ApplicationService {
     <content>&lt;P&gt;Hello, where will the recording of these sessions be available.&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thank you,&lt;/P&gt;&lt;P&gt;Sneha&amp;nbsp;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-sap/register-now-for-the-2608-early-release-series/bc-p/14439642#M64842"/>
     <published>2026-07-13T22:37:01.174000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/enterprise-resource-planning-q-a/confirmation-required-released-api-cds-view-for-customer-hierarchy-change/qaa-p/14439646#M4244801</id>
+    <title>Re: Confirmation Required: Released API/CDS View for Cust...</title>
+    <updated>2026-07-13T23:03:26.141000+02:00</updated>
+    <author>
+      <name>ElenaPuica</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2270342</uri>
+    </author>
+    <content>&lt;P&gt;&lt;SPAN&gt;Hello!&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;I_CustUnivHierarchy and I_CustUnivHierarchyNode are read-only master data views. They do not expose any delta-relevant metadata, no creation timestamp, last-changed timestamp, deletion indicator, or change type. There is therefore no native way to determine, from these views alone, which records are new, changed, or deleted since the last extraction.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;This is even though the Manage Customer Hierarchies Fiori app displays a change history to end users, meaning the underlying data changes are tracked somewhere in the system; &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;SAP's standard Change Document framework captures who changed what, when, and via a change-type flag (Insert / Update / Delete), and even supports delta reads by date/time. However, this path is not available for custom integration in S/4HANA Cloud Public Edition. This is confirmed by:&lt;/SPAN&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;SPAN&gt;SAP KBA 3535056 - "No released CDS View available for Change Documents in SAP S/4HANA Cloud Public Edition”&lt;/SPAN&gt;&lt;/LI&gt;&lt;LI&gt;&lt;SPAN&gt;SAP Help Portal documentation on Change Documents: the standard "Show Change Documents" app (which does support delta reads via date/time filters) warns that it gives access to all available change documents, with no way to restrict this to a user's specific organizational authorization area, meaning every user with access to the app can see change data outside what they're normally authorized for. This is precisely the risk SAP avoids by not releasing a general-purpose API for it.&lt;/SPAN&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;SPAN&gt;We also identified a Fiori Reuse Library for Change Documents (backed by an OData service, APS_CHANGE_DOCUMENTS_SRV), but this is documented as a way to embed a change-history UI widget inside a custom Fiori app, not as an integration API &amp;nbsp;and would carry the same authorization-scoping problem if used outside that context.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Exist the alternative to use Change Data Capture (CDC) on a Custom CDS View:&amp;nbsp; can be used to add delta capability to a CDS view that doesn't natively have one. It works via real-time database triggers: INSERT, UPDATE, or DELETE on the underlying tables is captured and made available as a delta feed.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;SAP's confirms CDC for data extraction scenarios (like SAP BW, SAP Datasphere, or similar analytical/replication targets). It does not explicitly confirm or rule out whether a CDC-enabled custom CDS view can be exposed as a custom point-to-point OData API. &lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;References:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;SAP KBA 3535056 &amp;nbsp;- &amp;nbsp;No released CDS View available for Change Documents in SAP S/4HANA Cloud Public Edition&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;SAP Help Portal - Change Documents (Show Change Documents app, CA_SHOW_CD)&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;SAP Help Portal - How to Use the Fiori Reuse Library for Change Document Solution&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;SAP Help Portal - View Browser app documentation (Data Extraction-Enabled Views, CDS view extensibility)&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;&lt;A href="https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/utilizing-standard-cds-views-for-change-document-tables-cdhdr-cdpos/ba-p/13573692" target="_blank"&gt;https://community.sap.com/t5/enterprise-resource-planning-blog-posts-by-members/utilizing-standard-cds-views-for-change-document-tables-cdhdr-cdpos/ba-p/13573692&lt;/A&gt;&lt;/SPAN&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/enterprise-resource-planning-q-a/confirmation-required-released-api-cds-view-for-customer-hierarchy-change/qaa-p/14439646#M4244801"/>
+    <published>2026-07-13T23:03:26.141000+02:00</published>
   </entry>
 </feed>
