@@ -2,47 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/ABAP-Development-blog-posts.xml</id>
   <title>SAP Community - ABAP Development</title>
-  <updated>2026-07-17T08:00:03.809461+00:00</updated>
+  <updated>2026-07-17T11:00:04.160097+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/ABAP Development/pd-p/833755570260738661924709785639136" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>ABAP Development blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/abap-blog-posts/understanding-field-suppress-in-sap-rap-and-how-it-differs-from-ui-hidden/ba-p/14409246</id>
-    <title>Understanding field(suppress) in SAP RAP and How It Differs from @UI.hidden and @Consumption.hidden</title>
-    <updated>2026-06-25T20:52:31.333000+02:00</updated>
-    <author>
-      <name>vidyadharsp</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1913267</uri>
-    </author>
-    <content>&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;FONT face="arial,helvetica,sans-serif" color="#000000"&gt;&lt;U&gt;&lt;FONT size="5"&gt;&lt;STRONG&gt;INTRODUCTION&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/U&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#000000"&gt;When working with SAP RAP (RESTful Application Programming Model), the Behavior Definition (BDEF) offers several keywords to control how data is exposed and handled. One of the less-discussed but powerful ones is field(suppress).&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#000000"&gt;This blog is not just about syntax — it’s about what actually happens at runtime, the edge cases I hit, and why I chose suppression over &lt;STRONG&gt;readonly&lt;/STRONG&gt;.&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;FONT color="#000000"&gt;&lt;FONT face="arial,helvetica,sans-serif" size="3"&gt;&lt;STRONG&gt;Requirement:&lt;/STRONG&gt; In had one requirement, customer service reps needed to update Priority, Deadline Date, Cancel Reason, but they should never touch Created Time or Created User. These audit fields must remain intact, even during draft saves or mass updates.&lt;/FONT&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#000000"&gt;&lt;U&gt;&lt;STRONG&gt;What I Tried First&lt;/STRONG&gt;&lt;/U&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#000000"&gt;&lt;STRONG&gt;@UI.hidden:&lt;/STRONG&gt; Hid the fields in Fiori, but they were still exposed in OData payloads.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#000000"&gt;&lt;STRONG&gt;field(readonly):&lt;/STRONG&gt; Made the fields immutable, but they still appeared in EML structures — meaning a payload could attempt to overwrite them.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#000000"&gt;Both approaches failed to fully protect the audit fields.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#000000"&gt;&lt;STRONG&gt;What is field(suppress)?&lt;/STRONG&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#000000"&gt;field(suppress) is a static feature control in the BDEF that removes a field from RAP's transactional behavior layer. When a field is marked as suppressed, RAP excludes it from:&lt;/FONT&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT color="#000000"&gt;EML (Entity Manipulation Language) structures — such as TYPE TABLE FOR CREATE, TYPE STRUCTURE FOR UPDATE&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT color="#000000"&gt;RAP-generated behavior APIs&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT color="#000000"&gt;Behavior-related metadata&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;FONT color="#000000"&gt;&lt;U&gt;&lt;STRONG&gt;Runtime Behavior of Suppressed Fields&lt;/STRONG&gt;&lt;/U&gt;&lt;/FONT&gt;&lt;BR /&gt;&lt;FONT color="#000000"&gt;When I switched to &lt;STRONG&gt;field(suppress)&lt;/STRONG&gt;, here’s what I observed:&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#000000"&gt;In EML statements, suppressed fields simply don’t exist. If you try to reference them, RAP silently ignores them, no runtime dump, no short dump.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#000000"&gt;If you mistakenly add them in the mapping section, RAP throws a framework error at activation time.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#000000"&gt;In draft handling, suppressed fields are still maintained internally, but you can’t overwrite them. This was critical for audit consistency.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#000000"&gt;In determinations, you cannot reference suppressed fields — the compiler blocks it. I observed this when trying to auto-populate Created By and Created At.&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;FONT color="#000000"&gt;&lt;U&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;&lt;STRONG&gt;Syntax:&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/U&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;define behavior for ZI_REQHDR {
-    field ( suppress ) CreatedAt, CreatedBy; 
-}&lt;/code&gt;&lt;/pre&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;FONT color="#000000"&gt;&lt;SPAN&gt;&lt;STRONG&gt;Attempting to map them in the behavior pool raises:&lt;/STRONG&gt;&lt;BR /&gt;Field "CreatedBy" cannot be suppressed.&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;FONT color="#000000"&gt;&lt;SPAN&gt;&lt;STRONG&gt;Key insight:&lt;/STRONG&gt; &lt;CODE&gt;field(suppress)&lt;/CODE&gt; is a behavior-layer protection tool — it removes a field from RAP-generated transactional types and APIs. It is &lt;STRONG&gt;not&lt;/STRONG&gt; a UI visibility control or an OData filter&lt;/SPAN&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;U&gt;&lt;STRONG&gt;Why Suppress Instead of Readonly&lt;/STRONG&gt;&lt;/U&gt;&lt;BR /&gt;&lt;FONT color="#000000"&gt;&lt;STRONG&gt;Readonly:&lt;/STRONG&gt; Field is visible but immutable — still exposed in payloads.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#000000"&gt;&lt;STRONG&gt;Suppress:&lt;/STRONG&gt; Field is completely removed from RAP’s transactional model — safest option for audit fields.&lt;/FONT&gt;&lt;/P&gt;&lt;P&gt;&lt;FONT color="#000000"&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; Key fields (primary key fields) cannot be suppressed.&lt;/FONT&gt;&lt;/P&gt;&lt;UL class="lia-align-justify" style="text-align : justify;"&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif" color="#000000"&gt;Suppressed fields must also be excluded from the field mapping. Attempting to include them raises a framework error:&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;mapping for zdt_vd_reqhdr corresponding
-{
-    RequestUuid   = request_uuid;
-    Status        = status;
-    Priority      = priority;
-    ExternalId    = external_id;
-    DeadlineDate  = deadline_date;
-    RequesterId   = requester_id;
-    CancelReason  = cancel_reason;
-
-* // If i try to add the below fields error will get raised
-*   CreatedBy     = created_by; // Field "CreatedBy" cannot suppressed
-*   CreatedAt     = created_at; // Field "CreatedAt" cannot suppressed
-
-    LastChangedBy = last_changed_by;
-    LastChangedAt = last_changed_at;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;FONT face="arial,helvetica,sans-serif" color="#000000"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vidyadharsp_2-1780378958696.png" style="width: 614px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/417230iFE6675E3B0137B06/image-dimensions/614x217?v=v2" width="614" height="217" role="button" title="vidyadharsp_2-1780378958696.png" alt="vidyadharsp_2-1780378958696.png" /&gt;&lt;/span&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;FONT face="arial,helvetica,sans-serif" color="#000000"&gt;&lt;U&gt;&lt;STRONG&gt;Behavior Pool: Effect on EML Strutcure&lt;/STRONG&gt;&lt;/U&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL class="lia-align-justify" style="text-align : justify;"&gt;&lt;LI&gt;&lt;FONT face="arial,helvetica,sans-serif" color="#000000"&gt;Once suppressed, the fields are no longer available in EML operations. For example, in a &lt;CODE&gt;MODIFY ENTITIES&lt;/CODE&gt; call, suppressed fields do not appear in the &lt;CODE&gt;FIELDS ( )&lt;/CODE&gt; selector:&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt; MODIFY ENTITIES OF zi_vd_reqhdr IN LOCAL MODE
-    ENTITY RequestHeader
-    UPDATE FIELDS (  ) 
-* i try add the fields which i have done suppressed those not visible here 
-    WITH VALUE #( FOR ls_key IN keys
-                  ( %key = ls_key-%key
-                  Status = 100 ) )
-    REPORTED DATA(lt_report).&lt;/code&gt;&lt;/pre&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;FONT face="arial,helvetica,sans-serif" color="#000000"&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="vidyadharsp_4-1780380402428.png" style="width: 608px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/417278iEE0A7B71282654C4/image-dimensions/608x259?v=v2" width="608" height="259" role="button" title="vidyadharsp_4-1780380402428.png" alt="vidyadharsp_4-1780380402428.png" /&gt;&lt;/span&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;UL class="lia-align-justify" style="text-align : justify;"&gt;&lt;LI&gt;&lt;FONT color="#000000"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;This confirms that suppressed fields are cleanly removed from the generated &lt;CODE&gt;TYPE STRUCTURE FOR UPDATE&lt;/CODE&gt; and equivalent EML types.&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId-2074678360"&gt;&lt;FONT color="#000000"&gt;How Does It Differ from &lt;CODE&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.hidden&lt;/CODE&gt; and &lt;CODE&gt;@Consumption.hidden&lt;/CODE&gt;?&lt;/FONT&gt;&lt;/H4&gt;&lt;P class=""&gt;&lt;FONT color="#000000"&gt;All three mechanisms can "hide" a field, but they operate at different layers:&lt;/FONT&gt;&lt;/P&gt;&lt;DIV class=""&gt;Mechanism Layer Effect &lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;&lt;FONT color="#000000"&gt;&lt;CODE&gt;field(suppress)&lt;/CODE&gt;&lt;/FONT&gt;&lt;/TD&gt;&lt;TD&gt;&lt;FONT color="#000000"&gt;RAP behavior / EML&lt;/FONT&gt;&lt;/TD&gt;&lt;TD&gt;&lt;FONT color="#000000"&gt;Removes field from RAP transactional APIs and EML structures&lt;/FONT&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;FONT color="#000000"&gt;&lt;CODE&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.hidden: true&lt;/CODE&gt;&lt;/FONT&gt;&lt;/TD&gt;&lt;TD&gt;&lt;FONT color="#000000"&gt;UI rendering&lt;/FONT&gt;&lt;/TD&gt;&lt;TD&gt;&lt;FONT color="#000000"&gt;Hides the field from generated Fiori screens; field may still appear in OData metadata and API payloads&lt;/FONT&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&lt;FONT color="#000000"&gt;&lt;CODE&gt;@Consumption.hidden: true&lt;/CODE&gt;&lt;/FONT&gt;&lt;/TD&gt;&lt;TD&gt;&lt;FONT color="#000000"&gt;OData consumption&lt;/FONT&gt;&lt;/TD&gt;&lt;TD&gt;&lt;FONT color="#000000"&gt;Hides the field from OData consumers and Fiori Elements scenarios&lt;/FONT&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;/DIV&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT size="3" color="#000000"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Use &lt;CODE&gt;field(suppress)&lt;/CODE&gt; to protect a field from the RAP behavior layer entirely.&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3" color="#000000"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Use &lt;CODE&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.hidden&lt;/CODE&gt; to keep a field out of the UI while it remains accessible in APIs.&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;LI&gt;&lt;FONT size="3" color="#000000"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Use &lt;CODE&gt;@Consumption.hidden&lt;/CODE&gt; to hide a field from external OData consumers.&lt;/FONT&gt;&lt;/FONT&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;FONT face="arial,helvetica,sans-serif" color="#000000"&gt;&lt;U&gt;&lt;STRONG&gt;&lt;FONT size="5"&gt;Conclusion&lt;/FONT&gt;&lt;/STRONG&gt;&lt;/U&gt;&lt;/FONT&gt;&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;&lt;FONT face="arial,helvetica,sans-serif" color="#000000"&gt;&lt;CODE&gt;field(suppress)&lt;/CODE&gt;, &lt;CODE&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1445379"&gt;@ui&lt;/a&gt;.hidden&lt;/CODE&gt;, and &lt;CODE&gt;@Consumption.hidden&lt;/CODE&gt; serve distinct purposes in the RAP stack and should not be treated as interchangeable. When you have internal technical fields — timestamps, UUIDs, control fields — that RAP should never expose through its transactional model, &lt;CODE&gt;field(suppress)&lt;/CODE&gt; is the right tool. Pair it with &lt;CODE&gt;@Consumption.hidden&lt;/CODE&gt; to lock down the field at both the behavior and OData layers.&lt;/FONT&gt;&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/abap-blog-posts/understanding-field-suppress-in-sap-rap-and-how-it-differs-from-ui-hidden/ba-p/14409246"/>
-    <published>2026-06-25T20:52:31.333000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/make-chatgpt-or-claude-generate-correct-abap-syntax-a-free-2-minute-setup/ba-p/14415634</id>
     <title>Make ChatGPT or Claude generate correct ABAP syntax - a free, 2-minute setup</title>
@@ -1052,5 +1015,164 @@ ENDMETHOD.&lt;/CODE&gt;&lt;/PRE&gt;&lt;PRE&gt;&lt;CODE&gt;METHOD validate_when_l
 ENDMETHOD.&lt;/CODE&gt;&lt;/PRE&gt;&lt;H2 id="toc-hId-1032191524"&gt;Lessons Learned and Clean ABAP Considerations&lt;/H2&gt;&lt;P&gt;One interesting aspect of this exercise is how testability influenced the overall design of the solution. The need to create clear and maintainable tests encouraged the use of small methods, descriptive names, and reusable helper methods.&lt;/P&gt;&lt;P&gt;The resulting test class follows several Clean ABAP principles:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Small and focused test methods&lt;/LI&gt;&lt;LI&gt;Meaningful and descriptive names&lt;/LI&gt;&lt;LI&gt;Helper methods to eliminate duplication&lt;/LI&gt;&lt;LI&gt;Explicit use of &lt;CODE&gt;me-&amp;gt;&lt;/CODE&gt; for clarity&lt;/LI&gt;&lt;LI&gt;Minimal shared state between tests&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Another takeaway is that even relatively small BADI implementations benefit from automated testing. The effort required to create the tests was modest, while the long-term benefits in maintainability and confidence are substantial.&lt;/P&gt;&lt;H2 id="toc-hId-835678019"&gt;Final Thoughts&lt;/H2&gt;&lt;P&gt;Implementing a BAdI is only the first step. Ensuring that the implementation remains reliable over time is equally important.&lt;/P&gt;&lt;P&gt;ABAP Unit provided a simple and effective way to validate the business rules implemented in FIN_PROFIT_CENTER_VALIDATION while making future changes much safer.&lt;/P&gt;&lt;P&gt;If you are developing custom validations through enhancement spots or BAdIs, I strongly recommend investing a little extra time in automated tests—it pays off quickly.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-unicode-emoji" title=":backhand_index_pointing_right:"&gt;👉&lt;/span&gt;I would be interested to hear how other teams are testing their BAdI implementations and validation frameworks.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/abap-blog-posts/ensuring-quality-in-badi-implementations-with-abap-unit/ba-p/14425727"/>
     <published>2026-07-16T11:16:13.843000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/rap-augmentation-in-managed-scenario-enriching-transactional-requests/ba-p/14409354</id>
+    <title>RAP Augmentation in Managed Scenario – Enriching Transactional Requests Before BO Processing</title>
+    <updated>2026-07-17T11:22:43.643000+02:00</updated>
+    <author>
+      <name>Abhi_0118</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1874843</uri>
+    </author>
+    <content>&lt;H2 id="toc-hId-1816513912"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Introduction&lt;/FONT&gt;&lt;/H2&gt;&lt;P class=""&gt;The RESTful Application Programming Model (RAP) provides several extension points for implementing business logic, such as Determinations, Validations, Actions, and Prechecks. &lt;STRONG&gt;RAP Augmentation&lt;/STRONG&gt; adds another extension point that allows developers to enrich incoming create or update requests before the framework starts processing the business object.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;This early execution makes augmentation useful for scenarios where default values, audit information, or business-specific data must be available before any further RAP processing takes place. In this blog, we will understand RAP Augmentation, compare it with Determinations, and implement it using an Employee Management example.&lt;/P&gt;&lt;HR /&gt;&lt;H4 id="toc-hId-1878165845"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Business Requirement&lt;/FONT&gt;&lt;/H4&gt;&lt;P class=""&gt;I had a requirement&amp;nbsp; an Employee Management application where users create and maintain employee records. During record creation, the application should automatically populate business-specific information instead of relying on users to enter every value manually.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;The application should:&lt;/P&gt;&lt;UL class="lia-align-justify" style="text-align : justify;"&gt;&lt;LI&gt;Set the employee status to &lt;STRONG&gt;PENDING_APPROVAL&lt;/STRONG&gt;.&lt;/LI&gt;&lt;LI&gt;Determine whether approval is required based on the selected department.&lt;/LI&gt;&lt;LI&gt;Capture the current user as the creator.&lt;/LI&gt;&lt;LI&gt;Maintain audit information during updates.&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Instead of implementing all this logic inside the business object, we will use RAP Augmentation to enrich the incoming request before standard processing begins.&lt;/P&gt;&lt;HR /&gt;&lt;H5 id="toc-hId-1810735059"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Problem Statement&lt;/FONT&gt;&lt;/H5&gt;&lt;P class=""&gt;Determinations are commonly used in RAP to derive or update field values. However, they execute after the request has already entered the transactional buffer.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;In some business scenarios, values must be available even before the business object starts processing. For example, default values or audit fields may be required before validations or other business logic execute. In such cases, Augmentation provides a cleaner and more suitable solution by enriching the request at the beginning of the transaction.&lt;/P&gt;&lt;HR /&gt;&lt;H3 id="toc-hId-1356056116"&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;What is RAP Augmentation?&lt;/FONT&gt;&lt;/H3&gt;&lt;P class=""&gt;RAP Augmentation is an extension mechanism that runs during the Interactive Phase of a RAP transaction. It allows developers to enrich incoming create or update requests before the framework processes the business object.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Rather than modifying persisted data, augmentation focuses on preparing the request by supplying additional values or applying business-specific logic. Once the request is enriched, RAP continues with its normal processing flow.&lt;/P&gt;&lt;HR /&gt;&lt;H5 id="toc-hId-1417708049"&gt;&lt;U&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Augmentation Flow&lt;/FONT&gt;&lt;/U&gt;&lt;/H5&gt;&lt;P class=""&gt;The request passes through augmentation before reaching the business object implementation. During this stage, additional values can be added or modified, ensuring the business object receives a complete request for further processing.&lt;/P&gt;&lt;P&gt;The overall execution flow is:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;User sends a create or update request.&lt;/LI&gt;&lt;LI&gt;RAP invokes the registered augmentation.&lt;/LI&gt;&lt;LI&gt;The request is enriched with additional data.&lt;/LI&gt;&lt;LI&gt;Standard RAP processing continues.&lt;/LI&gt;&lt;LI&gt;Data is persisted to the database.&lt;/LI&gt;&lt;/UL&gt;&lt;HR /&gt;&lt;H4 id="toc-hId-1092111825"&gt;&lt;U&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Augmentation vs Determination&lt;/FONT&gt;&lt;/U&gt;&lt;/H4&gt;&lt;TABLE width="852px"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="443.575px" height="57px"&gt;Defined at the &lt;STRONG&gt;Projection Behavior Definition&lt;/STRONG&gt; using use create/update (augment).&lt;/TD&gt;&lt;TD width="407.625px" height="57px"&gt;Defined at the &lt;STRONG&gt;Interface Behavior Definition&lt;/STRONG&gt; using&amp;nbsp; &lt;STRONG&gt;determination&lt;/STRONG&gt;.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="443.575px" height="57px"&gt;Implemented in a Projection Behavior Implementation Class&amp;nbsp;&lt;/TD&gt;&lt;TD width="407.625px" height="57px"&gt;Implemented in the Behavior Pool&amp;nbsp; class.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="443.575px" height="57px"&gt;Runs during the &lt;STRONG&gt;Interactive Phase&lt;/STRONG&gt;, before the BO implementation processes the request.&lt;/TD&gt;&lt;TD width="407.625px" height="57px"&gt;Runs during ON MODIFY or ON SAVE, after data enters the transactional buffer.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="443.575px" height="57px"&gt;Used to &lt;STRONG&gt;enrich or modify the incoming request&lt;/STRONG&gt; before BO processing.&lt;/TD&gt;&lt;TD width="407.625px" height="57px"&gt;Used to derive or recalculate values based on data in the transactional buffer.&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;H4 id="toc-hId-895598320"&gt;When Execution timing matter?&lt;/H4&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;The main advantage of Augmentation is &lt;STRONG&gt;when&lt;/STRONG&gt; it executes. Since it runs before business object processing, any values added during augmentation are available to the rest of the RAP processing flow.&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;If the application should automatically set an employee's status or determine whether approval is required, these values are already present when the framework performs subsequent processing. If the same logic were implemented in a Determination, the values would only be available later in the transaction.&lt;/LI&gt;&lt;/UL&gt;&lt;H4 id="toc-hId-699084815"&gt;&lt;U&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;When to Use Augmentation?&lt;/FONT&gt;&lt;/U&gt;&lt;/H4&gt;&lt;P class=""&gt;Augmentation is a good choice when the incoming request needs to be enriched before RAP starts processing the business object.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;Typical use cases include:&lt;/P&gt;&lt;UL class="lia-align-justify" style="text-align : justify;"&gt;&lt;LI&gt;Setting default values.&lt;/LI&gt;&lt;LI&gt;Populating audit fields.&lt;/LI&gt;&lt;LI&gt;Deriving values from user input.&lt;/LI&gt;&lt;LI&gt;Performing lightweight request enrichment.&lt;/LI&gt;&lt;LI&gt;Preparing data required by later processing steps.&lt;/LI&gt;&lt;/UL&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;It is not intended to replace Determinations, which remain the preferred option for business logic that should execute after the request has entered the transactional buffer.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H4 id="toc-hId-502571310"&gt;&lt;FONT size="4"&gt;&lt;U&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;BDEF of Interface&lt;/FONT&gt;&lt;/U&gt;&lt;/FONT&gt;&lt;/H4&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;managed implementation in class zbp_aky_i_emp unique;
+strict ( 2 );
+
+define behavior for zaky_i_emp //alias &amp;lt;alias_name&amp;gt;
+persistent table zaky_t_emp
+
+lock master
+
+authorization master ( instance )
+//etag master &amp;lt;field_name&amp;gt;
+{
+  create( authorization : global ) ;
+  update;
+  delete;
+  action Approve result [1] $self;
+  mapping for zaky_t_emp
+{
+  Employeeid        = employeeid;
+  Firstname         = firstname;
+  Lastname          = lastname;
+  Department        = department;
+  Status            = status;
+  Approvalrequired  = approvalrequired;
+  Createdby         = createdby;
+  Createdat         = createdat;
+  Lastchangedby     = lastchangedby;
+  Lastchangedat     = lastchangedat;
+  }
+}&lt;/code&gt;&lt;/pre&gt;&lt;HR /&gt;&lt;H4 id="toc-hId-306057805"&gt;&lt;FONT size="4"&gt;&lt;U&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;BDEF of Projection&lt;/FONT&gt;&lt;/U&gt;&lt;/FONT&gt;&lt;/H4&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;projection implementation in class zbp_aky_c_emp unique;
+strict ( 2 );
+
+define behavior for zaky_c_emp //alias &amp;lt;alias_name&amp;gt;
+{
+  use create( augment );
+  use update( augment );
+    use delete;
+  field ( readonly ) Status;
+  field ( readonly ) Approvalrequired;
+  field ( readonly ) Createdby;
+  field ( readonly ) Createdat;
+  field ( readonly ) Lastchangedby;
+  field ( readonly ) Lastchangedat;
+  use action Approve;
+}&lt;/code&gt;&lt;/pre&gt;&lt;HR /&gt;&lt;H4 id="toc-hId--388172795"&gt;&lt;U&gt;&lt;FONT face="arial, helvetica, sans-serif" size="4"&gt;BP of Projection&lt;/FONT&gt;&lt;/U&gt;&lt;/H4&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;CLASS lhc_zaky_c_emp DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
+
+    METHODS augment_create FOR MODIFY
+      IMPORTING entities FOR CREATE zaky_c_emp.
+
+    METHODS augment_update FOR MODIFY
+      IMPORTING entities FOR UPDATE zaky_c_emp.
+
+ENDCLASS.
+
+CLASS lhc_zaky_c_emp IMPLEMENTATION.
+  METHOD augment_create.
+  LOOP AT entities INTO DATA(entity).
+
+    IF entity-Department IS INITIAL.
+      APPEND VALUE #(
+        %cid = entity-%cid
+        %msg = new_message_with_text(
+                 severity = if_abap_behv_message=&amp;gt;severity-error
+                 text     = 'Department is mandatory' ) )
+      TO reported-zaky_c_emp.        
+
+      APPEND VALUE #( %cid = entity-%cid )
+      TO failed-zaky_c_emp.          
+      CONTINUE.
+    ENDIF.
+
+    MODIFY AUGMENTING ENTITIES OF zaky_i_emp  
+      ENTITY zaky_i_emp
+      CREATE FIELDS ( Status Approvalrequired Createdby Createdat )
+      WITH VALUE #( (
+        %cid             = entity-%cid
+        Status           = 'PENDING_APPROVAL'
+        Approvalrequired = COND #(
+                             WHEN entity-Department = 'HR'
+                               OR entity-Department = 'FIN'
+                             THEN abap_true
+                             ELSE abap_false )
+        Createdby        = sy-uname
+        Createdat        = cl_abap_context_info=&amp;gt;get_system_date(  )
+      ) ).
+
+  ENDLOOP.
+ENDMETHOD.
+
+METHOD augment_update.
+  LOOP AT entities INTO DATA(entity).
+
+    MODIFY AUGMENTING ENTITIES OF zaky_i_emp   
+      ENTITY zaky_i_emp
+      UPDATE FIELDS ( Lastchangedby Lastchangedat )
+      WITH VALUE #( (
+        Employeeid    = entity-Employeeid
+        Lastchangedby = sy-uname
+        Lastchangedat = cl_abap_context_info=&amp;gt;get_system_date(  )
+      ) ).
+
+  ENDLOOP.
+ENDMETHOD.
+ENDCLASS.&lt;/code&gt;&lt;/pre&gt;&lt;H4 id="toc-hId--584686300"&gt;&lt;FONT size="4"&gt;&lt;U&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;BP of interface&lt;/FONT&gt;&lt;/U&gt;&lt;/FONT&gt;&lt;/H4&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;METHOD Approve.
+
+  " Read current status of the employee
+  READ ENTITIES OF zaky_i_emp IN LOCAL MODE
+    ENTITY zaky_i_emp
+    FIELDS ( Status Employeeid )
+    WITH CORRESPONDING #( keys )
+    RESULT DATA(employees)
+    FAILED DATA(read_failed).
+
+  " Loop and update status
+  LOOP AT employees INTO DATA(employee).
+
+    " Only approve if current status is PENDING_APPROVAL
+    IF employee-Status &amp;lt;&amp;gt; 'PENDING_APPROVAL'.
+      APPEND VALUE #(
+        %tky = employee-%tky
+        %msg = new_message_with_text(
+                 severity = if_abap_behv_message=&amp;gt;severity-error
+                 text     = 'Only records with PENDING_APPROVAL status can be approved' ) )
+      TO reported-zaky_i_emp.
+      APPEND VALUE #( %tky = employee-%tky )
+      TO failed-zaky_i_emp.
+      CONTINUE.
+    ENDIF.
+
+    " Update status to APPROVED
+    MODIFY ENTITIES OF zaky_i_emp IN LOCAL MODE
+      ENTITY zaky_i_emp
+      UPDATE FIELDS ( Status )
+      WITH VALUE #( (
+        %tky   = employee-%tky
+        Status = 'APPROVED'
+      ) )
+      FAILED   DATA(update_failed)
+      REPORTED DATA(update_reported).
+
+    " Pass back result
+    APPEND VALUE #(
+      %tky   = employee-%tky
+      %param = employee
+    ) TO result.
+
+  ENDLOOP.
+ENDMETHOD.&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;U&gt;&lt;FONT face="arial,helvetica,sans-serif" size="4"&gt;&lt;STRONG&gt;Output&lt;/STRONG&gt;&lt;/FONT&gt;&lt;/U&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Abhi_0118_1-1782208500025.png" style="width: 657px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425239i3E505C640B9BC34F/image-dimensions/657x304/is-moderation-mode/true?v=v2" width="657" height="304" role="button" title="Abhi_0118_1-1782208500025.png" alt="Abhi_0118_1-1782208500025.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Click on the create&amp;nbsp;&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Abhi_0118_2-1782208568634.png" style="width: 654px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425242i6AE4CACBEC0358D3/image-dimensions/654x310/is-moderation-mode/true?v=v2" width="654" height="310" role="button" title="Abhi_0118_2-1782208568634.png" alt="Abhi_0118_2-1782208568634.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;After adding the value click on the create and put the debugger on the create-augment method to check it is triggering or not because we are doing managed application where creation is handled by framework&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Abhi_0118_0-1783921767429.png" style="width: 532px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/432182i0467F4A6A38B1515/image-dimensions/532x456/is-moderation-mode/true?v=v2" width="532" height="456" role="button" title="Abhi_0118_0-1783921767429.png" alt="Abhi_0118_0-1783921767429.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Execute&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Abhi_0118_4-1782209444122.png" style="width: 628px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425252iC67537BA421DD23C/image-dimensions/628x153/is-moderation-mode/true?v=v2" width="628" height="153" role="button" title="Abhi_0118_4-1782209444122.png" alt="Abhi_0118_4-1782209444122.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Currently it is in pending state click on the Approve employee.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Abhi_0118_5-1782209514677.png" style="width: 622px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425254i1971B2B62521F508/image-dimensions/622x148/is-moderation-mode/true?v=v2" width="622" height="148" role="button" title="Abhi_0118_5-1782209514677.png" alt="Abhi_0118_5-1782209514677.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;After clicking on action&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Abhi_0118_6-1782209548205.png" style="width: 622px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425255i279C217B0C0C4680/image-dimensions/622x70/is-moderation-mode/true?v=v2" width="622" height="70" role="button" title="Abhi_0118_6-1782209548205.png" alt="Abhi_0118_6-1782209548205.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;If you not adding the department&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Abhi_0118_0-1782210556795.png" style="width: 630px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/425261i394039D97B6C97F1/image-dimensions/630x326/is-moderation-mode/true?v=v2" width="630" height="326" role="button" title="Abhi_0118_0-1782210556795.png" alt="Abhi_0118_0-1782210556795.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="toc-hId--194393791"&gt;&lt;U&gt;&lt;FONT face="arial,helvetica,sans-serif"&gt;Conclusion&lt;/FONT&gt;&lt;/U&gt;&lt;/H2&gt;&lt;P class=""&gt;RAP Augmentation provides a simple and effective way to enrich transactional requests before the RAP framework begins processing the business object. It is particularly useful for populating default values, maintaining audit information, and preparing request data that should be available throughout the transaction.&lt;/P&gt;&lt;P class="lia-align-justify" style="text-align : justify;"&gt;In this example, we used augmentation to automatically populate employee details while keeping the business object implementation clean and maintainable. Understanding when to use Augmentation instead of Determinations helps developers choose the right extension point and build more maintainable RAP applications&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/rap-augmentation-in-managed-scenario-enriching-transactional-requests/ba-p/14409354"/>
+    <published>2026-07-17T11:22:43.643000+02:00</published>
   </entry>
 </feed>

@@ -2,184 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAPUI5-blog-posts.xml</id>
   <title>SAP Community - SAPUI5</title>
-  <updated>2026-07-17T08:01:35.984359+00:00</updated>
+  <updated>2026-07-17T11:01:46.742948+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAPUI5/pd-p/500983881501772639608291559920477" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAPUI5 blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/frontend-ui5-sap-fiori-blog-posts/reducer-pattern-for-sapui5-state-management/ba-p/14405692</id>
-    <title>Reducer Pattern for SAPUI5 state management</title>
-    <updated>2026-06-03T11:09:46.490000+02:00</updated>
-    <author>
-      <name>ming-ann</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1591531</uri>
-    </author>
-    <content>&lt;P&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;State management in SAPUI5 controllers follow the same pattern: a&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;JSONModel&lt;/STRONG&gt;, and some&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;setProperty&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;calls. This works well until you have a lot of fields to manage. As a SAPUI5 developer, I find it really difficult to keep track of all the different&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;setProperty&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;calls, all over the controller.&lt;/P&gt;&lt;P&gt;In this article, I will share how we can adapt the reducer pattern, popularised by Redux, in the SAPUI5 framework for state management. With the reducer pattern, our controller stops managing how state changes and only announces what happened, while the reducer handles the rest. Note that this pattern is most effective for handling complex UI states, and for a simple UI feature, the&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;STRONG&gt;setProperty&lt;/STRONG&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;calls directly to the model will likely suffice.&lt;/P&gt;&lt;P&gt;---&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The problem&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Let's use the following scenario as an example. We want to build a "Create User" form and the following three fields are required: username, email, and role. The username must be unique and the provided email must be a of valid format.&amp;nbsp;Fields are bound two-way to the model:&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;  &amp;lt;Input value="{createUserModel&amp;gt;/username}" change=".onUsernameChange" /&amp;gt;
-  &amp;lt;Input value="{createUserModel&amp;gt;/email}" change=".onEmailChange" /&amp;gt;
-  &amp;lt;Select selectedKey="{createUserModel&amp;gt;/role}" change=".onRoleChange" /&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;In a typical controller it looks like this:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;  onUsernameChange(): void {
-      const username = this._model.getProperty("/username");
-      const email = this._model.getProperty("/email");
-      const role = this._model.getProperty("/role");
-      this._model.setProperty("/isValidatingUsername", true);
-      this._model.setProperty("/isSubmitEnabled", false);
-
-      UserApi.checkUsernameExists(username).then(exists =&amp;gt; {
-          this._model.setProperty("/isValidatingUsername", false);
-          this._model.setProperty("/usernameValueState", exists ? "Error" : "None");
-          this._model.setProperty("/usernameValueStateText", exists ? "Username already taken" : "");
-          // isSubmitEnabled depends on all three fields — logic duplicated here
-          this._model.setProperty("/isSubmitEnabled",
-              !!(username &amp;amp;&amp;amp; !exists &amp;amp;&amp;amp; email &amp;amp;&amp;amp; role));
-      });
-  }
-
-  onEmailChange(): void {
-      const username = this._model.getProperty("/username");
-      const isValidatingUsername = this._model.getProperty("/isValidatingUsername");
-      const role = this._model.getProperty("/role");
-      const email = this._model.getProperty("/email");
-      const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-      this._model.setProperty("/emailValueState", isValid ? "None" : "Error");
-      // isSubmitEnabled logic duplicated again
-      this._model.setProperty("/isSubmitEnabled",
-          !!(username &amp;amp;&amp;amp; !isValidatingUsername &amp;amp;&amp;amp; email &amp;amp;&amp;amp; isValid &amp;amp;&amp;amp; role));
-  }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Each individual event handler needs to manually check against the model's properties and duplicate the same &lt;STRONG&gt;isSubmitEnabled&lt;/STRONG&gt; logic. For every field added to the form, a new event handler is required!&lt;/P&gt;&lt;P&gt;---&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;The idea&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The Reducer Pattern replaces scattered &lt;STRONG&gt;setProperty&lt;/STRONG&gt; calls with a single pure function:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;(currentState, action) → nextState&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;The controller dispatches a named action, a plain object describing what happened. The reducer takes the current state and the action and returns the next state, with no side effects.&lt;/P&gt;&lt;P&gt;---&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Step 1: Define your state&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// types.ts
-import type { ValueState } from "sap/ui/core/library";
-
-export interface CreateUserModel {
-    username: string;
-    email: string;
-    role: string;
-    usernameValueState: ValueState;
-    usernameValueStateText: string;
-    isValidatingUsername: boolean;
-    emailValueState: ValueState;
-    isSubmitEnabled: boolean;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;---&lt;BR /&gt;&lt;STRONG&gt;Step 2: Define your actions&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;We leverage on the &lt;A href="https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes-func.html#discriminated-unions" target="_self" rel="nofollow noopener noreferrer"&gt;discriminated union concept&lt;/A&gt;&amp;nbsp;to ensure type safety of the passed in arguments. Reading this &lt;STRONG&gt;actions&lt;/STRONG&gt; file tells you every way the state can change:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;// createUserActions.ts
-export type CreateUserAction =
-    /** Dialog opened — resets everything to initial values. */
-    | { type: "DIALOG_OPENED" }
-    /** Username field edited — carries async validation state. */
-    | { type: "USERNAME_CHANGED"; username: string; usernameError?: string | null; isValidatingUsername?: boolean }
-    /** Email field edited — format validated inline. */
-    | { type: "EMAIL_CHANGED"; email: string }
-    /** Role dropdown changed. */
-    | { type: "ROLE_CHANGED"; role: string }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;---&lt;BR /&gt;&lt;STRONG&gt;Step 3: Write the reducer&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;All logic as to how the nextState is derived will be found in the &lt;STRONG&gt;reducer&lt;/STRONG&gt; file. Derived properties like &lt;STRONG&gt;isSubmitEnabled&lt;/STRONG&gt; are computed here:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;  // createUserReducer.ts
-  import { ValueState } from "sap/ui/core/library";
-  import type { CreateUserModel } from "./types";
-  import type { CreateUserAction } from "./createUserActions";
-
-  function isEmailValid(email: string): boolean {
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  }
-
-  function canSubmit(state: CreateUserModel): boolean {
-      return !!(
-          state.username.trim() &amp;amp;&amp;amp;
-          !state.usernameValueStateText &amp;amp;&amp;amp;
-          !state.isValidatingUsername &amp;amp;&amp;amp;
-          state.email &amp;amp;&amp;amp;
-          state.emailValueState === ValueState.None &amp;amp;&amp;amp;
-          state.role
-      );
-  }
-
-  export function createUserReducer(state: CreateUserModel, action: CreateUserAction): CreateUserModel {
-      switch (action.type) {
-          case "DIALOG_OPENED":
-              return {
-                  username: "", email: "", role: "",
-                  usernameValueState: ValueState.None, usernameValueStateText: "",
-                  isValidatingUsername: false, emailValueState: ValueState.None,
-                  isSubmitEnabled: false
-              };
-
-          case "USERNAME_CHANGED": {
-              const usernameError = action.usernameError ?? null;
-              const isValidatingUsername = action.isValidatingUsername ?? false;
-              const next: CreateUserModel = {
-                  ...state,
-                  username: action.username,
-                  usernameValueState: !action.username.trim() || usernameError ? ValueState.Error : ValueState.None,
-                  usernameValueStateText: usernameError ?? "",
-                  isValidatingUsername
-              };
-              return { ...next, isSubmitEnabled: canSubmit(next) };
-          }
-
-          case "EMAIL_CHANGED": {
-              ...
-          }
-
-          case "ROLE_CHANGED": {
-              ...
-          }
-
-          default:
-              return state;
-      }
-  }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;---&lt;BR /&gt;&lt;STRONG&gt;Step 4: Wire it into the controller&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Firstly, let's add a generic&amp;nbsp;&lt;STRONG&gt;TypedJSONModel&lt;/STRONG&gt; type that adds TypeScript types to &lt;STRONG&gt;JSONModel&lt;/STRONG&gt;. This allows us to check the path strings at compile time, meaning that&amp;nbsp;&amp;nbsp;&lt;STRONG&gt;getProperty("/usernaem")&lt;/STRONG&gt; becomes a compile error rather than a silent runtime bug:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;  // utils/TypedJSONModel.ts
-  import JSONModel from "sap/ui/model/json/JSONModel";
-
-  export interface TypedJSONModel&amp;lt;T extends object&amp;gt; extends JSONModel {
-      getData(): T;
-      getProperty&amp;lt;K extends keyof T&amp;gt;(path: `/${string &amp;amp; K}`): T[K];
-      setProperty&amp;lt;K extends keyof T&amp;gt;(path: `/${string &amp;amp; K}`, value: T[K]): boolean;
-  }
-
-  export function createTypedModel&amp;lt;T extends object&amp;gt;(data: T): TypedJSONModel&amp;lt;T&amp;gt; {
-      return new JSONModel(data) as TypedJSONModel&amp;lt;T&amp;gt;;
-  }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Then, we add a&amp;nbsp;&lt;STRONG&gt;dispatch&lt;/STRONG&gt; method to the controller. It runs the reducer and only calls &lt;STRONG&gt;setProperty&lt;/STRONG&gt; for keys that have actually been changed:&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;  private readonly _model = createTypedModel&amp;lt;CreateUserModel&amp;gt;({ /* initial state */ });
-
-  private dispatch(action: CreateUserAction): void {
-      const prev = { ...this._model.getData() };
-      const next = createUserReducer(prev, action);
-      for (const key of Object.keys(next) as (keyof CreateUserModel)[]) {
-          if (prev[key] !== next[key]) {
-              this._model.setProperty(`/${key}`, next[key]);
-          }
-      }
-  }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Now, our new event handlers simply reading from the model and dispatch the relevant action!&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;  onUsernameChange(): void {
-      const username = this._model.getProperty("/username");
-      this.dispatch({ type: "USERNAME_CHANGED", username, isValidatingUsername: !!username.trim() });
-      if (!username.trim()) { return; }
-
-      UserApi.checkUsernameExists(username).then(exists =&amp;gt; {
-          this.dispatch({
-              type: "USERNAME_CHANGED",
-              username,
-              usernameError: exists ? "Username already taken" : null,
-              isValidatingUsername: false
-          });
-      });
-  }
-
-  onEmailChange(): void {
-      this.dispatch({ type: "EMAIL_CHANGED", email: this._model.getProperty("/email") });
-  }
-
-  onRoleChange(): void {
-      this.dispatch({ type: "ROLE_CHANGED", role: this._model.getProperty("/role") });
-  }&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;---&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Testing&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Since the reducer is a pure function, our unit tests do not require any SAPUI5 framework. The reducer can be tested purely on its own.&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;  const defaultState: CreateUserModel = {
-      username: "", email: "", role: "",
-      usernameValueState: ValueState.None, usernameValueStateText: "",
-      isValidatingUsername: false, emailValueState: ValueState.None,
-      isSubmitEnabled: false
-  };
-
-  test("submit disabled when form is empty", () =&amp;gt; {
-      expect(defaultState.isSubmitEnabled).toBe(false);
-  });
-
-  test("submit enabled when all fields are valid", () =&amp;gt; {
-      let s = createUserReducer(defaultState, { type: "USERNAME_CHANGED", username: "jsmith" });
-      s = createUserReducer(s, { type: "EMAIL_CHANGED", email: "jsmith@example.com" });
-      s = createUserReducer(s, { type: "ROLE_CHANGED", role: "admin" });
-      expect(s.isSubmitEnabled).toBe(true);
-  });&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;---&lt;BR /&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/P&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%"&gt;&amp;nbsp;&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;Raw &lt;STRONG&gt;setProperty&lt;/STRONG&gt;&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;Reducer pattern&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%"&gt;Where is state logic?&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;Scattered across handlers&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;One function, one file&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%"&gt;Derived state&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;Re-derived in every relevant handler&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;Computed once, inside the reducer&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%"&gt;Testability&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;Needs controller + view&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;Plain function call&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%"&gt;Type safety&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;Path strings fail at runtime&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;Compile-time path checks via &lt;STRONG&gt;TypedJSONModel&lt;/STRONG&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="33.333333333333336%"&gt;Binding notifications&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;Fire for every &lt;STRONG&gt;setProperty&lt;/STRONG&gt; call&lt;/TD&gt;&lt;TD width="33.333333333333336%"&gt;Only fire for changed keys&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;While the&amp;nbsp;&lt;STRONG&gt;setProperty&lt;/STRONG&gt; API call is sufficient for simple UI scenarios, it gets very messy if the UI flow is complex. In such complex scenarios, I believe that using the reducer pattern will be extremely helpful. By abstracting out the logic for state/property changes into a reducer, we can keep the controller layer thin and therefore more readable.&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/frontend-ui5-sap-fiori-blog-posts/reducer-pattern-for-sapui5-state-management/ba-p/14405692"/>
-    <published>2026-06-03T11:09:46.490000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-members/sapui5-crud-without-odata-a-complete-guide-using-node-js-express-and-mysql/ba-p/14409637</id>
     <title>SAPUI5 CRUD Without OData — A Complete Guide Using Node.js, Express, and MySQL</title>
@@ -1425,5 +1251,109 @@ self.addEventListener("activate", (event) =&amp;gt; {
 });&lt;/PRE&gt;&lt;P&gt;No semver, no manual version bump to forget — a timestamp per build means the cache invalidates itself automatically on every build/start. Worth noting separately: the app's manifest version is a static marker, unrelated to this cache version or the OData service version — a deliberate decoupling, since it's tempting to conflate all three kinds of "version."&lt;/P&gt;&lt;H2 id="toc-hId-444378050"&gt;The Fiori Launchpad has its own appetite for the network&lt;/H2&gt;&lt;P&gt;A natural question: could this run inside a Fiori Launchpad instead of standalone? In our case, no — and it's worth explaining why, because the reason generalizes.&lt;/P&gt;&lt;P&gt;A Launchpad is itself an application full of network-dependent shell services that have nothing to do with the app you're hosting inside it: personalization (tile layout, saved filters), intent/navigation resolution against a catalog, notifications, enterprise search, usage tracking, user preferences and theming. None of that is "your app" — you don't control it as an app builder, and none of it is designed to gracefully degrade without a network. That's exactly why registering a custom service worker under a Launchpad route conflicts with the shell: it already has its own lifecycle and caching assumptions, and a second service worker layered on top produces, at best, inconsistent behavior. Practically, our app runs standalone via a direct deep link, not as a Launchpad tile.&lt;/P&gt;&lt;BLOCKQUOTE&gt;&lt;P&gt;&lt;STRONG&gt;Speculative — a wish, not a feature.&lt;/STRONG&gt; An officially supported "shell offline mode" would let an individual app register its own service worker scoped strictly to its own sub-path — the shell owning the root scope — and would let shell services degrade gracefully (personalization/notifications/search no-op instead of blocking) rather than all-or-nothing. To be clear, I'm not aware this exists today; it's the question this project left open, and a good one to put back to the community.&lt;/P&gt;&lt;/BLOCKQUOTE&gt;&lt;H2 id="toc-hId-247864545"&gt;What about Fiori Elements and OData V4?&lt;/H2&gt;&lt;P&gt;Also raised at the session: Fiori Elements with V4 bindings makes offline hard. I think that's right, and it's worth explaining why rather than just asserting it.&lt;/P&gt;&lt;P&gt;Fiori Elements is metadata- and annotation-driven: value helps, filters, side effects after an edit, and draft handling are, at their core, &lt;EM&gt;live&lt;/EM&gt; interactions with the OData V4 service — they're not designed to be replayed from a local cache. &lt;CODE&gt;sap.ui.model.odata.v4.ODataModel&lt;/CODE&gt; does keep an in-memory cache of already-loaded data, but that's request-level caching within a session, not a persistent offline store with conflict resolution the way a dedicated IndexedDB layer is. Historically, SAP's "real" offline-OData story has lived more at the native/mobile SDK level than in-browser Fiori Elements — worth double-checking the current state of that, since this area moves.&lt;/P&gt;&lt;P&gt;Practically, the options that hold up today, roughly in order of "how much Fiori Elements you keep":&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Limit offline to read-mostly reference data (cache value-help lists locally), keep write flows online.&lt;/LI&gt;&lt;LI&gt;Freestyle islands inside an otherwise Fiori-Elements-driven app for exactly the screens that need to work offline.&lt;/LI&gt;&lt;LI&gt;Go fully freestyle, as we did — you lose FE's automation (annotations → UI), but gain full control over what lives locally.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;Fiori Elements optimizes for speed and consistency while you're online; the moment offline becomes a hard requirement, you're trading away precisely the automation that makes FE valuable — and freestyle starts looking attractive again.&lt;/P&gt;&lt;H2 id="toc-hId-51351040"&gt;Lessons that cost us a debugging session&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Silent cache misses on lazy-loaded fragments.&lt;/STRONG&gt; Dialogs that only load at runtime via &lt;CODE&gt;Fragment.load&lt;/CODE&gt; failed silently if they weren't explicitly named in the pre-cache list — an empty dialog, no error — and the symptom only ever showed up under genuine offline testing, never in normal dev with a network.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;CODE&gt;navigator.onLine&lt;/CODE&gt; lies.&lt;/STRONG&gt; It's &lt;CODE&gt;true&lt;/CODE&gt; whenever a network interface exists, not when a server is reachable, and &lt;CODE&gt;false&lt;/CODE&gt; isn't reliable either. A race between a real &lt;CODE&gt;fetch()&lt;/CODE&gt; and a timeout is symmetrically correct in both directions.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Two UI5 sources, two response types.&lt;/STRONG&gt; The same bootstrap code sometimes loads UI5 same-origin, sometimes cross-origin/no-cors — normal vs. &lt;CODE&gt;opaque&lt;/CODE&gt; responses — and a cacheability check that only looks at &lt;CODE&gt;response.ok&lt;/CODE&gt; silently misses the second case.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;A service worker and a Fiori Launchpad shell don't mix.&lt;/STRONG&gt; Registering a custom SW under a Launchpad route caused conflicts with the shell's own layer; registration had to be explicitly excluded for those routes.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Deliberately no IndexedDB schema migration.&lt;/STRONG&gt; On a breaking model change, we chose a new database name over a migration path — old local data is simply ignored, not converted. For a small, known fleet of devices carrying mostly in-transit data, that's a cheaper, safer call than maintaining migration code.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Session expiry isn't solved for free&lt;/STRONG&gt; by any of this — see above. Worth saying explicitly so the takeaway isn't "offline-first means never thinking about sessions again."&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-202091892"&gt;When this pattern fits — and when it doesn't&lt;/H2&gt;&lt;P&gt;This isn't "the best option" — it's the option that fits a specific shape of app. The session's own "Technical Aspects" slide offers a genuinely useful way to reason about that shape: three axes — &lt;STRONG&gt;Preparation&lt;/STRONG&gt; (predictable ↔ spontaneous), &lt;STRONG&gt;Interaction complexity&lt;/STRONG&gt; (simple form ↔ business logic), and &lt;STRONG&gt;Conflict sensitivity&lt;/STRONG&gt; (exclusive ↔ shared). Our app sits firmly at the right-hand end of every axis — unpredictable offline moments, non-trivial document logic, multiple colleagues touching the same stock. That's exactly why idea 1, built for predictable and simple cases, wasn't a fit.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Fits well:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Apps where users mutate a lot before anything needs to reach a server (scan sessions, inspections, field forms) — the win is decoupling "mutating" from "submitting."&lt;/LI&gt;&lt;LI&gt;Longer, unpredictable offline periods (minutes to hours), not just a brief tunnel dip.&lt;/LI&gt;&lt;LI&gt;Business logic that doesn't fit neatly into a generic entity cache — merges, batch/changeSet semantics, status derived from other fields, locally created records that only get a server ID at sync time.&lt;/LI&gt;&lt;LI&gt;A limited, known set of devices/users, where "no automatic IndexedDB migration" and "manual session recovery" are acceptable trade-offs.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Fits less well:&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Apps where nearly every action needs a direct server round-trip anyway (real-time collaborative, prices/stock that must be correct &lt;EM&gt;right now&lt;/EM&gt;).&lt;/LI&gt;&lt;LI&gt;Short, second-scale, unprepared offline blips: idea 1 is probably cheaper to build and maintain — you get most of the resilience for free from the model itself.&lt;/LI&gt;&lt;LI&gt;Many concurrent users editing the same records ("shared" on the conflict-sensitivity axis): this pattern solves "one device, local, sync later," not multi-user conflict resolution. Look at CRDTs, optimistic locking with real conflict UI, or just staying online with a good loading state instead.&lt;/LI&gt;&lt;LI&gt;Teams that would rather lean on a standardized offline framework than maintain a custom SW + IndexedDB layer.&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-5578387"&gt;A short aside: why not Cordova, Capacitor, or a native SDK?&lt;/H2&gt;&lt;P&gt;A fair question: why a PWA/service-worker approach, and not a hybrid or native app that's offline-capable by default? First, a framing correction: &lt;STRONG&gt;a service worker isn't an experimental bet — it's a mature, broadly supported web standard.&lt;/STRONG&gt; This isn't "proven vs. experimental," it's "proven vs. proven."&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Apache Cordova&lt;/STRONG&gt; (formerly PhoneGap) wraps a web app in a native webview shell with plugin access to device APIs. Still an active Apache project, but development velocity has been low for years — much of the hybrid ecosystem has moved toward Capacitor. Worth checking current release cadence and plugin health before repeating that as fact, since it dates quickly.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Capacitor&lt;/STRONG&gt; (Ionic) is the de facto successor for "web app in a native shell" — a similar model, more actively maintained, a more modern plugin architecture.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Native, vendor-specific offline SDKs&lt;/STRONG&gt; often ship a ready-made offline layer with built-in conflict resolution — at the cost of &lt;STRONG&gt;vendor lock-in&lt;/STRONG&gt;: a proprietary data model/SDK, lower portability, and the loss of "it's just a web app, patch with a new build."&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;We stayed on web/PWA for three reasons: it's built on proven, stable technology rather than a moving target; a new build is a set of static files picked up by the service worker on the next online load — no app-store review, no MDM rollout cycle per patch; and the sync logic is our own readable code against a standard OData service, not a proprietary SDK locking us to one vendor.&lt;/P&gt;&lt;H2 id="toc-hId--190935118"&gt;Where this leaves things&lt;/H2&gt;&lt;P&gt;None of this is a silver bullet, and it isn't meant to replace the session's three ideas — it's meant to sit alongside them as a fourth shape for a fourth kind of problem. If your offline story is short and unprepared, idea 1 will get you further with less code. If you want the app itself to stay entirely unaware of offline handling, idea 2's service-worker-as-proxy is a genuinely clever answer, provided you're comfortable carrying protocol logic in that layer. If your offline sessions are long, deliberate, and business-logic-heavy — ours were — this is the shape that held up.&lt;/P&gt;&lt;P&gt;Thanks to Viktor and Lars for running the session as a discussion instead of a monologue — it's the reason this idea exists in writable form at all. Curious how others have handled the session-expiry gap in particular — that felt like the one open thread nobody in the room had a clean answer for.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/the-fourth-way-to-go-offline-in-ui5-and-why-the-service-worker-stays-dumb/ba-p/14441667"/>
     <published>2026-07-15T23:10:06.816000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/advanced-vizframe-customization-in-sapui5-ovp-applications/ba-p/14427318</id>
+    <title>Advanced VizFrame Customization in SAPUI5 OVP Applications</title>
+    <updated>2026-07-17T11:21:09.926000+02:00</updated>
+    <author>
+      <name>VandanaVaswani</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1703070</uri>
+    </author>
+    <content>&lt;P&gt;&lt;STRONG&gt;Advanced VizFrame Customization in SAPUI5 OVP Applications&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Introduction&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;As we all know, that we can create Fiori charts easily using the standard templates provided by SAP, but it does not give enough flexibility to customize on top of that, when we want to make any changes in those standard templates then we must make use of custom charts. For custom charts, VizFrames are used to perform the customization on the chart as per the requirement.&lt;/P&gt;&lt;P&gt;In one of my recent implementations, I defined the custom chart using VizFrame with two lines and two columns on x and y axis. Apart from this there was a dynamic colour change option given to the user, so that they can dynamically change colors of both the lines and columns, and the colour once picked, has persisted in the localStorage of the browser for next time use.&lt;/P&gt;&lt;P&gt;This blog explains the implementation steps:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Business Requirement&lt;/STRONG&gt;&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Dual combination chart (2lines and 2 bars)&lt;/LI&gt;&lt;LI&gt;Allow user to personalize chart colours.&lt;/LI&gt;&lt;LI&gt;Saves the colour preference.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Solution&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;To achieve the above requirement, we have used&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;sap.viz.ui5.controls.VizFrame&lt;/LI&gt;&lt;LI&gt;dual_combinatoin chart type&lt;/LI&gt;&lt;LI&gt;ColorPickerPopover&lt;/LI&gt;&lt;LI&gt;Sap.m.Menu&lt;/LI&gt;&lt;LI&gt;Browser localStorage&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;U&gt;Step1: Create a dual combination chart using VizFrame:&lt;/U&gt;&lt;/P&gt;&lt;P class="lia-align-left" style="text-align : left;"&gt;The custom chart is created using VizFrame with dual_combination as the chart type.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;&amp;lt;viz:VizFrame id="idVizFrame" vizType="dual_combination" uiConfig="{applicationSet:'fiori'}"&amp;gt;
+&amp;lt;/viz:VizFrame&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;U&gt;Step2: Define the chart dimensions and measures:&lt;/U&gt;&lt;/P&gt;&lt;P&gt;Here, I am defining the chart dimensions and measures.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;Dimension:&amp;lt;vizDataset:DimensionDefinition
+                             name="Period"
+                             value="{Date}" /&amp;gt;
+
+Measure:  &amp;lt;vizDataset:MeasureDefinition
+                             name="Metric A"
+                              value="{Value1}" /&amp;gt;
+
+                     &amp;lt;vizDataset:MeasureDefinition
+                             name="Metric B"
+                             value="{Value2}" /&amp;gt;
+
+                   &amp;lt;vizDataset:MeasureDefinition
+                             name="Metric C"
+                             value="{Value3}" /&amp;gt;
+
+                 &amp;lt;vizDataset:MeasureDefinition
+                             name="Metric D"
+                             value="{Value4}" /&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;U&gt;Step3: Configuring chart feeds:&lt;/U&gt;&lt;/P&gt;&lt;P&gt;First, I have configured the primary axis to display column measures and then the secondary axis to display line measures.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;&amp;lt;vizFeeds:FeedItem uid="valueAxis" type="Measure" values="Metric A,Metric B"/&amp;gt;
+
+&amp;lt;vizFeeds:FeedItem uid="valueAxis2" type="Measure" values="Metric C,Metric D"/&amp;gt;
+
+&amp;lt;vizFeeds:FeedItem uid="categoryAxis" type="Dimension" values="Period"/&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;U&gt;Step4: Creating colour palette button:&lt;/U&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="VandanaVaswani_4-1782392995898.png" style="width: 96px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/426101i5F665CF463CA7398/image-dimensions/96x45/is-moderation-mode/true?v=v2" width="96" height="45" role="button" title="VandanaVaswani_4-1782392995898.png" alt="VandanaVaswani_4-1782392995898.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Enabling palette button as drop-down menu, so that the user can select the measure for which personalized colour needs to be picked.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;&amp;lt;Button
+       icon="sap-icon://palette"
+       type="Transparent"
+       tooltip="Change Chart Colors"
+       press=".onOpenColorSettings"/&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;When the user clicks on the menu item, a color selection menu appears.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;onOpenColorSettings: function(oEvent) {
+        if (!this._oColorMenu) {
+            this._oColorMenu = new sap.m.Menu({
+                items: [
+                   new sap.m.MenuItem({ 
+                   text: "Metric A",
+                   press: this.onMeasureSelect.bind(this, "Metric A")   }),
+                   new sap.m.MenuItem({
+                   text: "Metric B",
+                   press: this.onMeasureSelect.bind(this, "Metric B")  })
+               ]
+         });
+      }
+     this.oColorMenu.openBy(oEvent.getSource());
+    }
+&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;As shown in the snap below, we get a colour palette button, with the dropdown menu and all the required options, and when we select on each one, we get the colour picker as shown in the snap below.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="VandanaVaswani_5-1782392995899.png" style="width: 318px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/426102i8817DD186E64B2EF/image-dimensions/318x189/is-moderation-mode/true?v=v2" width="318" height="189" role="button" title="VandanaVaswani_5-1782392995899.png" alt="VandanaVaswani_5-1782392995899.png" /&gt;&lt;/span&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="VandanaVaswani_6-1782392995906.png" style="width: 313px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/426103i4F6FAA689911C155/image-dimensions/313x402/is-moderation-mode/true?v=v2" width="313" height="402" role="button" title="VandanaVaswani_6-1782392995906.png" alt="VandanaVaswani_6-1782392995906.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;U&gt;Step5: Define the default colours during Initialization:&lt;/U&gt;&lt;/P&gt;&lt;P&gt;I have set the default colour values for all measures inside onInit() method.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;this.aColors = {
+     "Metric A": "#2E86AB",
+     "Metric B": "#28B463",
+     "Metric C": "#F39C12",
+     "Metric D": "#8E44AD"
+ };&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;U&gt;Step6: Applying personalized colours using dataPointStyle in VizFrame:&lt;/U&gt;&lt;/P&gt;&lt;P&gt;I have used VizFrame's dataPointStyle config to apply personalized colours to the measures.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;plotArea: {
+     dataPointStyle: {
+          rules: [
+            { 
+              dataContext: { measureNames: "Metric A"},
+               properties: {color: "#2E86AB"}
+            },
+           {
+               dataContext: {measureNames: "Metric B"},
+               properties: {color: "#28B463"}
+           }
+         ]
+&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;U&gt;Step7: Open color picker when the measure is selected:&lt;/U&gt;&lt;/P&gt;&lt;P&gt;When the measure is selected from the menu, a color picker dialog appears.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;_openColorPicker: function(oControl, sMeasure) {
+
+        if (!this._oColorPicker) {
+             this._oColorPicker = new sap.ui.unified.ColorPickerPopover({
+                  colorString: "HEX",
+                  change: fuction(oEvent) {
+                       var sColor = oEvent.getParameter("colorString");
+                        this.applyMeasureColor( sMeasure, sColor );
+                  }.bind(this)
+             });
+           }
+       this._oColorPicker.openBy(oControl);
+      }
+&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;U&gt;Step8: To dynamically update the VizFrame properties:&lt;/U&gt;&lt;/P&gt;&lt;P&gt;The selected color is updated dynamically by updating the VizFrame properties.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;_applyMeasureColor: function(sMeasure, sColor) {
+          var oVizFrame = this.byId("idVizFrame");
+          var oProps = oVizFrame.getVizProperties();
+          oProps.plotArea.dataPointStyle.rules =
+                oProps.plotArea.dataPointStyle.rules.map(function(oRule) {
+                      if (oRule.dataContext.measureNames === sMeasure) {
+                               oRule.properties.color = sColor;
+                        }
+                   return oRule;
+                });
+               oVizFrame.setVizProperties(oProps);
+    }
+&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;U&gt;Step9: Persist the selected colours using browser local storage:&lt;/U&gt;&lt;/P&gt;&lt;P&gt;The user selected colors are stored in the browser's local storage, so that the preferred colors are picked up when you reopen the application.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;localStorage.setItem(
+        "CHART_COLORS",
+          JSON.stringify(oColorObject)
+    );
+&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;We can retrieve the same during initialization, so that the colours remain consistent even while reopening the application.&lt;BR /&gt;&amp;nbsp;&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt; JSON.parse(
+        localStorage.getItem("CHART_COLORS")
+   );&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Output&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;Here is the final working chart snap:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="VandanaVaswani_7-1782392995908.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/426104iC86C9D1D812CACED/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="VandanaVaswani_7-1782392995908.png" alt="VandanaVaswani_7-1782392995908.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Conclusion&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;This shows that instead of limiting to pre-defined charts or templates, one can personalize the charts and visualize their own preferences and in turn makes it easy to read and analyse data using VizFrame.&lt;/P&gt;&lt;P&gt;Reference:&amp;nbsp;&lt;A href="https://ui5.sap.com/#/topic" target="_blank" rel="noopener noreferrer"&gt;Documentation - Demo Kit - SAPUI5 SDK&lt;/A&gt;&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/advanced-vizframe-customization-in-sapui5-ovp-applications/ba-p/14427318"/>
+    <published>2026-07-17T11:21:09.926000+02:00</published>
   </entry>
 </feed>
