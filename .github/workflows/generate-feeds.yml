@@ -1,0 +1,83 @@
+name: Generate feeds
+
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Which generation job to run
+        required: true
+        type: choice
+        options:
+          - replies
+          - topics-priority
+          - topics-daily
+          - members-advocates
+          - members-champions
+          - members-mentors
+          - members-community
+          - markdown
+  schedule:
+    # Times are UTC. Cadence mirrors the old APScheduler cron jobs.
+    - cron: '5 * * * *'       # replies (hourly)
+    - cron: '0 */3 * * *'     # topics-priority
+    - cron: '10 */12 * * *'   # topics-daily
+    - cron: '30 */12 * * *'   # members-advocates
+    - cron: '0 1 * * *'       # members-champions
+    - cron: '10 1 * * *'      # members-mentors
+    - cron: '15 1 * * *'      # members-community
+
+permissions:
+  contents: write
+
+# Serialize runs so concurrent jobs never race on the push.
+concurrency:
+  group: generate-feeds
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Resolve job
+        id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            JOB="${{ github.event.inputs.job }}"
+          else
+            case "${{ github.event.schedule }}" in
+              '5 * * * *')     JOB=replies ;;
+              '0 */3 * * *')   JOB=topics-priority ;;
+              '10 */12 * * *') JOB=topics-daily ;;
+              '30 */12 * * *') JOB=members-advocates ;;
+              '0 1 * * *')     JOB=members-champions ;;
+              '10 1 * * *')    JOB=members-mentors ;;
+              '15 1 * * *')    JOB=members-community ;;
+              *) echo "Unknown schedule: ${{ github.event.schedule }}"; exit 1 ;;
+            esac
+          fi
+          echo "job=$JOB" >> "$GITHUB_OUTPUT"
+
+      - name: Generate feeds
+        run: python -m jobs.generate --job "${{ steps.resolve.outputs.job }}"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add scmt
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Autocommit on $(date -u '+%Y-%m-%d %H:%M:%S')"
+            git pull --rebase origin main
+            git push
+          fi
