@@ -2,314 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAPUI5-blog-posts.xml</id>
   <title>SAP Community - SAPUI5</title>
-  <updated>2026-10-22T16:35:22.541433+00:00</updated>
+  <updated>2026-10-22T21:11:01.355771+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAPUI5/pd-p/500983881501772639608291559920477" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAPUI5 blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/capm-error-handling-made-simple/ba-p/14471769</id>
-    <title>CAPM Error Handling Made Simple</title>
-    <updated>2026-08-27T08:54:02.883000+02:00</updated>
-    <author>
-      <name>Pooja_HM</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2301907</uri>
-    </author>
-    <content>&lt;P&gt;While developing applications using SAP CAPM, handling errors is an important part of the implementation. For example, a user may try to create an employee without an email address, enter a negative salary, create an employee with an email that already exists, or request an employee ID that is not available.&lt;/P&gt;&lt;P&gt;Instead of allowing these situations to fail without a clear message, CAP provides simple ways to handle business errors and unexpected exceptions.&lt;/P&gt;&lt;P&gt;In this blog, I will demonstrate three practical approaches:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;req.error() – to report validation errors.&lt;/LI&gt;&lt;LI&gt;req.reject() – to stop processing and return a specific error to the client.&lt;/LI&gt;&lt;LI&gt;try/catch – to handle unexpected exceptions in business logic.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;I will use a small Employee application so that each case can be tested from a simple SAPUI5 screen.&lt;/P&gt;&lt;H1 id="toc-hId-1693661392"&gt;What We Will Build&lt;/H1&gt;&lt;P&gt;The application contains an Employees entity with ID, name, email and salary. The UI provides three operations:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Create Employee&lt;/LI&gt;&lt;LI&gt;Get Employee&lt;/LI&gt;&lt;LI&gt;Calculate Bonus&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The backend contains validation and error handling for these operations.&lt;/P&gt;&lt;H1 id="toc-hId-1497147887"&gt;Project Structure&lt;/H1&gt;&lt;P&gt;The main files used in this example are:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Pooja_HM_0-1787653108274.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/450761iD8D84C8E2E5F7C73/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Pooja_HM_0-1787653108274.png" alt="Pooja_HM_0-1787653108274.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H1 id="toc-hId-1300634382"&gt;Step 1 – Create the Database Entity&lt;/H1&gt;&lt;P&gt;First, create the Employee entity in the db/schema.cds file. This entity stores the employee information used by the application.&lt;/P&gt;&lt;P&gt;namespace demo.errorhandling;&lt;BR /&gt;&lt;BR /&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;namespace demo.errorhandling;
-
-entity Employees {
-    key ID     : Integer;
-    name       : String(100);
-    email      : String(100);
-    salary     : Decimal(10,2);
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Here, ID is the key field. The name and email fields store employee details, and salary stores the employee salary.&lt;/P&gt;&lt;H1 id="toc-hId-1104120877"&gt;Step 2 – Expose the Entity and Define Actions&lt;/H1&gt;&lt;P&gt;Next, create service.cds inside the srv folder. The Employees entity is exposed through EmployeeService. Two actions are also defined for retrieving an employee and calculating a bonus.&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;using demo.errorhandling as db from '../db/schema';
-service EmployeeService {
-    entity Employees as projection on db.Employees;
-    action getEmployee(ID : Integer) returns String;
-    action calculateBonus(ID : Integer) returns Decimal;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The getEmployee action accepts an employee ID and returns the employee name. The calculateBonus action accepts an employee ID and returns the calculated bonus.&lt;/P&gt;&lt;H1 id="toc-hId-907607372"&gt;Step 3 – Implement Error Handling in service.js&lt;/H1&gt;&lt;P&gt;Now comes the main part of the example. In srv/service.js, we implement the validation and error handling logic.&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;const cds = require('@sap/cds');
-module.exports = class EmployeeService extends cds.ApplicationService {
-    async init() {
-        this.before('CREATE', 'Employees', async req =&amp;gt; {
-            if (!req.data.email) {
-                req.error(
-                    400,
-                    'Email is required',
-                    'email'
-                );
-            }
-            if (!req.data.name) {
-                req.error(
-                    400,
-                    'Employee name is required',
-                    'name'
-                );
-            }
-            if (req.data.salary !== undefined &amp;amp;&amp;amp; req.data.salary &amp;lt; 0) {
-                req.error(
-                    400,
-                    'Salary cannot be negative',
-                    'salary'
-                );
-            }
-          
-            if (req.data.email) {
-                const employee = await SELECT.one
-                    .from('demo.errorhandling.Employees')
-                    .where({
-                        email: req.data.email
-                    });
-                if (employee) {
-                    req.reject(
-                        409,
-                        'Employee with this email already exists',
-                        'email'
-                    );
-                }
-            }
-        });
-
-        this.on('getEmployee', async req =&amp;gt; {
-            const { ID } = req.data;
-            const employee = await SELECT.one
-                .from('demo.errorhandling.Employees')
-                .where({
-                    ID: ID
-                });
-            if (!employee) {
-                req.reject(
-                    404,
-                    'Employee not found'
-                );
-            }
-
-            return `Employee Name: ${employee.name}`;
-        });
-       
-        this.on('calculateBonus', async req =&amp;gt; {
-            const { ID } = req.data;
-            try {
-                const employee = await SELECT.one
-                    .from('demo.errorhandling.Employees')
-                    .where({
-                        ID: ID
-                    });
-                if (!employee) {
-                    req.reject(
-                        404,
-                        'Employee not found'
-                    );
-                }
-               
-                const bonus = Number(employee.salary) * 0.10;
-                return bonus;
-            } catch (error) {
-               console.error(
-                    'Error while calculating bonus:',
-                    error
-                );
-                req.reject(
-                    500,
-                    'Unable to calculate employee bonus'
-                );
-            }
-        });
-      
-        this.on('error', (error, req) =&amp;gt; {
-            console.error(
-                `CAP Error - Event: ${req.event}`,
-                error.message
-            );
-        });
-        return super.init();
-    }
-};&lt;/code&gt;&lt;/pre&gt;&lt;H1 id="toc-hId-711093867"&gt;Step 4 – Understanding req.error()&lt;/H1&gt;&lt;P&gt;The first example uses req.error() for validation. Before an employee is created, the application checks whether the required fields are valid.&lt;/P&gt;&lt;P&gt;For example, if the email is missing:&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;req.error(
-    400,
-    'Email is required',
-    'email'
-);&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The first parameter is the HTTP status code. Here, 400 means Bad Request. The second parameter is the message shown to the client. The third parameter identifies the affected field.&lt;/P&gt;&lt;P&gt;The same validation is used for employee name and negative salary.&lt;/P&gt;&lt;H1 id="toc-hId-514580362"&gt;Step 5 – Understanding req.reject()&lt;/H1&gt;&lt;P&gt;req.reject() is used when the request should be stopped and a specific error should be returned.&lt;/P&gt;&lt;P&gt;In this example, when the requested employee does not exist, the getEmployee action rejects the request with a 404 error.&lt;/P&gt;&lt;pre class="lia-code-sample language-abap"&gt;&lt;code&gt;if (!employee) {
-    req.reject(
-        404,
-        'Employee not found'
-    );
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The duplicate email check also uses req.reject() with status code 409, because the employee already exists.&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;if (employee) {
-    req.reject(
-        409,
-        'Employee with this email already exists',
-        'email'
-    );
-}&lt;/code&gt;&lt;/pre&gt;&lt;H1 id="toc-hId-318066857"&gt;Step 6 – Exception Handling Using try/catch&lt;/H1&gt;&lt;P&gt;Sometimes an error may happen while executing business logic. In such cases, try/catch can be used to catch the exception and return a meaningful error.&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;try {
-
-    const employee = await SELECT.one
-        .from('demo.errorhandling.Employees')
-        .where({
-            ID: ID
-        });
-
-    if (!employee) {
-        req.reject(
-            404,
-            'Employee not found'
-        );
-    }
-
-    const bonus = Number(employee.salary) * 0.10;
-
-    return bonus;
-
-} catch (error) {
-
-    console.error(
-        'Error while calculating bonus:',
-        error
-    );
-
-    req.reject(
-        500,
-        'Unable to calculate employee bonus'
-    );
-}
-&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;In this example, the bonus is calculated as 10% of the employee salary. If an unexpected exception occurs, the catch block logs the original error and returns a controlled 500 error message.&lt;/P&gt;&lt;H1 id="toc-hId-121553352"&gt;Step 7 – Global Error Handler&lt;/H1&gt;&lt;P&gt;The service also contains a global error handler. It is useful when we want to log errors centrally.&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;this.on('error', (error, req) =&amp;gt; {
-
-    console.error(
-        `CAP Error - Event: ${req.event}`,
-        error.message
-    );
-});
-&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;This does not replace the individual validation logic. It is mainly useful for logging and monitoring errors.&lt;/P&gt;&lt;H1 id="toc-hId--74960153"&gt;Step 8 – Create the SAPUI5 Screen&lt;/H1&gt;&lt;P&gt;To demonstrate the backend errors in a practical way, I created a simple SAPUI5 screen. It contains a Create Employee section and an Employee Operations section.&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;mvc:View
-    controllerName="project1.controller.View1"
-    xmlns:mvc="sap.ui.core.mvc"
-    xmlns="sap.m"
-    xmlns:l="sap.ui.layout"
-    displayBlock="true"&amp;gt;
-    &amp;lt;Page title="CAP Error Handling Demo"&amp;gt;
-        &amp;lt;content&amp;gt;
-
-            &amp;lt;Panel headerText="Create Employee" class="sapUiResponsiveMargin"&amp;gt;
-                &amp;lt;content&amp;gt;
-                    &amp;lt;l:VerticalLayout width="100%" class="sapUiSmallMargin"&amp;gt;
-                        &amp;lt;l:content&amp;gt;
-                            &amp;lt;Label text="Name" labelFor="nameInput" /&amp;gt;
-                            &amp;lt;Input id="nameInput" width="20rem" placeholder="Employee name" /&amp;gt;
-
-                            &amp;lt;Label text="Email" labelFor="emailInput" class="sapUiTinyMarginTop" /&amp;gt;
-                            &amp;lt;Input id="emailInput" width="20rem" placeholder="employee@company.com" /&amp;gt;
-
-                            &amp;lt;Label text="Salary" labelFor="salaryInput" class="sapUiTinyMarginTop" /&amp;gt;
-                            &amp;lt;Input id="salaryInput" width="20rem" placeholder="e.g. 50000" type="Number" /&amp;gt;
-
-                            &amp;lt;Button text="Create Employee" type="Emphasized" press=".onCreateEmployee" class="sapUiSmallMarginTop" /&amp;gt;
-                        &amp;lt;/l:content&amp;gt;
-                    &amp;lt;/l:VerticalLayout&amp;gt;
-                &amp;lt;/content&amp;gt;
-            &amp;lt;/Panel&amp;gt;
-
-            &amp;lt;Panel headerText="Employee Operations" class="sapUiResponsiveMargin"&amp;gt;
-                &amp;lt;content&amp;gt;
-                    &amp;lt;l:VerticalLayout width="100%" class="sapUiSmallMargin"&amp;gt;
-                        &amp;lt;l:content&amp;gt;
-                            &amp;lt;Label text="Employee ID" labelFor="opIdInput" /&amp;gt;
-                            &amp;lt;Input id="opIdInput" width="10rem" placeholder="e.g. 1" type="Number" /&amp;gt;
-
-                            &amp;lt;HBox class="sapUiSmallMarginTop"&amp;gt;
-                                &amp;lt;Button text="Get Employee" type="Emphasized" press=".onGetEmployee" class="sapUiTinyMarginEnd" /&amp;gt;
-                                &amp;lt;Button text="Calculate Bonus" type="Emphasized" press=".onCalculateBonus" /&amp;gt;
-                            &amp;lt;/HBox&amp;gt;
-                        &amp;lt;/l:content&amp;gt;
-                    &amp;lt;/l:VerticalLayout&amp;gt;
-                &amp;lt;/content&amp;gt;
-            &amp;lt;/Panel&amp;gt;
-
-            &amp;lt;Panel headerText="Result" class="sapUiResponsiveMargin"&amp;gt;
-                &amp;lt;content&amp;gt;
-                    &amp;lt;MessageStrip id="resultStrip" text="Run an operation above to see the result here." type="Information" showIcon="true" class="sapUiSmallMargin" /&amp;gt;
-                &amp;lt;/content&amp;gt;
-            &amp;lt;/Panel&amp;gt;
-
-        &amp;lt;/content&amp;gt;
-    &amp;lt;/Page&amp;gt;
-&amp;lt;/mvc:View&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;H1 id="toc-hId-498266425"&gt;Step 9 – Connect the UI to the CAP Service&lt;/H1&gt;&lt;P&gt;The controller uses fetch() to call the CAP OData V4 service. It also reads the error message returned by CAP and displays it using MessageStrip and MessageToast.&lt;BR /&gt;This is How I have written in controller.js file&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;sap.ui.define([
-    "sap/ui/core/mvc/Controller",
-    "sap/m/MessageToast"
-], function (Controller, MessageToast) {
-    "use strict";
-
-    var SERVICE_URL = "/odata/v4/employee";
-
-    return Controller.extend("project1.controller.View1", {
-
-        _showResult: function (ok, message) {
-            var oStrip = this.byId("resultStrip");
-            oStrip.setType(ok ? "Success" : "Error");
-            oStrip.setText(message);
-            MessageToast.show(message);
-        },
-
-        _callService: function (method, path, body, onSuccessMessage) {
-            var that = this;
-            var options = { method: method, headers: { "Content-Type": "application/json" } };
-            if (body !== undefined) { options.body = JSON.stringify(body); }
-
-            return fetch(SERVICE_URL + path, options)
-                .then(function (response) {
-                    return response.json().then(function (data) {
-                        return { ok: response.ok, data: data };
-                    });
-                })
-                .then(function (result) {
-                    if (result.ok) {
-                        var msg;
-                        if (typeof onSuccessMessage === "function") {
-                            msg = onSuccessMessage(result.data);
-                        } else if (typeof result.data.value === "string") {
-                            msg = result.data.value;
-                        } else if (result.data.value !== undefined) {
-                            msg = String(result.data.value);
-                        } else {
-                            msg = "Request succeeded";
-                        }
-                        that._showResult(true, msg);
-                    } else {
-                        var errMsg = (result.data.error &amp;amp;&amp;amp; result.data.error.message) || "Request failed";
-                        that._showResult(false, errMsg);
-                    }
-                })
-                .catch(function (err) {
-                    that._showResult(false, "Network / unexpected error: " + err.message);
-                });
-        },
-
-        onCreateEmployee: function () {
-            var newId = Math.floor(Date.now() / 1000) % 100000; // simple auto-generated ID
-            var name = this.byId("nameInput").getValue();
-            var email = this.byId("emailInput").getValue();
-            var salary = this.byId("salaryInput").getValue();
-
-            this._callService("POST", "/Employees", {
-                ID: newId,
-                name: name || undefined,
-                email: email || undefined,
-                salary: salary ? Number(salary) : undefined
-            }, function (data) {
-                return "Employee created: " + data.name + " (ID " + data.ID + ")";
-            });
-        },
-
-        onGetEmployee: function () {
-            var id = parseInt(this.byId("opIdInput").getValue(), 10) || 0;
-            this._callService("POST", "/getEmployee", { ID: id });
-        },
-
-        onCalculateBonus: function () {
-            var id = parseInt(this.byId("opIdInput").getValue(), 10) || 0;
-            this._callService("POST", "/calculateBonus", { ID: id }, function (data) {
-                return "Bonus: " + data.value;
-            });
-        }
-    });
-});&lt;/code&gt;&lt;/pre&gt;&lt;H1 id="toc-hId-301752920"&gt;Step 10 – Run the Application&lt;/H1&gt;&lt;P&gt;Start the CAP application from the project terminal:&lt;/P&gt;&lt;P&gt;cds watch&lt;/P&gt;&lt;P&gt;After the application starts, open the generated application URL and open the SAPUI5 application.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Note: &lt;/STRONG&gt;For this blog, I am demonstrating the error handling through the SAPUI5 screen. Postman is not compulsory for this example.&lt;/P&gt;&lt;P&gt;Here is the Out of My Application&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="image.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/450794i964E8C7BAB44D305/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image.png" alt="image.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H1 id="toc-hId-105239415"&gt;Step 11 – Test req.error()&lt;/H1&gt;&lt;P&gt;To test validation, leave the Email field empty and click Create Employee.&lt;/P&gt;&lt;P&gt;Expected result:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;CAP receives the CREATE request.&lt;/LI&gt;&lt;LI&gt;The before CREATE handler checks the email.&lt;/LI&gt;&lt;LI&gt;req.error() adds the validation error.&lt;/LI&gt;&lt;LI&gt;The UI displays the returned error message.&lt;BR /&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Pooja_HM_1-1787654378990.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/450819iD6BF15C2C34AEA61/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Pooja_HM_1-1787654378990.png" alt="Pooja_HM_1-1787654378990.png" /&gt;&lt;/span&gt;&lt;H1 id="toc-hId--91274090"&gt;Step 12 – Test req.reject() for Duplicate Email&lt;/H1&gt;&lt;P&gt;First create an employee with a valid email. Then try to create another employee using the same email.&lt;/P&gt;&lt;P&gt;Expected result: the backend checks the existing employee and rejects the second request with HTTP 409.&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Pooja_HM_2-1787654476573.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/450820i8602974A88B95B48/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Pooja_HM_2-1787654476573.png" alt="Pooja_HM_2-1787654476573.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--287787595"&gt;Step 13 – Test req.reject() for Employee Not Found&lt;/H1&gt;&lt;P&gt;Enter an employee ID that does not exist and click Get Employee.&lt;/P&gt;&lt;P&gt;The getEmployee action searches the database. If no employee is found, req.reject(404, 'Employee not found') is executed.&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Pooja_HM_3-1787654516710.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/450821iD16D0FB247878BD6/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Pooja_HM_3-1787654516710.png" alt="Pooja_HM_3-1787654516710.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--484301100"&gt;Step 14 – Test a Successful Request&lt;/H1&gt;&lt;P&gt;To show that the service also works for valid requests, enter valid employee details and create the employee.&lt;/P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Pooja_HM_4-1787654579791.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/450823i79D93B5F6920307C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Pooja_HM_4-1787654579791.png" alt="Pooja_HM_4-1787654579791.png" /&gt;&lt;/span&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;You can also enter the newly created ID and click Calculate Bonus. For example, if the salary is 34,000, a 10% bonus is 3,400.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Pooja_HM_5-1787654693019.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/450824i4207FFF200D87619/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Pooja_HM_5-1787654693019.png" alt="Pooja_HM_5-1787654693019.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H1 id="toc-hId--680814605"&gt;req.error() vs req.reject()&lt;/H1&gt;&lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="224"&gt;&lt;P&gt;Feature&lt;/P&gt;&lt;/TD&gt;&lt;TD width="224"&gt;&lt;P&gt;req.error()&lt;/P&gt;&lt;/TD&gt;&lt;TD width="224"&gt;&lt;P&gt;req.reject()&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="224"&gt;&lt;P&gt;Purpose&lt;/P&gt;&lt;/TD&gt;&lt;TD width="224"&gt;&lt;P&gt;Report a validation error&lt;/P&gt;&lt;/TD&gt;&lt;TD width="224"&gt;&lt;P&gt;Stop the request and reject it&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="224"&gt;&lt;P&gt;Typical use&lt;/P&gt;&lt;/TD&gt;&lt;TD width="224"&gt;&lt;P&gt;Field/business validation&lt;/P&gt;&lt;/TD&gt;&lt;TD width="224"&gt;&lt;P&gt;Not found, conflict, unauthorized or other request-level errors&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="224"&gt;&lt;P&gt;Example&lt;/P&gt;&lt;/TD&gt;&lt;TD width="224"&gt;&lt;P&gt;Email is required&lt;/P&gt;&lt;/TD&gt;&lt;TD width="224"&gt;&lt;P&gt;Employee not found&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD width="224"&gt;&lt;P&gt;Example status&lt;/P&gt;&lt;/TD&gt;&lt;TD width="224"&gt;&lt;P&gt;400&lt;/P&gt;&lt;/TD&gt;&lt;TD width="224"&gt;&lt;P&gt;404 / 409 / other suitable status&lt;/P&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;In simple terms: use req.error() when you want to report validation problems during request processing, and use req.reject() when the request cannot continue and should be rejected.&lt;/P&gt;&lt;H1 id="toc-hId--877328110"&gt;Common Issues While Testing&lt;/H1&gt;&lt;UL&gt;&lt;LI&gt;Make sure the CAP server is running before calling the service.&lt;/LI&gt;&lt;LI&gt;Use the correct service path: /odata/v4/employee.&lt;/LI&gt;&lt;LI&gt;Check the action names: getEmployee and calculateBonus.&lt;/LI&gt;&lt;LI&gt;If you are using curl, run the command separately and make sure the URL does not contain terminal prompt text.&lt;/LI&gt;&lt;LI&gt;If you are testing through the UI, check the browser console if the application shows a network error.&lt;/LI&gt;&lt;LI&gt;After changing service.js, restart cds watch if the change is not reflected.&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId--1073841615"&gt;Conclusion&lt;/H1&gt;&lt;P&gt;In this blog, we implemented simple error handling in a SAP CAPM application using a practical Employee example.&lt;/P&gt;&lt;P&gt;We covered:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;req.error() for validation errors.&lt;/LI&gt;&lt;LI&gt;req.reject() for request-level errors such as employee not found and duplicate email.&lt;/LI&gt;&lt;LI&gt;try/catch for handling unexpected exceptions.&lt;/LI&gt;&lt;LI&gt;A global error handler for logging errors.&lt;/LI&gt;&lt;LI&gt;A SAPUI5 screen to test the backend error messages.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;Good error handling makes the application easier to use and also makes troubleshooting easier for developers. Instead of showing a generic failure, we can return a clear message that explains what went wrong.&lt;/P&gt;&lt;P&gt;The same approach can be extended to real business scenarios such as customer validation, order processing, duplicate records, authorization checks and other business rules.&lt;/P&gt;&lt;P&gt;I hope this practical example helps you understand error handling in SAP CAPM.&lt;BR /&gt;Thank You&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/capm-error-handling-made-simple/ba-p/14471769"/>
-    <published>2026-08-27T08:54:02.883000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/frontend-ui5-sap-fiori-blog-posts/software-3-0-ai-amp-agentic-engineering-for-sap-fiori-and-sapui5/ba-p/14473223</id>
     <title>Software 3.0 - AI &amp; Agentic Engineering for SAP Fiori and SAPUI5 Development</title>
@@ -1634,5 +1330,191 @@ reject: (task, message) =&amp;gt; send([{ kind: 'data', data: { decisions: [{ ty
     <content>&lt;P&gt;&lt;STRONG&gt;Don't Panic.&lt;/STRONG&gt; The user experience of SAP is evolving fast, but there's still a clear map. And on &lt;STRONG&gt;November 24, 2026&lt;/STRONG&gt;, I'll walk you through it in one hour.&lt;/P&gt;&lt;H2 id="toc-hId-1845141044"&gt;What This Is About&lt;/H2&gt;&lt;P&gt;SAP Fiori remains the user experience foundation for SAP applications. But in 2026, the way users work with SAP solutions has fundamentally shifted. The same holds for the way developers build them.&lt;/P&gt;&lt;P&gt;Joule Work has emerged as the new UI for AI, becoming the primary engagement layer for business users. Joule Studio is the new AI-first development environment for creating agents, apps, and workflows. And familiar technologies like SAPUI5, SAP Fiori elements, and SAP Build haven't gone away, they've evolved and gained new roles in this landscape.&lt;/P&gt;&lt;P&gt;If you've ever caught yourself wondering:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;EM&gt;How does SAP Fiori fit into a world where Joule is everywhere?&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;What's the relationship between Joule Work, Joule Studio, and SAP Build?&lt;/EM&gt;&lt;/LI&gt;&lt;LI&gt;&lt;EM&gt;Where do I start or continue my learning journey in 2026?&lt;/EM&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;…then this webinar is for you.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="Hitchhiker's Guide - Social Media.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/471925iE7133555D4380FFB/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Hitchhiker's Guide - Social Media.png" alt="Hitchhiker's Guide - Social Media.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId-1648627539"&gt;Who Should Join&lt;/H2&gt;&lt;P&gt;This session is designed for &lt;STRONG&gt;everyone&lt;/STRONG&gt;: executives, project managers, UX leads, key users, consultants, and developers alike. Whether you've been following SAP Fiori for years or are just now trying to take first steps, you'll leave with a clear mental map of how the pieces fit together today.&lt;/P&gt;&lt;H2 id="toc-hId-1452114034"&gt;Agenda&lt;/H2&gt;&lt;P&gt;This one-hour webinar is structured around the key layers of the SAP UX landscape:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;SAP Fiori: The UX Foundation&lt;/STRONG&gt; The design system, SAPUI5, SAP Fiori elements, and why they still matter in the age of AI.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Run: Where Users Meet SAP Apps&lt;/STRONG&gt; SAP Build Work Zone, Joule Work as the new AI engagement layer, and the Joule Work mobile app.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Adapt: Extending Standard SAP Apps&lt;/STRONG&gt; How key users and developers extend standard SAP apps with easy-to-use, AI-assisted tools in a Clean Core compliant way.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Develop: Building Applications in the Age of AI&lt;/STRONG&gt; Joule Studio, SAP Build Code, ABAP development tools, and AI-powered development workflows.&lt;/P&gt;&lt;/LI&gt;&lt;LI&gt;&lt;P&gt;&lt;STRONG&gt;Wrap-Up and Learning Resources&lt;/STRONG&gt; Your entry points for hands-on learning, followed by a live Q&amp;amp;A.&lt;/P&gt;&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-1255600529"&gt;Session Details&lt;/H2&gt;&lt;TABLE border="1" width="100%"&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD width="100%"&gt;&lt;STRONG&gt;Date:&lt;/STRONG&gt; Monday, November 24, 2026&lt;BR /&gt;&lt;STRONG&gt;Time:&lt;/STRONG&gt; 16:00 – 17:00 CET&lt;BR /&gt;&lt;STRONG&gt;Watch on YouTube:&lt;/STRONG&gt; &lt;A href="https://www.youtube.com/live/nZq6Z6ZlZnc" target="_blank" rel="noopener noreferrer nofollow"&gt;https://www.youtube.com/live/nZq6Z6ZlZnc&lt;/A&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;I have been presenting the Hitchhiker's Guide series since 2022 and update it annually to reflect the latest shifts in the SAP UX landscape. You can find recordings of previous editions on SAP Community, including &lt;A href="https://community.sap.com/t5/sap-community/live-part-1-a-hitchhiker-s-guide-to-sap-fiori-user-experience-and-its/ev-p/14225273" target="_blank"&gt;last year's two-part series&lt;/A&gt;.&amp;nbsp;If you attended a previous edition, this is worth your hour. A lot has happened.&amp;nbsp;See you on November 24.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/a-hitchhiker-s-guide-to-sap-fiori-ux-in-the-age-of-ai/ba-p/14509120"/>
     <published>2026-10-22T13:21:34.267000+02:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/abap-blog-posts/export-sapui5-table-data-to-excel-in-sap-fiori-code-examples-and-best/ba-p/14506938</id>
+    <title>Export SAPUI5 Table Data to Excel in SAP Fiori: Code Examples and Best Practices</title>
+    <updated>2026-10-22T19:54:32.516000+02:00</updated>
+    <author>
+      <name>Gayathri_S</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/2321590</uri>
+    </author>
+    <content>&lt;DIV&gt;&lt;H1 id="toc-hId-1715976679"&gt;Export SAPUI5 Table Data to Excel in SAP Fiori: A Practical Guide with Code Examples&lt;/H1&gt;&lt;H2 id="toc-hId-1648545893"&gt;Introduction&lt;/H2&gt;&lt;P&gt;Exporting table data to Microsoft Excel is a common requirement in SAP Fiori applications. Business users often need to download data for reporting, offline analysis, reconciliation, and collaboration.&lt;/P&gt;&lt;P&gt;SAPUI5 provides the &lt;CODE&gt;sap.ui.export.Spreadsheet&lt;/CODE&gt; API to generate Excel workbooks. Developers can define column headers, data types, file names, and which fields are included in the exported spreadsheet.&lt;/P&gt;&lt;P&gt;This blog explains how to implement Excel export in a freestyle SAPUI5 application using an employee-management example. It also covers exporting selected columns, using readable column headers, and handling common issues.&lt;/P&gt;&lt;H2 id="toc-hId-1452032388"&gt;1. Prerequisites&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;An SAPUI5 freestyle application.&lt;/LI&gt;&lt;LI&gt;A table bound to a JSON model or another supported data source.&lt;/LI&gt;&lt;LI&gt;An export button in the table toolbar.&lt;/LI&gt;&lt;LI&gt;The &lt;CODE&gt;sap.ui.export&lt;/CODE&gt; library available in the SAPUI5 runtime.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;For API details and supported export settings, refer to the &lt;A href="https://ui5.sap.com/" target="_blank" rel="noopener noreferrer"&gt;SAPUI5 Demo Kit&lt;/A&gt;.&lt;/P&gt;&lt;H2 id="toc-hId-1255518883"&gt;2. Understand the export approach&lt;/H2&gt;&lt;P&gt;The basic process consists of four steps:&lt;/P&gt;&lt;OL&gt;&lt;LI&gt;Retrieve the table data from the model.&lt;/LI&gt;&lt;LI&gt;Define the Excel columns using readable labels and model property names.&lt;/LI&gt;&lt;LI&gt;Configure the spreadsheet and file name.&lt;/LI&gt;&lt;LI&gt;Generate the workbook and download the &lt;CODE&gt;.xlsx&lt;/CODE&gt; file.&lt;/LI&gt;&lt;/OL&gt;&lt;P&gt;The column &lt;STRONG&gt;label&lt;/STRONG&gt; becomes the Excel header, while &lt;STRONG&gt;property&lt;/STRONG&gt; identifies the source field in each row.&lt;/P&gt;&lt;H2 id="toc-hId-1059005378"&gt;3. Create a sample table in the XML view&lt;/H2&gt;&lt;P&gt;This example uses an employee table with Employee ID, Employee Name, and Department columns.&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;&amp;lt;mvc:View
+    controllerName="demo.controller.Employee"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"&amp;gt;
+    &amp;lt;Page title="Employee Overview"&amp;gt;
+        &amp;lt;content&amp;gt;
+            &amp;lt;Table id="employeeTable" items="{/Employees}"&amp;gt;
+                &amp;lt;headerToolbar&amp;gt;
+                    &amp;lt;OverflowToolbar&amp;gt;
+                        &amp;lt;Title text="Employee List" /&amp;gt;
+                        &amp;lt;ToolbarSpacer /&amp;gt;
+                        &amp;lt;Button
+                            text="Export to Excel"
+                            icon="sap-icon://excel-attachment"
+                            press=".onExportExcel" /&amp;gt;
+                    &amp;lt;/OverflowToolbar&amp;gt;
+                &amp;lt;/headerToolbar&amp;gt;
+                &amp;lt;columns&amp;gt;
+                    &amp;lt;Column&amp;gt;&amp;lt;Text text="Employee ID" /&amp;gt;&amp;lt;/Column&amp;gt;
+                    &amp;lt;Column&amp;gt;&amp;lt;Text text="Employee Name" /&amp;gt;&amp;lt;/Column&amp;gt;
+                    &amp;lt;Column&amp;gt;&amp;lt;Text text="Department" /&amp;gt;&amp;lt;/Column&amp;gt;
+                &amp;lt;/columns&amp;gt;
+                &amp;lt;items&amp;gt;
+                    &amp;lt;ColumnListItem&amp;gt;
+                        &amp;lt;cells&amp;gt;
+                            &amp;lt;Text text="{EmployeeId}" /&amp;gt;
+                            &amp;lt;Text text="{EmployeeName}" /&amp;gt;
+                            &amp;lt;Text text="{Department}" /&amp;gt;
+                        &amp;lt;/cells&amp;gt;
+                    &amp;lt;/ColumnListItem&amp;gt;
+                &amp;lt;/items&amp;gt;
+            &amp;lt;/Table&amp;gt;
+        &amp;lt;/content&amp;gt;
+    &amp;lt;/Page&amp;gt;
+&amp;lt;/mvc:View&amp;gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;The table binds to a model collection named &lt;CODE&gt;Employees&lt;/CODE&gt;. The button invokes the controller method &lt;CODE&gt;onExportExcel&lt;/CODE&gt;.&lt;/P&gt;&lt;H2 id="toc-hId-862491873"&gt;4. Configure the SAPUI5 export library&lt;/H2&gt;&lt;P&gt;Declare the export library in the &lt;CODE&gt;sap.ui5&lt;/CODE&gt; section of &lt;CODE&gt;manifest.json&lt;/CODE&gt;. Merge this dependency into your existing configuration rather than replacing other dependencies.&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;{
+  "sap.ui5": {
+    "dependencies": {
+      "libs": {
+        "sap.m": {},
+        "sap.ui.core": {},
+        "sap.ui.export": {}
+      }
+    }
+  }
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;H2 id="toc-hId-665978368"&gt;5. Implement Excel export in the controller&lt;/H2&gt;&lt;P&gt;The following controller example defines the export columns explicitly, so only the selected fields are included in the Excel file.&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;sap.ui.define([
+    "sap/ui/core/mvc/Controller",
+    "sap/ui/export/Spreadsheet",
+    "sap/m/MessageBox"
+], function (Controller, Spreadsheet, MessageBox) {
+    "use strict";
+
+    return Controller.extend("demo.controller.Employee", {
+        onExportExcel: async function () {
+            const oTable = this.byId("employeeTable");
+            const oBinding = oTable.getBinding("items");
+
+            if (!oBinding) {
+                MessageBox.error("Unable to retrieve the table data.");
+                return;
+            }
+
+            const aContexts = oBinding.getContexts(
+                0,
+                oBinding.getLength()
+            );
+
+            const aData = aContexts.map(function (oContext) {
+                return oContext.getObject();
+            });
+
+            if (!aData.length) {
+                MessageBox.information(
+                    "There is no data available to export."
+                );
+                return;
+            }
+
+            const aColumns = [
+                {
+                    label: "Employee ID",
+                    property: "EmployeeId",
+                    type: "string"
+                },
+                {
+                    label: "Employee Name",
+                    property: "EmployeeName",
+                    type: "string"
+                },
+                {
+                    label: "Department",
+                    property: "Department",
+                    type: "string"
+                }
+            ];
+
+            const oSpreadsheet = new Spreadsheet({
+                workbook: { columns: aColumns },
+                dataSource: aData,
+                fileName: "Employee_Overview.xlsx"
+            });
+
+            try {
+                await oSpreadsheet.build();
+            } catch (oError) {
+                MessageBox.error(
+                    "Excel export failed. Please try again."
+                );
+            } finally {
+                oSpreadsheet.destroy();
+            }
+        }
+    });
+});&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId-598547582"&gt;How the code works&lt;/H3&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;Table binding:&lt;/STRONG&gt; Retrieves data associated with the table's item binding.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Column definitions:&lt;/STRONG&gt; Specifies the Excel header and corresponding model property.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Data source:&lt;/STRONG&gt; Supplies row objects to the spreadsheet generator.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;File name:&lt;/STRONG&gt; Sets the downloaded workbook's name.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Build and cleanup:&lt;/STRONG&gt; Generates the workbook and destroys the spreadsheet instance afterward.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;Note:&lt;/STRONG&gt; This example is intended for a client-side collection whose required data is available in the binding. For large OData datasets, server-side paging, or growing tables, make sure all required records are fetched before exporting. The currently rendered rows may not represent the complete dataset.&lt;/P&gt;&lt;H2 id="toc-hId-272951358"&gt;6. Export only the required columns&lt;/H2&gt;&lt;P&gt;A common issue is that the Excel file contains extra fields that are not intended for business users. This can happen when developers export entire model objects or derive columns from every property in the backend response.&lt;/P&gt;&lt;P&gt;For example, the backend may provide:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;const oEmployee = {
+    EmployeeId: "E1001",
+    EmployeeName: "Alex Morgan",
+    Department: "Finance",
+    InternalReference: "REF-0048",
+    CreatedBy: "TECH_USER"
+};&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;If business users need only three fields, define only those fields in the export configuration:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;const aColumns = [
+    {
+        label: "Employee ID",
+        property: "EmployeeId",
+        type: "string"
+    },
+    {
+        label: "Employee Name",
+        property: "EmployeeName",
+        type: "string"
+    },
+    {
+        label: "Department",
+        property: "Department",
+        type: "string"
+    }
+];&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Only the properties listed in the export configuration are included. Backend-only fields such as &lt;CODE&gt;InternalReference&lt;/CODE&gt; and &lt;CODE&gt;CreatedBy&lt;/CODE&gt; are excluded.&lt;/P&gt;&lt;H2 id="toc-hId-76437853"&gt;7. Keep Excel headers consistent with the UI&lt;/H2&gt;&lt;P&gt;Excel headers should be meaningful to end users rather than exposing technical property names.&lt;/P&gt;UI column header Model property Excel header &lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;Employee ID&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;EmployeeId&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;Employee ID&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Employee Name&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;EmployeeName&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;Employee Name&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Department&lt;/TD&gt;&lt;TD&gt;&lt;CODE&gt;Department&lt;/CODE&gt;&lt;/TD&gt;&lt;TD&gt;Department&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;P&gt;The &lt;CODE&gt;label&lt;/CODE&gt; property determines the Excel header, while &lt;CODE&gt;property&lt;/CODE&gt; identifies the source field.&lt;/P&gt;&lt;P&gt;For multilingual applications, labels can be retrieved from the i18n resource bundle:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;const oBundle = this.getView()
+    .getModel("i18n")
+    .getResourceBundle();
+
+const aColumns = [
+    {
+        label: oBundle.getText("employeeId"),
+        property: "EmployeeId",
+        type: "string"
+    },
+    {
+        label: oBundle.getText("employeeName"),
+        property: "EmployeeName",
+        type: "string"
+    }
+];&lt;/CODE&gt;&lt;/PRE&gt;&lt;H2 id="toc-hId-227178705"&gt;8. Export filtered or sorted table data&lt;/H2&gt;&lt;P&gt;Applications often include search fields, status filters, and sorting options. Decide whether the export should contain the currently filtered data or the complete dataset.&lt;/P&gt;&lt;P&gt;For a client-side table binding, the binding can provide contexts for the current filter and sort configuration:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;const oBinding = oTable.getBinding("items");
+
+const aFilteredContexts = oBinding.getContexts(
+    0,
+    oBinding.getLength()
+);
+
+const aExportData = aFilteredContexts.map(function (oContext) {
+    return oContext.getObject();
+});&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Pass the resulting objects to the spreadsheet as the data source. For server-side OData bindings, the number of records may be limited by paging or service configuration. To export every matching backend record, implement appropriate paging or a dedicated data-retrieval process.&lt;/P&gt;&lt;H2 id="toc-hId-30665200"&gt;9. Handle numbers and dates correctly&lt;/H2&gt;&lt;P&gt;Choosing suitable data types helps Excel interpret values correctly.&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;const aColumns = [
+    {
+        label: "Employee ID",
+        property: "EmployeeId",
+        type: "string"
+    },
+    {
+        label: "Monthly Salary",
+        property: "MonthlySalary",
+        type: "number"
+    },
+    {
+        label: "Joining Date",
+        property: "JoiningDate",
+        type: "date"
+    }
+];&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Use &lt;CODE&gt;string&lt;/CODE&gt; for identifiers that may contain leading zeros, &lt;CODE&gt;number&lt;/CODE&gt; for numeric values, and &lt;CODE&gt;date&lt;/CODE&gt; for valid date values. Verify supported types and formatting options for your SAPUI5 version.&lt;/P&gt;&lt;H2 id="toc-hId--165848305"&gt;10. Common issues and troubleshooting&lt;/H2&gt;Issue Recommended check &lt;TABLE&gt;&lt;TBODY&gt;&lt;TR&gt;&lt;TD&gt;Export button does nothing&lt;/TD&gt;&lt;TD&gt;Verify the event handler name and browser console errors.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Excel contains extra columns&lt;/TD&gt;&lt;TD&gt;Review the explicit workbook column definition.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Headers show technical names&lt;/TD&gt;&lt;TD&gt;Set the intended user-facing label for every column.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Some records are missing&lt;/TD&gt;&lt;TD&gt;Check binding length, paging, growing behavior, and OData retrieval.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Dates or numbers are incorrect&lt;/TD&gt;&lt;TD&gt;Verify model data types and spreadsheet column configuration.&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;Export fails in the browser&lt;/TD&gt;&lt;TD&gt;Check library availability, SAPUI5 version compatibility, and console errors.&lt;/TD&gt;&lt;/TR&gt;&lt;/TBODY&gt;&lt;/TABLE&gt;&lt;H2 id="toc-hId--362361810"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;The &lt;CODE&gt;sap.ui.export.Spreadsheet&lt;/CODE&gt; API provides a practical way to add Excel export to freestyle SAPUI5 applications. The most important considerations are to define the required columns explicitly, use meaningful labels, handle the table's actual data binding correctly, and account for filtering and server-side paging.&lt;/P&gt;&lt;P&gt;Following these practices helps deliver clean, consistent Excel files that meet business users' reporting needs.&lt;/P&gt;&lt;/DIV&gt;</content>
+    <link href="https://community.sap.com/t5/abap-blog-posts/export-sapui5-table-data-to-excel-in-sap-fiori-code-examples-and-best/ba-p/14506938"/>
+    <published>2026-10-22T19:54:32.516000+02:00</published>
   </entry>
 </feed>
