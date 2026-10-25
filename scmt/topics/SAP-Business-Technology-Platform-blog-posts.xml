@@ -2,133 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAP-Business-Technology-Platform-blog-posts.xml</id>
   <title>SAP Community - SAP Business Technology Platform</title>
-  <updated>2026-10-25T20:20:55.758438+00:00</updated>
+  <updated>2026-10-25T23:00:37.429455+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAP Business Technology Platform/pd-p/73555000100700000172" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAP Business Technology Platform blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/stop-clicking-start-scripting-automate-btp-role-collection-mapping-to-ias/ba-p/14507356</id>
-    <title>Stop Clicking, Start Scripting: Automate BTP Role Collection Mapping to IAS Groups via REST APIs</title>
-    <updated>2026-10-20T14:56:15.343000+02:00</updated>
-    <author>
-      <name>LucaT</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/1542228</uri>
-    </author>
-    <content>&lt;H1 id="toc-hId-1716000764"&gt;Introduction&lt;/H1&gt;&lt;P&gt;Picture this: a customer is going live with a new SAP BTP landscape. Their IAS tenant already has user groups set up, their role collections are defined, and all that's left is connecting the two. Simple enough: in the BTP cockpit, navigate to Security → Trust Configuration → your IAS trust → Role Collection Mappings, and add one mapping at a time.&lt;/P&gt;&lt;P&gt;Now imagine doing that hundreds of times.&lt;/P&gt;&lt;P&gt;That was the reality for one of my customers. 130 role collections, each needing to be mapped to its corresponding IAS user group. At a conservative 3-4 minutes per mapping, finding the right collection, typing the group name exactly right, saving, repeat. You're looking at close to 8 hours of repetitive, error-prone cockpit work.&lt;/P&gt;&lt;P&gt;As a BTP consultant, I've seen this scenario play out more than once. And every time, the frustration is the same: the platform has everything you need, yet you're stuck doing something a machine should be doing for you.&lt;/P&gt;&lt;P&gt;In this blog post, you will learn how to use the SAP Authorization and Trust Management Service REST API to map BTP role collections to IAS user groups programmatically, saving hours of manual work, eliminating typo-induced errors, and giving you a reusable script you can run across every environment in your landscape.&lt;/P&gt;&lt;H2 id="toc-hId-1648569978"&gt;Prerequisites&lt;/H2&gt;&lt;P&gt;Before you begin, make sure you have the following in place:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Subaccount Administrator role collection assigned to your user in the target BTP subaccount&lt;/LI&gt;&lt;LI&gt;A BTP subaccount with an IAS tenant configured as a custom identity provider&lt;/LI&gt;&lt;LI&gt;IAS user groups already created and populated with users&lt;/LI&gt;&lt;LI&gt;BTP CLI installed and configured&lt;/LI&gt;&lt;LI&gt;A REST client for testing: curl, Postman, or Bruno all work fine&lt;/LI&gt;&lt;LI&gt;Node.js (v18+) for the automation script (if you're creating a Node.js script like me)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId-1322973754"&gt;Let's get scripting&lt;/H1&gt;&lt;H2 id="toc-hId-1255542968"&gt;Step 1 — Get API Credentials via the BTP CLI&lt;/H2&gt;&lt;P&gt;To call the XSUAA REST API, you need a client credential pair. The cleanest way to get one is directly through the BTP CLI. No service instance or service key required.&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;btp login --sso
-btp target --subaccount &amp;lt;SUBACCOUNT_ID&amp;gt;
-btp create security/api-credential --name my-credential&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Note&lt;/STRONG&gt;&lt;EM&gt;:&lt;/EM&gt;&amp;nbsp; This is the current recommended approach, replacing the deprecated apiaccess XSUAA service plan. If you come across older tutorials using "cf create-service xsuaa apiaccess" that approach still works but is being phased out.&lt;/P&gt;&lt;P&gt;The command returns a JSON object. Save these four values, you'll need all of them:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;clientid&lt;/LI&gt;&lt;LI&gt;clientsecret&lt;/LI&gt;&lt;LI&gt;url (the token endpoint)&lt;/LI&gt;&lt;LI&gt;apiurl (the API base URL)&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-1059029463"&gt;Step 2 — Get a Bearer Token&lt;/H2&gt;&lt;P&gt;With the credentials in hand, request an OAuth token using the client credentials flow:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;curl --request POST \
---url &amp;lt;url&amp;gt; \
---header 'accept: application/json' \
---header 'content-type: application/x-www-form-urlencoded' \
---data 'client_id=&amp;lt;clientid&amp;gt;' \
---data 'client_secret=&amp;lt;clientsecret&amp;gt;' \
---data 'grant_type=client_credentials' \
---data 'response_type=token'&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Copy the &lt;FONT face="courier new,courier"&gt;access_token&lt;/FONT&gt; value from the response. You'll use it as a Bearer token in the next steps.&lt;/P&gt;&lt;H2 id="toc-hId-862515958"&gt;Step 3 — Check Existing Mappings (Optional but Recommended)&lt;/H2&gt;&lt;P&gt;Before writing anything, it's worth checking what mappings already exist for your IAS identity provider. This gives you a baseline and avoids surprises:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;curl --request GET \
---url &amp;lt;apiurl&amp;gt;/sap/rest/authorization/v2/identity-providers/&amp;lt;IAS_ORIGIN_KEY&amp;gt;/attributes \
---header 'accept: application/json' \
---header 'authorization: Bearer &amp;lt;access_token&amp;gt;'&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;Where to find the IAS Origin Key&lt;/STRONG&gt;: In your BTP subaccount, go to Security → Trust Configuration and click on your IAS trust entry. The Origin Key is shown in the detail panel. It typically looks like &lt;EM&gt;&amp;lt;something&amp;gt;.accounts.ondemand.com&lt;/EM&gt;.&lt;/P&gt;&lt;H2 id="toc-hId-666002453"&gt;Step 4 — Create a Single Mapping&lt;/H2&gt;&lt;P&gt;Now for the actual mapping call. Let's do one manually first to confirm everything works before running a bulk script:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;curl --request POST \
---url &amp;lt;apiurl&amp;gt;/sap/rest/authorization/v2/identity-providers/&amp;lt;IAS_ORIGIN_KEY&amp;gt;/attributes \
---header 'accept: application/json' \
---header 'authorization: Bearer &amp;lt;access_token&amp;gt;' \
---header 'content-type: application/json' \
---data '{
-"attributeName": "Groups",
-"attributeValue": "&amp;lt;IAS_Group_Name&amp;gt;",
-"operator": "equals",
-"roleCollectionName": "&amp;lt;BTP_Role_Collection_Name&amp;gt;"
-}'&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;A few things to pay attention to:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;FONT face="courier new,courier"&gt;attributeName&lt;/FONT&gt; must be exactly "Groups" with capital G, case-sensitive. This is the single most common mistake, and it fails without a helpful error message, so double-check this first.&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="courier new,courier"&gt;attributeValue&lt;/FONT&gt; is the IAS group name, not the group ID.&lt;/LI&gt;&lt;LI&gt;&lt;FONT face="courier new,courier"&gt;roleCollectionName&lt;/FONT&gt; must match the role collection name exactly as it appears in the BTP cockpit.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;A successful call returns HTTP 201 with the created mapping. To verify: go to BTP Cockpit → Security → Role Collections → open your role collection → User Groups tab. Your IAS group should now appear there.&lt;/P&gt;&lt;H2 id="toc-hId-469488948"&gt;Step 5 — Scale It Up: Automate with a Node.js Script&lt;/H2&gt;&lt;P&gt;One mapping confirmed, now let's do all 130. The script below reads a list of mappings from a JSON file, fetches a token, and loops through each entry.&lt;/P&gt;&lt;P&gt;Project structure:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;mappings.json – your list of group → role collection pairs&lt;/LI&gt;&lt;LI&gt;map-roles.mjs – the script&lt;/LI&gt;&lt;LI&gt;.env – credentials (never commit or publish this!)&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;&lt;STRONG&gt;.env&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;TOKEN_URL=https://&amp;lt;subdomain&amp;gt;.authentication.&amp;lt;region&amp;gt;.hana.ondemand.com/oauth/token
-CLIENT_ID=&amp;lt;your-client-id&amp;gt;
-CLIENT_SECRET=&amp;lt;your-client-secret&amp;gt;
-API_URL=https://api.authentication.&amp;lt;region&amp;gt;.hana.ondemand.com
-IAS_ORIGIN_KEY=&amp;lt;your-ias-origin-key&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;mappings.json&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;[
-    {
-        "iasGroup": "BTP_ADMINS",
-        "roleCollection": "Subaccount Administrator"
-    },
-    {
-        "iasGroup": "BTP_DEVELOPERS",
-        "roleCollection": "Extension Developer"
-    },
-    {
-        "iasGroup": "CPI_OPERATORS",
-        "roleCollection": "PI Business Expert"
-    }
-]&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;STRONG&gt;map-roles.mjs&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;import { readFileSync } from 'fs';
-import 'dotenv/config';
-
-const { TOKEN_URL, CLIENT_ID, CLIENT_SECRET, API_URL, IAS_ORIGIN_KEY } = process.env;
-
-async function getToken() {
-    const params = new URLSearchParams({
-        grant_type: 'client_credentials',
-        response_type: 'token',
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET
-    });
-    const res = await fetch(TOKEN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params
-    });
-    const { access_token } = await res.json();
-    return access_token;
-}
-
-async function mapRoleCollection(token, iasGroup, roleCollection) {
-    const url = `${API_URL}/sap/rest/authorization/v2/identity-providers/${IAS_ORIGIN_KEY}/attributes`;
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            Accept: 'application/json'
-        },
-        body: JSON.stringify({
-            attributeName: 'Groups',
-            attributeValue: iasGroup,
-            operator: 'equals',
-            roleCollectionName: roleCollection
-        })
-    });
-
-    if (res.status === 409) {
-        console.log(`Already mapped: "${iasGroup}" → "${roleCollection}"`);
-        return;
-    }
-    if (res.status === 404) {
-        console.error(`Not found (check name): "${iasGroup}" → "${roleCollection}"`);
-        return;
-    }
-    if (!res.ok) {
-        console.error(`Failed (${res.status}): "${iasGroup}" → "${roleCollection}"`);
-        return;
-    }
-    console.log(`Mapped: "${iasGroup}" → "${roleCollection}"`);
-}
-
-const mappings = JSON.parse(readFileSync('./mappings.json', 'utf-8'));
-const token = await getToken();
-
-for (const { iasGroup, roleCollection } of mappings) {
-    await mapRoleCollection(token, iasGroup, roleCollection);
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;Install the one dependency and run:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;npm install dotenv
-node map-roles.mjs&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;You'll see a clear log for every mapping: success, already exists, or failure with the exact entry so you can investigate.&lt;/P&gt;&lt;H2 id="toc-hId-272975443"&gt;Bonus: Multi-Environment Reuse&lt;/H2&gt;&lt;P&gt;Once your mappings.json is ready, deploying to multiple environments is trivial. Re-target the BTP CLI and generate a fresh set of credentials for each subaccount:&lt;/P&gt;&lt;pre class="lia-code-sample language-bash"&gt;&lt;code&gt;btp target --subaccount &amp;lt;DEV_ID&amp;gt;
-btp create security/api-credential --name my-credential
-
-# update .env, then:
-node map-roles.mjs
-
-# next subaccount 
-btp target --subaccount &amp;lt;QA_ID&amp;gt;
-btp create security/api-credential --name my-credential
-
-# update .env, then:
-node map-roles.mjs
-
-# and so on ...&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;What was an 8-hour cockpit exercise becomes a 2-minute operation per environment. Repeatable, consistent, and auditable.&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H1 id="toc-hId--52620781"&gt;Conclusion&lt;/H1&gt;&lt;P&gt;The SAP Authorization and Trust Management Service API is one of those tools that, once you know it's there, you'll reach for regularly. The manual cockpit approach is fine for a handful of mappings, but as soon as you're dealing with real-world project complexity with dozens of role collections, multiple environments, repeated deployments, it simply doesn't scale.&lt;/P&gt;&lt;P&gt;The setup described in this post takes maybe 30 minutes the first time: prepare your mappings.json, configure the .env, run one test call to validate. After that, it's just a matter of running the script. For the customer that inspired this post, what would have been a full day of clicking was done before lunch.&lt;/P&gt;&lt;P&gt;If you give this a try, I'd love to hear how it works for you especially if you adapt the script or extend it to cover other security artifacts. Drop a comment below or reach out directly.&lt;/P&gt;&lt;H1 id="toc-hId-520605797"&gt;Further Resources&lt;/H1&gt;&lt;UL&gt;&lt;LI&gt;Download SAP BTP CLI –&amp;nbsp;&lt;A href="https://tools.hana.ondemand.com/#cloud" target="_blank" rel="noopener nofollow noreferrer"&gt;https://tools.hana.ondemand.com/#cloud&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;BTP CLI Documentation – &lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/account-administration-using-sap-btp-command-line-interface-btp-cli" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/btp/sap-business-technology-platform/account-administration-using-sap-btp-command-line-interface-btp-cli&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;btp create security/api-credential – &lt;A href="https://help.sap.com/docs/btp/btp-cli-command-reference/btp-create-security-api-credential" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/btp/btp-cli-command-reference/btp-create-security-api-credential&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;SAP Business Accelerator Hub – Authorization API – &lt;A href="https://api.sap.com/api/AuthorizationAPI/resource/Role_collections" target="_blank" rel="noopener noreferrer"&gt;https://api.sap.com/api/AuthorizationAPI/resource/Role_collections&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;Accessing Administration APIs of SAP Authorization and Trust Management Service – &lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/accessing-administration-using-apis-of-sap-authorization-and-trust-management-service" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/btp/sap-business-technology-platform/accessing-administration-using-apis-of-sap-authorization-and-trust-management-service&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;Map Role Collections to User Groups – SAP Help – &lt;A href="https://help.sap.com/docs/btp/sap-business-technology-platform/map-role-collections-to-user-groups" target="_blank" rel="noopener noreferrer"&gt;https://help.sap.com/docs/btp/sap-business-technology-platform/map-role-collections-to-user-groups&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/stop-clicking-start-scripting-automate-btp-role-collection-mapping-to-ias/ba-p/14507356"/>
-    <published>2026-10-20T14:56:15.343000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/part-1-from-odata-to-mcp-building-an-mcp-server-with-sap-integration-suite/ba-p/14506342</id>
     <title>Part 1: From OData to MCP: Building an MCP Server with SAP Integration Suite</title>
@@ -675,5 +552,105 @@ cf deploy mta_archives/certrule-loader_1.0.0.mtar&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&
 newuser3@singhvikas.com;DEVELOPER&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Open the router URL. The approuter redirects to the subaccount logon and from there to Identity Authentication.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="04_logon.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/472565i9392B1DF118B04A3/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="04_logon.jpg" alt="04_logon.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The Mappings tab is the first thing to open. It shows the explicit mappings as read from USRCERTMAP through the whole chain and the header shows the ABAP user. If this tab fills nothing else can fail for a technical reason.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="05_mappings_tab.jpg" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/472566i55C638AD7F3E68BF/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="05_mappings_tab.jpg" alt="05_mappings_tab.jpg" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The Load tab. Choose the file and the two lines appear in the preview. Prefix, suffix and issuer are the values from the Cloud Connector subject pattern and CA.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="06_file_loaded.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/472583i07E628BDB5EA20EF/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="06_file_loaded.png" alt="06_file_loaded.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Press Test run. Both lines come back as WOULD ADD and nothing is written yet. With the file from the old mapping table this is where EXISTS, RULE and SKIPPED show up and the file gets corrected before anything happens. The test run is the review of the file.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="07_test_run.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/472584i40ADA5425E26C103/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="07_test_run.png" alt="07_test_run.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Press Load. The page asks for confirmation.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="08_confirm.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/472585iC0F87BAEA4F512EF/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="08_confirm.png" alt="08_confirm.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Two rows ADDED in a few seconds. When the identity framework rejects the save all rows turn into REJECTED with the first error message and nothing is written.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="09_loaded.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/472586iC3C2FD4E304B4E2E/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="09_loaded.png" alt="09_loaded.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;CERTRULE shows the three new rows together. newuser from the two manual steps at 21:38 and newuser2 and newuser3 from the app at 21:51. Same subject format, same issuer, same creator.&amp;nbsp;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="10_certrule_after_load.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/472587i75F9EA349A39CEDE/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="10_certrule_after_load.png" alt="10_certrule_after_load.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId--558138077"&gt;Verification&lt;/H2&gt;&lt;P&gt;The real proof is one logon with each address. newuser and newuser2 are in no user master, so the only thing that can make the call succeed is the mapping. Each address has a user in Identity Authentication with the e-mail address as login name and the status set to active, and the role collection of the small whoami app from the first post.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="00g_ias_user.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/472579iAE2ECAF987D6865C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="00g_ias_user.png" alt="00g_ias_user.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;In a private browser window the app sends the logon to Identity Authentication. First newuser, the mapping created by hand in two steps.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="00g2_ias_sign_in.png" style="width: 900px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/472581iD4CE17B83D2F5873/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="00g2_ias_sign_in.png" alt="00g2_ias_sign_in.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The ABAP system answers DEVELOPER.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="00h_whoami_newuser.png" style="width: 754px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/472580i7F9AE0E55C0144B1/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="00h_whoami_newuser.png" alt="00h_whoami_newuser.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Then newuser2, the mapping written by the app from the file.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="11_ias_sign_in_newuser2.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/472588i828B1C2F4A0E9635/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="11_ias_sign_in_newuser2.png" alt="11_ias_sign_in_newuser2.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Same answer. The row written through the identity API from two strings in a file behaves exactly like the row created in the dialog from a certificate.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="12_whoami_newuser2.png" style="width: 769px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/472589i8D3625E48BD1A71A/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="12_whoami_newuser2.png" alt="12_whoami_newuser2.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H2 id="toc-hId--754651582"&gt;Summary&lt;/H2&gt;&lt;P&gt;CERTRULE looks certificate based but what it stores is a pair of distinguished names per user. The identity framework takes those names as strings through IF_IDENTITY_CERTMAP and computes the hashes itself, so the certificate is not essential. It was only a carrier for two strings and the strings can come from a file. One ABAP class behind an HTTP handler does the load, a thin CAP service forwards to it and an approuter logs the person on. The exception list that took more than 20 hours of manual work for 500 users becomes one file and one upload that runs in a few minutes.&lt;/P&gt;&lt;P&gt;The real saving is in the cutover. Basis is the busiest team in that window and migrating the exception list was one more job that only they could do, entry by entry, at the point when they had the least time for it. With the loader the list is prepared ahead of time as a file, loaded in one step and checked with a test run before anything is written. The Basis team gets those hours back for the cutover work that cannot be handed to anyone else. The process becomes much more efficient and has fewer chances of error now that the manual steps are gone.&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/automating-certrule-exception-maintenance-in-s-4hana-for-btp-apps/ba-p/14510184"/>
     <published>2026-10-25T19:50:10.793000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-members/agentic-ai-on-btp-calling-an-agent-from-your-ui5-app/ba-p/14510571</id>
+    <title>Agentic AI on BTP: Calling an Agent from Your UI5 App</title>
+    <updated>2026-10-25T23:05:56.800000+01:00</updated>
+    <author>
+      <name>WouterLemaire</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/9863</uri>
+    </author>
+    <content>&lt;H2 id="toc-hId-1845800446"&gt;Introduction&lt;/H2&gt;&lt;P&gt;What if your UI5 app could hand a receipt to an agent and get back the id of the draft expense it created? Not through a chat window, but behind a simple button in the app your users already work with.&lt;/P&gt;&lt;P&gt;This is the sixth post in the series. The previous one connected agents to SAP OData services without an MCP server: &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/agentic-ai-on-btp-connecting-agents-to-sap-odata-apis-without-an-mcp-server/ba-p/14506364" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-members/agentic-ai-on-btp-connecting-agents-to-sap-odata-apis-without-an-mcp-server/ba-p/14506364&lt;/A&gt;&lt;/P&gt;&lt;P&gt;In this blog post, I’ll show you how a UI5 app calls an agent from my multi-agent app on BTP through two API calls and what you need to configure for it.&lt;/P&gt;&lt;H2 id="toc-hId-1649286941"&gt;Problem&lt;/H2&gt;&lt;P&gt;Adding an agent to an existing UI5 app usually means building a new CAP app that holds the agent. For every use case:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;A new app to build and run.&lt;/STRONG&gt; Code, deploy, secure and maintain it next to the UI5 app.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Everything again.&lt;/STRONG&gt; Model access, destinations, the user’s identity to SAP and the tools the agent needs.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;The agent lives in code.&lt;/STRONG&gt; Changing its instructions or tools means a new deployment.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;A chat is not what a form needs.&lt;/STRONG&gt; The app wants a structured answer it can use, not a paragraph of text.&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;All of that already exists in my agent app: agents configured in the admin UI, connectors, OData services and identity per service. What was missing was a way for another app to call one of those agents.&lt;/P&gt;&lt;H2 id="toc-hId-1452773436"&gt;Solution&lt;/H2&gt;&lt;P&gt;The app now has an &lt;STRONG&gt;invoke API&lt;/STRONG&gt;. A UI5 app calls one agent by its slug, as the signed-in user, with a text and optional files. It gets back a structured result plus a list of what the agent changed in SAP. Two calls:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;&lt;CODE&gt;POST /api/invoke/{slug}&lt;/CODE&gt;: starts the run, multipart with &lt;CODE&gt;input&lt;/CODE&gt; (text) and &lt;CODE&gt;files&lt;/CODE&gt; (PNG, JPEG or PDF)&lt;/LI&gt;&lt;LI&gt;&lt;CODE&gt;GET /api/invoke/runs/{run_id}&lt;/CODE&gt;: the status and the outcome&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;No new CAP app. The agent stays in the agent app, the UI5 app only needs a destination and a few lines of JavaScript. &lt;span class="lia-unicode-emoji" title=":slightly_smiling_face:"&gt;🙂&lt;/span&gt;&lt;/P&gt;&lt;H3 id="toc-hId-1385342650"&gt;Step 1: Expose the agent&lt;/H3&gt;&lt;P&gt;On the agent in the admin UI, give it an API slug and switch on “Expose to the invoke API”. Next to that you define the result the agent has to hand back as a JSON schema:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;{
+  "type": "object",
+  "properties": {
+    "expense_id": { "type": "string" },
+    "status": { "type": "string", "enum": ["draft"] }
+  },
+  "required": ["expense_id", "status"],
+  "additionalProperties": false
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;The agent gets a &lt;CODE&gt;submit_result&lt;/CODE&gt; tool for that run. What it hands in is checked against the schema, a wrong object goes back to the model to correct. A run that ends with only text fails with &lt;CODE&gt;no_result&lt;/CODE&gt;, so your app never reads a result the model only talked about.&lt;/P&gt;&lt;P&gt;The attachments are limited per agent: which file types, the size (default 10 MB), the number of files (default 5) and the PDF pages (default 20).&lt;/P&gt;&lt;H3 id="toc-hId-1188829145"&gt;Step 2: Give the users the role collection&lt;/H3&gt;&lt;P&gt;The API is behind its own scope &lt;CODE&gt;invoke&lt;/CODE&gt;. Assign the role collection &lt;STRONG&gt;Agent Invoker&lt;/STRONG&gt; to the users of the UI5 app. The run is theirs: the agent calls SAP with their identity, through the OData services that run as the signed-in user.&lt;/P&gt;&lt;H3 id="toc-hId-992315640"&gt;Step 3: Destination and route&lt;/H3&gt;&lt;P&gt;The UI5 app reaches the agent app through a destination that exchanges the user’s token for one of the agent app’s XSUAA. In the same subaccount, this can be done with &lt;CODE&gt;OAuth2UserTokenExchange&lt;/CODE&gt;:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;Name=agent-invoke
+Type=HTTP
+URL=https://&amp;lt;agent-backend-host&amp;gt;
+ProxyType=Internet
+Authentication=OAuth2UserTokenExchange
+clientId=&amp;lt;clientid of the agent app's xsuaa&amp;gt;
+clientSecret=&amp;lt;clientsecret of the agent app's xsuaa&amp;gt;
+tokenServiceURL=https://&amp;lt;subdomain&amp;gt;.authentication.&amp;lt;region&amp;gt;.hana.ondemand.com/oauth/token&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;(For an app in another subaccount, use &lt;CODE&gt;OAuth2SAMLBearerAssertion&lt;/CODE&gt; with a trust between both subaccounts.)&lt;/P&gt;&lt;P&gt;In the &lt;CODE&gt;xs-app.json&lt;/CODE&gt; of the UI5 app, one route maps everything under &lt;CODE&gt;agent/&lt;/CODE&gt; to the invoke API:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;{
+  "source": "^/agent/(.*)$",
+  "target": "/api/invoke/$1",
+  "destination": "agent-invoke",
+  "authenticationType": "xsuaa",
+  "csrfProtection": true
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId-795802135"&gt;Step 4: Call the agent&lt;/H3&gt;&lt;P&gt;For the upload I use a &lt;CODE&gt;FileUploader&lt;/CODE&gt; and keep the selected files in the controller:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;&amp;lt;u:FileUploader id="receipt" change=".onFileChange" fileType="png,jpg,jpeg,pdf" /&amp;gt;
+&amp;lt;Button text="Create expense from receipt" press=".onCreateFromReceipt" /&amp;gt;&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;The call itself is a &lt;CODE&gt;fetch&lt;/CODE&gt; with &lt;CODE&gt;FormData&lt;/CODE&gt; (&lt;CODE&gt;MessageBox&lt;/CODE&gt; comes from &lt;CODE&gt;sap/m/MessageBox&lt;/CODE&gt;). Don’t set the &lt;CODE&gt;Content-Type&lt;/CODE&gt; yourself, the browser adds the multipart boundary. The URL is resolved through the manifest, so it also works when the app runs in a Work Zone site:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;onFileChange: function (oEvent) {
+    this._files = Array.from(oEvent.getParameter("files") || []);
+},
+
+onCreateFromReceipt: async function () {
+    const sBase = this.getOwnerComponent().getManifestObject().resolveUri("agent/");
+    const oForm = new FormData();
+    oForm.append("input", "Create a draft expense from this receipt.");
+    (this._files || []).forEach((oFile) =&amp;gt; oForm.append("files", oFile, oFile.name));
+
+    this.getView().setBusy(true);
+    try {
+        const oRun = await this._invoke(sBase, "expense-expert", oForm);
+        this._handleRun(oRun);
+    } catch (oError) {
+        MessageBox.error(oError.message);
+    } finally {
+        this.getView().setBusy(false);
+    }
+},
+
+_invoke: async function (sBase, sSlug, oForm) {
+    const sToken = await this._csrfToken(sBase);
+    // wait up to 20 seconds, a quick run answers right away
+    const oRes = await fetch(sBase + encodeURIComponent(sSlug) + "?wait=20", {
+        method: "POST",
+        headers: { "X-CSRF-Token": sToken },
+        body: oForm
+    });
+    const oBody = await oRes.json().catch(() =&amp;gt; ({}));
+    if (oRes.status === 200) { return oBody; }                 // finished in time
+    if (oRes.status === 202) { return this._poll(sBase, oBody.run_id); }
+    if (oRes.status === 409 &amp;amp;&amp;amp; oBody.run_id) {                  // already running for this user
+        return this._poll(sBase, oBody.run_id);
+    }
+    throw new Error(oBody.detail || "The agent could not be started");
+},
+
+_poll: async function (sBase, sRunId) {
+    for (;;) {
+        await new Promise((resolve) =&amp;gt; setTimeout(resolve, 3000));
+        const oRun = await (await fetch(sBase + "runs/" + encodeURIComponent(sRunId))).json();
+        if (oRun.status !== "running") { return oRun; }
+    }
+},
+
+_csrfToken: async function (sBase) {
+    const oRes = await fetch(sBase, { method: "HEAD", headers: { "X-CSRF-Token": "Fetch" } });
+    return oRes.headers.get("X-CSRF-Token");
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;H3 id="toc-hId-599288630"&gt;Step 5: Use the result&lt;/H3&gt;&lt;P&gt;This is what comes back when the run is done:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;{
+  "status": "completed",
+  "result": { "expense_id": "4711", "status": "draft" },
+  "writes": [
+    { "service": "expenses", "entity_set": "ExpenseReports", "operation": "create",
+      "key": { "ExpenseId": "4711" }, "outcome": "ok" }
+  ],
+  "text": null,
+  "activity": [ ... ],
+  "error": null
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;&lt;CODE&gt;result&lt;/CODE&gt; follows your schema. &lt;CODE&gt;writes&lt;/CODE&gt; comes from the audit log of the OData services, so the key in there is the one SAP returned, not one the model made up. &lt;CODE&gt;activity&lt;/CODE&gt; holds every tool call of the run, you can even show it while polling.&lt;/P&gt;&lt;P&gt;Next, the app refreshes and opens the new draft:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;_handleRun: function (oRun) {
+    if (oRun.status !== "completed") {
+        MessageBox.error("The agent could not finish: " + (oRun.error || oRun.status));
+        return;
+    }
+    this.getView().getModel().refresh();
+    this.getOwnerComponent().getRouter().navTo("expense", { id: oRun.result.expense_id });
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;H2 id="toc-hId-273692406"&gt;Good to know&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;&lt;STRONG&gt;One run per user per agent.&lt;/STRONG&gt; A second call while one is running answers 409 with the running &lt;CODE&gt;run_id&lt;/CODE&gt;, at most 8 runs per app instance (429).&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Five minutes.&lt;/STRONG&gt; A run that takes longer ends with &lt;CODE&gt;timeout&lt;/CODE&gt;.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;Files stay in memory.&lt;/STRONG&gt; Attachments are only kept for the run, never stored or logged. The file type is checked on its content, not on its name.&lt;/LI&gt;&lt;LI&gt;&lt;STRONG&gt;A failed run keeps its result.&lt;/STRONG&gt; If something fails after the agent handed in its result, you still get it with the error code.&lt;/LI&gt;&lt;/UL&gt;&lt;H2 id="toc-hId-77178901"&gt;Conclusion&lt;/H2&gt;&lt;P&gt;Adding an agent to a UI5 app doesn’t need a new CAP app anymore. The agent is configured once in the agent app with its tools, its OData services and its identity. Any UI5 app can then call it with two API calls.&lt;/P&gt;&lt;P&gt;The structured result is what makes it usable in a form: the app gets an object it can rely on and a list of what was changed in SAP, instead of a chat answer it has to interpret.&lt;/P&gt;&lt;P&gt;Contributions and feedback are welcome, the full source code is on GitHub: &lt;A href="https://github.com/lemaiwo/btp-dynamic-multiagent-app" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/lemaiwo/btp-dynamic-multiagent-app&lt;/A&gt;&lt;/P&gt;&lt;H2 id="toc-hId-227919753"&gt;Links&lt;/H2&gt;&lt;UL&gt;&lt;LI&gt;Post 5, OData without MCP: &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/agentic-ai-on-btp-connecting-agents-to-sap-odata-apis-without-an-mcp-server/ba-p/14506364" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-members/agentic-ai-on-btp-connecting-agents-to-sap-odata-apis-without-an-mcp-server/ba-p/14506364&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;Post 4, deep agents: &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/agentic-ai-on-btp-turning-a-specialist-into-a-deep-agent/ba-p/14501349" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-members/agentic-ai-on-btp-turning-a-specialist-into-a-deep-agent/ba-p/14501349&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;Post 3, workflows: &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/agentic-ai-on-btp-chaining-agents-into-a-workflow/ba-p/14496861" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-members/agentic-ai-on-btp-chaining-agents-into-a-workflow/ba-p/14496861&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;Post 2, scheduled runs: &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/agentic-ai-on-btp-running-your-agents-unattended-on-a-schedule/ba-p/14493817" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-members/agentic-ai-on-btp-running-your-agents-unattended-on-a-schedule/ba-p/14493817&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;Post 1, configuring agents: &lt;A href="https://community.sap.com/t5/technology-blog-posts-by-members/agentic-ai-on-btp-configuring-code-based-agents-on-the-fly/ba-p/14488352" target="_blank"&gt;https://community.sap.com/t5/technology-blog-posts-by-members/agentic-ai-on-btp-configuring-code-based-agents-on-the-fly/ba-p/14488352&lt;/A&gt;&lt;/LI&gt;&lt;LI&gt;Source code: &lt;A href="https://github.com/lemaiwo/btp-dynamic-multiagent-app" target="_blank" rel="noopener nofollow noreferrer"&gt;https://github.com/lemaiwo/btp-dynamic-multiagent-app&lt;/A&gt;&lt;/LI&gt;&lt;/UL&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/agentic-ai-on-btp-calling-an-agent-from-your-ui5-app/ba-p/14510571"/>
+    <published>2026-10-25T23:05:56.800000+01:00</published>
   </entry>
 </feed>
