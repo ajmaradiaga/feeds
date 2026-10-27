@@ -2,328 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
   <id>https://raw.githubusercontent.com/ajmaradiaga/feeds/main/scmt/topics/SAPUI5-blog-posts.xml</id>
   <title>SAP Community - SAPUI5</title>
-  <updated>2026-10-27T03:33:50.920471+00:00</updated>
+  <updated>2026-10-27T11:34:11.699168+00:00</updated>
   <link href="https://community.sap.com/t5/c-khhcw49343/SAPUI5/pd-p/500983881501772639608291559920477" rel="alternate"/>
   <generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator>
   <subtitle>SAPUI5 blog posts in SAP Community</subtitle>
-  <entry>
-    <id>https://community.sap.com/t5/technology-blog-posts-by-members/generic-excel-upload-in-sap-cap-node-js-reusable-validation-amp-row-level/ba-p/14471812</id>
-    <title>Generic Excel Upload in SAP CAP (Node.js): Reusable Validation &amp; Row-Level Error Reporting</title>
-    <updated>2026-08-28T09:09:23.945000+02:00</updated>
-    <author>
-      <name>Girish_Nekaar</name>
-      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/178369</uri>
-    </author>
-    <content>&lt;P&gt;&lt;SPAN&gt;A few weeks ago I got tired of writing the same Excel-import boilerplate for the third time on a project — parse the sheet, loop the rows, hand-check a bunch of fields, insert whatever survives. Every entity ended up with its own copy-pasted upload handler that only that one screen used. This post walks through a small CAP (Node.js) service I built to fix that: one generic upload action that any entity can reuse, with row-level validation and a proper error report instead of a single "something went wrong" toast.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;The full source is a working CAP + Fiori Elements-flavoured UI5 app, and everything below is lifted straight from it — nothing simplified for the blog.&lt;/P&gt;&lt;H1 id="toc-hId-1693662191"&gt;What We're Building&lt;/H1&gt;&lt;P&gt;The idea is simple: a user picks an entity from a dropdown, uploads an .xlsx file, and the backend:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Parses the workbook and reads the first sheet as JSON rows&lt;/LI&gt;&lt;LI&gt;Validates every row against rules defined for that entity&lt;/LI&gt;&lt;LI&gt;Inserts only the rows that pass validation&lt;/LI&gt;&lt;LI&gt;Returns a structured summary — total rows, success count, error count, and the exact row/field/message for every failure&lt;/LI&gt;&lt;LI&gt;Logs the whole attempt (file name, counts, and the error list as JSON) to an UploadLogs table, so there's an audit trail&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The "generic" part is that none of this logic is hard-coded to a single entity. Adding a new importable entity is a matter of adding one object to a rules map — no new controller, no new action, no copy-pasted handler.&lt;/P&gt;&lt;H1 id="toc-hId-1497148686"&gt;Project Structure&lt;/H1&gt;&lt;P&gt;Nothing exotic here — a standard CAP layout with one Fiori Elements-generated app on top:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Here is the code of the project structure file:&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Girish_Nekaar_0-1787657427426.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/450837i72CDDC92D27D7AF2/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Girish_Nekaar_0-1787657427426.png" alt="Girish_Nekaar_0-1787657427426.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Girish_Nekaar_1-1787657444761.png" style="width: 400px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/450838i39B081C00B4E818D/image-size/medium/is-moderation-mode/true?v=v2&amp;amp;px=400" role="button" title="Girish_Nekaar_1-1787657444761.png" alt="Girish_Nekaar_1-1787657444761.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;H1 id="toc-hId-1300635181"&gt;1. The Data Model&lt;/H1&gt;&lt;P&gt;Two entities. Employees is the table we're importing into. UploadLogs is what gives us the audit trail — every upload attempt, successful or not, leaves a record.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Here is the code of schema.cds file:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;namespace demo.excelupload;
-
-entity Employees {
-  key ID     : Integer;
-      name   : String(100);
-      email  : String(100);
-      salary : Decimal(10,2);
-}
-
-entity UploadLogs {
-  key uploadId     : UUID;
-      fileName     : String(200);
-      entityName   : String(100);
-      totalRows    : Integer;
-      successCount : Integer;
-      errorCount   : Integer;
-      errors       : LargeString;   // stored as JSON string
-      uploadedAt   : Timestamp &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/1434188"&gt;@CDS&lt;/a&gt;.on.insert: $now;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;The errors field is worth calling out: rather than modeling a separate association/composition for row errors, I just store the array as a JSON string in a LargeString. For a log table you read back and display as-is, that's a lot less ceremony than a child entity, and it keeps the log write to a single INSERT.&lt;/P&gt;&lt;H1 id="toc-hId-1104121676"&gt;2. Exposing It: service.cds&lt;/H1&gt;&lt;P&gt;The service exposes both entities as plain projections, plus one bound-free action — uploadExcel — that does the actual work. This is deliberately an action, not an entity CREATE, because a single call needs to return a structured, multi-row result (counts + a list of errors), which doesn't map cleanly onto a normal OData create response.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Here is the code of service.cds file:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;using demo.excelupload as db from '../db/schema';
- 
-service ExcelUploadService {
- 
-  entity Employees   as projection on db.Employees;
-  entity UploadLogs  as projection on db.UploadLogs;
- 
-  action uploadExcel(
-    entityName : String,
-    fileName   : String,
-    file       : LargeBinary
-  ) returns {
-    totalRows    : Integer;
-    successCount : Integer;
-    errorCount   : Integer;
-    errors       : array of {
-      row     : Integer;
-      field   : String;
-      message : String;
-    };
-  };
- 
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;entityName tells the handler which target table to insert into and which validation rules to apply. The file itself travels as base64-encoded LargeBinary in the request body — no multipart handling needed, which keeps the UI5 side (below) to a plain fetch() call.&lt;/P&gt;&lt;H1 id="toc-hId-907608171"&gt;3. The Core Logic: service.js&lt;/H1&gt;&lt;P&gt;This is the part that actually makes the thing generic. Everything upload-specific for an entity lives in one small config object:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Here is the code of service.js (validation rules) file:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;const VALIDATION_RULES = {
-  Employees: {
-    name:   { required: true },
-    email:  { required: true, type: 'email' },
-    salary: { required: true, type: 'number', min: 0 }
-  }
-};&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;To onboard a new entity for upload, that's the only entity-specific code you write — a rules object. Everything else (parsing, looping, inserting, logging) is shared.&lt;/P&gt;&lt;H2 id="toc-hId-840177385"&gt;The generic row validator&lt;/H2&gt;&lt;P&gt;validateRow() takes a row and a rules object and doesn't know or care which entity it's validating. It checks required fields first, then type-specific rules (email format, numeric, minimum value) — but only if the field actually has a value, so a missing-but-optional field doesn't also get penalised for "not being a number":&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Here is the code of service.js (validateRow function) file:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;function validateRow(row, rules) {
-  const rowErrors = [];
- 
-  for (const field in rules) {
-    const rule = rules[field];
-    const value = row[field];
- 
-    if (rule.required &amp;amp;&amp;amp; (value === undefined || value === null || value === '')) {
-      rowErrors.push({ field, message: `${field} is required` });
-      continue; // skip further checks on this field if it's missing
-    }
- 
-    if (value !== undefined &amp;amp;&amp;amp; value !== null &amp;amp;&amp;amp; value !== '') {
-      if (rule.type === 'email' &amp;amp;&amp;amp; !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-        rowErrors.push({ field, message: `${field} must be a valid email` });
-      }
-      if (rule.type === 'number' &amp;amp;&amp;amp; isNaN(Number(value))) {
-        rowErrors.push({ field, message: `${field} must be a number` });
-      }
-      if (rule.type === 'number' &amp;amp;&amp;amp; rule.min !== undefined &amp;amp;&amp;amp; Number(value) &amp;lt; rule.min) {
-        rowErrors.push({ field, message: `${field} cannot be less than ${rule.min}` });
-      }
-    }
-  }
- 
-  return rowErrors;
-}&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;It's intentionally basic — required, email, number, min. That's enough to cover most master-data imports, and it's easy to extend with a max, a regex rule, or a custom() function per field if a real project needs it.&lt;/P&gt;&lt;H2 id="toc-hId-643663880"&gt;The uploadExcel handler&lt;/H2&gt;&lt;P&gt;The handler itself reads top to bottom as a checklist. Worth noting: the entity name coming in from the client is validated against this.entities before it's used for anything, so you can't point the action at an arbitrary CDS entity that happens to exist in the model but was never meant to be imported into.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Here is the code of service.js (uploadExcel handler) file:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-json"&gt;&lt;code&gt;module.exports = class ExcelUploadService extends cds.ApplicationService {
- 
-  async init() {
- 
-    this.on('uploadExcel', async req =&amp;gt; {
-      const { entityName, fileName, file } = req.data;
- 
-      // 1. Validate the target entity exists in this service
-      const targetEntity = this.entities[entityName];
-      if (!targetEntity) {
-        return req.error(400, `Unknown entity: ${entityName}`);
-      }
- 
-      // 2. Look up validation rules for this entity (generic lookup)
-      const rules = VALIDATION_RULES[entityName];
-      if (!rules) {
-        return req.error(400, `No validation rules defined for entity: ${entityName}`);
-      }
- 
-      // 3. Ensure we have an actual Buffer before parsing
-      const fileBuffer = Buffer.isBuffer(file) ? file : Buffer.from(file, 'base64');
- 
-      // 4. Parse the Excel file
-      const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(sheet);
- 
-      // 5. Validate every row using the generic validator
-      const validRows = [];
-      const errors = [];
- 
-      rows.forEach((row, index) =&amp;gt; {
-        const rowNum = index + 2; // +2 = header row + 1-based index
-        const rowErrors = validateRow(row, rules);
- 
-        if (rowErrors.length &amp;gt; 0) {
-          rowErrors.forEach(e =&amp;gt; errors.push({ row: rowNum, field: e.field, message: e.message }));
-        } else {
-          validRows.push(row);
-        }
-      });
- 
-      // 6. Insert valid rows only
-      if (validRows.length &amp;gt; 0) {
-        await INSERT.into(targetEntity).entries(validRows);
-      }
- 
-      // 7. Log the upload attempt
-      await INSERT.into('ExcelUploadService.UploadLogs').entries({
-        fileName,
-        entityName,
-        totalRows: rows.length,
-        successCount: validRows.length,
-        errorCount: errors.length,
-        errors: JSON.stringify(errors)
-      });
- 
-      // 8. Return structured summary
-      return {
-        totalRows: rows.length,
-        successCount: validRows.length,
-        errorCount: errors.length,
-        errors
-      };
-    });
- 
-    return super.init();
-  }
-};&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;A couple of details that matter more than they look:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Row numbers (rowNum = index + 2) are calculated so the error list matches what the user actually sees in Excel — row 1 is the header, so the first data row is row 2. Reporting index (0-based, no header) would send someone to the wrong row every single time.&lt;/LI&gt;&lt;LI&gt;Valid rows are inserted in a single batched INSERT.into(...).entries(validRows) rather than row-by-row — much cheaper than N individual inserts, and it means partial success (some rows in, some rejected) still happens in one round trip to the DB.&lt;/LI&gt;&lt;LI&gt;The UploadLogs write happens unconditionally, even when errorCount is 0 or successCount is 0 — every attempt is logged, not just the ones that partially failed.&lt;/LI&gt;&lt;/UL&gt;&lt;H1 id="toc-hId-318067656"&gt;4. The UI Layer&lt;/H1&gt;&lt;P&gt;The Fiori app is a plain custom page (View1), not a List Report — an upload screen doesn't really benefit from the standard List Report/Object Page scaffolding, so I kept it to a Panel with a FileUploader, an entity Select, and a results table that only appears once there's something to show.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Here is the code of View1.view.xml file:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-markup"&gt;&lt;code&gt;&amp;lt;mvc:View
-    controllerName="project1.controller.View1"
-    xmlns="sap.m"
-    xmlns:mvc="sap.ui.core.mvc"
-    xmlns:core="sap.ui.core"
-    xmlns:u="sap.ui.unified"&amp;gt;
-
-    &amp;lt;Page id="page" title="Generic Excel Upload Demo"&amp;gt;
-        &amp;lt;content&amp;gt;
-
-            &amp;lt;Panel headerText="Upload" class="sapUiResponsiveMargin"&amp;gt;
-                &amp;lt;content&amp;gt;
-                    &amp;lt;VBox class="sapUiSmallMargin"&amp;gt;
-
-                        &amp;lt;Label text="Target Entity"/&amp;gt;
-                        &amp;lt;Select id="entitySelect" selectedKey="Employees" width="200px"&amp;gt;
-                            &amp;lt;core:Item key="Employees" text="Employees"/&amp;gt;
-                        &amp;lt;/Select&amp;gt;
-
-                        &amp;lt;Label text="Excel File (.xlsx)" class="sapUiTinyMarginTop"/&amp;gt;
-                        &amp;lt;u:FileUploader
-                            id="fileUploader"
-                            width="100%"
-                            placeholder="Choose a file..."
-                            fileType="xlsx"
-                            change="onFileChange"/&amp;gt;
-
-                        &amp;lt;Button
-                            text="Upload"
-                            type="Emphasized"
-                            press="onUploadPress"
-                            class="sapUiSmallMarginTop"
-                            id="uploadBtn"/&amp;gt;
-
-                        &amp;lt;Text id="statusText" class="sapUiTinyMarginTop"/&amp;gt;
-
-                    &amp;lt;/VBox&amp;gt;
-                &amp;lt;/content&amp;gt;
-            &amp;lt;/Panel&amp;gt;
-
-            &amp;lt;Panel headerText="Upload Result" class="sapUiResponsiveMargin" visible="{ui&amp;gt;/resultVisible}"&amp;gt;
-                &amp;lt;content&amp;gt;
-                    &amp;lt;VBox class="sapUiSmallMargin"&amp;gt;
-
-                        &amp;lt;HBox class="sapUiSmallMarginBottom"&amp;gt;
-                            &amp;lt;ObjectStatus title="Total" text="{ui&amp;gt;/totalRows}" class="sapUiSmallMarginEnd"/&amp;gt;
-                            &amp;lt;ObjectStatus title="Success" text="{ui&amp;gt;/successCount}" state="Success" class="sapUiSmallMarginEnd"/&amp;gt;
-                            &amp;lt;ObjectStatus title="Errors" text="{ui&amp;gt;/errorCount}" state="Error"/&amp;gt;
-                        &amp;lt;/HBox&amp;gt;
-
-                        &amp;lt;Table id="errorTable" items="{ui&amp;gt;/errors}"&amp;gt;
-                            &amp;lt;columns&amp;gt;
-                                &amp;lt;Column&amp;gt;&amp;lt;Text text="Row"/&amp;gt;&amp;lt;/Column&amp;gt;
-                                &amp;lt;Column&amp;gt;&amp;lt;Text text="Field"/&amp;gt;&amp;lt;/Column&amp;gt;
-                                &amp;lt;Column&amp;gt;&amp;lt;Text text="Message"/&amp;gt;&amp;lt;/Column&amp;gt;
-                            &amp;lt;/columns&amp;gt;
-                            &amp;lt;items&amp;gt;
-                                &amp;lt;ColumnListItem&amp;gt;
-                                    &amp;lt;cells&amp;gt;
-                                        &amp;lt;Text text="{ui&amp;gt;row}"/&amp;gt;
-                                        &amp;lt;Text text="{ui&amp;gt;field}"/&amp;gt;
-                                        &amp;lt;Text text="{ui&amp;gt;message}"/&amp;gt;
-                                    &amp;lt;/cells&amp;gt;
-                                &amp;lt;/ColumnListItem&amp;gt;
-                            &amp;lt;/items&amp;gt;
-                        &amp;lt;/Table&amp;gt;
-
-                    &amp;lt;/VBox&amp;gt;
-                &amp;lt;/content&amp;gt;
-            &amp;lt;/Panel&amp;gt;
-
-        &amp;lt;/content&amp;gt;
-    &amp;lt;/Page&amp;gt;
-&amp;lt;/mvc:View&amp;gt;&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Girish_Nekaar_2-1787657741985.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/450839i37075F8AF99861F5/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Girish_Nekaar_2-1787657741985.png" alt="Girish_Nekaar_2-1787657741985.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-inline" image-alt="Girish_Nekaar_3-1787657860296.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/450842iEC578F8E59B05BFB/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="Girish_Nekaar_3-1787657860296.png" alt="Girish_Nekaar_3-1787657860296.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;The controller does three things: read the picked file as base64 (FileReader.readAsDataURL, then strip the data: prefix), POST it to the action, and push the response into a local JSON model that the results Panel is bound to:&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Here is the code of View1.controller.js file:&lt;/STRONG&gt;&lt;/P&gt;&lt;pre class="lia-code-sample language-javascript"&gt;&lt;code&gt;sap.ui.define([
-    "sap/ui/core/mvc/Controller",
-    "sap/ui/model/json/JSONModel",
-    "sap/m/MessageToast"
-], (Controller, JSONModel, MessageToast) =&amp;gt; {
-    "use strict";
-
-    return Controller.extend("project1.controller.View1", {
-
-        onInit() {
-            const oUIModel = new JSONModel({
-                resultVisible: false,
-                totalRows: 0,
-                successCount: 0,
-                errorCount: 0,
-                errors: []
-            });
-            this.getView().setModel(oUIModel, "ui");
-            this._selectedFile = null;
-        },
-
-        onFileChange(oEvent) {
-            const oFiles = oEvent.getParameter("files");
-            this._selectedFile = oFiles &amp;amp;&amp;amp; oFiles.length ? oFiles[0] : null;
-        },
-
-        async onUploadPress() {
-            const oView = this.getView();
-            const oUIModel = oView.getModel("ui");
-            const sEntity = oView.byId("entitySelect").getSelectedKey();
-            const oStatusText = oView.byId("statusText");
-
-            if (!this._selectedFile) {
-                MessageToast.show("Please choose a file first.");
-                return;
-            }
-
-            oStatusText.setText("Uploading...");
-            oUIModel.setProperty("/resultVisible", false);
-
-            try {
-                const sBase64 = await this._fileToBase64(this._selectedFile);
-                const sServiceUrl = "/odata/v4/excel-upload/";
-
-                const response = await fetch(sServiceUrl + "uploadExcel", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        entityName: sEntity,
-                        fileName: this._selectedFile.name,
-                        file: sBase64
-                    })
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    MessageToast.show("Error: " + (data.error?.message || "Upload failed"));
-                    oStatusText.setText("");
-                    return;
-                }
-
-                oUIModel.setData({
-                    resultVisible: true,
-                    totalRows: data.totalRows,
-                    successCount: data.successCount,
-                    errorCount: data.errorCount,
-                    errors: data.errors || []
-                });
-
-                oStatusText.setText("");
-                MessageToast.show("Upload complete.");
-
-            } catch (err) {
-                MessageToast.show("Unexpected error: " + err.message);
-                oStatusText.setText("");
-            }
-        },
-
-        _fileToBase64(oFile) {
-            return new Promise((resolve, reject) =&amp;gt; {
-                const reader = new FileReader();
-                reader.onload = () =&amp;gt; {
-                    const sBase64 = reader.result.split(",")[1];
-                    resolve(sBase64);
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(oFile);
-            });
-        }
-
-    });
-});&lt;/code&gt;&lt;/pre&gt;&lt;P&gt;I went with a plain fetch() to the action's OData path rather than wiring this through the OData V4 model's callFunction/invoke API. For a single action with a binary payload, the model API adds more indirection than it saves — this way the base64 conversion and the request are both fully in my control, and it's obvious from reading the controller exactly what's going over the wire.&lt;/P&gt;&lt;H1 id="toc-hId-121554151"&gt;5. Trying It Out&lt;/H1&gt;&lt;P&gt;With the app running (cds watch), an .xlsx with columns name, email, salary and a mix of valid and deliberately broken rows (a blank email, a negative salary, a non-numeric salary) produces exactly what you'd expect: the valid rows land in Employees, and the results panel lists every rejected row with the row number, the offending field, and why it failed — so the person fixing the file doesn't have to guess.&lt;/P&gt;&lt;P&gt;Every attempt — success or partial failure — also shows up as a new row in UploadLogs, with the error list preserved as JSON. That's been genuinely useful even outside the demo: when someone asks "did my file from yesterday actually go in?", the answer is one query away instead of a shrug.&lt;/P&gt;&lt;H1 id="toc-hId--74959354"&gt;6. Extending to More Entities&lt;/H1&gt;&lt;P&gt;Since the whole point was to avoid a one-off handler per entity, adding a second importable entity is three small, additive changes and zero changes to the handler itself:&lt;/P&gt;&lt;UL&gt;&lt;LI&gt;Add the entity to db/schema.cds&lt;/LI&gt;&lt;LI&gt;Expose it as a projection in service.cds&lt;/LI&gt;&lt;LI&gt;Add its field rules to VALIDATION_RULES in service.js&lt;/LI&gt;&lt;/UL&gt;&lt;P&gt;The uploadExcel action, the validateRow() function, the batching, and the logging are all shared as-is. That's the whole value proposition of building it this way instead of one action per entity.&lt;/P&gt;&lt;H1 id="toc-hId-498267224"&gt;Conclusion&lt;/H1&gt;&lt;P&gt;None of the individual pieces here are complicated — parsing a workbook, looping rows, an INSERT. What actually removes the repeated work is keeping the entity-specific bit (the rules) completely separate from the entity-agnostic bit (parse → validate → insert → log), so the second, third, and tenth entity you need to import cost you a rules object instead of a new handler.&lt;/P&gt;&lt;P&gt;A few things I'd add before calling this production-ready: a max file size / row count check before parsing (a 200MB spreadsheet will parse just fine into a very unhappy Node process), a dry-run mode that validates without inserting, and pulling VALIDATION_RULES out of code and into a config entity so business users could adjust required fields without a redeploy. All reasonable next posts.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;If you end up building something similar, or have a cleaner approach to the row-error reporting, I'd genuinely like to hear about it in the comments.&lt;/STRONG&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;P&gt;Thank You&lt;/P&gt;</content>
-    <link href="https://community.sap.com/t5/technology-blog-posts-by-members/generic-excel-upload-in-sap-cap-node-js-reusable-validation-amp-row-level/ba-p/14471812"/>
-    <published>2026-08-28T09:09:23.945000+02:00</published>
-  </entry>
   <entry>
     <id>https://community.sap.com/t5/technology-blog-posts-by-sap/sap-ui-integration-cards-choosing-the-right-development-path-for-supplier/ba-p/14476339</id>
     <title>SAP UI Integration Cards: Choosing the Right Development Path for Supplier Portals</title>
@@ -1516,5 +1198,38 @@ const aExportData = aFilteredContexts.map(function (oContext) {
     <content>&lt;P&gt;&lt;SPAN&gt;Today&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://onedevatlas.dev/" target="_blank" rel="noopener noreferrer nofollow"&gt;onedevatlas&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;opens to everyone. It is one connected graph of what is built for SAP development, by SAP and by everyone else: packages, plugins, services, tools, MCP servers and skills, the problems they answer, the posts and talks that explain them, and the people who make them. One graph, read by people and by their agents.&lt;BR /&gt;&lt;/SPAN&gt;&lt;/P&gt;&lt;H2 id="user-content-why-it-exists" id="toc-hId-1845804262"&gt;Why it exists&lt;/H2&gt;&lt;P&gt;Building has never been easier, and being found has never been harder. On 3 October the atlas listed 31 MCP servers for ABAP. Today it lists 42. Most of them are careful work, and many solve the same problem, because their makers could not see what was already there. Agents make it sharper: an agent knows what it was trained on and what the skills beside it describe, and the work of a freelancer, a partner or a customer team is rarely part of its answer.&lt;/P&gt;&lt;P&gt;The lists we have, for CAP, for UI5, for ABAP, are good and separate. What was missing is a view across the stacks, with SAP's work and the community's side by side, and a graph underneath that says how things relate.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="map.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/472907iD843234DFAC8556C/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="map.png" alt="map.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="user-content-a-map-drawn-by-capability" id="toc-hId-1649290757"&gt;A map drawn by capability&lt;/H2&gt;&lt;P&gt;Every door, CAP, UI5, ABAP and BTP, and the smaller ones for SAP Commerce, SAP SuccessFactors and SAP Digital Manufacturing, has its own map. One hexagon is one capability, a concern a project has, and its colour says who is present: SAP, the community, both, or nobody yet.&amp;nbsp;Open a tile and the capability page says what SAP ships, where that stops, and who else is present. Under a capability, use cases make the options comparable by the outcome they cover and the conditions under which they cover it, never by stars or downloads.&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="globe.png" style="width: 990px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/472908iF047C43263DA66C6/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="globe.png" alt="globe.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;Behind the map is the graph itself, at&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://onedevatlas.dev/graph" rel="noopener noreferrer nofollow" target="_blank"&gt;/graph&lt;/A&gt;: select a node and its card says what it provides, who maintains it and what it depends on, each edge with one meaning.&lt;/P&gt;&lt;H2 id="user-content-the-same-answers-for-your-agent" id="toc-hId-1452777252"&gt;The same answers for your agent&lt;/H2&gt;&lt;P&gt;The hosted MCP server at&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;CODE&gt;&lt;A href="https://onedevatlas.dev/mcp" target="_blank" rel="noopener nofollow noreferrer"&gt;https://onedevatlas.dev/mcp&lt;/A&gt;&lt;/CODE&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;answers with the same facts the pages show. This exchange was recorded against the live server today: a question about letting a coding agent change ABAP in an on-premise system lands on a capability, then on an assessed use case with seven options, six covering it under conditions and one not known, and the four things that decide between them for your system.&lt;/P&gt;&lt;H2 id="user-content-explore-and-teched-week" id="toc-hId-1256263747"&gt;Explore, and TechEd week&lt;/H2&gt;&lt;P&gt;The third way in is a flight.&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://onedevatlas.dev/playground" target="_blank" rel="noopener noreferrer nofollow"&gt;Explore and Play&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;is the same graph as a place: make an orb, design a ship and fly through the ecosystems. Until Sunday 1 November, midnight in Berlin, it is shared: sign in with GitHub, meet other pilots, play rock, paper, scissors (SAP style) and collect points for what you look at. Then the boards freeze, and the leaders stay in the atlas's history.&lt;/P&gt;&lt;P&gt;&lt;span class="lia-inline-image-display-wrapper lia-image-align-center" image-alt="image-1793016522505.png" style="width: 999px;"&gt;&lt;img src="https://community.sap.com/t5/image/serverpage/image-id/472916i79B47312D1F96AA3/image-size/large/is-moderation-mode/true?v=v2&amp;amp;px=999" role="button" title="image-1793016522505.png" alt="image-1793016522505.png" /&gt;&lt;/span&gt;&lt;/P&gt;&lt;P&gt;&amp;nbsp;&lt;/P&gt;&lt;H2 id="user-content-take-part" id="toc-hId-1059750242"&gt;Take part&lt;/H2&gt;&lt;P&gt;If your work is missing or something about it is wrong,&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://github.com/onedevatlas/feedback/issues/new/choose" target="_blank" rel="noopener noreferrer nofollow"&gt;open an issue&lt;/A&gt;. Anything about a person goes directly through the contact form. Maintainers can sign in and write a note on their own entry.&lt;/P&gt;&lt;P&gt;The&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;&lt;A href="https://onedevatlas.dev/topics/onedevatlas-is-open" target="_self" rel="nofollow noopener noreferrer"&gt;&lt;SPAN class=""&gt;full article&lt;/SPAN&gt;&lt;/A&gt;&lt;SPAN&gt;&amp;nbsp;&lt;/SPAN&gt;explains the words the atlas uses and how to read a capability page, and its discussion is open.&lt;/P&gt;&lt;P&gt;See you at TechEd, or in flight.&amp;nbsp;&lt;span class="lia-unicode-emoji" title=":rocket:"&gt;🚀&lt;/span&gt;&lt;/P&gt;</content>
     <link href="https://community.sap.com/t5/technology-blog-posts-by-members/onedevatlas-is-open-one-connected-graph-for-sap-developers/ba-p/14510964"/>
     <published>2026-10-26T13:14:42.371000+01:00</published>
+  </entry>
+  <entry>
+    <id>https://community.sap.com/t5/technology-blog-posts-by-sap/ui5-typescript-development-just-got-smoother/ba-p/14511542</id>
+    <title>UI5 TypeScript development just got smoother</title>
+    <updated>2026-10-27T11:03:22.414000+01:00</updated>
+    <author>
+      <name>pmuessig</name>
+      <uri>https://community.sap.com/t5/user/viewprofilepage/user-id/42075</uri>
+    </author>
+    <content>&lt;H1 id="toc-hId-1716747426"&gt;No more &lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2105801"&gt;@namespace&lt;/a&gt; annotations: ui5-tooling-transpile now auto-detects your UI5 namespace&lt;/H1&gt;&lt;P&gt;If you write UI5 with TypeScript, you have almost certainly written this in every controller, control, and component:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;/**
+ * @namespace ui5.ecosystem.demo.myapp
+ */
+export default class Main extends Controller {&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;That annotation exists for one reason: the Babel preset that converts your TypeScript class to a classic &lt;CODE&gt;sap.ui.define&lt;/CODE&gt; call needs to know which namespace prefix to put in front of &lt;CODE&gt;controller.Main&lt;/CODE&gt;. Without it, the generated module name comes out wrong and the app breaks at runtime.&lt;/P&gt;&lt;P&gt;Starting with &lt;CODE&gt;ui5-tooling-transpile&lt;/CODE&gt; 3.14.0, you do not need to write it anymore.&lt;/P&gt;&lt;H2 id="toc-hId-1649316640"&gt;What changed&lt;/H2&gt;&lt;P&gt;The new version of &lt;CODE&gt;babel-preset-transform-ui5&lt;/CODE&gt; (7.11.0) can derive the namespace from the project structure on its own. &lt;CODE&gt;ui5-tooling-transpile&lt;/CODE&gt; now reads the &lt;CODE&gt;namespace&lt;/CODE&gt; and source path configuration from your &lt;CODE&gt;ui5.yaml&lt;/CODE&gt;, builds the &lt;CODE&gt;sourceFolders&lt;/CODE&gt; map (a table that says "files under &lt;CODE&gt;webapp/&lt;/CODE&gt; belong to this namespace"), and hands it directly to the preset before transpilation starts.&lt;/P&gt;&lt;P&gt;The result is that every file in your project picks up the right namespace prefix automatically. You delete the annotations, and the output is identical to what you had before.&lt;/P&gt;&lt;P&gt;Here is what a controller looks like before and after:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;// before
+/**
+ * @namespace ui5.ecosystem.demo.myapp
+ */
+export default class Main extends Controller {
+  onInit(): void {
+    // ...
+  }
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;PRE&gt;&lt;CODE&gt;// after
+export default class Main extends Controller {
+  onInit(): void {
+    // ...
+  }
+}&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Same output. One annotation fewer per file. In a medium-sized app with a dozen controllers and a handful of controls, that is a meaningful amount of noise gone.&lt;/P&gt;&lt;H2 id="toc-hId-1452803135"&gt;What it covers&lt;/H2&gt;&lt;P&gt;The auto-detection works across all three scenarios you are likely to encounter.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;App development.&lt;/STRONG&gt; The middleware and the build task both read the project's &lt;CODE&gt;namespace&lt;/CODE&gt; from &lt;CODE&gt;ui5.yaml&lt;/CODE&gt;. Files under &lt;CODE&gt;webapp/&lt;/CODE&gt; (or whatever path you have configured in &lt;CODE&gt;resources.configuration.paths.webapp&lt;/CODE&gt;) map to that namespace. Nothing to configure.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Library development.&lt;/STRONG&gt; For library projects &lt;CODE&gt;src/&lt;/CODE&gt; maps to the project namespace. Same automatic derivation, same zero-config experience.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;Middleware with a dependency library.&lt;/STRONG&gt; This is the case that was missing before and is the main reason the change landed. When your app runs &lt;CODE&gt;ui5 serve&lt;/CODE&gt; with &lt;CODE&gt;ui5-tooling-transpile&lt;/CODE&gt; as middleware, and one of your workspace library dependencies also uses &lt;CODE&gt;ui5-tooling-transpile&lt;/CODE&gt;, the middleware now walks the dependency graph and registers the &lt;CODE&gt;sourceFolders&lt;/CODE&gt; of each dependency alongside your own. So if a controller from a local library gets served through the middleware, it resolves to &lt;CODE&gt;my.lib.controller.Shared&lt;/CODE&gt; instead of &lt;CODE&gt;src.controller.Shared&lt;/CODE&gt;. No annotations needed in the library either.&lt;/P&gt;&lt;P&gt;&lt;STRONG&gt;External Babel configs.&lt;/STRONG&gt; If your project supplies a &lt;CODE&gt;.babelrc&lt;/CODE&gt;, &lt;CODE&gt;babel.config.js&lt;/CODE&gt;, or similar, the auto-derived &lt;CODE&gt;sourceFolders&lt;/CODE&gt; is normally not injected because the external config takes over. Add &lt;CODE&gt;injectSourceFolders: true&lt;/CODE&gt; to your &lt;CODE&gt;ui5.yaml&lt;/CODE&gt; configuration block for &lt;CODE&gt;ui5-tooling-transpile&lt;/CODE&gt; and the preset will receive the derived values, with anything already set in your external config taking precedence:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;builder:
+  customTasks:
+    - name: ui5-tooling-transpile-task
+      afterTask: replaceVersion
+      configuration:
+        injectSourceFolders: true&lt;/CODE&gt;&lt;/PRE&gt;&lt;H2 id="toc-hId-1256289630"&gt;How to upgrade&lt;/H2&gt;&lt;P&gt;Update &lt;CODE&gt;ui5-tooling-transpile&lt;/CODE&gt; to 3.14.0 or later in your project:&lt;/P&gt;&lt;PRE&gt;&lt;CODE&gt;npm install ui5-tooling-transpile@latest --save-dev&lt;/CODE&gt;&lt;/PRE&gt;&lt;P&gt;Then delete the &lt;CODE&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2105801"&gt;@namespace&lt;/a&gt;&lt;/CODE&gt; JSDoc blocks from your TypeScript source files. That's it. If you use an external Babel config and want to stop writing annotations there too, add &lt;CODE&gt;injectSourceFolders: true&lt;/CODE&gt; as shown above.&lt;/P&gt;&lt;P&gt;The &lt;A href="https://github.com/SAP/generator-easy-ui5" target="_blank" rel="noopener nofollow noreferrer"&gt;Easy UI5&lt;/A&gt; TypeScript templates have been updated to match, so new projects generated from those templates will start without annotations from the beginning.&lt;/P&gt;&lt;H2 id="toc-hId-1059776125"&gt;Where to find it&lt;/H2&gt;&lt;P&gt;The package is on npm:&lt;/P&gt;&lt;P&gt;&lt;span class="lia-unicode-emoji" title=":backhand_index_pointing_right:"&gt;👉&lt;/span&gt; &lt;A href="https://www.npmjs.com/package/ui5-tooling-transpile" target="_blank" rel="noopener nofollow noreferrer"&gt;https://www.npmjs.com/package/ui5-tooling-transpile&lt;/A&gt;&lt;/P&gt;&lt;P&gt;It's part of the &lt;A href="https://github.com/ui5-community/ui5-ecosystem-showcase" target="_blank" rel="noopener nofollow noreferrer"&gt;ui5-ecosystem-showcase&lt;/A&gt;, the collection of UI5 CLI extensions the community uses every day. The showcase itself runs without any &lt;CODE&gt;&lt;a href="https://community.sap.com/t5/user/viewprofilepage/user-id/2105801"&gt;@namespace&lt;/a&gt;&lt;/CODE&gt; annotations now, so the complete set of app and library scenarios there serves as a working reference.&lt;/P&gt;</content>
+    <link href="https://community.sap.com/t5/technology-blog-posts-by-sap/ui5-typescript-development-just-got-smoother/ba-p/14511542"/>
+    <published>2026-10-27T11:03:22.414000+01:00</published>
   </entry>
 </feed>
